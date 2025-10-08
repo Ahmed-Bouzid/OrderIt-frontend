@@ -21,23 +21,38 @@ export default function Login() {
 	const handleLogin = async () => {
 		setLoading(true);
 		try {
-			// Ajuste l'URL si ton backend est sur /auth/login ou /api/auth/login
-			const res = await fetch("http://192.168.1.122:3000/auth/login", {
+			const res = await fetch("http://192.168.1.165:3000/auth/login", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ email, password }),
 			});
+
 			const data = await res.json();
+			console.log("Réponse backend login :", data); // 🔹 pour debug
+
 			if (res.ok) {
+				// ✅ Stocker le token
 				await AsyncStorage.setItem("token", data.accessToken);
-				// redirige vers la zone onglets
+
+				// ✅ Stocker le restaurantId si disponible
+				const restaurantId = data.restaurantId;
+				if (!restaurantId) {
+					console.warn(
+						"⚠️ restaurantId non trouvé dans la réponse du backend",
+						data
+					);
+				} else {
+					await AsyncStorage.setItem("restaurantId", restaurantId);
+				}
+
+				// 🧭 Redirection vers l'écran principal
 				router.replace("/tabs/activity");
 			} else {
 				Alert.alert("Erreur", data.message || "Identifiants invalides");
 			}
 		} catch (err) {
 			console.error(err);
-			Alert.alert("Erreur", "Impossible de contacter le serveur");
+			Alert.alert("Erreur", "Impossible de contacter le server");
 		} finally {
 			setLoading(false);
 		}

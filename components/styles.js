@@ -46,6 +46,7 @@ const styles = StyleSheet.create({
 		paddingVertical: 14,
 		borderRadius: 10,
 		alignItems: "center",
+		maxHeight: 60,
 	},
 	prevButton: {
 		flex: 1,
@@ -324,7 +325,7 @@ const styles = StyleSheet.create({
 		backgroundColor: "#FBFBFD",
 		borderRadius: 15,
 		padding: 16,
-		marginBottom: 15,
+		marginBottom: 10,
 	},
 	blockTitle: {
 		fontSize: 20,
@@ -406,6 +407,71 @@ const styles = StyleSheet.create({
 		fontSize: 17,
 		marginBottom: 12,
 		backgroundColor: "#f7f7f7",
+	},
+	filterButton: {
+		paddingVertical: 6,
+		paddingHorizontal: 12,
+		borderRadius: 6,
+		backgroundColor: "#eee",
+	},
+	activeButton: {
+		backgroundColor: "#cce5ff",
+	},
+	reservationContainer: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginVertical: 5,
+		backgroundColor: "#fff",
+		borderRadius: 8,
+		overflow: "hidden", // pour que la barre ne dépasse pas
+		elevation: 2, // ombre android
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 1 },
+		shadowOpacity: 0.2,
+		shadowRadius: 1.41,
+	},
+
+	counterButton: {
+		width: 32,
+		height: 32,
+		borderRadius: 8,
+		borderWidth: 1,
+		borderColor: "#ccc",
+		justifyContent: "center",
+		alignItems: "center",
+		backgroundColor: "#f0f0f0",
+	},
+	productRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		marginVertical: 4,
+	},
+	categoryTitle: {
+		fontSize: 18,
+		fontWeight: "700",
+		color: "#0F172A",
+		marginBottom: 8,
+	},
+	quantityText: {
+		marginHorizontal: 8,
+		fontSize: 16,
+		color: "#0F172A",
+		fontWeight: "500",
+	},
+	scrollContainer: {
+		paddingBottom: 20,
+	},
+
+	dropdownButton: {
+		backgroundColor: "#f0f0f0",
+		padding: 10,
+		borderRadius: 8,
+		marginBottom: 10,
+	},
+	dropdownButtonText: {
+		color: "#333",
+		fontSize: 16,
 	},
 });
 

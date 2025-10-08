@@ -16,7 +16,7 @@ export default function Index() {
 
 				if (token) {
 					// Redirige directement vers l'onglet Activité
-					router.replace("/tabs/activity"); // <-- ici
+					router.replace("/tabs/activity");
 				} else {
 					router.replace("/login");
 				}

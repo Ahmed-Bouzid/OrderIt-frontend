@@ -2,6 +2,10 @@ import React, { useState, useEffect } from "react";
 import styles from "./styles"; // adapte le chemin si tu l'as mis dans un sous-dossier
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
+import useReservationStore from "../src/stores/useReservationStore";
+import DraggableButton from "../components/ui/draggableButton";
+// import { getToken } from "../app/utils/token";
+
 import {
 	View,
 	Text,
@@ -15,18 +19,6 @@ import {
 	TouchableWithoutFeedback,
 	Alert,
 } from "react-native";
-// import {
-// 	GestureHandlerRootView,
-// 	PanGestureHandler,
-// } from "react-native-gesture-handler";
-// import Animated, {
-// 	useSharedValue,
-// 	useAnimatedStyle,
-// 	useAnimatedGestureHandler,
-// 	withSpring,
-// 	withDecay,
-// 	runOnJS,
-// } from "react-native-reanimated";
 
 const SCREEN_WIDTH = Dimensions.get("window").width;
 // eslint-disable-next-line no-unused-vars
@@ -35,7 +27,22 @@ const THRESHOLD = SCREEN_WIDTH * 0.2;
 // Carte individuelle swipeable avec roue de réglages
 function SwipeableReservationCard({ reservation, onSettingsPress }) {
 	return (
-		<View style={[styles.card, { flexDirection: "row", width: "100%" }]}>
+		<View
+			style={[
+				styles.card,
+				{
+					flexDirection: "row",
+					width: "100%",
+					backgroundColor: reservation.isPresent
+						? "rgba(46, 139, 87, 0.2)"
+						: "#fff",
+					borderRadius: 8,
+					padding: 10,
+				},
+			]}
+		>
+			{reservation.isPresent && <View style={styles.greenStripe} />}
+
 			{/* Colonne gauche */}
 			<View style={styles.leftCol}>
 				<Text style={styles.infoText}>{reservation.clientName}</Text>
@@ -59,9 +66,7 @@ function SwipeableReservationCard({ reservation, onSettingsPress }) {
 
 			{/* Colonne droite */}
 			<View style={styles.rightCol}>
-				<Text style={styles.subText}>
-					Serveur : {reservation.server || "-"}
-				</Text>
+				<Text style={styles.subText}>server : {reservation.server || "-"}</Text>
 				<Text style={styles.subText}>
 					Paiement : {reservation.paymentMethod || "-"}
 				</Text>
@@ -69,9 +74,7 @@ function SwipeableReservationCard({ reservation, onSettingsPress }) {
 					Montant :{" "}
 					{reservation.totalAmount ? `${reservation.totalAmount}€` : "-"}
 				</Text>
-				<Text style={styles.subText}>
-					Statut : {reservation.dishStatus || "-"}
-				</Text>
+				<Text style={styles.subText}>Statut : {reservation.status || "-"}</Text>
 				<TouchableOpacity onPress={() => onSettingsPress(reservation)}>
 					<Text style={{ fontSize: 20, marginTop: 4 }}>⚙️</Text>
 				</TouchableOpacity>
@@ -80,27 +83,19 @@ function SwipeableReservationCard({ reservation, onSettingsPress }) {
 	);
 }
 
-export default function Dashboard() {
-	const fetchReservations = async () => {
-		try {
-			const token = await AsyncStorage.getItem("token");
-			if (!token) return alert("Pas de token, rediriger vers login");
+export default function Dashboard(navigation) {
+	const { reservations, fetchReservations } = useReservationStore();
 
-			const response = await fetch(`http://192.168.1.122:3000/reservations`, {
-				headers: { Authorization: `Bearer ${token}` },
-			});
-
-			if (!response.ok) {
-				console.error("Erreur fetch réservations", response.status);
-				return;
-			}
-
-			const data = await response.json();
-			setReservations(data); // stocke toutes les réservations récupérées
-		} catch (err) {
-			console.error("Erreur récupération réservations:", err);
+	//recupere toutes les reservations
+	useEffect(() => {
+		if (!reservations.length) {
+			fetchReservations();
 		}
-	};
+		//fetchReservations vient d’un store stable.
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [reservations]);
+
+	//USESTATES
 	const [modalVisible, setModalVisible] = useState(false);
 	const [selectedReservation, setSelectedReservation] = useState(null);
 	const [newResaModal, setNewResaModal] = useState(false);
@@ -113,21 +108,48 @@ export default function Dashboard() {
 	const [restrictions, setRestrictions] = useState(""); // Restrictions alimentaires
 	const [notes, setNotes] = useState(""); // Observations de la réservation
 	// eslint-disable-next-line no-unused-vars
-	const [restaurantId, setRestaurantId] = useState("686af511bb4cba684ff3b72e"); // met l'ID réel
+	const [restaurantId, setRestaurantId] = useState(null); // met l'ID réel
 	const [reservationDate, setReservationDate] = useState(""); // format "YYYY-MM-DD"
-	const [reservations, setReservations] = useState([]);
 	const [reservationFilter, setReservationFilter] = useState("actives"); // "actives" ou "annulees"
+	const [tables, setTables] = useState([]);
+	const [showTablesOptions, setShowTablesOptions] = useState(false);
+	const [selectedTable, setSelectedTable] = useState(null);
 
+	const [newReservation, setNewReservation] = useState({
+		clientName: "",
+		nbPersonnes: 1,
+		allergies: "",
+		restrictions: "",
+		notes: "",
+		reservationDate: null,
+		reservationTime: null,
+		tableId: null, // 👈 nouveau
+	});
+
+	//cree une reservation
 	const createReservation = async () => {
+		const reservationData = {
+			...newReservation,
+			tableId: selectedTable ? selectedTable._id : null,
+		};
 		try {
 			const token = await AsyncStorage.getItem("token");
-			console.log("Token:", token);
 			if (!token) return alert("Pas de token, rediriger vers login");
 
-			const [hours, minutes] = reservationTime.split(":");
-			const today = new Date(); // ou la date choisie par le client
-			today.setHours(parseInt(hours), parseInt(minutes), 0, 0); // heures et minutes
-			const isoDate = today.toISOString();
+			let isoDate;
+			try {
+				const [hours, minutes] = reservationTime.split(":");
+				const today = new Date(reservationDate || new Date());
+				today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
+				isoDate = today.toISOString();
+			} catch {
+				Alert.alert(
+					"Erreur",
+					"La date ou l'heure choisie n'est pas valide. Veuillez vérifier vos saisies.",
+					[{ text: "OK" }]
+				);
+				return; // stop la création
+			}
 
 			const body = {
 				clientName,
@@ -137,11 +159,11 @@ export default function Dashboard() {
 				restrictions,
 				notes,
 				restaurantId,
-				reservationDate: isoDate, // ✅ Mongoose accepte ça comme Date
-				reservationTime, // optionnel
+				reservationDate: isoDate,
+				reservationTime,
 			};
 
-			const response = await fetch("http://192.168.1.122:3000/reservations", {
+			const response = await fetch("http://192.168.1.165:3000/reservations", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -156,140 +178,32 @@ export default function Dashboard() {
 				data = JSON.parse(text);
 			} catch {
 				console.error("Réponse non JSON:", text);
-				alert("Erreur serveur: réponse inattendue");
+				Alert.alert("Erreur", "Erreur serveur : réponse inattendue");
 				return;
 			}
 
 			if (!response.ok) {
 				console.error(data);
-				alert("Erreur: " + (data.message || "Vérifie les champs"));
+				Alert.alert("Erreur", data.message || "Vérifie les champs");
 				return;
 			}
 
-			console.log("Réservation créée:", data);
-			alert("Réservation créée avec succès !");
+			Alert.alert("Succès", "Réservation créée avec succès !");
 			resetResa();
 			fetchReservations();
 		} catch (err) {
 			console.error(err);
-			alert("Impossible de créer la réservation, vérifie ta connexion.");
-		}
-	};
-	console.log("reservationTime:", reservationTime);
-	const deleteReservation = async (id) => {
-		try {
-			const token = await AsyncStorage.getItem("token");
-			if (!token) {
-				alert("Pas de token, rediriger vers login");
-				return false;
-			}
-
-			const response = await fetch(
-				`http://192.168.1.122:3000/reservations/${id}`,
-				{
-					method: "DELETE",
-					headers: {
-						Authorization: `Bearer ${token}`,
-					},
-				}
+			Alert.alert(
+				"Erreur",
+				"Impossible de créer la réservation, vérifie ta connexion."
 			);
-
-			const data = await response.json();
-
-			if (!response.ok) {
-				alert("Erreur: " + (data.message || "Impossible de supprimer"));
-				return false;
-			}
-
-			alert("Réservation supprimée ✅");
-			fetchReservations();
-			return true; // ✅ succès
-		} catch (err) {
-			console.error(err);
-			alert("Erreur de connexion");
-			return false;
-		}
-	};
-	const cancelReservation = async (reservation) => {
-		// Si reservation est un objet, prends son _id
-		const reservationId = reservation._id ? reservation._id : reservation;
-		console.log("ID utilisé :", reservationId);
-
-		try {
-			const token = await AsyncStorage.getItem("token");
-			if (!token) {
-				alert("Pas de token, rediriger vers login");
-				return false;
-			}
-
-			const response = await fetch(
-				`http://192.168.1.122:3000/reservations/${reservationId}/cancel`,
-				{
-					method: "PUT",
-					headers: { Authorization: `Bearer ${token}` },
-				}
-			);
-
-			const data = await response.json();
-
-			if (!response.ok) {
-				alert("Erreur: " + (data.message || "Impossible de modifier"));
-				return false;
-			}
-
-			alert("Réservation annulée ✅");
-			fetchReservations();
-			return true;
-		} catch (err) {
-			console.error(err);
-			alert("Erreur de connexion");
-			return false;
 		}
 	};
 
-	const toggleReservationStatus = async (reservation) => {
-		const reservationId = reservation._id ? reservation._id : reservation;
-		console.log("ID utilisé :", reservationId);
-
-		try {
-			const token = await AsyncStorage.getItem("token");
-			if (!token) {
-				alert("Pas de token, rediriger vers login");
-				return false;
-			}
-
-			const response = await fetch(
-				`http://192.168.1.122:3000/reservations/${reservationId}/toggle`,
-				{
-					method: "PUT",
-					headers: { Authorization: `Bearer ${token}` },
-				}
-			);
-
-			const data = await response.json();
-
-			if (!response.ok) {
-				alert("Erreur: " + (data.message || "Impossible de modifier"));
-				return false;
-			}
-
-			alert(
-				`Réservation mise à jour : ${
-					data.dishStatus === "Annulé" ? "Annulée ✅" : "En attente ♻️"
-				}`
-			);
-
-			fetchReservations(); // recharge la liste
-			return true;
-		} catch (err) {
-			console.error(err);
-			alert("Erreur de connexion");
-			return false;
-		}
-	};
-
+	//changer pages modale
 	const nextStep = () => setStep((s) => s + 1);
 	const prevStep = () => setStep((s) => Math.max(1, s - 1));
+	//reset la modale
 	const resetResa = () => {
 		// Fermer la modale
 		setNewResaModal(false);
@@ -304,53 +218,193 @@ export default function Dashboard() {
 		setReservationDate("");
 		setStep(1);
 	};
+
+	//ouvre la modale reglages
 	const openSettings = (reservation) => {
 		setSelectedReservation(reservation);
 		setModalVisible(true);
 	};
+	//ferme la modale reglages
 	const closeModal = () => {
 		setModalVisible(false);
 		setSelectedReservation(null);
 	};
-	const handleAction = (action) => {
-		if (!selectedReservation) return;
-		if (action === "terminer") selectedReservation.status = "fermée";
-		if (action === "annuler") selectedReservation.status = "annulée";
-		closeModal();
+
+	const filteredReservations = reservations.filter((res) => {
+		switch (reservationFilter) {
+			case "en_attente":
+				return res.status === "en attente";
+			case "present":
+				return res.status === "en attente" && res.isPresent === true;
+			case "ouverte":
+				return res.status === "ouverte";
+			case "termine":
+				return res.status === "fermee";
+			case "annulee":
+				return res.status === "annulee";
+			default:
+				return true;
+		}
+	});
+
+	// Toggle Présent / Absent
+	const togglePresent = async (id) => {
+		try {
+			const token = await AsyncStorage.getItem("token");
+			if (!token) {
+				alert("Pas de token, rediriger vers login");
+				return false;
+			}
+
+			const response = await fetch(
+				`http://192.168.1.165:3000/reservations/${id}/togglePresent`,
+				{
+					method: "PUT",
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				alert("Erreur: " + (data.message || "Impossible de mettre présent"));
+				return false;
+			}
+
+			alert(
+				`Réservation mise à jour : ${
+					data.isPresent ? "Présent ✅" : "Absent ⚠️"
+				}`
+			);
+			fetchReservations(); // rafraîchir la liste
+			return true;
+		} catch (err) {
+			console.error(err);
+			alert("Erreur de connexion");
+			return false;
+		}
+	};
+
+	// Mettre à jour le statut (en attente, annulé, fermee, ouverte)
+	const updateStatus = async (id, newStatus) => {
+		try {
+			const token = await AsyncStorage.getItem("token");
+			if (!token) return alert("Pas de token, rediriger vers login");
+
+			// Normaliser le statut avant envoi
+			const normalizedStatus = newStatus.toLowerCase(); // "annulee", "en attente", "fermee", "ouverte"
+
+			const response = await fetch(
+				`http://192.168.1.165:3000/reservations/${id}/status`,
+				{
+					method: "PUT",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ status: normalizedStatus }),
+				}
+			);
+
+			const data = await response.json();
+
+			if (!response.ok) {
+				alert("Erreur: " + (data.message || "Impossible de changer le statut"));
+				return false;
+			}
+
+			alert(`Réservation mise à jour : ${normalizedStatus} ✅`);
+			fetchReservations(); // rafraîchir la liste
+			return true;
+		} catch (err) {
+			console.error(err);
+			alert("Erreur de connexion");
+			return false;
+		}
 	};
 
 	useEffect(() => {
-		fetchReservations();
+		const fetchTables = async () => {
+			const token = await AsyncStorage.getItem("token");
+			const restaurantId = await AsyncStorage.getItem("restaurantId");
+			const res = await fetch(
+				`http://192.168.1.165:3000/tables/restaurant/${restaurantId}`,
+				{
+					headers: { Authorization: `Bearer ${token}` },
+				}
+			);
+			const data = await res.json();
+			setTables(data);
+		};
+		fetchTables();
 	}, []);
 
 	return (
 		<View style={{ flex: 1 }}>
-			<View style={{ flexDirection: "row", marginVertical: 10 }}>
+			<View style={{ flexDirection: "row", marginBottom: 10 }}>
 				<TouchableOpacity
 					style={{
 						backgroundColor:
-							reservationFilter === "actives" ? "#4285F4" : "#ccc",
+							reservationFilter === "en_attente" ? "#FFA500" : "#ccc",
 						padding: 10,
 						borderRadius: 5,
 						marginRight: 5,
 					}}
-					onPress={() => setReservationFilter("actives")}
+					onPress={() => setReservationFilter("en_attente")}
 				>
-					<Text style={{ color: "#fff" }}>Actives</Text>
+					<Text style={{ color: "#fff" }}>En Attente</Text>
 				</TouchableOpacity>
 
 				<TouchableOpacity
 					style={{
 						backgroundColor:
-							reservationFilter === "annulees" ? "#EA4335" : "#ccc",
+							reservationFilter === "present" ? "#4285F4" : "#ccc",
 						padding: 10,
 						borderRadius: 5,
+						marginRight: 5,
 					}}
-					onPress={() => setReservationFilter("annulees")}
+					onPress={() => setReservationFilter("present")}
 				>
-					<Text style={{ color: "#fff" }}>Annulées</Text>
+					<Text style={{ color: "#fff" }}>Présent</Text>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={{
+						backgroundColor:
+							reservationFilter === "ouverte" ? "#FFD700" : "#ccc",
+						padding: 10,
+						borderRadius: 5,
+						marginRight: 5,
+					}}
+					onPress={() => setReservationFilter("ouverte")}
+				>
+					<Text style={{ color: "#fff" }}>Ouverte</Text>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={{
+						backgroundColor:
+							reservationFilter === "termine" ? "#34A853" : "#ccc",
+						padding: 10,
+						borderRadius: 5,
+						marginRight: 5,
+					}}
+					onPress={() => setReservationFilter("termine")}
+				>
+					<Text style={{ color: "#fff" }}>Terminée</Text>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={{
+						backgroundColor:
+							reservationFilter === "annulee" ? "#EA4335" : "#ccc",
+						padding: 10,
+						borderRadius: 5,
+						marginRight: 5,
+					}}
+					onPress={() => setReservationFilter("annulee")}
+				>
+					<Text style={{ color: "#fff" }}>Annulée</Text>
 				</TouchableOpacity>
 			</View>
+
 			<ScrollView
 				style={{ flex: 1, backgroundColor: "#f9f9f9" }}
 				contentContainerStyle={{
@@ -366,30 +420,30 @@ export default function Dashboard() {
 					}}
 				>
 					<ScrollView contentContainerStyle={{ paddingVertical: 10 }}>
-						{reservations
-							.filter((res) => {
-								if (reservationFilter === "actives")
-									return res.dishStatus !== "Annulé";
-								if (reservationFilter === "annulees")
-									return res.dishStatus === "Annulé";
-								return true; // au cas où d'autres filtres viendront
-							})
-							.map((res) => (
-								<SwipeableReservationCard
-									key={res._id}
-									reservation={res}
-									onSettingsPress={openSettings}
-								/>
-							))}
+						{filteredReservations.map((res) => (
+							<SwipeableReservationCard
+								key={res._id}
+								reservation={res}
+								onSettingsPress={openSettings}
+							/>
+						))}
 					</ScrollView>
 				</ScrollView>
 			</ScrollView>
-			<TouchableOpacity
+
+			<DraggableButton
+				onPress={() => setNewResaModal(true)}
+				color="#b87a23ff"
+				initialPosition={{ bottom: 10, right: 530 }}
+			/>
+
+			{/* <TouchableOpacity
 				style={styles.newReservationButton}
 				onPress={() => setNewResaModal(true)}
 			>
 				<Text style={{ fontSize: 26, color: "#fff" }}>＋</Text>
-			</TouchableOpacity>
+			</TouchableOpacity> */}
+
 			{/* Modal Réglages */}
 			<Modal
 				visible={modalVisible}
@@ -405,131 +459,182 @@ export default function Dashboard() {
 									Réglages pour {selectedReservation?.clientName}
 								</Text>
 
-								{selectedReservation?.dishStatus !== "Annulé" ? (
+								{selectedReservation && (
 									<>
-										{/* Réservation active */}
-										<TouchableOpacity
-											style={[
-												styles.modalButtonSettings,
-												{ backgroundColor: "#4285F4" },
-											]}
-											onPress={() =>
-												Alert.alert(
-													"Confirmation",
-													"Êtes-vous sûr de vouloir terminer cette réservation ?",
-													[
-														{ text: "Non", style: "cancel" },
-														{
-															text: "Oui",
-															onPress: () => handleAction("terminer"),
-														},
-													]
-												)
-											}
-										>
-											<Text style={styles.buttonTextSettings}>
-												✅ Terminer la réservation
-											</Text>
-										</TouchableOpacity>
+										{/* Si réservation en attente */}
+										{selectedReservation.status === "en attente" && (
+											<>
+												{/* Présent / Absent */}
+												{!selectedReservation.isPresent ? (
+													<TouchableOpacity
+														style={[
+															styles.modalButtonSettings,
+															{ backgroundColor: "#34A853" },
+														]}
+														onPress={async () => {
+															const success = await togglePresent(
+																selectedReservation._id
+															);
+															if (success) closeModal();
+														}}
+													>
+														<Text style={styles.buttonTextSettings}>
+															✅ Mettre présent
+														</Text>
+													</TouchableOpacity>
+												) : (
+													<TouchableOpacity
+														style={[
+															styles.modalButtonSettings,
+															{ backgroundColor: "#FFA500" },
+														]}
+														onPress={async () => {
+															const success = await togglePresent(
+																selectedReservation._id
+															);
+															if (success) closeModal();
+														}}
+													>
+														<Text style={styles.buttonTextSettings}>
+															⚠️ Mettre absent
+														</Text>
+													</TouchableOpacity>
+												)}
 
-										<TouchableOpacity
-											style={[
-												styles.modalButtonSettings,
-												{ backgroundColor: "#EA4335" },
-											]}
-											onPress={() =>
-												Alert.alert(
-													"Confirmation",
-													"Êtes-vous sûr de vouloir annuler cette réservation ?",
-													[
-														{ text: "Non", style: "cancel" },
-														{
-															text: "Oui",
-															onPress: async () => {
-																const success = await toggleReservationStatus(
-																	selectedReservation._id
-																);
-																if (success) closeModal();
-															},
-														},
-													]
-												)
-											}
-										>
-											<Text style={styles.buttonTextSettings}>
-												❌ Annuler la réservation
-											</Text>
-										</TouchableOpacity>
-									</>
-								) : (
-									<>
-										{/* Réservation annulée */}
-										<TouchableOpacity
-											style={[
-												styles.modalButtonSettings,
-												{ backgroundColor: "#34A853" },
-											]}
-											onPress={() =>
-												Alert.alert(
-													"Confirmation",
-													"Rétablir cette réservation ?",
-													[
-														{ text: "Non", style: "cancel" },
-														{
-															text: "Oui",
-															onPress: async () => {
-																const success = await toggleReservationStatus(
-																	selectedReservation._id
-																);
-																if (success) closeModal();
-															},
-														},
-													]
-												)
-											}
-										>
-											<Text style={styles.buttonTextSettings}>
-												♻️ Rétablir la réservation
-											</Text>
-										</TouchableOpacity>
+												{/* Terminer uniquement si présent */}
+												{selectedReservation.isPresent && (
+													<TouchableOpacity
+														style={[
+															styles.modalButtonSettings,
+															{ backgroundColor: "#34A853" },
+														]}
+														onPress={async () => {
+															const success = await updateStatus(
+																selectedReservation._id,
+																"fermee"
+															);
+															if (success) closeModal();
+														}}
+													>
+														<Text style={styles.buttonTextSettings}>
+															✅ Terminer la réservation
+														</Text>
+													</TouchableOpacity>
+												)}
+											</>
+										)}
 
+										{/* Si réservation ouverte */}
+										{selectedReservation.status === "ouverte" && (
+											<>
+												<TouchableOpacity
+													style={[
+														styles.modalButtonSettings,
+														{ backgroundColor: "#34A853" },
+													]}
+													onPress={async () => {
+														// ici tu peux proposer Terminer
+														const success = await updateStatus(
+															selectedReservation._id,
+															"fermee"
+														);
+														if (success) closeModal();
+													}}
+												>
+													<Text style={styles.buttonTextSettings}>
+														✅ Terminer la réservation
+													</Text>
+												</TouchableOpacity>
+											</>
+										)}
+										{selectedReservation.status !== "fermee" &&
+											selectedReservation.status !== "annulee" && (
+												<TouchableOpacity
+													style={[
+														styles.modalButtonSettings,
+														{ backgroundColor: "#EA4335" },
+													]}
+													onPress={async () => {
+														const success = await updateStatus(
+															selectedReservation._id,
+															"annulee"
+														);
+														if (success) closeModal();
+													}}
+												>
+													<Text style={styles.buttonTextSettings}>
+														❌ Annuler la réservation
+													</Text>
+												</TouchableOpacity>
+											)}
+
+										{/* Si réservation annulée */}
+										{selectedReservation.status === "annulee" && (
+											<>
+												<TouchableOpacity
+													style={[
+														styles.modalButtonSettings,
+														{ backgroundColor: "#34A853" },
+													]}
+													onPress={async () => {
+														const success = await updateStatus(
+															selectedReservation._id,
+															"en attente"
+														);
+														if (success) closeModal();
+													}}
+												>
+													<Text style={styles.buttonTextSettings}>
+														♻️ Rétablir la réservation
+													</Text>
+												</TouchableOpacity>
+											</>
+										)}
+
+										{/* Si réservation terminée */}
+										{/* Si réservation terminée */}
+										{selectedReservation.status === "fermee" && (
+											<>
+												<Text style={{ margin: 10, color: "#555" }}>
+													Cette réservation est terminée.
+												</Text>
+
+												<TouchableOpacity
+													style={[
+														styles.modalButtonSettings,
+														{ backgroundColor: "#34A853" },
+													]}
+													onPress={() => {
+														// Remplir directement les champs du formulaire
+														setClientName(selectedReservation.clientName);
+														setNbPersonnes(selectedReservation.nbPersonnes);
+														setAllergies(selectedReservation.allergies);
+														setRestrictions(selectedReservation.restrictions);
+														setNotes(selectedReservation.notes);
+														setReservationDate(""); // date future à sélectionner
+														setReservationTime(""); // heure future à sélectionner
+
+														// Afficher le formulaire
+														setNewResaModal(true);
+														closeModal(); // fermer la modale des réglages
+													}}
+												>
+													<Text style={styles.buttonTextSettings}>
+														♻️ Recréer la réservation
+													</Text>
+												</TouchableOpacity>
+											</>
+										)}
+
+										{/* Toujours proposer un bouton fermer */}
 										<TouchableOpacity
-											style={[
-												styles.modalButtonSettings,
-												{ backgroundColor: "#EA4335" },
-											]}
-											onPress={() =>
-												Alert.alert(
-													"Confirmation",
-													"Supprimer définitivement cette réservation ?",
-													[
-														{ text: "Non", style: "cancel" },
-														{
-															text: "Oui",
-															onPress: async () => {
-																const success = await deleteReservation(
-																	selectedReservation._id
-																);
-																if (success) closeModal();
-															},
-														},
-													]
-												)
-											}
+											style={styles.modalButtonCancel}
+											onPress={closeModal}
 										>
-											<Text style={styles.buttonTextSettings}>
-												🗑 Supprimer la réservation
-											</Text>
+											<Text style={styles.buttonTextCancel}>Fermer</Text>
 										</TouchableOpacity>
 									</>
 								)}
-
-								<TouchableOpacity
-									style={styles.modalButtonCancel}
-									onPress={closeModal}
-								>
-									<Text style={styles.buttonTextCancel}>Fermer</Text>
-								</TouchableOpacity>
 							</View>
 						</TouchableWithoutFeedback>
 					</View>
@@ -603,6 +708,7 @@ export default function Dashboard() {
 											value={
 												reservationDate ? new Date(reservationDate) : new Date()
 											}
+											minimumDate={new Date()} // Empêche de sélectionner une date antérieure à aujourd'hui
 											onChange={(event, selectedDate) => {
 												if (selectedDate) {
 													const yyyy = selectedDate.getFullYear();
@@ -644,6 +750,56 @@ export default function Dashboard() {
 												}
 											}}
 										/>
+										<Text style={styles.label}>Table</Text>
+
+										<TouchableOpacity
+											onPress={() => setShowTablesOptions((prev) => !prev)}
+											style={styles.dropdownButton}
+										>
+											<Text style={styles.dropdownButtonText}>
+												{newReservation.tableId
+													? tables.find((t) => t._id === newReservation.tableId)
+															?.number
+													: "Aucune table"}
+											</Text>
+										</TouchableOpacity>
+
+										{showTablesOptions && (
+											<View style={styles.simpleDropdown}>
+												<TouchableOpacity
+													style={styles.simpleDropdownItem}
+													onPress={() => {
+														setNewReservation({
+															...newReservation,
+															tableId: null,
+														});
+														setShowTablesOptions(false);
+													}}
+												>
+													<Text style={styles.dropdownOptionText}>
+														Aucune table
+													</Text>
+												</TouchableOpacity>
+
+												{tables.map((table) => (
+													<TouchableOpacity
+														key={table._id}
+														style={styles.simpleDropdownItem}
+														onPress={() => {
+															setNewReservation({
+																...newReservation,
+																tableId: table._id,
+															});
+															setShowTablesOptions(false);
+														}}
+													>
+														<Text style={styles.dropdownOptionText}>
+															{table.number}
+														</Text>
+													</TouchableOpacity>
+												))}
+											</View>
+										)}
 
 										<Text style={styles.label}>Allergies</Text>
 										<TextInput
