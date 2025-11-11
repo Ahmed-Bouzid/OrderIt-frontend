@@ -1,10 +1,9 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback } from "react";
 import styles from "./styles"; // adapte le chemin si tu l'as mis dans un sous-dossier
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import useReservationStore from "../src/stores/useReservationStore";
 import DraggableButton from "../components/ui/draggableButton";
-// import { getToken } from "../app/utils/token";
 
 import {
 	View,
@@ -25,7 +24,12 @@ const SCREEN_WIDTH = Dimensions.get("window").width;
 const THRESHOLD = SCREEN_WIDTH * 0.2;
 
 // Carte individuelle swipeable avec roue de réglages
-function SwipeableReservationCard({ reservation, onSettingsPress }) {
+function SwipeableReservationCard({
+	reservation,
+	onSettingsPress,
+	onAssignTablePress,
+	// ⭐ RETIREZ refreshActiveReservation des props puisqu'on ne l'utilise plus ici
+}) {
 	return (
 		<View
 			style={[
@@ -75,46 +79,59 @@ function SwipeableReservationCard({ reservation, onSettingsPress }) {
 					{reservation.totalAmount ? `${reservation.totalAmount}€` : "-"}
 				</Text>
 				<Text style={styles.subText}>Statut : {reservation.status || "-"}</Text>
+
 				<TouchableOpacity onPress={() => onSettingsPress(reservation)}>
 					<Text style={{ fontSize: 20, marginTop: 4 }}>⚙️</Text>
 				</TouchableOpacity>
+
+				{reservation.status === "en attente" ? (
+					<TouchableOpacity
+						onPress={() => {
+							// ⭐ APPEL SIMPLE - le rafraîchissement se fait dans onAssignTablePress
+							onAssignTablePress(reservation);
+						}}
+					>
+						<Text style={{ fontSize: 20, marginTop: 4 }}>🪑</Text>
+					</TouchableOpacity>
+				) : (
+					<View style={{ width: 30 }} /> // espace réservé
+				)}
 			</View>
 		</View>
 	);
 }
 
 export default function Dashboard(navigation) {
+	// ─────────────── États ───────────────
+	// ─────────────── Imports & Store ───────────────
 	const { reservations, fetchReservations } = useReservationStore();
 
-	//recupere toutes les reservations
-	useEffect(() => {
-		if (!reservations.length) {
-			fetchReservations();
-		}
-		//fetchReservations vient d’un store stable.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [reservations]);
-
-	//USESTATES
+	// ─────────────── États ───────────────
 	const [modalVisible, setModalVisible] = useState(false);
 	const [selectedReservation, setSelectedReservation] = useState(null);
 	const [newResaModal, setNewResaModal] = useState(false);
 	const [step, setStep] = useState(1);
-	const [clientName, setClientName] = useState(""); // Nom du client
-	const [phone, setPhone] = useState(""); // Numéro de téléphone
-	const [reservationTime, setReservationTime] = useState(""); // Heure de la réservation
-	const [nbPersonnes, setNbPersonnes] = useState(1); // Nombre de personnes (par défaut 1)
-	const [allergies, setAllergies] = useState(""); // Allergies
-	const [restrictions, setRestrictions] = useState(""); // Restrictions alimentaires
-	const [notes, setNotes] = useState(""); // Observations de la réservation
-	// eslint-disable-next-line no-unused-vars
-	const [restaurantId, setRestaurantId] = useState(null); // met l'ID réel
-	const [reservationDate, setReservationDate] = useState(""); // format "YYYY-MM-DD"
-	const [reservationFilter, setReservationFilter] = useState("actives"); // "actives" ou "annulees"
+
+	// Formulaire réservation
+	const [clientName, setClientName] = useState("");
+	const [phone, setPhone] = useState("");
+	const [reservationTime, setReservationTime] = useState("");
+	const [reservationDate, setReservationDate] = useState("");
+	const [nbPersonnes, setNbPersonnes] = useState(1);
+	const [allergies, setAllergies] = useState("");
+	const [restrictions, setRestrictions] = useState("");
+	const [notes, setNotes] = useState("");
+
+	// Tables
 	const [tables, setTables] = useState([]);
-	const [showTablesOptions, setShowTablesOptions] = useState(false);
 	const [selectedTable, setSelectedTable] = useState(null);
 
+	// Modales et réservations ouvertes
+	const [showAssignTableModal, setShowAssignTableModal] = useState(false);
+	const [activeReservation, setActiveReservation] = useState(null);
+	const [showTablesOptions, setShowTablesOptions] = useState(false);
+
+	// Nouvelle réservation
 	const [newReservation, setNewReservation] = useState({
 		clientName: "",
 		nbPersonnes: 1,
@@ -123,19 +140,226 @@ export default function Dashboard(navigation) {
 		notes: "",
 		reservationDate: null,
 		reservationTime: null,
-		tableId: null, // 👈 nouveau
+	});
+	const currentTable = activeReservation?.tableId
+		? tables.find((t) => t._id === activeReservation.tableId)
+		: null;
+
+	console.log(
+		"🔍 Active Reservation:",
+		activeReservation?._id,
+		"Table:",
+		currentTable?.number || "Aucune"
+	);
+	// Filtre réservation
+	const [reservationFilter, setReservationFilter] = useState("actives");
+
+	// ─────────────── Fonctions de gestion modales ───────────────
+	const nextStep = () => setStep((s) => s + 1);
+	const prevStep = () => setStep((s) => Math.max(1, s - 1));
+
+	const resetResa = () => {
+		setNewResaModal(false);
+		setClientName("");
+		setPhone("");
+		setReservationTime("");
+		setAllergies("");
+		setRestrictions("");
+		setNotes("");
+		setNbPersonnes(1);
+		setReservationDate("");
+		setStep(1);
+		setSelectedTable(tables[0] || null);
+	};
+
+	const openSettings = (reservation) => {
+		setSelectedReservation(reservation);
+		setModalVisible(true);
+	};
+
+	const closeModal = () => {
+		setModalVisible(false);
+		setSelectedReservation(null);
+	};
+
+	// ─────────────── Filtrage des réservations ───────────────
+	const filteredReservations = reservations.filter((res) => {
+		switch (reservationFilter) {
+			case "en_attente":
+				return res.status === "en attente";
+			case "present":
+				return res.status === "en attente" && res.isPresent === true;
+			case "ouverte":
+				return res.status === "ouverte";
+			case "termine":
+				return res.status === "fermee";
+			case "annulee":
+				return res.status === "annulee";
+			default:
+				return true;
+		}
 	});
 
-	//cree une reservation
+	// ─────────────── Gestion tables ───────────────
+	const fetchTables = useCallback(async () => {
+		try {
+			const token = await AsyncStorage.getItem("token");
+			const storedRestaurantId = await AsyncStorage.getItem("restaurantId");
+			if (!token || !storedRestaurantId) return;
+
+			const res = await fetch(
+				`http://192.168.1.185:3000/tables/restaurant/${storedRestaurantId}`,
+				{ headers: { Authorization: `Bearer ${token}` } }
+			);
+
+			if (!res.ok) {
+				console.error("Erreur fetch tables :", res.status);
+				return;
+			}
+
+			const data = await res.json();
+			setTables(data);
+
+			if (data.length > 0) setSelectedTable(data[0]);
+		} catch (err) {
+			console.error("Erreur récupération tables :", err);
+		}
+	}, []);
+
+	// ✅ CORRECTION - s'exécute une seule fois au montage
+	useEffect(() => {
+		fetchReservations();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []); // ⭐ Tableau de dépendances VIDE
+
+	useEffect(() => {
+		fetchTables();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []); // ⭐ Tableau de dépendances VIDE
+
+	// Ajoutez cette fonction dans votre composant
+	const refreshActiveReservation = async (reservationId) => {
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 300));
+
+			const token = await AsyncStorage.getItem("token");
+			const res = await fetch(
+				`http://192.168.1.185:3000/reservations/${reservationId}`,
+				{
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+				}
+			);
+
+			if (res.ok) {
+				const updatedReservation = await res.json();
+				setActiveReservation(updatedReservation);
+				console.log(
+					"🔄 Réservation rafraîchie:",
+					updatedReservation?.clientName,
+					"Table:",
+					updatedReservation?.tableId
+						? tables.find((t) => t._id === updatedReservation.tableId)?.number
+						: "Aucune"
+				);
+			} else {
+				// ⭐ NE PAS JETER D'ERREUR POUR LES 429, JUSTE LOGGER
+				if (res.status === 429) {
+					console.warn("⚠️ Rate limiting sur refreshActiveReservation");
+					return;
+				}
+				throw new Error("Erreur rafraîchissement réservation");
+			}
+		} catch (error) {
+			console.error("❌ Erreur rafraîchissement réservation:", error);
+		}
+	};
+
+	const assignTable = async (reservationId, chosenTableId) => {
+		try {
+			await new Promise((resolve) => setTimeout(resolve, 500));
+
+			const token = await AsyncStorage.getItem("token");
+			if (!token) throw new Error("Token manquant");
+
+			const oldTableId = activeReservation?.tableId;
+			const chosenTableNumber = tables.find(
+				(t) => t._id === chosenTableId
+			)?.number;
+			const oldTableNumber = tables.find((t) => t._id === oldTableId)?.number;
+
+			console.log("🔄 assignTable:");
+			console.log("📋 Reservation:", reservationId);
+			console.log("🪑 Table choisie:", chosenTableNumber || chosenTableId);
+			console.log(
+				"🪑 Table actuelle:",
+				oldTableNumber || oldTableId || "Aucune"
+			);
+
+			// Mise à jour optimiste
+			setActiveReservation((prev) => ({
+				...prev,
+				tableId: chosenTableId,
+				tableNumber: chosenTableNumber,
+			}));
+
+			const res = await fetch(
+				`http://192.168.1.185:3000/reservations/assignTable/${reservationId}`,
+				{
+					method: "PATCH",
+					headers: {
+						"Content-Type": "application/json",
+						Authorization: `Bearer ${token}`,
+					},
+					body: JSON.stringify({
+						tableId: chosenTableId,
+						oldTableId: oldTableId,
+					}),
+				}
+			);
+
+			if (!res.ok) {
+				const text = await res.text();
+				// ⭐ GESTION SPÉCIFIQUE PLE RATE LIMITING
+				if (res.status === 429) {
+					throw new Error(
+						"Trop de requêtes. Veuillez patienter quelques secondes."
+					);
+				}
+				throw new Error(text || "Erreur assignation table");
+			}
+
+			const data = await res.json();
+			console.log("✅ Réponse backend:", data);
+
+			// Rafraîchissement avec délai
+			await new Promise((resolve) => setTimeout(resolve, 300));
+			await fetchTables();
+			await refreshActiveReservation(reservationId);
+
+			setShowAssignTableModal(false);
+		} catch (err) {
+			console.error("❌ assignTable failed:", err);
+			Alert.alert("Erreur", err.message);
+
+			// Re-fetch en cas d'erreur
+			await new Promise((resolve) => setTimeout(resolve, 1000));
+			await fetchTables();
+			if (reservationId) {
+				await refreshActiveReservation(reservationId);
+			}
+		}
+	};
+
+	// ─────────────── Création réservation ───────────────
 	const createReservation = async () => {
-		const reservationData = {
-			...newReservation,
-			tableId: selectedTable ? selectedTable._id : null,
-		};
 		try {
 			const token = await AsyncStorage.getItem("token");
 			if (!token) return alert("Pas de token, rediriger vers login");
 
+			// Calcul date ISO
 			let isoDate;
 			try {
 				const [hours, minutes] = reservationTime.split(":");
@@ -143,12 +367,18 @@ export default function Dashboard(navigation) {
 				today.setHours(parseInt(hours), parseInt(minutes), 0, 0);
 				isoDate = today.toISOString();
 			} catch {
-				Alert.alert(
+				Alert.alert("Erreur", "La date ou l'heure choisie n'est pas valide.", [
+					{ text: "OK" },
+				]);
+				return;
+			}
+
+			const storedRestaurantId = await AsyncStorage.getItem("restaurantId");
+			if (!storedRestaurantId) {
+				return Alert.alert(
 					"Erreur",
-					"La date ou l'heure choisie n'est pas valide. Veuillez vérifier vos saisies.",
-					[{ text: "OK" }]
+					"Restaurant non défini, attend le chargement"
 				);
-				return; // stop la création
 			}
 
 			const body = {
@@ -158,12 +388,15 @@ export default function Dashboard(navigation) {
 				allergies,
 				restrictions,
 				notes,
-				restaurantId,
+				restaurantId: storedRestaurantId,
 				reservationDate: isoDate,
 				reservationTime,
+				...(selectedTable && { tableId: selectedTable._id }),
 			};
 
-			const response = await fetch("http://192.168.1.165:3000/reservations", {
+			console.log("Envoi body :", body);
+
+			const response = await fetch("http://192.168.1.185:3000/reservations", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
@@ -200,54 +433,7 @@ export default function Dashboard(navigation) {
 		}
 	};
 
-	//changer pages modale
-	const nextStep = () => setStep((s) => s + 1);
-	const prevStep = () => setStep((s) => Math.max(1, s - 1));
-	//reset la modale
-	const resetResa = () => {
-		// Fermer la modale
-		setNewResaModal(false);
-		// Réinitialiser tous les champs du formulaire
-		setClientName("");
-		setPhone("");
-		setReservationTime("");
-		setAllergies("");
-		setRestrictions("");
-		setNotes("");
-		setNbPersonnes(1);
-		setReservationDate("");
-		setStep(1);
-	};
-
-	//ouvre la modale reglages
-	const openSettings = (reservation) => {
-		setSelectedReservation(reservation);
-		setModalVisible(true);
-	};
-	//ferme la modale reglages
-	const closeModal = () => {
-		setModalVisible(false);
-		setSelectedReservation(null);
-	};
-
-	const filteredReservations = reservations.filter((res) => {
-		switch (reservationFilter) {
-			case "en_attente":
-				return res.status === "en attente";
-			case "present":
-				return res.status === "en attente" && res.isPresent === true;
-			case "ouverte":
-				return res.status === "ouverte";
-			case "termine":
-				return res.status === "fermee";
-			case "annulee":
-				return res.status === "annulee";
-			default:
-				return true;
-		}
-	});
-
-	// Toggle Présent / Absent
+	// ─────────────── Toggle Présent / Absent ───────────────
 	const togglePresent = async (id) => {
 		try {
 			const token = await AsyncStorage.getItem("token");
@@ -257,7 +443,7 @@ export default function Dashboard(navigation) {
 			}
 
 			const response = await fetch(
-				`http://192.168.1.165:3000/reservations/${id}/togglePresent`,
+				`http://192.168.1.185:3000/reservations/${id}/togglePresent`,
 				{
 					method: "PUT",
 					headers: { Authorization: `Bearer ${token}` },
@@ -265,7 +451,6 @@ export default function Dashboard(navigation) {
 			);
 
 			const data = await response.json();
-
 			if (!response.ok) {
 				alert("Erreur: " + (data.message || "Impossible de mettre présent"));
 				return false;
@@ -276,7 +461,7 @@ export default function Dashboard(navigation) {
 					data.isPresent ? "Présent ✅" : "Absent ⚠️"
 				}`
 			);
-			fetchReservations(); // rafraîchir la liste
+			fetchReservations();
 			return true;
 		} catch (err) {
 			console.error(err);
@@ -285,17 +470,16 @@ export default function Dashboard(navigation) {
 		}
 	};
 
-	// Mettre à jour le statut (en attente, annulé, fermee, ouverte)
+	// ─────────────── Mettre à jour le statut ───────────────
 	const updateStatus = async (id, newStatus) => {
 		try {
 			const token = await AsyncStorage.getItem("token");
 			if (!token) return alert("Pas de token, rediriger vers login");
 
-			// Normaliser le statut avant envoi
-			const normalizedStatus = newStatus.toLowerCase(); // "annulee", "en attente", "fermee", "ouverte"
+			const normalizedStatus = newStatus.toLowerCase();
 
 			const response = await fetch(
-				`http://192.168.1.165:3000/reservations/${id}/status`,
+				`http://192.168.1.185:3000/reservations/${id}/status`,
 				{
 					method: "PUT",
 					headers: {
@@ -307,14 +491,13 @@ export default function Dashboard(navigation) {
 			);
 
 			const data = await response.json();
-
 			if (!response.ok) {
 				alert("Erreur: " + (data.message || "Impossible de changer le statut"));
 				return false;
 			}
 
 			alert(`Réservation mise à jour : ${normalizedStatus} ✅`);
-			fetchReservations(); // rafraîchir la liste
+			fetchReservations();
 			return true;
 		} catch (err) {
 			console.error(err);
@@ -322,22 +505,6 @@ export default function Dashboard(navigation) {
 			return false;
 		}
 	};
-
-	useEffect(() => {
-		const fetchTables = async () => {
-			const token = await AsyncStorage.getItem("token");
-			const restaurantId = await AsyncStorage.getItem("restaurantId");
-			const res = await fetch(
-				`http://192.168.1.165:3000/tables/restaurant/${restaurantId}`,
-				{
-					headers: { Authorization: `Bearer ${token}` },
-				}
-			);
-			const data = await res.json();
-			setTables(data);
-		};
-		fetchTables();
-	}, []);
 
 	return (
 		<View style={{ flex: 1 }}>
@@ -425,6 +592,11 @@ export default function Dashboard(navigation) {
 								key={res._id}
 								reservation={res}
 								onSettingsPress={openSettings}
+								onAssignTablePress={async (reservation) => {
+									// ⭐ RAFRAÎCHIR la réservation avant d'ouvrir la modal
+									await refreshActiveReservation(reservation._id);
+									setShowAssignTableModal(true);
+								}}
 							/>
 						))}
 					</ScrollView>
@@ -442,7 +614,7 @@ export default function Dashboard(navigation) {
 				onPress={() => setNewResaModal(true)}
 			>
 				<Text style={{ fontSize: 26, color: "#fff" }}>＋</Text>
-			</TouchableOpacity> */}
+			</TouchableOpacity>
 
 			{/* Modal Réglages */}
 			<Modal
@@ -640,6 +812,106 @@ export default function Dashboard(navigation) {
 					</View>
 				</TouchableWithoutFeedback>
 			</Modal>
+			{showAssignTableModal && (
+				<Modal
+					visible={showAssignTableModal}
+					transparent
+					animationType="fade"
+					onRequestClose={() => setShowAssignTableModal(false)}
+				>
+					<View style={styles.overlaySettings}>
+						{/* Zone clicable pour fermer la modal */}
+						<TouchableWithoutFeedback
+							onPress={() => setShowAssignTableModal(false)}
+						>
+							<View style={{ flex: 1 }} />
+						</TouchableWithoutFeedback>
+
+						{/* Carte blanche centrée */}
+						<View
+							style={{
+								width: 300,
+								padding: 20,
+								backgroundColor: "#fff",
+								borderRadius: 10,
+								position: "absolute",
+								top: "50%",
+								left: "50%",
+								transform: [{ translateX: -150 }, { translateY: -150 / 2 }],
+							}}
+						>
+							<Text style={{ textAlign: "center", marginBottom: 10 }}>
+								Choisir une table :
+							</Text>
+
+							{/* Conteneur des boutons en grille */}
+							<View
+								style={{
+									flexDirection: "row",
+									flexWrap: "wrap",
+									justifyContent: "center",
+									gap: 10,
+								}}
+							>
+								{tables.map((table) => {
+									const isAssignedToCurrent =
+										table._id === activeReservation?.tableId;
+									const isAvailableForSelection =
+										table.isAvailable || isAssignedToCurrent;
+
+									return (
+										<TouchableOpacity
+											key={table._id}
+											onPress={async () => {
+												if (!isAvailableForSelection) return;
+												await assignTable(activeReservation._id, table._id);
+											}}
+											disabled={!isAvailableForSelection}
+											style={{
+												padding: 10,
+												backgroundColor: isAssignedToCurrent
+													? "#000000" // ⭐ NOIR si assignée à cette résa
+													: table.isAvailable
+													? "#b3ff00ff" // ⭐ VERT si disponible
+													: "#2b10a2ff", // ⭐ ROUGE si occupée par autre résa
+												borderRadius: 5,
+												width: 60,
+												alignItems: "center",
+												marginBottom: 10,
+												opacity: isAvailableForSelection ? 1 : 0.6, // ⭐ Désaturer si non sélectionnable
+											}}
+										>
+											<Text
+												style={{
+													color: isAssignedToCurrent ? "#fff" : "#fff", // ⭐ Texte blanc pour meilleur contraste
+													fontWeight: isAssignedToCurrent ? "bold" : "normal",
+												}}
+											>
+												{table.number}
+											</Text>
+										</TouchableOpacity>
+									);
+								})}
+							</View>
+
+							<TouchableOpacity
+								onPress={() => setShowAssignTableModal(false)}
+								style={{ marginTop: 10 }}
+							>
+								<Text style={{ color: "black", textAlign: "center" }}>
+									Annuler
+								</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								onPress={() => setShowAssignTableModal(false)}
+								style={{ marginTop: 10 }}
+							>
+								<Text style={{ color: "black", textAlign: "center" }}>Ok</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
+				</Modal>
+			)}
 
 			<Modal
 				visible={newResaModal}
@@ -708,7 +980,7 @@ export default function Dashboard(navigation) {
 											value={
 												reservationDate ? new Date(reservationDate) : new Date()
 											}
-											minimumDate={new Date()} // Empêche de sélectionner une date antérieure à aujourd'hui
+											minimumDate={new Date()}
 											onChange={(event, selectedDate) => {
 												if (selectedDate) {
 													const yyyy = selectedDate.getFullYear();

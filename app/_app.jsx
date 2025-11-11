@@ -5,7 +5,6 @@ import {
 	TouchableOpacity,
 	Text,
 	SafeAreaView,
-	StatusBar,
 } from "react-native";
 
 import Activite from "../components/activity";

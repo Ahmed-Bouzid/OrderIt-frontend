@@ -1,8 +1,12 @@
 import React from "react";
 import { View, Text } from "react-native";
 import styles from "./styles"; // adapte le chemin si tu l'as mis dans un sous-dossier
+import { testFunction } from "shared-store";
 
 export default function Settings() {
+	// Ajoute cette ligne quelque part dans ton composant
+	console.log("🧪 Test shared-store:", testFunction());
+
 	return (
 		<View style={[styles.container, { flexDirection: "column", flex: 1 }]}>
 			{/* Ligne horizontale pleine largeur, sans marge verticale */}

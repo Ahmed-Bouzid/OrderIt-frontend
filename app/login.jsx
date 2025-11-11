@@ -1,40 +1,48 @@
-// app/login.jsx
 import React, { useState } from "react";
 import {
 	View,
 	Text,
 	TextInput,
 	TouchableOpacity,
-	StyleSheet,
 	Alert,
 	ActivityIndicator,
+	StyleSheet,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
+import { create } from "zustand";
 
+// ─────────────── Store restaurant ───────────────
+export const useRestaurantStore = create((set) => ({
+	restaurantId: null,
+	setRestaurantId: (id) => set({ restaurantId: id }),
+}));
+
+// ─────────────── Composant Login ───────────────
 export default function Login() {
 	const router = useRouter();
 	const [email, setEmail] = useState("");
 	const [password, setPassword] = useState("");
 	const [loading, setLoading] = useState(false);
+	const { setRestaurantId } = useRestaurantStore();
 
 	const handleLogin = async () => {
 		setLoading(true);
 		try {
-			const res = await fetch("http://192.168.1.165:3000/auth/login", {
+			const res = await fetch("http://192.168.1.185:3000/auth/login", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ email, password }),
 			});
 
 			const data = await res.json();
-			console.log("Réponse backend login :", data); // 🔹 pour debug
+			console.log("Réponse backend login :", data); // 🔹 debug
 
 			if (res.ok) {
 				// ✅ Stocker le token
 				await AsyncStorage.setItem("token", data.accessToken);
 
-				// ✅ Stocker le restaurantId si disponible
+				// ✅ Stocker et assigner le restaurantId
 				const restaurantId = data.restaurantId;
 				if (!restaurantId) {
 					console.warn(
@@ -43,6 +51,7 @@ export default function Login() {
 					);
 				} else {
 					await AsyncStorage.setItem("restaurantId", restaurantId);
+					setRestaurantId(restaurantId); // 🔹 assignation immédiate dans le store
 				}
 
 				// 🧭 Redirection vers l'écran principal

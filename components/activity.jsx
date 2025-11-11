@@ -16,10 +16,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { getToken } from "../app/utils/token";
 
-import useReservationStore from "../src/stores/useReservationStore";
+// Dans frontend ou CLIENT-end
+// ✅ IMPORT DIRECT DES STORES
+import useReservationStore from "../../shared-store/stores/useReservationStore";
+import useProductStore from "../../shared-store/stores/useProductStore";
 import { useServerStore } from "../src/stores/useServerStore";
 import useTableStore from "../src/stores/useTableStore";
-
 export default function Activity() {
 	// ─────────────── États UI / modaux ───────────────
 	const [showRestrictionsOptions, setShowRestrictionsOptions] = useState(false);
@@ -28,8 +30,8 @@ export default function Activity() {
 	const [showProductModal, setShowProductModal] = useState(false);
 
 	// ─────────────── États de sélection / formulaire ───────────────
-	const [serverId, setServerId] = useState("68c52815f6b865b528f52465");
-	const [tableId, setTableId] = useState("686af692bb4cba684ff3b757");
+	const [tableId, setTableId] = useState(null);
+	const [serverId, setServerId] = useState(null);
 	const [restaurantId, setRestaurantId] = useState(null);
 	const [notesValue, setNotesValue] = useState("");
 	const [allergiesValue, setAllergiesValue] = useState("");
@@ -40,7 +42,8 @@ export default function Activity() {
 
 	// ─────────────── Données principales ───────────────
 	const [orders, setOrders] = useState([]);
-	const [products, setProducts] = useState([]);
+	const { products, setProducts, fetchProducts } = useProductStore();
+
 	const [openedReservations, setOpenedReservations] = useState([]);
 	const [activeId, setActiveId] = useState(null);
 	const [started, setStarted] = useState(false);
@@ -57,10 +60,13 @@ export default function Activity() {
 	const { servers, fetchServers, setActiveServer, activeServer } =
 		useServerStore();
 	const { reservations, fetchReservations } = useReservationStore();
+	const { tables, fetchTables } = useTableStore();
+
+	// ─────────────── useEffects réorganisés ───────────────
 
 	// ─────────────── useEffects ───────────────
 
-	// 1️⃣ Récupérer restaurantId depuis AsyncStorage au montage
+	// 1️⃣ Récupération initiale du restaurantId depuis AsyncStorage
 	useEffect(() => {
 		const fetchRestaurantId = async () => {
 			try {
@@ -73,76 +79,67 @@ export default function Activity() {
 				);
 			}
 		};
-
 		fetchRestaurantId();
 	}, []);
 
-	// 2️⃣ Récupérer les serveurs dès que restaurantId est disponible
-	useEffect(() => {
-		if (!restaurantId) return;
-		fetchServers(restaurantId);
-		//les fonctions fetchServers et fetchReservations sont stables via Zustand.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, [restaurantId]);
-
-	// 3️⃣ Récupérer toutes les reservations au montage
-	useEffect(() => {
-		fetchReservations();
-		//les fonctions fetchServers et fetchReservations sont stables via Zustand.
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
-
-	// 4️⃣ Récupérer les produits du restaurant dès que restaurantId est disponible
-	// ─────────────── Fetch produits ───────────────
-	useEffect(() => {
-		if (!restaurantId) {
-			return;
-		}
-
-		const fetchProducts = async () => {
-			try {
-				const token = await getToken();
-				if (!token) return; // si pas de token, on arrête directement
-
-				const res = await fetch(
-					`http://192.168.1.165:3000/products/restaurant/${restaurantId}`,
-					{ headers: { Authorization: `Bearer ${token}` } }
-				);
-
-				if (!res.ok) {
-					const text = await res.text(); // récupère le texte de l'erreur
-					console.error("❌ Erreur fetch produits :", res.status, text);
-					return; // arrête le fetch
-				}
-
-				const data = await res.json();
-				setProducts(data);
-			} catch (err) {
-				console.error("❌ Erreur fetch produits :", err);
-				alert("Erreur lors de la récupération des produits !");
-			}
-		};
-
-		fetchProducts();
-	}, [restaurantId]);
-
-	// 5️⃣ Récupérer commandes pour la table dès que tableId change
-	useEffect(() => {
-		if (!tableId) return;
-		fetchOrders();
-	}, [tableId, fetchOrders]);
-
-	// 6️⃣ Vérification du token au montage
+	// 2️⃣ Vérification du token au montage
 	useEffect(() => {
 		const checkToken = async () => {
 			const token = await getToken();
 			if (!token) console.log("⚠️ Pas de token, redirection login");
 		};
-
 		checkToken();
 	}, []);
 
-	// 7️⃣ Mettre à jour activeReservation quand openedReservations ou activeId changent
+	// 3️⃣ Fetch tables, serveurs et produits dès que restaurantId est disponible
+	useEffect(() => {
+		if (!restaurantId) return;
+
+		const loadData = async () => {
+			try {
+				console.log("🔄 Début chargement SÉQUENTIEL des données...");
+
+				// ⭐ SÉQUENCER les appels pour éviter les 429
+
+				// 1. Tables d'abord
+				console.log("📋 Fetch tables...");
+				await fetchTables(restaurantId);
+				const allTables = useTableStore.getState().tables;
+				if (allTables.length > 0) setTableId(allTables[0]._id);
+
+				// 2. Serveurs ensuite (attendre que tables soit fini)
+				console.log("👨‍💼 Fetch serveurs...");
+				await fetchServers(restaurantId);
+				const allServers = useServerStore.getState().servers;
+				if (allServers.length > 0) setServerId(allServers[0]._id);
+
+				// 3. Produits enfin (attendre que serveurs soit fini)
+				console.log("🍕 Fetch produits...");
+				await fetchProducts(restaurantId);
+
+				console.log("✅ Toutes les données chargées avec succès");
+			} catch (error) {
+				console.error("❌ Erreur lors du chargement:", error);
+			}
+		};
+
+		loadData();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [restaurantId]);
+
+	// 4️⃣ Fetch de toutes les réservations au montage
+	useEffect(() => {
+		fetchReservations();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	// 5️⃣ Fetch commandes dès que tableId change
+	useEffect(() => {
+		if (!tableId) return;
+		fetchOrders();
+	}, [tableId, fetchOrders]);
+
+	// 6️⃣ Mise à jour de activeReservation quand openedReservations ou activeId changent
 	useEffect(() => {
 		const reservation =
 			openedReservations.find((r) => r._id === activeId) || null;
@@ -166,10 +163,10 @@ export default function Activity() {
 		}
 	}, [openedReservations, activeId]);
 
+	// 7️⃣ Calcul du total général à partir de orders
 	useEffect(() => {
 		if (!activeReservation) return;
 
-		// calcul du total général à partir de orders
 		const total = orders
 			.reduce(
 				(total, order) =>
@@ -178,18 +175,11 @@ export default function Activity() {
 			)
 			.toFixed(2);
 
-		// mettre à jour activeReservation.totalAmount
 		setActiveReservation((prev) => ({
 			...prev,
 			totalAmount: total,
 		}));
-	}, [orders, activeReservation]); // se déclenche à chaque changement dans orders
-
-	const { tables, fetchTables } = useTableStore();
-
-	useEffect(() => {
-		if (restaurantId) fetchTables(restaurantId);
-	}, [restaurantId]);
+	}, [orders, activeReservation]);
 
 	// ─────────────── Callbacks / fonctions utilitaires ───────────────
 
@@ -203,7 +193,7 @@ export default function Activity() {
 		try {
 			const token = await getToken();
 			const res = await fetch(
-				`http://192.168.1.165:3000/orders/table/${tableId}`,
+				`http://192.168.1.185:3000/orders/table/${tableId}`,
 				{
 					headers: { Authorization: `Bearer ${token}` },
 				}
@@ -229,7 +219,7 @@ export default function Activity() {
 			if (!token) return alert("⚠️ Pas de token, redirection vers login");
 
 			const response = await fetch(
-				`http://192.168.1.165:3000/reservations/${reservationId}/status`,
+				`http://192.168.1.185:3000/reservations/${reservationId}/status`,
 				{
 					method: "PUT",
 					headers: {
@@ -321,7 +311,7 @@ export default function Activity() {
 			if (!token) return alert("Pas de token, rediriger vers login");
 
 			const response = await fetch(
-				`http://192.168.1.165:3000/reservations/${reservationId}/status`,
+				`http://192.168.1.185:3000/reservations/${reservationId}/status`,
 				{
 					method: "PUT",
 					headers: {
@@ -342,6 +332,7 @@ export default function Activity() {
 			return null;
 		}
 	};
+
 	const submitOrder = async () => {
 		if (!activeReservation) return; // on vérifie qu'il y a une réservation active
 
@@ -366,7 +357,7 @@ export default function Activity() {
 
 		try {
 			const token = await getToken();
-			const res = await fetch("http://192.168.1.165:3000/orders/", {
+			const res = await fetch("http://192.168.1.185:3000/orders/", {
 				method: "POST",
 				headers: {
 					"Content-Type": "application/json",
