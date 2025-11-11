@@ -18,10 +18,11 @@ import { getToken } from "../app/utils/token";
 
 // Dans frontend ou CLIENT-end
 // ✅ IMPORT DIRECT DES STORES
-import useReservationStore from "../../shared-store/stores/useReservationStore";
-import useProductStore from "../../shared-store/stores/useProductStore";
+import useReservationStore from "../src/stores/useReservationStore";
 import { useServerStore } from "../src/stores/useServerStore";
 import useTableStore from "../src/stores/useTableStore";
+import useProductStore from "../src/stores/useProductStore";
+
 export default function Activity() {
 	// ─────────────── États UI / modaux ───────────────
 	const [showRestrictionsOptions, setShowRestrictionsOptions] = useState(false);

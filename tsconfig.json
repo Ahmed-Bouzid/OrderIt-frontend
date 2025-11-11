@@ -4,8 +4,6 @@
 		"strict": true,
 		"paths": {
 			"@/*": ["./*"],
-			"shared-store": ["../shared-store"],
-			"shared-store/*": ["../shared-store/*"]
 		}
 	},
 	"include": [

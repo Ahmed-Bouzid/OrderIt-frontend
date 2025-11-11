@@ -6398,12 +6398,6 @@ shallowequal@^1.1.0:
   version "1.0.0"
   resolved "file:../shared-api"
 
-"shared-store@file:../shared-store":
-  version "1.0.0"
-  resolved "file:../shared-store"
-  dependencies:
-    zustand "^4.0.0"
-
 shebang-command@^2.0.0:
   version "2.0.0"
   resolved "https://registry.npmjs.org/shebang-command/-/shebang-command-2.0.0.tgz"

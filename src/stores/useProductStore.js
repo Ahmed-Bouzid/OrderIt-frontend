@@ -1,5 +1,6 @@
 import { create } from "zustand";
-import { productService } from "../../../shared-api/services/productService.js";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import { productService } from "../../shared-api/services/productService.js";
 
 const useProductStore = create((set, get) => ({
 	products: [],
@@ -8,7 +9,7 @@ const useProductStore = create((set, get) => ({
 		try {
 			const token = await AsyncStorage.getItem("token");
 			const products = await productService.fetchProducts(token);
-			set({ products: Array.isArray(products) ? products : [] });
+			set({ products });
 		} catch (err) {
 			console.error("❌ Error fetching products:", err);
 		}
