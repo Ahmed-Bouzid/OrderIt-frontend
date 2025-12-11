@@ -28,7 +28,6 @@ function SwipeableReservationCard({
 	reservation,
 	onSettingsPress,
 	onAssignTablePress,
-	// ⭐ RETIREZ refreshActiveReservation des props puisqu'on ne l'utilise plus ici
 }) {
 	return (
 		<View
@@ -609,12 +608,7 @@ export default function Dashboard(navigation) {
 				initialPosition={{ bottom: 10, right: 530 }}
 			/>
 
-			{/* <TouchableOpacity
-				style={styles.newReservationButton}
-				onPress={() => setNewResaModal(true)}
-			>
-				<Text style={{ fontSize: 26, color: "#fff" }}>＋</Text>
-			</TouchableOpacity>
+			
 
 			{/* Modal Réglages */}
 			<Modal
@@ -763,7 +757,6 @@ export default function Dashboard(navigation) {
 											</>
 										)}
 
-										{/* Si réservation terminée */}
 										{/* Si réservation terminée */}
 										{selectedReservation.status === "fermee" && (
 											<>

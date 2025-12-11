@@ -1,6 +1,5 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import * as RootNavigation from "../../utils/RootNavigation"; // 🔹 si tu veux rediriger même depuis un store
 
 const useReservationStore = create((set, get) => ({
 	reservations: [],
@@ -9,9 +8,8 @@ const useReservationStore = create((set, get) => ({
 		try {
 			const token = await AsyncStorage.getItem("token");
 			if (!token) {
-				console.log("⚠️ Aucun token trouvé — redirection vers Login");
-				RootNavigation.navigate("Login"); // 🔹 redirige vers la page Login
-				return;
+				console.log("⚠️ Aucun token trouvé");
+				return { success: false, error: "NO_TOKEN", message: "Token manquant" };
 			}
 
 			const response = await fetch(`http://192.168.1.185:3000/reservations`, {
@@ -20,21 +18,35 @@ const useReservationStore = create((set, get) => ({
 
 			// 🔹 si le token est invalide ou expiré
 			if (response.status === 401 || response.status === 403) {
-				console.log("🔒 Token expiré ou invalide — redirection vers Login");
+				console.log("🔒 Token expiré ou invalide");
 				await AsyncStorage.removeItem("token");
-				RootNavigation.navigate("Login");
-				return;
+				return {
+					success: false,
+					error: "INVALID_TOKEN",
+					message: "Session expirée",
+				};
 			}
 
 			if (!response.ok) {
-				console.error("❌ Erreur fetch réservations :", response.status);
-				return;
+				const text = await response.text();
+				console.error("❌ Erreur fetch réservations :", response.status, text);
+				return {
+					success: false,
+					error: "SERVER_ERROR",
+					message: `Erreur serveur: ${response.status}`,
+				};
 			}
 
 			const data = await response.json();
 			set({ reservations: data });
+			return { success: true, data };
 		} catch (err) {
 			console.error("🚨 Erreur récupération réservations :", err);
+			return {
+				success: false,
+				error: "NETWORK_ERROR",
+				message: "Erreur de connexion",
+			};
 		}
 	},
 

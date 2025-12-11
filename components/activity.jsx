@@ -13,6 +13,7 @@ import {
 	TouchableWithoutFeedback,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useNavigation } from "@react-navigation/native";
 
 import { getToken } from "../app/utils/token";
 
@@ -29,6 +30,7 @@ export default function Activity() {
 	const [showSettings, setShowSettings] = useState(false);
 	const [showServerOptions, setShowServerOptions] = useState(false);
 	const [showProductModal, setShowProductModal] = useState(false);
+	const navigation = useNavigation();
 
 	// ─────────────── États de sélection / formulaire ───────────────
 	const [tableId, setTableId] = useState(null);
@@ -87,10 +89,13 @@ export default function Activity() {
 	useEffect(() => {
 		const checkToken = async () => {
 			const token = await getToken();
-			if (!token) console.log("⚠️ Pas de token, redirection login");
+			if (!token) {
+				console.log("⚠️ Pas de token, redirection login");
+				navigation.navigate("Login"); // ✅ AJOUTER LA REDIRECTION
+			}
 		};
 		checkToken();
-	}, []);
+	}, [navigation]); // ✅ AJOUTER navigation aux dépendances
 
 	// 3️⃣ Fetch tables, serveurs et produits dès que restaurantId est disponible
 	useEffect(() => {
@@ -130,9 +135,27 @@ export default function Activity() {
 
 	// 4️⃣ Fetch de toutes les réservations au montage
 	useEffect(() => {
-		fetchReservations();
-		// eslint-disable-next-line react-hooks/exhaustive-deps
-	}, []);
+		const loadReservations = async () => {
+			const result = await fetchReservations();
+			if (!result.success) {
+				console.log(
+					"Erreur fetch réservations:",
+					result.error,
+					"-",
+					result.message
+				);
+
+				// ✅ Gestion de la navigation SI token invalide
+				if (result.error === "NO_TOKEN" || result.error === "INVALID_TOKEN") {
+					// Redirection vers Login
+					// Tu dois ajouter : import { useNavigation } from "@react-navigation/native";
+					// Et : const navigation = useNavigation();
+					navigation.navigate("Login");
+				}
+			}
+		};
+		loadReservations();
+	}, [fetchReservations, navigation]);
 
 	// 5️⃣ Fetch commandes dès que tableId change
 	useEffect(() => {
