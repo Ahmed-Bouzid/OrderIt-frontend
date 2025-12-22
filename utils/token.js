@@ -14,3 +14,4 @@ export const getToken = async () => {
 		return null;
 	}
 };
+export default getToken;

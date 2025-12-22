@@ -10,23 +10,23 @@ import {
 import styles from "../styles";
 
 export default function SettingsModal({
-	showSettings,
-	setShowSettings,
-	activeReservation,
-	setOpenedReservations,
-	setActiveId,
-	markReservationAsFinished,
+	showSettings = false,
+	setShowSettings = () => {},
+	activeReservation = null,
+	setOpenedReservations = () => {},
+	setActiveId = () => {},
+	markReservationAsFinished = async () => false,
 }) {
 	return (
 		<Modal
 			visible={showSettings}
 			transparent
 			animationType="fade"
-			onRequestClose={() => setShowSettings(false)}
+			onRequestClose={() => setShowSettings?.(false)}
 		>
-			<TouchableWithoutFeedback onPress={() => setShowSettings(false)}>
+			<TouchableWithoutFeedback onPress={() => setShowSettings?.(false)}>
 				<View style={styles.overlaySettings}>
-					<TouchableWithoutFeedback>
+					<TouchableWithoutFeedback onPress={() => {}}>
 						<View style={styles.modalSettings}>
 							<Text style={styles.modalTitleSettings}>
 								Options de réservation
@@ -47,18 +47,18 @@ export default function SettingsModal({
 											{
 												text: "Oui",
 												onPress: async () => {
-													setShowSettings(false);
+													setShowSettings?.(false);
 													if (activeReservation?._id) {
-														const updated = await markReservationAsFinished(
+														const updated = await markReservationAsFinished?.(
 															activeReservation._id
 														);
 														if (updated) {
-															setOpenedReservations((prev) =>
-																prev.filter(
-																	(r) => r._id !== activeReservation._id
+															setOpenedReservations?.((prev) =>
+																(prev || []).filter(
+																	(r) => r?._id !== activeReservation._id
 																)
 															);
-															setActiveId(null);
+															setActiveId?.(null);
 														} else {
 															alert(
 																"Erreur lors de la mise à jour de la réservation."
@@ -91,7 +91,7 @@ export default function SettingsModal({
 											{
 												text: "Oui",
 												onPress: () => {
-													setShowSettings(false);
+													setShowSettings?.(false);
 													console.log(
 														"❌ Annuler réservation",
 														activeReservation?.id
@@ -110,7 +110,7 @@ export default function SettingsModal({
 							{/* Fermer */}
 							<TouchableOpacity
 								style={styles.modalButtonCancel}
-								onPress={() => setShowSettings(false)}
+								onPress={() => setShowSettings?.(false)}
 							>
 								<Text style={styles.buttonTextCancel}>Fermer</Text>
 							</TouchableOpacity>

@@ -1,8 +1,17 @@
 import { useRef } from "react";
 import { Animated, PanResponder, Text } from "react-native";
 
-const DraggableButton = ({ onPress }) => {
-	const pan = useRef(new Animated.ValueXY({ x: 0, y: 0 })).current;
+const DraggableButton = ({
+	onPress,
+	initialPosition = { bottom: 20, right: 20 },
+}) => {
+	// ⭐ Initialiser pan avec une position par défaut
+	const pan = useRef(
+		new Animated.ValueXY({
+			x: 0,
+			y: 0,
+		})
+	).current;
 
 	const panResponder = useRef(
 		PanResponder.create({
@@ -19,7 +28,7 @@ const DraggableButton = ({ onPress }) => {
 
 				// Si le déplacement est très petit, considérer comme un appui
 				if (Math.abs(gestureState.dx) < 5 && Math.abs(gestureState.dy) < 5) {
-					onPress();
+					onPress?.();
 				}
 			},
 		})
@@ -30,8 +39,8 @@ const DraggableButton = ({ onPress }) => {
 			style={[
 				{
 					position: "absolute",
-					bottom: 50,
-					right: 20,
+					bottom: initialPosition.bottom,
+					right: initialPosition.right,
 					zIndex: 100,
 					width: 60,
 					height: 60,
@@ -39,8 +48,9 @@ const DraggableButton = ({ onPress }) => {
 					backgroundColor: "#007AFF",
 					justifyContent: "center",
 					alignItems: "center",
+					// ⭐ Transform apply the pan movements on top of fixed position
+					transform: [{ translateX: pan.x }, { translateY: pan.y }],
 				},
-				pan.getLayout(),
 			]}
 			{...panResponder.panHandlers}
 		>

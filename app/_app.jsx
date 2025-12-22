@@ -7,9 +7,9 @@ import {
 	SafeAreaView,
 } from "react-native";
 
-import Activite from "../components/activity";
-import Floor from "../components/floor";
-import Settings from "../components/settings";
+import Activite from "../components/screens/Activity";
+import Floor from "../components/screens/Floor";
+import Settings from "../components/screens/Settings";
 
 export default function App() {
 	const [activeTab, setActiveTab] = useState("Activité");

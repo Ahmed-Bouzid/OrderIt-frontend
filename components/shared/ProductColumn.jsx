@@ -10,7 +10,7 @@ export default function ProductColumn({
 		<View>
 			{products.map((product) => (
 				<View key={product._id} style={{ marginBottom: 10 }}>
-					<Text>{product.name}</Text>
+					<Text>{product.name || "Produit"}</Text>
 
 					{/* Exemple de quantité, relié à orderItems dans activeReservation */}
 					<View style={{ flexDirection: "row", alignItems: "center" }}>
@@ -25,7 +25,7 @@ export default function ProductColumn({
 										0,
 										activeReservation.orderItems[itemIndex].quantity - 1
 									);
-									editField("orderItems", (prev) => {
+									editField?.("orderItems", (prev) => {
 										const copy = [...prev];
 										copy[itemIndex].quantity = newQuantity;
 										return copy;
@@ -53,7 +53,7 @@ export default function ProductColumn({
 										99,
 										activeReservation.orderItems[itemIndex].quantity + 1
 									);
-									editField("orderItems", (prev) => {
+									editField?.("orderItems", (prev) => {
 										const copy = [...prev];
 										copy[itemIndex].quantity = newQuantity;
 										return copy;

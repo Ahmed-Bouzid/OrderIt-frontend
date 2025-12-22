@@ -11,6 +11,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { create } from "zustand";
+import useUserStore from "../src/stores/useUserStore";
 
 // ─────────────── Store restaurant ───────────────
 export const useRestaurantStore = create((set) => ({
@@ -25,6 +26,7 @@ export default function Login() {
 	const [password, setPassword] = useState("");
 	const [loading, setLoading] = useState(false);
 	const { setRestaurantId } = useRestaurantStore();
+	const setUser = useUserStore((state) => state.setUser);
 
 	const handleLogin = async () => {
 		setLoading(true);
@@ -35,12 +37,59 @@ export default function Login() {
 				body: JSON.stringify({ email, password }),
 			});
 
-			const data = await res.json();
+			// ⭐ Vérifier le content-type avant de parser JSON
+			const contentType = res.headers.get("content-type");
+			if (!contentType || !contentType.includes("application/json")) {
+				console.error(
+					"❌ Réponse non-JSON du serveur. Content-Type:",
+					contentType
+				);
+				const bodyText = await res.text();
+				console.error("❌ Body brut:", bodyText);
+				Alert.alert(
+					"Erreur",
+					"Erreur serveur - réponse non-JSON. Vérifiez les logs."
+				);
+				setLoading(false);
+				return;
+			}
+
+			let data;
+			try {
+				data = await res.json();
+			} catch (parseErr) {
+				console.error("❌ Erreur parsing JSON:", parseErr);
+				Alert.alert("Erreur", "Impossible de parser la réponse du serveur");
+				setLoading(false);
+				return;
+			}
+
 			console.log("Réponse backend login :", data); // 🔹 debug
 
 			if (res.ok) {
-				// ✅ Stocker le token
+				// ✅ Stocker le token d'accès
 				await AsyncStorage.setItem("token", data.accessToken);
+
+				// ✅ Stocker le refresh token (TRÈS IMPORTANT pour la continuité de session)
+				if (data.refreshToken) {
+					await AsyncStorage.setItem("refreshToken", data.refreshToken);
+					console.log("✅ RefreshToken sauvegardé en AsyncStorage");
+
+					// ⭐ Vérifier immédiatement que c'est bien sauvegardé
+					const saved = await AsyncStorage.getItem("refreshToken");
+					if (saved) {
+						console.log(
+							"✅✅ Vérification: RefreshToken présent en AsyncStorage"
+						);
+					} else {
+						console.error(
+							"❌ ERREUR: RefreshToken n'a pas pu être sauvegardé!"
+						);
+					}
+				} else {
+					console.warn("⚠️ ATTENTION: Pas de refreshToken reçu du backend!");
+					console.warn("Réponse backend:", data);
+				}
 
 				// ✅ Stocker et assigner le restaurantId
 				const restaurantId = data.restaurantId;
@@ -53,6 +102,19 @@ export default function Login() {
 					await AsyncStorage.setItem("restaurantId", restaurantId);
 					setRestaurantId(restaurantId); // 🔹 assignation immédiate dans le store
 				}
+
+				// ✅ Stocker les infos utilisateur (role, userType)
+				await setUser({
+					userId: data.userId,
+					email: data.email,
+					role: data.role,
+					userType: data.userType,
+					restaurantId: restaurantId,
+				});
+				console.log("✅ User info stocké:", {
+					role: data.role,
+					userType: data.userType,
+				});
 
 				// 🧭 Redirection vers l'écran principal
 				router.replace("/tabs/activity");

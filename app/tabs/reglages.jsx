@@ -1,5 +1,5 @@
 import React from "react";
-import Settings from "../../components/settings"; // ou "../../components/settings"
+import Settings from "../../components/screens/Settings";
 
 export default function reglages() {
 	return <Settings />;

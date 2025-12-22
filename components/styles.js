@@ -21,7 +21,7 @@ const styles = StyleSheet.create({
 	},
 	buttonText: {
 		color: "#fff",
-		fontSize: 21,
+		fontSize: 22,
 		fontWeight: "600",
 	},
 	newReservationButton: {
@@ -77,10 +77,10 @@ const styles = StyleSheet.create({
 	// ---------------- Popup / Modals ----------------
 	popupMainWrapper: {
 		position: "absolute",
-		top: 0,
+		top: 40,
 		left: 0,
 		right: 0,
-		bottom: 50,
+		bottom: 120,
 		justifyContent: "center",
 		alignItems: "center",
 	},
@@ -89,7 +89,9 @@ const styles = StyleSheet.create({
 		height: screenHeight * 0.7,
 		backgroundColor: "#fff",
 		borderRadius: 20,
-		padding: 15,
+		paddingTop: 0, // ⭐ Aucun padding en haut
+		paddingHorizontal: 15,
+		paddingBottom: 15,
 		shadowColor: "#000",
 		shadowOpacity: 0.3,
 		shadowOffset: { width: 0, height: 3 },
@@ -206,9 +208,9 @@ const styles = StyleSheet.create({
 	},
 	leftCol: { flex: 1 },
 	rightCol: { alignItems: "flex-end" },
-	infoText: { fontSize: 16, fontWeight: "500" },
-	subText: { fontSize: 14, color: "#555" },
-	separator: { height: 1, backgroundColor: "#ccc", marginHorizontal: 10 },
+	infoText: { fontSize: 16, fontWeight: "600" },
+	subText: { fontSize: 13, fontWeight: "500" },
+	separator: { height: 1, backgroundColor: "#e0e0e0", marginHorizontal: 10 },
 	greenStripe: {
 		position: "absolute",
 		left: 0,
@@ -230,30 +232,55 @@ const styles = StyleSheet.create({
 	// ---------------- Mini / Add ----------------
 	miniWrapper: {
 		position: "absolute",
-		bottom: 26,
-		left: 26,
-		flexDirection: "row",
+		bottom: 40,
 		alignItems: "center",
+		justifyContent: "center",
+		zIndex: 5,
 	},
 	popupMini: {
-		width: 85,
-		height: 107,
-		backgroundColor: "#fff",
+		width: 110,
+		height: 110,
+		backgroundColor: "#f0f9ff",
 		borderRadius: 13,
-		marginRight: 12,
-		padding: 10,
-		justifyContent: "center",
+		marginRight: 16,
+		padding: 12,
+		justifyContent: "space-between",
 		alignItems: "center",
-		elevation: 6,
+		elevation: 12,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.25,
+		shadowRadius: 8,
+		borderWidth: 1,
+		borderColor: "#e0f2fe",
 	},
-	miniTitle: { fontWeight: "700", color: "#0F172A", fontSize: 17 },
-	miniSub: { fontSize: 14, color: "#475569" },
+	miniTitle: {
+		fontWeight: "700",
+		color: "#0F172A",
+		fontSize: 16,
+		textAlign: "center",
+	},
+	miniSub: {
+		fontSize: 13,
+		color: "#64748B",
+		textAlign: "center",
+		marginTop: 4,
+	},
+	miniArrive: {
+		fontSize: 12,
+		color: "#94A3B8",
+		textAlign: "center",
+		marginTop: 4,
+	},
 	addButton: {
 		backgroundColor: "#10B981",
 		justifyContent: "center",
 		alignItems: "center",
+		width: 110,
+		height: 110,
+		borderRadius: 13,
 	},
-	addText: { color: "black", fontSize: 25, fontWeight: "700" },
+	addText: { color: "black", fontSize: 32, fontWeight: "700" },
 
 	// ---------------- Dropdowns ----------------
 	dropdown: {
@@ -282,7 +309,7 @@ const styles = StyleSheet.create({
 		borderBottomWidth: 1,
 		borderBottomColor: "#eee",
 	},
-	dropdownOptionText: { fontSize: 18, color: "#000" },
+	dropdownOptionText: { fontSize: 14, fontWeight: "500" },
 	valueButton: {
 		paddingVertical: 10,
 		paddingHorizontal: 8,
@@ -295,13 +322,16 @@ const styles = StyleSheet.create({
 	headerRow: {
 		flexDirection: "row",
 		justifyContent: "space-between",
-		alignItems: "flex-start",
+		alignItems: "center", // ⭐ Molette alignée avec le texte
+		paddingTop: 8,
+		paddingBottom: 0, // ⭐ Aucun padding en bas
+		paddingHorizontal: 0,
 	},
 	statusRow: {
 		flexDirection: "row",
 		alignItems: "center",
-		marginTop: 11,
-		marginBottom: 15,
+		marginTop: 4, // ⭐ Espace minimal
+		marginBottom: 10,
 	},
 	badge: {
 		paddingHorizontal: 13,
@@ -313,9 +343,9 @@ const styles = StyleSheet.create({
 		backgroundColor: "#FBBF24",
 	},
 	badgeText: {
-		color: "#111",
-		fontWeight: "700",
-		fontSize: 17,
+		color: "#fff",
+		fontWeight: "600",
+		fontSize: 13,
 	},
 	contentScroll: {
 		flex: 1,
@@ -328,10 +358,9 @@ const styles = StyleSheet.create({
 		marginBottom: 10,
 	},
 	blockTitle: {
-		fontSize: 20,
-		fontWeight: "700",
+		fontSize: 16,
+		fontWeight: "600",
 		marginBottom: 10,
-		color: "#0F172A",
 	},
 	row: {
 		flexDirection: "row",
@@ -347,9 +376,8 @@ const styles = StyleSheet.create({
 	},
 
 	title: {
-		fontSize: 45,
-		fontWeight: "bold",
-		color: "black",
+		fontSize: 20,
+		fontWeight: "600",
 		marginBottom: 10,
 	},
 
@@ -450,13 +478,11 @@ const styles = StyleSheet.create({
 	categoryTitle: {
 		fontSize: 18,
 		fontWeight: "700",
-		color: "#0F172A",
 		marginBottom: 8,
 	},
 	quantityText: {
 		marginHorizontal: 8,
 		fontSize: 16,
-		color: "#0F172A",
 		fontWeight: "500",
 	},
 	scrollContainer: {
@@ -464,14 +490,275 @@ const styles = StyleSheet.create({
 	},
 
 	dropdownButton: {
-		backgroundColor: "#f0f0f0",
 		padding: 10,
 		borderRadius: 8,
 		marginBottom: 10,
+		borderWidth: 1,
 	},
 	dropdownButtonText: {
+		fontSize: 14,
+		fontWeight: "500",
+	},
+
+	// ============ DASHBOARD - Filter Buttons ============
+	// ============ MORPHING NAV (FILTERS) ============
+	morphingNavContainer: {
+		marginBottom: 20,
+		paddingHorizontal: 10,
+	},
+	morphingNavInner: {
+		flexDirection: "row",
+		justifyContent: "center",
+		alignItems: "center",
+		gap: 10,
+		flexWrap: "wrap",
+		position: "relative",
+	},
+	morphingNavSlider: {
+		position: "absolute",
+		height: 48,
+		borderRadius: 25,
+		borderWidth: 2,
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.15,
+		shadowRadius: 6,
+		elevation: 4,
+	},
+	morphingNavItem: {
+		flexDirection: "row",
+		alignItems: "center",
+		paddingVertical: 12,
+		paddingHorizontal: 18,
+		borderRadius: 25,
+		gap: 8,
+		minWidth: 120,
+		justifyContent: "center",
+		zIndex: 1,
+	},
+	morphingNavIcon: {
+		fontSize: 18,
+	},
+	morphingNavLabel: {
+		fontSize: 14,
+		letterSpacing: 0.3,
+	},
+
+	// Legacy filter styles (kept for compatibility)
+	filterButtonRow: {
+		flexDirection: "row",
+		marginBottom: 15,
+		paddingHorizontal: 10,
+		gap: 8,
+	},
+	filterButtonActives: {
+		paddingVertical: 12,
+		paddingHorizontal: 16,
+		borderRadius: 10,
+		backgroundColor: "#E8F5E9",
+		alignItems: "center",
+		justifyContent: "center",
+		minWidth: 90,
+		borderWidth: 2,
+		borderColor: "#4CAF50",
+	},
+	filterButtonActivesActive: {
+		backgroundColor: "#4CAF50",
+	},
+	filterButtonOuverte: {
+		paddingVertical: 12,
+		paddingHorizontal: 16,
+		borderRadius: 10,
+		backgroundColor: "#E3F2FD",
+		alignItems: "center",
+		justifyContent: "center",
+		minWidth: 90,
+		borderWidth: 2,
+		borderColor: "#2196F3",
+	},
+	filterButtonOuverteActive: {
+		backgroundColor: "#2196F3",
+	},
+	filterButtonTermine: {
+		paddingVertical: 12,
+		paddingHorizontal: 16,
+		borderRadius: 10,
+		backgroundColor: "#F5F5F5",
+		alignItems: "center",
+		justifyContent: "center",
+		minWidth: 90,
+		borderWidth: 2,
+		borderColor: "#9E9E9E",
+	},
+	filterButtonTermineActive: {
+		backgroundColor: "#9E9E9E",
+	},
+	filterButtonAnnulee: {
+		paddingVertical: 12,
+		paddingHorizontal: 16,
+		borderRadius: 10,
+		backgroundColor: "#FFEBEE",
+		alignItems: "center",
+		justifyContent: "center",
+		minWidth: 90,
+		borderWidth: 2,
+		borderColor: "#F44336",
+	},
+	filterButtonAnnuleeActive: {
+		backgroundColor: "#F44336",
+	},
+	filterButtonText: {
 		color: "#333",
+		fontSize: 13,
+		fontWeight: "600",
+		textAlign: "center",
+	},
+	filterButtonTextActive: {
+		color: "#fff",
+		fontSize: 13,
+		fontWeight: "700",
+		textAlign: "center",
+	},
+
+	// ============ RESERVATION CARDS ============
+	reservationCardContainer: {
+		flexDirection: "column",
+		width: "48%",
+		borderRadius: 12,
+		padding: 10,
+		margin: "1%",
+		borderWidth: 1.5,
+		position: "relative",
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.1,
+		shadowRadius: 4,
+		elevation: 3,
+	},
+	reservationCardHeader: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 12,
+		paddingBottom: 10,
+		borderBottomWidth: 1,
+		borderBottomColor: "rgba(128, 128, 128, 0.2)",
+	},
+	reservationCardContent: {
+		flexDirection: "row",
+		flex: 1,
+		gap: 10,
+	},
+	reservationCardLeftCol: {
+		flex: 1,
+		paddingRight: 6,
+	},
+	reservationCardRightCol: {
+		flex: 1,
+		paddingLeft: 6,
+		alignItems: "flex-end",
+	},
+	reservationCardInfoRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginBottom: 8,
+	},
+	reservationCardIcon: {
 		fontSize: 16,
+		marginRight: 8,
+	},
+	reservationCardInfoText: {
+		fontSize: 13,
+		fontWeight: "500",
+		letterSpacing: 0.1,
+	},
+	reservationCardName: {
+		fontSize: 22,
+		fontWeight: "700",
+		textTransform: "capitalize",
+		letterSpacing: 0.5,
+	},
+	reservationCardSettingsIcon: {
+		fontSize: 26,
+		opacity: 0.7,
+	},
+	reservationCardChairTouchable: {
+		marginRight: 8,
+	},
+	reservationCardStatusDot: {
+		width: 10,
+		height: 10,
+		borderRadius: 5,
+		marginRight: 8,
+	},
+	// Legacy styles (à supprimer si non utilisés ailleurs)
+	reservationCardInfoGroup: {
+		marginBottom: 12,
+	},
+	reservationCardTableRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginBottom: 16,
+		paddingVertical: 8,
+		paddingHorizontal: 12,
+		borderRadius: 8,
+		backgroundColor: "rgba(0, 122, 255, 0.08)",
+	},
+	reservationCardChairButton: {
+		marginRight: 8,
+	},
+	reservationCardChairIcon: {
+		fontSize: 28,
+	},
+	reservationCardTableNumber: {
+		fontSize: 18,
+		fontWeight: "700",
+		letterSpacing: 0.3,
+	},
+	reservationCardDetailLabel: {
+		fontSize: 13,
+		fontWeight: "600",
+		marginBottom: 4,
+		opacity: 0.7,
+		letterSpacing: 0.3,
+	},
+	reservationCardDetailValue: {
+		fontSize: 16,
+		fontWeight: "500",
+		letterSpacing: 0.2,
+	},
+	reservationCardStatusBadge: {
+		paddingVertical: 6,
+		paddingHorizontal: 12,
+		borderRadius: 6,
+		alignSelf: "flex-end",
+		marginTop: 4,
+	},
+	reservationCardStatusText: {
+		fontSize: 13,
+		fontWeight: "700",
+		letterSpacing: 0.5,
+	},
+	reservationCardActionIcon: {
+		fontSize: 24,
+		marginTop: 12,
+	},
+
+	// ============ FLOOR PANEL ============
+	floorSectionTitle: {
+		fontSize: 16,
+		fontWeight: "600",
+		marginBottom: 10,
+		paddingVertical: 8,
+		paddingHorizontal: 10,
+		borderRadius: 8,
+		backgroundColor: "rgba(0, 122, 255, 0.1)",
+	},
+	floorMenuItemText: {
+		fontSize: 14,
+		fontWeight: "500",
+		paddingVertical: 11,
+		paddingHorizontal: 10,
 	},
 });
 
