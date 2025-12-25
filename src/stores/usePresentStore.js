@@ -42,19 +42,6 @@ const usePresentStore = create((set, get) => ({
 	},
 
 	/**
-	 * Obtenir le statut effectif d'une réservation
-	 * Logique BDD : en attente → present → ouverte → fermee/annulee
-	 * @param {object} reservation
-	 * @returns {string} "en attente" | "present" | "ouverte" | "fermee" | "annulee"
-	 */
-	getEffectiveStatus: (reservation) => {
-		if (!reservation) return "en attente";
-
-		// Le statut vient directement de la BDD maintenant
-		return reservation.status || "en attente";
-	},
-
-	/**
 	 * Nettoyer une réservation (quand elle passe à fermée ou annulée)
 	 * @param {string} reservationId
 	 */

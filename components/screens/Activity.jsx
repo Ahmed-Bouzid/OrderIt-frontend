@@ -33,6 +33,12 @@ import {
 } from "../activity/components";
 
 export default function Activity() {
+	// Rafraîchissement global pour le temps écoulé (mini popups dynamiques)
+	const [now, setNow] = useState(Date.now());
+	useEffect(() => {
+		const interval = setInterval(() => setNow(Date.now()), 1000);
+		return () => clearInterval(interval);
+	}, []);
 	const { theme, initTheme } = useThemeStore();
 	const authFetch = useAuthFetch();
 
@@ -344,15 +350,33 @@ export default function Activity() {
 	const renderMiniature = useCallback(
 		({ item: r }) => {
 			const allTables = useTableStore.getState().tables || [];
-			const table = allTables.find((t) => t._id === r.tableId);
-			const tableNumber = table?.number || r.tableId || "N/A";
+			const table = allTables.find(
+				(t) =>
+					t._id === (typeof r.tableId === "object" ? r.tableId._id : r.tableId)
+			);
+			let tableNumber = "N/A";
+			if (table && table.number) {
+				tableNumber = table.number;
+			} else if (
+				r.tableId &&
+				typeof r.tableId === "object" &&
+				r.tableId.number
+			) {
+				tableNumber = r.tableId.number;
+			} else if (typeof r.tableId === "string") {
+				tableNumber = r.tableId;
+			}
 
 			let arriveDisplay = "-";
 			if (r.arrivalTime) {
 				const arriveDate = new Date(r.arrivalTime);
-				const hours = String(arriveDate.getHours()).padStart(2, "0");
-				const mins = String(arriveDate.getMinutes()).padStart(2, "0");
-				arriveDisplay = `${hours}:${mins}`;
+				let diff = Math.max(0, now - arriveDate.getTime()); // en ms
+				const hours = String(Math.floor(diff / 3600000)).padStart(2, "0");
+				diff = diff % 3600000;
+				const mins = String(Math.floor(diff / 60000)).padStart(2, "0");
+				diff = diff % 60000;
+				const secs = String(Math.floor(diff / 1000)).padStart(2, "0");
+				arriveDisplay = `${hours}:${mins}:${secs}`;
 			}
 
 			return (
@@ -361,15 +385,17 @@ export default function Activity() {
 					onPress={() => setActiveId(r._id)}
 				>
 					<Text style={styles.miniTitle}>
-						{r.clientName.charAt(0).toUpperCase() +
-							r.clientName.slice(1).toLowerCase()}
+						{r.clientName && typeof r.clientName === "string"
+							? r.clientName.charAt(0).toUpperCase() +
+							  r.clientName.slice(1).toLowerCase()
+							: String(r.clientName)}
 					</Text>
 					<Text style={styles.miniSub}>{`Table ${tableNumber}`}</Text>
 					<Text style={styles.miniArrive}>{`🕐 ${arriveDisplay}`}</Text>
 				</TouchableOpacity>
 			);
 		},
-		[setActiveId]
+		[setActiveId, now]
 	);
 
 	const filteredReservations = useMemo(
@@ -716,33 +742,49 @@ export default function Activity() {
 				{activeId && (
 					<View style={styles.miniWrapper}>
 						<FlatList
-							data={filteredReservations}
-							renderItem={renderMiniature}
+							style={{ overflow: "visible" }}
+							data={[
+								...filteredReservations,
+								{ _id: "add-button", isAddButton: true },
+							]}
+							renderItem={({ item }) => {
+								if (item.isAddButton) {
+									return (
+										<TouchableOpacity
+											style={[styles.popupMini, styles.addButton]}
+											onPress={() => {
+												Alert.alert(
+													"Nouvelle réservation",
+													"Voulez-vous vraiment ouvrir une nouvelle réservation ?",
+													[
+														{ text: "Annuler", style: "cancel" },
+														{
+															text: "Oui",
+															onPress: async () => {
+																const nextResa = await openNextReservation();
+																if (nextResa) setStarted(true);
+															},
+														},
+													]
+												);
+											}}
+										>
+											<Text style={styles.addText}>+</Text>
+										</TouchableOpacity>
+									);
+								}
+								return renderMiniature({ item });
+							}}
 							keyExtractor={(item) => item._id}
 							horizontal
 							showsHorizontalScrollIndicator={false}
-						/>
-						<TouchableOpacity
-							style={[styles.popupMini, styles.addButton]}
-							onPress={() => {
-								Alert.alert(
-									"Nouvelle réservation",
-									"Voulez-vous vraiment ouvrir une nouvelle réservation ?",
-									[
-										{ text: "Annuler", style: "cancel" },
-										{
-											text: "Oui",
-											onPress: async () => {
-												const nextResa = await openNextReservation();
-												if (nextResa) setStarted(true);
-											},
-										},
-									]
-								);
+							contentContainerStyle={{
+								flexGrow: 1, // ⭐ ESSENTIEL pour centrer
+								justifyContent: "center",
+								alignItems: "center",
+								gap: 8,
 							}}
-						>
-							<Text style={styles.addText}>+</Text>
-						</TouchableOpacity>
+						/>
 					</View>
 				)}
 			</View>

@@ -19,11 +19,13 @@ const SettingsModal = React.memo(
 		onUpdateStatus,
 		onCancel,
 	}) => {
-		const { getEffectiveStatus } = usePresentStore();
-
 		if (!reservation || !visible) return null;
 
-		const effectiveStatus = getEffectiveStatus(reservation);
+		// Nouvelle logique locale pour le statut effectif
+		let effectiveStatus = reservation.status || "en attente";
+		if (reservation.isPresent && reservation.status === "en attente") {
+			effectiveStatus = "present";
+		}
 
 		return (
 			<Modal

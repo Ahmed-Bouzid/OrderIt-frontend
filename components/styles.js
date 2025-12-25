@@ -233,26 +233,27 @@ const styles = StyleSheet.create({
 	miniWrapper: {
 		position: "absolute",
 		bottom: 40,
-		alignItems: "center",
-		justifyContent: "center",
+		width: "100%",
 		zIndex: 5,
 	},
+
 	popupMini: {
 		width: 110,
 		height: 110,
 		backgroundColor: "#f0f9ff",
 		borderRadius: 13,
-		marginRight: 16,
-		padding: 12,
-		justifyContent: "space-between",
+		padding: 12, // ⭐ Retirer marginRight ici
+		justifyContent: "center",
 		alignItems: "center",
 		elevation: 12,
 		shadowColor: "#000",
 		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.25,
-		shadowRadius: 8,
+		shadowOpacity: 0.3, // ⭐ Augmentez l'opacité
+		shadowRadius: 10, // ⭐ Augmentez le rayon
 		borderWidth: 1,
 		borderColor: "#e0f2fe",
+		marginVertical: 5, // Espace pour l'ombre
+		overflow: "visible", // ⭐ ESSENTIEL : ne pas couper l'ombre
 	},
 	miniTitle: {
 		fontWeight: "700",

@@ -4,7 +4,6 @@ import usePresentStore from "../src/stores/usePresentStore";
 
 export const useDashboardFilters = (reservations) => {
 	const [filter, setFilter] = useState("actives");
-	const { getEffectiveStatus } = usePresentStore();
 
 	// Restaurer le filtre au montage
 	useEffect(() => {
@@ -28,20 +27,13 @@ export const useDashboardFilters = (reservations) => {
 		try {
 			switch (filter) {
 				case "actives":
-					return reservations.filter((r) => {
-						if (!r) return false;
-						const effectiveStatus = getEffectiveStatus(r);
-						return effectiveStatus === "en attente";
-					});
+					// Toutes les "en attente" (présent ou non)
+					return reservations.filter((r) => r?.status === "en attente");
 				case "present":
-					return reservations.filter((r) => {
-						if (!r) return false;
-						const effectiveStatus = getEffectiveStatus(r);
-						return (
-							effectiveStatus === "present" || effectiveStatus === "ouverte"
-						);
-					});
+					// Toutes les réservations isPresent true (quel que soit le status)
+					return reservations.filter((r) => r?.isPresent === true);
 				case "ouverte":
+					// Toutes les "ouverte" (présent ou non)
 					return reservations.filter((r) => r?.status === "ouverte");
 				case "termine":
 					return reservations.filter((r) => r?.status === "fermee");
@@ -54,7 +46,7 @@ export const useDashboardFilters = (reservations) => {
 			console.error("❌ Erreur filtrage réservations:", error);
 			return [];
 		}
-	}, [reservations, filter, getEffectiveStatus]);
+	}, [reservations, filter]);
 
 	const changeFilter = useCallback(async (newFilter) => {
 		setFilter(newFilter);

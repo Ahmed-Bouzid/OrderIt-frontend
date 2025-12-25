@@ -26,16 +26,14 @@ export const useDashboardActions = (fetchReservations) => {
 		[authFetch]
 	);
 
-	// Marquer comme présent (met à jour le statut BDD ET le store local)
+	// Marquer comme présent (utilise la route togglePresent du backend)
 	const togglePresent = useCallback(
 		async (id) => {
 			try {
-				// Mettre à jour le statut dans la BDD
 				const data = await authFetch(
-					`http://192.168.1.185:3000/reservations/${id}/status`,
+					`http://192.168.1.185:3000/reservations/${id}/togglePresent`,
 					{
 						method: "PUT",
-						body: { status: "present" },
 					}
 				);
 

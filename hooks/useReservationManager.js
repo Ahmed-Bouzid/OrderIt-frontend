@@ -375,7 +375,8 @@ export const useReservationManager = (reservations) => {
 		const nextResa = reservations
 			.filter(
 				(r) =>
-					r.status === "present" &&
+					r.isPresent === true &&
+					r.status === "en attente" &&
 					!openedReservations.some((o) => o._id === r._id)
 			)
 			.sort(
@@ -383,7 +384,6 @@ export const useReservationManager = (reservations) => {
 					new Date(`${a.reservationDate} ${a.reservationTime}`) -
 					new Date(`${b.reservationDate} ${b.reservationTime}`)
 			)[0];
-
 		if (!nextResa) {
 			Alert.alert(
 				"Aucune réservation",

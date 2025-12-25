@@ -5,14 +5,16 @@ import usePresentStore from "../../src/stores/usePresentStore";
 
 const ReservationCard = React.memo(
 	({ reservation, onSettingsPress, onAssignTablePress, theme }) => {
-		const { getEffectiveStatus } = usePresentStore();
-
 		// ⭐ Garde-fou : vérifier que reservation existe
 		if (!reservation) {
 			return null;
 		}
 
-		const effectiveStatus = getEffectiveStatus(reservation) || "en attente";
+		// Nouvelle logique locale pour le statut effectif
+		let effectiveStatus = reservation.status || "en attente";
+		if (reservation.isPresent && reservation.status === "en attente") {
+			effectiveStatus = "present";
+		}
 
 		const formatDate = (date) => {
 			if (!date) return "-";
