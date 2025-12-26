@@ -1,11 +1,11 @@
-// components/screens/manager/MenuManagement.jsx
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
 	View,
 	Text,
 	TouchableOpacity,
 	TextInput,
 	FlatList,
+	Animated,
 	Alert,
 	ActivityIndicator,
 	StyleSheet,
@@ -17,7 +17,6 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useAuthFetch } from "../../../hooks/useAuthFetch";
 import useThemeStore from "../../../src/stores/useThemeStore";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function MenuManagement() {
 	const { theme, isDarkMode } = useThemeStore();
@@ -25,52 +24,32 @@ export default function MenuManagement() {
 
 	const [products, setProducts] = useState([]);
 	const [loading, setLoading] = useState(true);
-	const [modalVisible, setModalVisible] = useState(false);
-	const [editingProduct, setEditingProduct] = useState(null);
-	const [searchQuery, setSearchQuery] = useState("");
 
-	// Formulaire
-	const [formData, setFormData] = useState({
-		name: "",
-		price: "",
-		category: "",
-		description: "",
-		available: true,
-		image: "",
-	});
+	// Catégories disponibles (à adapter selon votre menu)
+	const categories = ["Entrée", "Plat", "Dessert", "Boisssson", "Autre"];
 
-	// Catégories disponibles
-	const categories = ["boisson", "entrée", "plat", "dessert", "autre"];
-
-	// Charger les produits
-	const fetchProducts = useCallback(async () => {
+	// Fonction pour charger les produits depuis l'API
+	const fetchProducts = React.useCallback(async () => {
 		setLoading(true);
 		try {
-			const restaurantId = await AsyncStorage.getItem("restaurantId");
-			const data = await authFetch(`/products/restaurant/${restaurantId}`, {
-				method: "GET",
-			});
+			const res = await authFetch("/products", { method: "GET" });
+			const data = await res.json();
 			setProducts(Array.isArray(data) ? data : []);
 		} catch (error) {
 			console.error("❌ Erreur chargement produits:", error);
-			Alert.alert("Erreur", "Impossible de charger les produits");
+			setProducts([]);
 		} finally {
 			setLoading(false);
 		}
 	}, [authFetch]);
 
+	// Charger les produits au montage
 	useEffect(() => {
 		fetchProducts();
 	}, [fetchProducts]);
-
-	// Filtrer les produits
-	const filteredProducts = products.filter(
-		(p) =>
-			p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
-			p.category?.toLowerCase().includes(searchQuery.toLowerCase())
-	);
-
-	// Ouvrir modal édition
+	const [modalVisible, setModalVisible] = useState(false);
+	const [editingProduct, setEditingProduct] = useState(null);
+	// Handler pour éditer un produit (ouvre la modale et remplit le formulaire)
 	const handleEdit = (product) => {
 		setEditingProduct(product);
 		setFormData({
@@ -84,52 +63,7 @@ export default function MenuManagement() {
 		setModalVisible(true);
 	};
 
-	// Sélectionner une image
-	const handlePickImage = async () => {
-		// Demander permission
-		const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
-		if (status !== "granted") {
-			Alert.alert(
-				"Permission requise",
-				"Nous avons besoin d'accéder à vos photos pour ajouter une image."
-			);
-			return;
-		}
-
-		// Ouvrir le picker
-		const result = await ImagePicker.launchImageLibraryAsync({
-			mediaTypes: ImagePicker.MediaTypeOptions.Images,
-			allowsEditing: true,
-			aspect: [4, 3],
-			quality: 0.8,
-			base64: true,
-		});
-
-		if (!result.canceled && result.assets[0]) {
-			const asset = result.assets[0];
-			// Stocker en base64 pour envoi au serveur
-			const base64Image = `data:image/jpeg;base64,${asset.base64}`;
-			setFormData({ ...formData, image: base64Image });
-		}
-	};
-
-	// Supprimer l'image
-	const handleRemoveImage = () => {
-		Alert.alert(
-			"Supprimer l'image",
-			"Voulez-vous vraiment supprimer cette image ?",
-			[
-				{ text: "Annuler", style: "cancel" },
-				{
-					text: "Supprimer",
-					style: "destructive",
-					onPress: () => setFormData({ ...formData, image: "" }),
-				},
-			]
-		);
-	};
-
-	// Toggle disponibilité
+	// Handler pour toggle la disponibilité
 	const handleToggleAvailability = async (product) => {
 		try {
 			await authFetch(`/products/${product._id}`, {
@@ -144,6 +78,142 @@ export default function MenuManagement() {
 			Alert.alert("Erreur", "Impossible de modifier la disponibilité");
 		}
 	};
+
+	// Handler pour choisir une image
+	const handlePickImage = async () => {
+		const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+		if (status !== "granted") {
+			Alert.alert(
+				"Permission requise",
+				"Nous avons besoin d'accéder à vos photos pour ajouter une image."
+			);
+			return;
+		}
+		const result = await ImagePicker.launchImageLibraryAsync({
+			mediaTypes: ImagePicker.MediaTypeOptions.Images,
+			allowsEditing: true,
+			aspect: [4, 3],
+			quality: 0.8,
+			base64: true,
+		});
+		if (!result.canceled && result.assets[0]) {
+			const asset = result.assets[0];
+			const base64Image = `data:image/jpeg;base64,${asset.base64}`;
+			setFormData({ ...formData, image: base64Image });
+		}
+	};
+
+	// Handler pour supprimer l'image
+	const handleRemoveImage = () => {
+		Alert.alert(
+			"Supprimer l'image",
+			"Voulez-vous vraiment supprimer cette image ?",
+			[
+				{ text: "Annuler", style: "cancel" },
+				{
+					text: "Supprimer",
+					style: "destructive",
+					onPress: () => setFormData({ ...formData, image: "" }),
+				},
+			]
+		);
+	};
+	const [searchQuery, setSearchQuery] = useState("");
+
+	// Formulaire
+	const [formData, setFormData] = useState({
+		name: "",
+		price: "",
+		category: "",
+		description: "",
+		available: true,
+		image: "",
+	});
+
+	// Composant carte produit animé (doit être défini en dehors du state !)
+	function ProductCard({ item, index }) {
+		const anim = useRef(new Animated.Value(0)).current;
+		useEffect(() => {
+			Animated.timing(anim, {
+				toValue: 1,
+				duration: 500,
+				delay: 80 * index,
+				useNativeDriver: true,
+			}).start();
+		}, [anim, index]);
+		const { theme } = useThemeStore();
+		return (
+			<Animated.View
+				style={[
+					styles.glassProductCard,
+					{
+						opacity: anim,
+						transform: [
+							{
+								translateY: anim.interpolate({
+									inputRange: [0, 1],
+									outputRange: [30, 0],
+								}),
+							},
+						],
+						backgroundColor: !item.available
+							? "rgba(200,200,200,0.18)"
+							: "rgba(255,255,255,0.22)",
+					},
+				]}
+			>
+				<TouchableOpacity
+					style={styles.productInfo}
+					onPress={() => handleEdit(item)}
+				>
+					<View style={styles.productHeader}>
+						<Text style={[styles.productName, { color: theme.textColor }]}>
+							{item.name}
+						</Text>
+						<Text style={[styles.productPrice, { color: "#4CAF50" }]}>
+							{item.price?.toFixed(2)}€
+						</Text>
+					</View>
+					<Text
+						style={[
+							styles.productCategory,
+							{ color: theme.textColor, opacity: 0.6 },
+						]}
+					>
+						{item.category || "Sans catégorie"}
+					</Text>
+					{item.description && (
+						<Text
+							style={[
+								styles.productDescription,
+								{ color: theme.textColor, opacity: 0.5 },
+							]}
+							numberOfLines={1}
+						>
+							{item.description}
+						</Text>
+					)}
+				</TouchableOpacity>
+				<View style={styles.productActions}>
+					<Switch
+						value={item.available !== false}
+						onValueChange={() => handleToggleAvailability(item)}
+						trackColor={{ false: "#767577", true: "#81c784" }}
+						thumbColor={item.available !== false ? "#4caf50" : "#f44336"}
+					/>
+					<Text style={[styles.availabilityText, { color: theme.textColor }]}>
+						{item.available !== false ? "Dispo" : "Indispo"}
+					</Text>
+				</View>
+			</Animated.View>
+		);
+	}
+	// Filtrer les produits
+	const filteredProducts = products.filter(
+		(p) =>
+			p.name?.toLowerCase().includes(searchQuery.toLowerCase()) ||
+			p.category?.toLowerCase().includes(searchQuery.toLowerCase())
+	);
 
 	// Sauvegarder les modifications
 	const handleSave = async () => {
@@ -179,62 +249,6 @@ export default function MenuManagement() {
 			Alert.alert("Erreur", error.message || "Impossible de sauvegarder");
 		}
 	};
-
-	// Rendu d'un produit
-	const renderProduct = ({ item }) => (
-		<View
-			style={[
-				styles.productCard,
-				{ backgroundColor: theme.cardBackground },
-				!item.available && styles.productUnavailable,
-			]}
-		>
-			<TouchableOpacity
-				style={styles.productInfo}
-				onPress={() => handleEdit(item)}
-			>
-				<View style={styles.productHeader}>
-					<Text style={[styles.productName, { color: theme.textColor }]}>
-						{item.name}
-					</Text>
-					<Text style={[styles.productPrice, { color: "#4CAF50" }]}>
-						{item.price?.toFixed(2)}€
-					</Text>
-				</View>
-				<Text
-					style={[
-						styles.productCategory,
-						{ color: theme.textColor, opacity: 0.6 },
-					]}
-				>
-					{item.category || "Sans catégorie"}
-				</Text>
-				{item.description && (
-					<Text
-						style={[
-							styles.productDescription,
-							{ color: theme.textColor, opacity: 0.5 },
-						]}
-						numberOfLines={1}
-					>
-						{item.description}
-					</Text>
-				)}
-			</TouchableOpacity>
-
-			<View style={styles.productActions}>
-				<Switch
-					value={item.available !== false}
-					onValueChange={() => handleToggleAvailability(item)}
-					trackColor={{ false: "#767577", true: "#81c784" }}
-					thumbColor={item.available !== false ? "#4caf50" : "#f44336"}
-				/>
-				<Text style={[styles.availabilityText, { color: theme.textColor }]}>
-					{item.available !== false ? "Dispo" : "Indispo"}
-				</Text>
-			</View>
-		</View>
-	);
 
 	if (loading) {
 		return (
@@ -286,7 +300,15 @@ export default function MenuManagement() {
 				<FlatList
 					data={filteredProducts}
 					keyExtractor={(item) => item._id}
-					renderItem={renderProduct}
+					renderItem={({ item, index }) => (
+						<ProductCard
+							item={item}
+							index={index}
+							theme={theme}
+							handleEdit={handleEdit}
+							handleToggleAvailability={handleToggleAvailability}
+						/>
+					)}
 					contentContainerStyle={styles.listContainer}
 				/>
 			)}
@@ -466,6 +488,91 @@ export default function MenuManagement() {
 }
 
 const styles = StyleSheet.create({
+	// --- GLASSMORPHISM PRODUCT CARD ---
+	glassProductCard: {
+		marginVertical: 8,
+		borderRadius: 22,
+		borderWidth: 2,
+		borderColor: "#00eaff",
+		backgroundColor: "rgba(255,255,255,0.22)",
+		shadowColor: "#00eaff",
+		shadowOffset: { width: 0, height: 8 },
+		shadowOpacity: 0.18,
+		shadowRadius: 24,
+		elevation: 8,
+		padding: 18,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		minHeight: 90,
+		// backdropFilter: "blur(8px)", // web only
+		borderBottomWidth: 4,
+		borderBottomColor: "#a259ff",
+		position: "relative",
+		overflow: "hidden",
+	},
+	// --- GLASSMORPHISM BAR ---
+	glassBarContainer: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		marginBottom: 18,
+		paddingHorizontal: 6,
+		paddingVertical: 8,
+		backgroundColor: "rgba(255,255,255,0.18)",
+		borderRadius: 22,
+		borderWidth: 1.5,
+		borderColor: "rgba(255,255,255,0.25)",
+		shadowColor: "#00eaff",
+		shadowOffset: { width: 0, height: 8 },
+		shadowOpacity: 0.18,
+		shadowRadius: 24,
+		// backdropFilter: "blur(12px)", // web only, mais pour cohérence design
+		elevation: 8,
+	},
+	glassButton: {
+		flexDirection: "column",
+		alignItems: "center",
+		justifyContent: "center",
+		marginHorizontal: 6,
+		paddingVertical: 12,
+		paddingHorizontal: 18,
+		borderRadius: 16,
+		borderWidth: 2.5,
+		backgroundColor: "rgba(255,255,255,0.22)",
+		shadowColor: "#00eaff",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.18,
+		shadowRadius: 12,
+		elevation: 6,
+		minWidth: 70,
+		minHeight: 70,
+		marginBottom: 2,
+	},
+	glassButtonActive: {
+		backgroundColor: "rgba(0,234,255,0.18)",
+		borderColor: "#00eaff",
+		shadowColor: "#00eaff",
+		shadowOpacity: 0.35,
+		shadowRadius: 18,
+		elevation: 10,
+	},
+	glassIcon: {
+		fontSize: 28,
+		marginBottom: 2,
+		textShadowColor: "#00eaff",
+		textShadowOffset: { width: 0, height: 0 },
+		textShadowRadius: 8,
+	},
+	glassLabel: {
+		fontSize: 14,
+		fontWeight: "600",
+		color: "#222",
+		letterSpacing: 0.5,
+		textShadowColor: "#fff",
+		textShadowOffset: { width: 0, height: 0 },
+		textShadowRadius: 2,
+	},
 	container: {
 		flex: 1,
 	},

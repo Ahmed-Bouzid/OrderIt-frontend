@@ -1,6 +1,9 @@
 // components/elements/ActivityModals/ProductModal.jsx
 import React from "react";
 import { View, Text, TouchableOpacity, Modal } from "react-native";
+import { BlurView } from "expo-blur";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 
 export const ProductModal = ({ visible, onClose, product, theme }) => {
 	// ⭐ Guard clause

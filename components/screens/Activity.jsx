@@ -317,20 +317,11 @@ export default function Activity() {
 		}
 
 		try {
-			// ⭐ (Désactivé) Fermeture de la réservation déplacée dans Payment.jsx (clic OK)
-			// console.log("📞 Appel markReservationAsFinished pour:", reservationId);
-			// const updated = await markReservationAsFinished(reservationId);
-			// console.log(
-			// 	"📦 Réponse markReservationAsFinished:",
-			// 	JSON.stringify(updated)
-			// );
-
 			// ⭐ Nettoyer AsyncStorage immédiatement
 			await AsyncStorage.removeItem("activeReservationId");
 
 			// ⭐ Nettoyer le cache global pour éviter le flash visuel
 			clearCachedActiveId();
-			// La suppression de la réservation active sera déclenchée par Payment.jsx après le clic sur OK
 		} catch (error) {
 			console.error("❌ Erreur lors de la fermeture:", error);
 			Alert.alert(
@@ -338,13 +329,7 @@ export default function Activity() {
 				"Impossible de fermer la réservation après paiement"
 			);
 		}
-	}, [
-		activeReservation,
-		markReservationAsFinished,
-		setActiveId,
-		fetchReservations,
-		clearCachedActiveId,
-	]);
+	}, [activeReservation, clearCachedActiveId]);
 
 	// Render miniatures avec FlatList
 	const renderMiniature = useCallback(

@@ -6,6 +6,7 @@
 import { useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_CONFIG } from "../src/config/apiConfig";
 
 let socketInstance = null;
 
@@ -33,7 +34,7 @@ const useSocket = () => {
 
 			// Créer une nouvelle connexion
 			console.log("🔌 Tentative de connexion Socket.io...");
-			const socket = io("http://192.168.1.185:3000", {
+			const socket = io(API_CONFIG.BASE_URL.replace(/^https?/, "ws"), {
 				auth: {
 					token,
 				},

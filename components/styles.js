@@ -41,12 +41,14 @@ const styles = StyleSheet.create({
 		elevation: 5,
 	},
 	nextButton: {
-		flex: 1,
 		backgroundColor: "#4CAF50",
 		paddingVertical: 14,
+		paddingHorizontal: 32,
 		borderRadius: 10,
 		alignItems: "center",
-		maxHeight: 60,
+		minWidth: 160,
+		alignSelf: "center",
+		marginHorizontal: 0,
 	},
 	prevButton: {
 		flex: 1,

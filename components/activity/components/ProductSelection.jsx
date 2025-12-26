@@ -1,13 +1,86 @@
-// components/elements/ActivityComponents/ProductSelection.jsx
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState } from "react";
+import { LinearGradient } from "expo-linear-gradient";
+import { MaterialIcons } from "@expo/vector-icons";
 import {
 	View,
 	Text,
 	TouchableOpacity,
 	ScrollView,
 	FlatList,
+	TextInput,
+	Platform,
 } from "react-native";
 import styles from "../../styles";
+
+// Barre de recherche premium (copiée de client-public)
+const PremiumSearchBar = ({ value, onChangeText, onClear }) => {
+	const [isFocused, setIsFocused] = useState(false);
+	return (
+		<View
+			style={[
+				{
+					marginBottom: 20,
+					borderRadius: 16,
+					borderWidth: 2,
+					overflow: "hidden",
+					borderColor: isFocused
+						? "rgba(102, 126, 234, 0.5)"
+						: "rgba(0,0,0,0.08)",
+				},
+			]}
+		>
+			<LinearGradient
+				colors={
+					isFocused
+						? ["rgba(102,126,234,0.1)", "rgba(118,75,162,0.05)"]
+						: ["#fff", "#fff"]
+				}
+				style={{
+					flexDirection: "row",
+					alignItems: "center",
+					paddingHorizontal: 16,
+					paddingVertical: 4,
+				}}
+			>
+				<MaterialIcons
+					name="search"
+					size={22}
+					color={isFocused ? "#667eea" : "#999"}
+					style={{ marginRight: 12 }}
+				/>
+				<TextInput
+					style={{
+						flex: 1,
+						paddingVertical: 14,
+						fontSize: 16,
+						color: "#222",
+						fontWeight: "500",
+					}}
+					placeholder="Rechercher un produit..."
+					placeholderTextColor="#999"
+					value={value}
+					onChangeText={onChangeText}
+					onFocus={() => setIsFocused(true)}
+					onBlur={() => setIsFocused(false)}
+					returnKeyType="search"
+				/>
+				{value.length > 0 && (
+					<TouchableOpacity onPress={onClear} style={{ padding: 4 }}>
+						<View
+							style={{
+								backgroundColor: "#667eea",
+								borderRadius: 12,
+								padding: 4,
+							}}
+						>
+							<MaterialIcons name="close" size={16} color="#fff" />
+						</View>
+					</TouchableOpacity>
+				)}
+			</LinearGradient>
+		</View>
+	);
+};
 
 const normalize = (str) =>
 	(str || "")
@@ -15,7 +88,27 @@ const normalize = (str) =>
 		.normalize("NFD")
 		.replace(/[\u0300-\u036f]/g, "");
 
-const categories = ["boisson", "Entrée", "plat", "dessert"];
+const categories = [
+	{
+		id: "boisson",
+		label: "Boissons",
+		emoji: "🥤",
+		color: ["#a955ff", "#ea51ff"],
+	},
+	{
+		id: "Entrée",
+		label: "Entrées",
+		emoji: "🥗",
+		color: ["#80FF72", "#7EE8FA"],
+	},
+	{ id: "plat", label: "Plats", emoji: "🍝", color: ["#FF9966", "#FF5E62"] },
+	{
+		id: "dessert",
+		label: "Desserts",
+		emoji: "🍰",
+		color: ["#f7971e", "#ffd200"],
+	},
+];
 
 export const ProductSelection = React.memo(
 	({
@@ -28,11 +121,32 @@ export const ProductSelection = React.memo(
 		step,
 		setStep,
 	}) => {
+		// Catégorie sélectionnée (par défaut la première)
+		const [selectedCategory, setSelectedCategory] = useState(null);
 		// ⭐ Valeurs sécurisées (memoizées pour éviter les changements de référence)
 		const safeProducts = useMemo(
 			() => (Array.isArray(products) ? products : []),
 			[products]
 		);
+
+		// Barre de recherche (état local)
+		const [searchQuery, setSearchQuery] = useState("");
+
+		// Produits filtrés par recherche
+		const filteredProducts = useMemo(() => {
+			if (searchQuery.trim()) {
+				return safeProducts.filter(
+					(p) =>
+						(p.name &&
+							p.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
+						(p.description &&
+							p.description.toLowerCase().includes(searchQuery.toLowerCase()))
+				);
+			}
+			return safeProducts.filter(
+				(p) => p && normalize(p.category) === normalize(selectedCategory)
+			);
+		}, [safeProducts, searchQuery, selectedCategory]);
 		const safeTheme = useMemo(
 			() => theme || { textColor: "#000", backgroundColor: "#fff" },
 			[theme]
@@ -99,6 +213,20 @@ export const ProductSelection = React.memo(
 					<View
 						key={product._id}
 						style={[
+							{
+								backgroundColor: "rgba(255,255,255,0.22)",
+								borderRadius: 22,
+								borderWidth: 1.5,
+								borderColor: "rgba(255,255,255,0.55)",
+								shadowColor: "#b6b6e0",
+								shadowOpacity: 0.13,
+								shadowRadius: 18,
+								shadowOffset: { width: 0, height: 8 },
+								overflow: "hidden",
+								backdropFilter: "blur(14px)", // Web only
+								padding: 14,
+								marginHorizontal: 2,
+							},
 							styles.productRow,
 							quantity > 0 && {
 								backgroundColor:
@@ -147,35 +275,6 @@ export const ProductSelection = React.memo(
 			]
 		);
 
-		const renderCategory = useCallback(
-			({ item: category }) => {
-				if (!category) return null;
-
-				const categoryProducts = safeProducts.filter(
-					(p) => p && normalize(p.category) === normalize(category)
-				);
-
-				if (categoryProducts.length === 0) return null;
-
-				return (
-					<View key={category} style={{ marginBottom: 15 }}>
-						<Text
-							style={[styles.categoryTitle, { color: safeTheme.textColor }]}
-						>
-							{category.charAt(0).toUpperCase() + category.slice(1)}s
-						</Text>
-						<FlatList
-							data={categoryProducts}
-							renderItem={renderProductItem}
-							keyExtractor={(item) => item?._id || Math.random().toString()}
-							scrollEnabled={false}
-						/>
-					</View>
-				);
-			},
-			[safeProducts, safeTheme, renderProductItem]
-		);
-
 		const hasSelectedItems = useMemo(
 			() => safeOrderItems.some((i) => (i?.quantity || 0) > 0),
 			[safeOrderItems]
@@ -191,22 +290,141 @@ export const ProductSelection = React.memo(
 		}
 
 		return (
-			<ScrollView style={{ width: "50%", paddingLeft: 10 }}>
-				<FlatList
-					data={categories}
-					renderItem={renderCategory}
-					keyExtractor={(item) => item}
-					scrollEnabled={false}
+			<View style={{ width: "50%", paddingLeft: 10, flex: 1 }}>
+				{/* Barre de recherche premium au-dessus des catégories */}
+				<PremiumSearchBar
+					value={searchQuery}
+					onChangeText={setSearchQuery}
+					onClear={() => setSearchQuery("")}
 				/>
+				{/* Barre de boutons catégories glass/néon/emoji (sans animation) */}
+				<View style={{ flexDirection: "row", marginBottom: 16 }}>
+					{categories.map((cat, idx) => (
+						<View
+							key={cat.id}
+							style={{ marginRight: idx !== categories.length - 1 ? 10 : 0 }}
+						>
+							<TouchableOpacity
+								onPress={() => setSelectedCategory(cat.id)}
+								activeOpacity={0.85}
+								style={{
+									flexDirection: "row",
+									alignItems: "center",
+									backgroundColor:
+										selectedCategory === cat.id
+											? "rgba(255,255,255,0.35)"
+											: "rgba(255,255,255,0.18)",
+									borderRadius: 18,
+									borderWidth: selectedCategory === cat.id ? 2 : 1.5,
+									borderColor:
+										selectedCategory === cat.id ? cat.color[0] : cat.color[1],
+									paddingHorizontal: 18,
+									paddingVertical: 10,
+									minWidth: 70,
+									shadowColor: cat.color[0],
+									shadowOpacity: selectedCategory === cat.id ? 0.35 : 0.12,
+									shadowRadius: selectedCategory === cat.id ? 16 : 6,
+									shadowOffset: { width: 0, height: 4 },
+									overflow: "hidden",
+								}}
+							>
+								<Text style={{ fontSize: 22, marginRight: 8 }}>
+									{cat.emoji}
+								</Text>
+								<Text
+									style={{
+										color: selectedCategory === cat.id ? cat.color[0] : "#333",
+										fontWeight: selectedCategory === cat.id ? "700" : "500",
+										fontSize: 16,
+									}}
+								>
+									{cat.label}
+								</Text>
+							</TouchableOpacity>
+						</View>
+					))}
+				</View>
+				{/* Liste des produits filtrés (recherche ou catégorie) */}
+				{/* Affichage d'une illustration et d'un message si aucune catégorie n'est sélectionnée */}
+				{selectedCategory === null ? (
+					<View
+						style={{
+							flex: 1,
+							justifyContent: "center",
+							alignItems: "center",
+							paddingHorizontal: 30,
+							paddingBottom: 100,
+						}}
+					>
+						<LinearGradient
+							colors={["rgba(2, 25, 128, 0.1)", "rgba(120, 115, 125, 0.05)"]}
+							style={{
+								padding: 40,
+								borderRadius: 24,
+								alignItems: "center",
+								width: "95%",
+								height: "95%",
+								maxWidth: 512,
+								maxHeight: 512,
+								justifyContent: "center",
+							}}
+						>
+							<Text
+								style={{
+									fontSize: 60,
+									textAlign: "center",
+								}}
+							>
+								✨
+							</Text>
+							<Text
+								style={{
+									fontSize: 20,
+									fontWeight: "700",
+									color: "#1a1a2e",
+									marginBottom: 80,
+									textAlign: "center",
+								}}
+							>
+								Choisissez une catégorie
+							</Text>
+							<Text
+								style={{
+									fontSize: 14,
+									color: "#666",
+									textAlign: "center",
+									marginBottom: 20,
+								}}
+							>
+								Explorez notre sélection de délices
+							</Text>
+						</LinearGradient>
+					</View>
+				) : (
+					<FlatList
+						data={filteredProducts}
+						renderItem={renderProductItem}
+						keyExtractor={(item) => item?._id || Math.random().toString()}
+						style={{ flex: 1 }}
+						contentContainerStyle={{ paddingBottom: 24 }}
+						ListEmptyComponent={
+							<Text
+								style={{ color: "#888", textAlign: "center", marginTop: 24 }}
+							>
+								Aucun produit dans cette catégorie
+							</Text>
+						}
+					/>
+				)}
 				<TouchableOpacity
 					onPress={handleNext}
 					style={[styles.nextButton, { marginTop: 20 }]}
 				>
 					<Text style={styles.buttonText}>
-						{hasSelectedItems ? "➡️ Suivant" : "TOTAL"}
+						{hasSelectedItems ? "➡️ Suivant" : "TOOOTAL"}
 					</Text>
 				</TouchableOpacity>
-			</ScrollView>
+			</View>
 		);
 	}
 );

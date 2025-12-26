@@ -74,7 +74,7 @@ export default function Floor({ onStart }) {
 						<Text
 							style={[floorStyles.menuItemText, { color: theme.textColor }]}
 						>
-							Boissons
+							Boissssons
 						</Text>
 						<View style={styles.separatorThin} />
 						<Text
