@@ -1,14 +1,10 @@
 import { create } from "zustand";
+
+import { API_CONFIG } from "../config/apiConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
 let fetchPromise = null; // ⭐ Stockage de la promise pour éviter les appels parallèles
 let isFetching = false; // ⭐ Flag global pour bloquer complètement les appels parallèles
-let socketListenerAttached = false; // ⭐ Flag pour éviter les doublons de listeners
-
-// ⭐ Fonction pour réinitialiser le flag (utile pour les reconnexions)
-const resetSocketListener = () => {
-	socketListenerAttached = false;
-};
 
 const useReservationStore = create((set, get) => ({
 	reservations: [],
@@ -69,8 +65,7 @@ const useReservationStore = create((set, get) => ({
 
 		// Listener pour la déconnexion - réinitialiser le flag
 		socket.on("disconnect", () => {
-			socketListenerAttached = false;
-			console.log("🔌 Socket déconnecté - flag réinitialisé");
+			console.log("🔌 Socket déconnecté");
 		});
 
 		// Détachement des listeners au cleanup
@@ -78,7 +73,6 @@ const useReservationStore = create((set, get) => ({
 			if (socket) {
 				socket.off("reservation");
 				socket.off("disconnect");
-				socketListenerAttached = false;
 				console.log("🔌 Listeners WebSocket détachés");
 			}
 		};
@@ -108,19 +102,26 @@ const useReservationStore = create((set, get) => ({
 		fetchPromise = (async () => {
 			isFetching = true; // ⭐ Marquer comme en cours
 			try {
-				const token = await AsyncStorage.getItem("token");
-				if (!token) {
-					console.log("⚠️ Aucun token trouvé");
+				const token = await AsyncStorage.getItem("@access_token");
+				const restaurantId = await AsyncStorage.getItem("restaurantId");
+				console.log("🔍 [ReservationStore] fetchReservations appelé");
+				console.log("🔍 Token:", token ? "présent" : "absent");
+				console.log("🔍 RestaurantId:", restaurantId);
+				if (!token || !restaurantId) {
+					console.log("⚠️ Token ou restaurantId manquant");
 					return {
 						success: false,
-						error: "NO_TOKEN",
-						message: "Token manquant",
+						error: "NO_TOKEN_OR_RESTAURANT",
+						message: "Données manquantes",
 					};
 				}
 
-				const response = await fetch(`http://192.168.1.185:3000/reservations`, {
+				const url = `${API_CONFIG.baseURL}/reservations/restaurant/${restaurantId}`;
+				console.log("🔍 URL CORRIGÉE:", url);
+				const response = await fetch(url, {
 					headers: { Authorization: `Bearer ${token}` },
 				});
+				console.log("🔍 Status réponse:", response.status);
 
 				// 🔹 si le token est invalide ou expiré
 				if (response.status === 401 || response.status === 403) {
@@ -148,8 +149,8 @@ const useReservationStore = create((set, get) => ({
 				}
 
 				const data = await response.json();
-				set({ reservations: data });
-				return { success: true, data };
+				set({ reservations: data.reservations || data });
+				return { success: true, data: data.reservations || data };
 			} catch (err) {
 				console.error("🚨 Erreur récupération réservations :", err);
 				return {

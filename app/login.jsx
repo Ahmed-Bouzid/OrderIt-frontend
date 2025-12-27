@@ -1,4 +1,5 @@
 import React, { useState } from "react";
+import { API_CONFIG } from "../src/config/apiConfig";
 import {
 	View,
 	Text,
@@ -31,7 +32,7 @@ export default function Login() {
 	const handleLogin = async () => {
 		setLoading(true);
 		try {
-			const res = await fetch("http://192.168.1.185:3000/auth/login", {
+			const res = await fetch(`${API_CONFIG.baseURL}/auth/login`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ email, password }),
@@ -68,7 +69,7 @@ export default function Login() {
 
 			if (res.ok) {
 				// ✅ Stocker le token d'accès
-				await AsyncStorage.setItem("token", data.accessToken);
+				await AsyncStorage.setItem("@access_token", data.accessToken);
 
 				// ✅ Stocker le refresh token (TRÈS IMPORTANT pour la continuité de session)
 				if (data.refreshToken) {

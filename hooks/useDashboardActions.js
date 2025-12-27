@@ -1,4 +1,5 @@
 import { useState, useCallback } from "react";
+import { API_CONFIG } from "../src/config/apiConfig";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthFetch } from "./useAuthFetch";
@@ -14,7 +15,7 @@ export const useDashboardActions = (fetchReservations) => {
 		async (reservationId) => {
 			try {
 				const data = await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}`
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`
 				);
 				if (data && !Array.isArray(data)) {
 					setActiveReservation(data);
@@ -31,7 +32,7 @@ export const useDashboardActions = (fetchReservations) => {
 		async (id) => {
 			try {
 				const data = await authFetch(
-					`http://192.168.1.185:3000/reservations/${id}/togglePresent`,
+					`${API_CONFIG.baseURL}/reservations/${id}/togglePresent`,
 					{
 						method: "PUT",
 					}
@@ -110,7 +111,7 @@ export const useDashboardActions = (fetchReservations) => {
 	const proceedWithStatusUpdate = async (id, newStatus) => {
 		try {
 			const data = await authFetch(
-				`http://192.168.1.185:3000/reservations/${id}/status`,
+				`${API_CONFIG.baseURL}/reservations/${id}/status`,
 				{
 					method: "PUT",
 					body: { status: newStatus },
@@ -146,7 +147,7 @@ export const useDashboardActions = (fetchReservations) => {
 						onPress: async () => {
 							try {
 								const data = await authFetch(
-									`http://192.168.1.185:3000/reservations/${id}/status`,
+									`${API_CONFIG.baseURL}/reservations/${id}/status`,
 									{
 										method: "PUT",
 										body: { status: "annulee" },
@@ -177,7 +178,7 @@ export const useDashboardActions = (fetchReservations) => {
 		async (reservationId, tableId) => {
 			try {
 				const data = await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}`,
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`,
 					{
 						method: "PUT",
 						body: { tableId },
@@ -250,7 +251,7 @@ export const useDashboardActions = (fetchReservations) => {
 					...(formData.tableId && { tableId: formData.tableId }),
 				};
 
-				const data = await authFetch("http://192.168.1.185:3000/reservations", {
+				const data = await authFetch(`${API_CONFIG.baseURL}/reservations`, {
 					method: "POST",
 					body,
 				});

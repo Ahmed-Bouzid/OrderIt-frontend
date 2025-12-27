@@ -1,29 +1,18 @@
+import useSocket from "./useSocket";
 // hooks/useReservationManager.js
 import { useState, useEffect, useCallback, useRef } from "react";
 import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import useReservationStore from "../src/stores/useReservationStore";
-import { useServerStore } from "../src/stores/useRestaurantStaffStore";
-import useTableStore from "../src/stores/useRestaurantTableStore";
-import usePresentStore from "../src/stores/usePresentStore";
+
+import { API_CONFIG } from "../src/config/apiConfig";
 import { useAuthFetch } from "./useAuthFetch";
-import useSocket from "./useSocket";
 
 /**
  * Hook custom pour gérer la logique des réservations
  */
-// ⭐ NE PAS initialiser avec le cache - attendre la validation
-let cachedActiveId = null;
-
 // ⭐ Fonction pour nettoyer le cache global
 const clearCachedActiveId = () => {
-	cachedActiveId = null;
 	AsyncStorage.removeItem("activeReservationId").catch(console.error);
-};
-
-// ⭐ Fonction pour mettre à jour le cache global
-const updateCachedActiveId = (id) => {
-	cachedActiveId = id;
 };
 
 export const useReservationManager = (reservations) => {
@@ -33,8 +22,11 @@ export const useReservationManager = (reservations) => {
 	const hasLoadedReservationsRef = useRef(false);
 	const hasAutoSelectedRef = useRef(false);
 
-	// ⭐ Initialiser directement avec les réservations ouvertes si disponibles
-	const initialOpenedResas = reservations.filter((r) => r.status === "ouverte");
+	// ⭐ Initialiser directement avec les réservations ouvertes si disponibles (protection contre undefined)
+	const initialOpenedResas =
+		Array.isArray(reservations) && reservations
+			? reservations.filter((r) => r.status === "ouverte")
+			: [];
 	const [openedReservations, setOpenedReservations] =
 		useState(initialOpenedResas);
 
@@ -53,7 +45,7 @@ export const useReservationManager = (reservations) => {
 			if (hasRestoredIdRef.current) return;
 
 			// ⭐ Attendre que les réservations soient chargées
-			if (reservations.length === 0) return;
+			if (!Array.isArray(reservations) || reservations.length === 0) return;
 
 			hasRestoredIdRef.current = true;
 			const saved = await AsyncStorage.getItem("activeReservationId");
@@ -64,7 +56,7 @@ export const useReservationManager = (reservations) => {
 				if (savedResa && savedResa.status === "ouverte") {
 					console.log("🔄 Restauration activeId valide:", saved);
 					setActiveId(saved);
-					updateCachedActiveId(saved);
+					// updateCachedActiveId supprimé (inutile)
 				} else {
 					// ⭐ Réservation fermée ou inexistante - nettoyer
 					console.log("🧹 Réservation sauvegardée invalide, nettoyage");
@@ -87,11 +79,15 @@ export const useReservationManager = (reservations) => {
 	// Synchroniser réservations ouvertes
 	useEffect(() => {
 		// Marquer comme chargé dès qu'on a des réservations (même si vide)
-		if (reservations.length >= 0 && !hasLoadedReservationsRef.current) {
+		if (
+			Array.isArray(reservations) &&
+			reservations.length >= 0 &&
+			!hasLoadedReservationsRef.current
+		) {
 			hasLoadedReservationsRef.current = true;
 		}
 
-		if (reservations.length > 0) {
+		if (Array.isArray(reservations) && reservations.length > 0) {
 			const openedResas = reservations.filter((r) => r.status === "ouverte");
 			setOpenedReservations(openedResas);
 
@@ -116,7 +112,7 @@ export const useReservationManager = (reservations) => {
 				console.log("🎯 Auto-sélection de la première réservation ouverte");
 				hasAutoSelectedRef.current = true;
 				setActiveId(openedResas[0]._id);
-				updateCachedActiveId(openedResas[0]._id); // ⭐ Mettre à jour le cache global
+				// updateCachedActiveId supprimé (inutile)
 				AsyncStorage.setItem("activeReservationId", openedResas[0]._id).catch(
 					console.error
 				);
@@ -133,7 +129,7 @@ export const useReservationManager = (reservations) => {
 
 	// Ajouter réservation active si manquante
 	useEffect(() => {
-		if (activeId && reservations.length > 0) {
+		if (activeId && Array.isArray(reservations) && reservations.length > 0) {
 			const reservation = reservations.find((r) => r._id === activeId);
 			if (reservation && !openedReservations.some((o) => o._id === activeId)) {
 				setOpenedReservations((prev) => [...prev, reservation]);
@@ -143,7 +139,9 @@ export const useReservationManager = (reservations) => {
 
 	// Mettre à jour activeReservation
 	useEffect(() => {
-		const reservation = reservations.find((r) => r._id === activeId) || null;
+		const reservation = Array.isArray(reservations)
+			? reservations.find((r) => r._id === activeId) || null
+			: null;
 
 		// ⭐ Ne pas mettre à jour si la réservation est fermée/annulée
 		if (
@@ -208,7 +206,7 @@ export const useReservationManager = (reservations) => {
 		} else {
 			setActiveReservation(null);
 		}
-	}, [openedReservations, activeId]);
+	}, [openedReservations, activeId, reservations]);
 
 	// Calculer le total
 	useEffect(() => {
@@ -270,7 +268,7 @@ export const useReservationManager = (reservations) => {
 			try {
 				// ⭐ UTILISER LA NOUVELLE ROUTE /orders/reservation/:reservationId
 				const data = await authFetch(
-					`http://192.168.1.185:3000/orders/reservation/${reservationId}`
+					`${API_CONFIG.baseURL}/orders/reservation/${reservationId}`
 				);
 
 				console.log(
@@ -299,7 +297,7 @@ export const useReservationManager = (reservations) => {
 
 				// ⭐ Utiliser la route générale PUT /:id qui accepte aussi le champ status
 				const response = await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}`,
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`,
 					{
 						method: "PUT",
 						body: { status: "fermee" },
@@ -321,7 +319,7 @@ export const useReservationManager = (reservations) => {
 		async (reservationId) => {
 			try {
 				const response = await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}/status`,
+					`${API_CONFIG.baseURL}/reservations/${reservationId}/status`,
 					{
 						method: "PUT",
 						body: { status: "ouverte" },
@@ -347,7 +345,7 @@ export const useReservationManager = (reservations) => {
 		async (reservationId) => {
 			try {
 				const updatedResa = await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}`
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`
 				);
 
 				if (!updatedResa || Array.isArray(updatedResa)) {
@@ -404,13 +402,10 @@ export const useReservationManager = (reservations) => {
 	const saveFieldToBackend = useCallback(
 		async (reservationId, field, value) => {
 			try {
-				await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}`,
-					{
-						method: "PUT",
-						body: { [field]: value },
-					}
-				);
+				await authFetch(`${API_CONFIG.baseURL}/reservations/${reservationId}`, {
+					method: "PUT",
+					body: { [field]: value },
+				});
 				console.log(`✅ Champ ${field} sauvegardé pour ${reservationId}`);
 			} catch (error) {
 				console.error(`❌ Erreur sauvegarde ${field}:`, error);

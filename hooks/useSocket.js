@@ -7,6 +7,7 @@ import { useRef, useCallback } from "react";
 import { io } from "socket.io-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../src/config/apiConfig";
+import { SOCKET_CONFIG } from "../src/config/apiConfig";
 
 let socketInstance = null;
 
@@ -32,18 +33,15 @@ const useSocket = () => {
 				return socketInstance;
 			}
 
-			// Créer une nouvelle connexion
-			console.log("🔌 Tentative de connexion Socket.io...");
-			const socket = io(API_CONFIG.BASE_URL.replace(/^https?/, "ws"), {
-				auth: {
-					token,
-				},
-				transports: ["websocket", "polling"],
-				reconnection: true,
-				reconnectionDelay: 1000,
-				reconnectionDelayMax: 5000,
-				reconnectionAttempts: MAX_RECONNECT_ATTEMPTS,
-				timeout: 5000,
+			// Créer une nouvelle connexion avec la config Render
+			console.log(
+				"🔌 Tentative de connexion Socket.io...",
+				SOCKET_CONFIG.socketURL,
+				SOCKET_CONFIG.options
+			);
+			const socket = io(SOCKET_CONFIG.socketURL, {
+				...SOCKET_CONFIG.options,
+				auth: { token },
 			});
 
 			// Événement de connexion

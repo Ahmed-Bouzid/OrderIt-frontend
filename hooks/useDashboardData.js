@@ -1,6 +1,7 @@
 import { useState, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthFetch } from "./useAuthFetch";
+import { API_CONFIG } from "../src/config/apiConfig";
 import useReservationStore from "../src/stores/useReservationStore";
 import useThemeStore from "../src/stores/useThemeStore";
 import useSocket from "./useSocket";
@@ -34,7 +35,7 @@ export const useDashboardData = () => {
 				if (storedRestaurantId) {
 					// Charger tables
 					const tablesData = await authFetch(
-						`http://192.168.1.185:3000/tables/restaurant/${storedRestaurantId}`
+						`${API_CONFIG.baseURL}/tables/restaurant/${storedRestaurantId}`
 					);
 					console.log("📋 Tables récupérées:", tablesData);
 					if (Array.isArray(tablesData)) {
@@ -62,7 +63,7 @@ export const useDashboardData = () => {
 			const storedRestaurantId = await AsyncStorage.getItem("restaurantId");
 			if (storedRestaurantId) {
 				const tablesData = await authFetch(
-					`http://192.168.1.185:3000/tables/restaurant/${storedRestaurantId}`
+					`${API_CONFIG.baseURL}/tables/restaurant/${storedRestaurantId}`
 				);
 				if (tablesData && !Array.isArray(tablesData)) {
 					setTables(tablesData.tables || []);

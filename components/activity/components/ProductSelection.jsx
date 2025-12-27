@@ -5,10 +5,8 @@ import {
 	View,
 	Text,
 	TouchableOpacity,
-	ScrollView,
 	FlatList,
 	TextInput,
-	Platform,
 } from "react-native";
 import styles from "../../styles";
 

@@ -1,4 +1,5 @@
 import React, { useState, useEffect, useMemo, useCallback } from "react";
+import { API_CONFIG } from "../../src/config/apiConfig";
 import {
 	View,
 	Text,
@@ -240,7 +241,7 @@ export default function Payment({
 				for (const orderId of orderIdsToMarkPaid) {
 					try {
 						await authFetch(
-							`http://192.168.1.185:3000/orders/${orderId}/mark-as-paid`,
+							`${API_CONFIG.baseURL}/orders/${orderId}/mark-as-paid`,
 							{
 								method: "POST",
 							}
@@ -260,7 +261,7 @@ export default function Payment({
 				const newPaidAmount = Number(reservation.paidAmount || 0) + amountPaid;
 
 				await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}/payment`,
+					`${API_CONFIG.baseURL}/reservations/${reservationId}/payment`,
 					{
 						method: "PUT",
 						body: {

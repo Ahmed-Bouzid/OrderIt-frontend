@@ -86,16 +86,14 @@ export const useServerStore = create((set, get) => ({
 				return { success: false, error: "NO_TOKEN" };
 			}
 
-			const response = await fetch(
-				`http://192.168.1.185:3000/servers/${restaurantId}`,
-				{
-					method: "GET",
-					headers: {
-						"Content-Type": "application/json",
-						Authorization: `Bearer ${token}`,
-					},
-				}
-			);
+			const { baseURL } = require("../config/apiConfig");
+			const response = await fetch(`${baseURL}/servers/${restaurantId}`, {
+				method: "GET",
+				headers: {
+					"Content-Type": "application/json",
+					Authorization: `Bearer ${token}`,
+				},
+			});
 
 			// Token invalide - juste retourner une erreur
 			if (response.status === 401 || response.status === 403) {

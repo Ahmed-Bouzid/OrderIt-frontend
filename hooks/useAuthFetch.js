@@ -4,7 +4,8 @@ import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useCallback, useRef, useEffect } from "react";
 
-const API_BASE_URL = "http://192.168.1.185:3000"; // À adapter selon ton env
+import { API_CONFIG } from "../src/config/apiConfig";
+const API_BASE_URL = API_CONFIG.baseURL;
 const TOKEN_REFRESH_INTERVAL = 105 * 60 * 1000; // Rafraîchir après 1h45 (15 min avant l'expiration 2h)
 
 // ⭐ Variables globales pour éviter les doublons de timers
@@ -50,7 +51,7 @@ export function useAuthFetch() {
 
 			if (data.accessToken) {
 				// ⭐ Stocker le nouveau token
-				await AsyncStorage.setItem("token", data.accessToken);
+				await AsyncStorage.setItem("@access_token", data.accessToken);
 
 				// ⭐ Mettre à jour le refresh token s'il a changé
 				if (data.refreshToken) {
@@ -84,7 +85,7 @@ export function useAuthFetch() {
 		// Mettre en place un nouvel interval qui rafraîchit le token tous les 110 minutes (1h50)
 		globalRefreshInterval = setInterval(async () => {
 			try {
-				const token = await AsyncStorage.getItem("token");
+				const token = await AsyncStorage.getItem("@access_token");
 				const refreshToken = await AsyncStorage.getItem("refreshToken");
 
 				console.log(
@@ -125,7 +126,7 @@ export function useAuthFetch() {
 	useEffect(() => {
 		// Vérifier si on a déjà un token, si oui, démarrer le refresh automatique
 		const initAutoRefresh = async () => {
-			const token = await AsyncStorage.getItem("token");
+			const token = await AsyncStorage.getItem("@access_token");
 			const refreshToken = await AsyncStorage.getItem("refreshToken");
 
 			if (token && refreshToken && !isRefreshSetup) {
@@ -143,12 +144,11 @@ export function useAuthFetch() {
 	const authFetch = useCallback(
 		async (url, options = {}) => {
 			try {
-				let token = await AsyncStorage.getItem("token");
+				let token = await AsyncStorage.getItem("@access_token");
 
 				if (!token) {
-					console.log("❌ Aucun token - redirection");
-					redirectToLogin(router, isRedirectingRef);
-					return []; // ⭐ Retourne tableau vide = airbag
+					console.warn("⚠️ Aucun token disponible, requête annulée :", url);
+					throw new Error("Token manquant, fetch annulé");
 				}
 
 				// ⭐ Mettre en place le refresh automatique si pas déjà fait
@@ -240,7 +240,7 @@ export function useAuthFetch() {
 // ⭐ Fonction exportée pour initialiser le refresh automatique après le login
 export async function startTokenRefresh() {
 	try {
-		const token = await AsyncStorage.getItem("token");
+		const token = await AsyncStorage.getItem("@access_token");
 		const refreshToken = await AsyncStorage.getItem("refreshToken");
 
 		if (token && refreshToken) {

@@ -1,3 +1,4 @@
+import { API_CONFIG } from "../../src/config/apiConfig";
 // components/screens/Activity.jsx
 import React, { useState, useEffect, useMemo, useCallback } from "react";
 import styles from "../styles";
@@ -43,6 +44,7 @@ export default function Activity() {
 	const authFetch = useAuthFetch();
 
 	// Custom hooks
+
 	const {
 		token,
 		isTokenLoading,
@@ -53,10 +55,78 @@ export default function Activity() {
 		// setServerId, // Non utilisé actuellement
 		isLoading,
 		reservations,
-		fetchReservations,
 		products,
 		servers,
 	} = useActivityData();
+
+	// Définir fetchReservations localement pour éviter la dépendance circulaire
+	// Définir fetchReservations localement pour éviter la dépendance circulaire
+	const fetchReservations = React.useCallback(async () => {
+		console.log("=== DEBUG fetchReservations ===");
+		console.log("1. restaurantId:", restaurantId);
+		console.log("2. API_CONFIG.baseURL:", API_CONFIG.baseURL);
+		console.log(
+			"3. token présent?:",
+			token ? "OUI (" + token.substring(0, 20) + "...)" : "NON"
+		);
+
+		if (!restaurantId) {
+			console.error("❌ restaurantId manquant");
+			throw new Error("RestaurantId manquant");
+		}
+
+		const url = `${API_CONFIG.baseURL}/reservations/restaurant/${restaurantId}`;
+		console.log("4. URL finale:", url);
+		console.log("5. authFetch fonction?:", typeof authFetch);
+
+		try {
+			console.log("6. Tentative d'appel authFetch...");
+			const response = await authFetch(url);
+			console.log(
+				"7. ✅ Réponse reçue:",
+				typeof response,
+				"données:",
+				response ? "OUI" : "NON"
+			);
+
+			// Ajouter ceci pour voir la structure exacte
+			if (response && typeof response === "object") {
+				console.log("8. Structure réponse:", Object.keys(response));
+				console.log(
+					"9. Réservations count:",
+					response.reservations?.length || response.length || 0
+				);
+			}
+
+			return response;
+		} catch (error) {
+			console.error("💥 Erreur complète fetchReservations:");
+			console.error("- Type:", typeof error);
+			console.error("- Message:", error.message);
+			console.error("- Stack:", error.stack);
+			console.error("- Code:", error.code);
+			console.error("- URL qui a échoué:", url);
+			throw error;
+		}
+	}, [restaurantId, authFetch, token]); // ⭐ Ajoutez token aux dépendances
+
+	// Gestion explicite d'erreur si restaurantId manquant, mais seulement après chargement
+	useEffect(() => {
+		if (isLoading) return;
+		// Log la valeur brute pour debug
+		console.log("[DEBUG] restaurantId dans Activity.jsx:", restaurantId);
+		if (!restaurantId) {
+			console.error(
+				"❌ restaurantId manquant dans Activity.jsx : fetchServers ne sera pas appelé ! (valeur:",
+				restaurantId,
+				")"
+			);
+			Alert.alert(
+				"Erreur configuration",
+				"Aucun restaurantId trouvé. Veuillez vérifier la configuration ou relancer l'application."
+			);
+		}
+	}, [restaurantId, isLoading]);
 
 	const {
 		openedReservations,
@@ -96,7 +166,13 @@ export default function Activity() {
 	// Initialiser thème
 	useEffect(() => {
 		initTheme();
-	}, [initTheme]);
+		// Affiche le token JWT en entier pour debug
+		if (token) {
+			console.log("🔑 TOKEN JWT:", token);
+		} else {
+			console.log("🔑 TOKEN JWT: NULL");
+		}
+	}, [initTheme, token]);
 
 	// Fetch orders quand tableId OU activeReservation change
 	useEffect(() => {
@@ -156,7 +232,7 @@ export default function Activity() {
 		const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
 		try {
-			await authFetch("http://192.168.1.185:3000/orders/", {
+			await authFetch(`${API_CONFIG.baseURL}/orders/`, {
 				method: "POST",
 				body: {
 					reservationId: activeReservation._id,
@@ -199,7 +275,7 @@ export default function Activity() {
 		async (reservationId) => {
 			try {
 				await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}/togglePresent`,
+					`${API_CONFIG.baseURL}/reservations/${reservationId}/togglePresent`,
 					{ method: "PUT" }
 				);
 				await fetchReservations();
@@ -217,7 +293,7 @@ export default function Activity() {
 		async (reservationId, newStatus) => {
 			try {
 				await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}/status`,
+					`${API_CONFIG.baseURL}/reservations/${reservationId}/status`,
 					{
 						method: "PUT",
 						body: { status: newStatus },
@@ -237,12 +313,9 @@ export default function Activity() {
 	const handleCancelReservation = useCallback(
 		async (reservationId) => {
 			try {
-				await authFetch(
-					`http://192.168.1.185:3000/reservations/${reservationId}`,
-					{
-						method: "DELETE",
-					}
-				);
+				await authFetch(`${API_CONFIG.baseURL}/reservations/${reservationId}`, {
+					method: "DELETE",
+				});
 				await fetchReservations();
 				if (activeId === reservationId) {
 					// ⭐ Nettoyer le cache et AsyncStorage

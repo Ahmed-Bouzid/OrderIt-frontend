@@ -1,10 +1,10 @@
-import { API_CONFIG } from "../config/apiConfig.js";
+import { API_CONFIG } from "../../src/config/apiConfig.js";
 
 export const reservationService = {
 	async fetchReservations(token) {
 		if (!token) throw new Error("Token required");
 
-		const response = await fetch(`${API_CONFIG.BASE_URL}/reservations`, {
+		const response = await fetch(`${API_CONFIG.baseURL}/reservations`, {
 			headers: { Authorization: `Bearer ${token}` },
 		});
 
@@ -14,7 +14,7 @@ export const reservationService = {
 
 	async fetchTableReservation(tableId) {
 		const response = await fetch(
-			`${API_CONFIG.BASE_URL}/reservations/table/${tableId}/active`
+			`${API_CONFIG.baseURL}/reservations/table/${tableId}/active`
 		);
 		return response.json();
 	},

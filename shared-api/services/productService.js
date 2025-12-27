@@ -1,4 +1,4 @@
-import { API_CONFIG } from "../config/apiConfig.js";
+import { API_CONFIG } from "../../src/config/apiConfig.js";
 
 export const productService = {
 	async fetchProducts(token = null) {
@@ -7,9 +7,8 @@ export const productService = {
 			headers.Authorization = `Bearer ${token}`;
 		}
 
-		// ✅ UTILISE LA MÊME URL QUE DANS L'ANCIEN CODE :
 		const response = await fetch(
-			`${API_CONFIG.BASE_URL}/products/restaurant/${API_CONFIG.RESTAURANT_ID}`,
+			`${API_CONFIG.baseURL}/products/restaurant/${API_CONFIG.RESTAURANT_ID}`,
 			{ headers }
 		);
 

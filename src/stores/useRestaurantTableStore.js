@@ -86,8 +86,9 @@ const useTableStore = create((set, get) => ({
 				return;
 			}
 
+			const { baseURL } = require("../config/apiConfig");
 			const response = await fetch(
-				`http://192.168.1.185:3000/tables/restaurant/${restaurantId}`,
+				`${baseURL}/tables/restaurant/${restaurantId}`,
 				{ headers: { Authorization: `Bearer ${token}` } }
 			);
 
@@ -116,9 +117,8 @@ const useTableStore = create((set, get) => ({
 	// ⚡ Récupérer une table par son ID (pas besoin de token côté client)
 	getTableById: async (tableId) => {
 		try {
-			const response = await fetch(
-				`http://192.168.1.185:3000/tables/${tableId}`
-			);
+			const { baseURL } = require("../config/apiConfig");
+			const response = await fetch(`${baseURL}/tables/${tableId}`);
 			if (!response.ok) {
 				console.error("Erreur fetch table:", response.status);
 				return null;

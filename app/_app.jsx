@@ -10,6 +10,19 @@ import {
 import Activite from "../components/screens/Activity";
 import Floor from "../components/screens/Floor";
 import Settings from "../components/screens/Settings";
+import { API_CONFIG } from "../src/config/apiConfig";
+
+console.log("🔧 === CONFIGURATION CHECK ===");
+console.log("API_CONFIG:", API_CONFIG);
+
+console.log("🌐 === API TEST ===");
+fetch(API_CONFIG.baseURL)
+	.then((r) => {
+		console.log("✅ Backend status:", r.status, r.statusText);
+		return r.text();
+	})
+	.then((text) => console.log("✅ Response:", text))
+	.catch((e) => console.log("❌ Fetch error:", e.message));
 
 export default function App() {
 	const [activeTab, setActiveTab] = useState("Activité");

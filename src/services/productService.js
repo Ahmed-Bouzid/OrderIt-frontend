@@ -20,7 +20,7 @@ export const productService = {
 			// );
 		}
 
-		const url = `${API_CONFIG.BASE_URL}/products/restaurant/${API_CONFIG.RESTAURANT_ID}`;
+		const url = `${API_CONFIG.baseURL}/products/restaurant/${API_CONFIG.RESTAURANT_ID}`;
 		// console.log("🌐 URL complète:", url);
 		// console.log("🍽️ Restaurant ID:", API_CONFIG.RESTAURANT_ID);
 
