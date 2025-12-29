@@ -1,6 +1,7 @@
 // app/(tabs)/_layout.jsx
 
 import React, { useState, useEffect } from "react";
+import { useRouter } from "expo-router";
 import {
 	View,
 	Text,
@@ -17,6 +18,7 @@ import Settings from "../../components/screens/Settings";
 import useSocket from "../../hooks/useSocket";
 
 export default function TabsLayout() {
+	const router = useRouter();
 	const [activeTab, setActiveTab] = useState("activity");
 	const [isLoading, setIsLoading] = useState(true);
 	const [userLoggedIn, setUserLoggedIn] = useState(false);
@@ -44,6 +46,13 @@ export default function TabsLayout() {
 		};
 		checkToken();
 	}, []);
+
+	// Rediriger vers login si pas authentifié
+	useEffect(() => {
+		if (!isLoading && !userLoggedIn) {
+			router.replace("/login");
+		}
+	}, [isLoading, userLoggedIn, router]);
 
 	// Initialiser la socket UNIQUEMENT quand le token est prêt
 	useEffect(() => {
@@ -84,18 +93,8 @@ export default function TabsLayout() {
 	}
 
 	if (!userLoggedIn) {
-		return (
-			<View
-				style={[
-					styles.container,
-					{ justifyContent: "center", alignItems: "center" },
-				]}
-			>
-				<Text style={{ fontSize: 22, color: "#2563EB", fontWeight: "bold" }}>
-					Veuillez vous connecter
-				</Text>
-			</View>
-		);
+		// Redirection en cours vers /login
+		return null;
 	}
 
 	return (

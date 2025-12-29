@@ -21,8 +21,10 @@ const useSocket = () => {
 		try {
 			// Récupérer le token depuis AsyncStorage (clé corrigée)
 			const token = await AsyncStorage.getItem("@access_token");
-			if (!token) {
-				console.warn("⚠️ Socket: Token non disponible, skipping connection");
+			const refreshToken = await AsyncStorage.getItem("refreshToken");
+
+			if (!token || !refreshToken) {
+				console.log("ℹ️ Socket: En attente de connexion utilisateur");
 				fallbackModeRef.current = true;
 				return null;
 			}
@@ -58,16 +60,15 @@ const useSocket = () => {
 
 			// Événement d'erreur
 			socket.on("connect_error", (error) => {
-				console.error("❌ Erreur connexion Socket:", error.message);
+				console.error("❌ Erreur connexion Socket:", error?.message || error);
 				reconnectAttemptsRef.current += 1;
 				if (reconnectAttemptsRef.current >= MAX_RECONNECT_ATTEMPTS) {
 					console.error(
 						"❌ Max reconnection attempts reached, activating REST API fallback"
 					);
 					fallbackModeRef.current = true;
-					socket.disconnect();
 				}
-			});
+			}); // <-- ICI : Accolade fermante manquante ajoutée
 
 			socketInstance = socket;
 			socketRef.current = socket;

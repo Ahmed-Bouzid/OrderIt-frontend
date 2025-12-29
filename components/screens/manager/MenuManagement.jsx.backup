@@ -61,7 +61,7 @@ export default function MenuManagement() {
 	const [editingProduct, setEditingProduct] = useState(null);
 	const [showAllergens, setShowAllergens] = useState(false);
 	const [productAllergensDisplay, setProductAllergensDisplay] = useState([]);
-	const flipAnimation = useRef(new Animated.Value(0)).current;
+	const allergensHeight = useRef(new Animated.Value(0)).current;
 
 	// Handler pour éditer un produit (ouvre la modale et remplit le formulaire)
 	const handleEdit = async (product) => {
@@ -86,51 +86,14 @@ export default function MenuManagement() {
 		setModalVisible(true);
 	};
 
-	// Animation flip pour description/allergènes
-	const flipToAllergens = () => {
-		Animated.spring(flipAnimation, {
-			toValue: 1,
-			friction: 8,
-			tension: 10,
-			useNativeDriver: true,
+	// Animation pour l'affichage des allergènes
+	useEffect(() => {
+		Animated.timing(allergensHeight, {
+			toValue: showAllergens ? 1 : 0,
+			duration: 300,
+			useNativeDriver: false,
 		}).start();
-		setShowAllergens(true);
-	};
-
-	const flipToDescription = () => {
-		Animated.spring(flipAnimation, {
-			toValue: 0,
-			friction: 8,
-			tension: 10,
-			useNativeDriver: true,
-		}).start();
-		setShowAllergens(false);
-	};
-
-	// Interpolations pour l'effet flip
-	const frontAnimatedStyle = {
-		transform: [
-			{
-				rotateY: flipAnimation.interpolate({
-					inputRange: [0, 1],
-					outputRange: ["0deg", "180deg"],
-				}),
-			},
-		],
-		backfaceVisibility: "hidden",
-	};
-
-	const backAnimatedStyle = {
-		transform: [
-			{
-				rotateY: flipAnimation.interpolate({
-					inputRange: [0, 1],
-					outputRange: ["180deg", "360deg"],
-				}),
-			},
-		],
-		backfaceVisibility: "hidden",
-	};
+	}, [showAllergens]);
 
 	// Handler pour toggle la disponibilité
 	const handleToggleAvailability = async (product) => {
@@ -632,123 +595,21 @@ export default function MenuManagement() {
 								))}
 							</View>
 
-							{/* Flip Card: Description ↔ Allergènes */}
-							<View style={styles.flipCardContainer}>
-								{/* Indicateur de flip */}
-								<TouchableOpacity
-									style={styles.flipIndicator}
-									onPress={showAllergens ? flipToDescription : flipToAllergens}
-									activeOpacity={0.7}
-								>
-									<Text style={styles.flipIndicatorText}>
-										{showAllergens ? "📝 Description" : "⚠️ Allergènes"}
-										{!showAllergens && productAllergensDisplay.length > 0 && (
-											<Text style={styles.allergenCountBadge}>
-												{" "}
-												({productAllergensDisplay.length})
-											</Text>
-										)}
-									</Text>
-									<Text style={styles.flipHint}>Appuyer pour basculer ↻</Text>
-								</TouchableOpacity>
-
-								{/* Carte flip */}
-								<View style={styles.flipCard}>
-									{/* Face avant: Description */}
-									<Animated.View
-										style={[
-											styles.flipCardFace,
-											styles.flipCardFront,
-											{
-												borderColor: theme.separatorColor,
-												backgroundColor: isDarkMode ? "#1a1a1a" : "#fff",
-											},
-											frontAnimatedStyle,
-										]}
-										pointerEvents={showAllergens ? "none" : "auto"}
-									>
-										<TextInput
-											style={[styles.flipCardInput, { color: theme.textColor }]}
-											placeholder="Description du produit..."
-											placeholderTextColor={theme.textColor + "60"}
-											value={formData.description}
-											onChangeText={(text) =>
-												setFormData({ ...formData, description: text })
-											}
-											multiline
-											numberOfLines={4}
-											textAlignVertical="top"
-										/>
-									</Animated.View>
-
-									{/* Face arrière: Allergènes */}
-									<Animated.View
-										style={[
-											styles.flipCardFace,
-											styles.flipCardBack,
-											{
-												borderColor: "#ff9800",
-												backgroundColor: isDarkMode ? "#3d2e1f" : "#fff8e1",
-											},
-											backAnimatedStyle,
-										]}
-										pointerEvents={showAllergens ? "auto" : "none"}
-									>
-										<ScrollView
-											style={styles.allergenScrollView}
-											showsVerticalScrollIndicator={false}
-											nestedScrollEnabled={true}
-										>
-											{productAllergensDisplay.length > 0 ? (
-												<View style={styles.allergenList}>
-													{productAllergensDisplay.map((allergen, index) => (
-														<View
-															key={allergen._id || index}
-															style={styles.allergenItem}
-														>
-															<Text style={styles.allergenItemIcon}>
-																{allergen.icon || "⚠️"}
-															</Text>
-															<View style={styles.allergenItemContent}>
-																<Text
-																	style={[
-																		styles.allergenItemName,
-																		{ color: theme.textColor },
-																	]}
-																>
-																	{allergen.name}
-																</Text>
-																{allergen.description && (
-																	<Text
-																		style={[
-																			styles.allergenItemDesc,
-																			{ color: theme.textColor + "99" },
-																		]}
-																	>
-																		{allergen.description}
-																	</Text>
-																)}
-															</View>
-														</View>
-													))}
-												</View>
-											) : (
-												<View style={styles.noAllergenContainer}>
-													<Text style={styles.noAllergenEmoji}>✅</Text>
-													<Text
-														style={[
-															styles.noAllergenText,
-															{ color: theme.textColor },
-														]}
-													>
-														Aucun allergène déclaré
-													</Text>
-												</View>
-											)}
-										</ScrollView>
-									</Animated.View>
-								</View>
-							</View>
+							<TextInput
+								style={[
+									styles.input,
+									styles.textArea,
+									{ color: theme.textColor, borderColor: theme.separatorColor },
+								]}
+								placeholder="Description"
+								placeholderTextColor={theme.textColor + "80"}
+								value={formData.description}
+								onChangeText={(text) =>
+									setFormData({ ...formData, description: text })
+								}
+								multiline
+								numberOfLines={3}
+							/>
 
 							{/* Toggle disponibilité */}
 							<View style={styles.switchRow}>
@@ -765,41 +626,113 @@ export default function MenuManagement() {
 								/>
 							</View>
 
-							<View style={styles.modalButtons}>
-								<TouchableOpacity
-									style={[styles.modalButton, styles.cancelButton]}
-									onPress={() => setModalVisible(false)}
-								>
-									<Text style={styles.cancelButtonText}>Annuler</Text>
-								</TouchableOpacity>
-								<TouchableOpacity
-									style={[styles.modalButton, styles.saveButton]}
-									onPress={handleSave}
-								>
-									<Text style={styles.saveButtonText}>Enregistrer</Text>
-								</TouchableOpacity>
+					{/* Section Allergènes */}
+					<View style={styles.allergenSection}>
+						<TouchableOpacity
+							style={styles.allergenHeader}
+							onPress={() => setShowAllergens(!showAllergens)}
+							activeOpacity={0.7}
+						>
+							<View style={styles.allergenHeaderLeft}>
+								<Text style={styles.allergenHeaderIcon}>⚠️</Text>
+								<Text style={[styles.allergenHeaderText, { color: theme.textColor }]}>
+									Allergènes
+								</Text>
+								{productAllergensDisplay.length > 0 && (
+									<View style={styles.allergenBadge}>
+										<Text style={styles.allergenBadgeText}>
+											{productAllergensDisplay.length}
+										</Text>
+									</View>
+								)}
 							</View>
-						</ScrollView>
-					</View>
-				</View>
-			</Modal>
+							<Animated.View
+								style={{
+									transform: [
+										{
+											rotate: allergensHeight.interpolate({
+												inputRange: [0, 1],
+												outputRange: ["0deg", "180deg"],
+											}),
+										},
+									],
+								}}
+							>
+								<Text style={styles.allergenChevron}>▼</Text>
+							</Animated.View>
+						</TouchableOpacity>
 
-			{/* ⭐ Modal Options */}
-			<Modal
-				visible={optionsModalVisible}
-				transparent
-				animationType="slide"
-				statusBarTranslucent={false}
-				onRequestClose={() => setOptionsModalVisible(false)}
-			>
-				<View style={styles.modalOverlay}>
-					<View
-						style={[
-							styles.optionsModalContent,
-							{ backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF" },
-						]}
-					>
-						<Text style={[styles.modalTitle, { color: theme.textColor }]}>
+						<Animated.View
+							style={[
+								styles.allergenContent,
+								{
+									maxHeight: allergensHeight.interpolate({
+										inputRange: [0, 1],
+										outputRange: [0, 200],
+									}),
+									opacity: allergensHeight,
+								},
+							]}
+						>
+							{productAllergensDisplay.length > 0 ? (
+								<View style={styles.allergenList}>
+									{productAllergensDisplay.map((allergen, index) => (
+										<View key={allergen._id || index} style={styles.allergenItem}>
+											<Text style={styles.allergenItemIcon}>{allergen.icon}</Text>
+											<View style={styles.allergenItemContent}>
+												<Text
+													style={[
+														styles.allergenItemName,
+														{ color: theme.textColor },
+													]}
+												>
+													{allergen.name}
+												</Text>
+												{allergen.description && (
+													<Text
+														style={[
+															styles.allergenItemDesc,
+															{ color: theme.textColor },
+														]}
+													>
+														{allergen.description}
+													</Text>
+												)}
+											</View>
+										</View>
+									))}
+								</View>
+							) : (
+								<Text
+									style={[
+										styles.noAllergenText,
+										{ color: theme.textColor },
+									]}
+								>
+									Aucun allergène déclaré
+								</Text>
+							)}
+						</Animated.View>
+					</View>
+
+			<View style={styles.modalButtons}>
+				<TouchableOpacity
+					style={[styles.modalButton, styles.cancelButton]}
+					onPress={() => setModalVisible(false)}
+				>
+					<Text style={styles.cancelButtonText}>Annuler</Text>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={[styles.modalButton, styles.saveButton]}
+					onPress={handleSave}
+				>
+					<Text style={styles.saveButtonText}>Enregistrer</Text>
+				</TouchableOpacity>
+			</View>
+		</ScrollView>
+	</View>
+</View>
+</Modal>
 							🛠️ Options pour {currentProductForOptions?.name}
 						</Text>
 
@@ -1331,108 +1264,90 @@ const styles = StyleSheet.create({
 		fontWeight: "700",
 		fontSize: 16,
 	},
-	// Styles Flip Card Description/Allergènes
-	flipCardContainer: {
+	// Styles allergènes dans modale
+	allergenSection: {
 		marginTop: 15,
 		marginBottom: 10,
 	},
-	flipIndicator: {
+	allergenHeader: {
 		flexDirection: "row",
 		justifyContent: "space-between",
 		alignItems: "center",
-		paddingVertical: 10,
-		paddingHorizontal: 14,
-		backgroundColor: "rgba(255, 152, 0, 0.08)",
-		borderRadius: 10,
-		marginBottom: 10,
+		paddingVertical: 12,
+		paddingHorizontal: 16,
+		backgroundColor: "rgba(255, 193, 7, 0.1)",
+		borderRadius: 12,
 		borderWidth: 1,
-		borderColor: "rgba(255, 152, 0, 0.2)",
+		borderColor: "rgba(255, 193, 7, 0.3)",
 	},
-	flipIndicatorText: {
-		fontSize: 15,
+	allergenHeaderLeft: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+	},
+	allergenHeaderIcon: {
+		fontSize: 20,
+	},
+	allergenHeaderText: {
+		fontSize: 16,
 		fontWeight: "600",
+	},
+	allergenBadge: {
+		backgroundColor: "#ff9800",
+		borderRadius: 12,
+		paddingHorizontal: 8,
+		paddingVertical: 2,
+		minWidth: 24,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	allergenBadgeText: {
+		color: "#fff",
+		fontSize: 12,
+		fontWeight: "700",
+	},
+	allergenChevron: {
+		fontSize: 12,
 		color: "#ff9800",
 	},
-	allergenCountBadge: {
-		fontSize: 13,
-		fontWeight: "700",
-		color: "#f57c00",
-	},
-	flipHint: {
-		fontSize: 12,
-		color: "#9e9e9e",
-		fontStyle: "italic",
-	},
-	flipCard: {
-		height: 140,
-		position: "relative",
-		perspective: 1000,
-	},
-	flipCardFace: {
-		position: "absolute",
-		width: "100%",
-		height: "100%",
-		borderRadius: 12,
-		borderWidth: 1.5,
+	allergenContent: {
 		overflow: "hidden",
 	},
-	flipCardFront: {
-		backgroundColor: "#fff",
-		zIndex: 2,
-	},
-	flipCardBack: {
-		zIndex: 1,
-	},
-	flipCardInput: {
-		flex: 1,
-		padding: 14,
-		fontSize: 15,
-		lineHeight: 22,
-	},
-	allergenScrollView: {
-		flex: 1,
-		padding: 10,
-	},
 	allergenList: {
+		paddingTop: 12,
 		gap: 8,
 	},
 	allergenItem: {
 		flexDirection: "row",
 		alignItems: "flex-start",
-		padding: 10,
-		backgroundColor: "rgba(255, 152, 0, 0.08)",
+		padding: 12,
+		backgroundColor: "rgba(255, 152, 0, 0.05)",
 		borderRadius: 8,
 		borderLeftWidth: 3,
 		borderLeftColor: "#ff9800",
 	},
 	allergenItemIcon: {
-		fontSize: 20,
-		marginRight: 10,
+		fontSize: 24,
+		marginRight: 12,
 	},
 	allergenItemContent: {
 		flex: 1,
 	},
 	allergenItemName: {
-		fontSize: 14,
+		fontSize: 15,
 		fontWeight: "600",
 		marginBottom: 2,
 	},
 	allergenItemDesc: {
-		fontSize: 12,
-	},
-	noAllergenContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-		paddingVertical: 30,
-	},
-	noAllergenEmoji: {
-		fontSize: 32,
-		marginBottom: 8,
+		fontSize: 13,
+		opacity: 0.7,
 	},
 	noAllergenText: {
+		paddingVertical: 16,
+		paddingHorizontal: 12,
+		textAlign: "center",
 		fontSize: 14,
+		opacity: 0.5,
 		fontStyle: "italic",
-		opacity: 0.7,
 	},
 });

@@ -208,6 +208,13 @@ export function useAuthFetch() {
 
 				if (!response.ok) {
 					console.error(`❌ Erreur ${response.status} sur ${url}`);
+					// Log le body de l'erreur pour le debug
+					try {
+						const errorBody = await response.text();
+						console.error(`❌ Body erreur:`, errorBody);
+					} catch (e) {
+						console.error(`❌ Impossible de lire le body`);
+					}
 					return []; // ⭐ Retourne tableau vide = airbag
 				}
 

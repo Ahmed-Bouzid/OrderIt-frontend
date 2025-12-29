@@ -222,12 +222,17 @@ export default function Activity() {
 		const items =
 			activeReservation.orderItems
 				?.filter((i) => i.quantity > 0)
-				.map((i) => ({
-					productId: i.productId,
-					name: products.find((p) => p._id === i.productId)?.name,
-					quantity: i.quantity,
-					price: products.find((p) => p._id === i.productId)?.price,
-				})) || [];
+				.map((i) => {
+					const product = products.find((p) => p._id === i.productId);
+					// Utiliser le nom enrichi avec options si présent, sinon le nom du produit
+					const displayName = i.name || product?.name;
+					return {
+						productId: i.productId,
+						name: displayName,
+						quantity: i.quantity,
+						price: product?.price,
+					};
+				}) || [];
 
 		if (items.length === 0) {
 			alert("Aucun produit sélectionné !");
@@ -236,18 +241,26 @@ export default function Activity() {
 
 		const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
+		// Utiliser le tableId de la réservation si disponible, sinon celui du store
+		const finalTableId =
+			activeReservation.tableId?._id || activeReservation.tableId || tableId;
+
+		const orderData = {
+			reservationId: activeReservation._id,
+			tableId: finalTableId,
+			items,
+			total,
+			status: "in_progress",
+			restaurantId,
+			serverId,
+		};
+
+		console.log("📤 Envoi commande:", JSON.stringify(orderData, null, 2));
+
 		try {
 			await authFetch(`${API_CONFIG.baseURL}/orders/`, {
 				method: "POST",
-				body: {
-					reservationId: activeReservation._id,
-					tableId,
-					items,
-					total,
-					status: "in_progress",
-					restaurantId,
-					serverId,
-				},
+				body: orderData,
 			});
 
 			editField(
@@ -472,12 +485,14 @@ export default function Activity() {
 
 		return activeReservation.orderItems
 			.filter((i) => i.quantity > 0)
-			.map((i) => {
+			.map((i, index) => {
 				const product = products.find((p) => p._id === i.productId);
+				// Utiliser i.name (nom enrichi avec options) si présent, sinon product?.name
+				const displayName = i.name || product?.name;
 				return (
-					<View key={i.productId} style={styles.productRow}>
+					<View key={`${i.productId}-${index}`} style={styles.productRow}>
 						<Text style={[{ flex: 1 }, { color: theme.textColor }]}>
-							{product?.name}
+							{displayName}
 						</Text>
 						<Text
 							style={{
@@ -694,9 +709,9 @@ export default function Activity() {
 																		}
 																	)}
 																</Text>
-																{order.items.map((i) => (
+																{order.items.map((i, itemIndex) => (
 																	<View
-																		key={i.productId}
+																		key={`${order._id}-${i.productId}-${itemIndex}`}
 																		style={{
 																			flexDirection: "row",
 																			marginVertical: 4,

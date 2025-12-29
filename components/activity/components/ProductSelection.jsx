@@ -8,7 +8,9 @@ import {
 	FlatList,
 	TextInput,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import styles from "../../styles";
+import { ProductOptionsModal } from "../modals/ProductOptionsModal";
 
 // Barre de recherche premium (copiée de client-public)
 const PremiumSearchBar = ({ value, onChangeText, onClear }) => {
@@ -121,6 +123,9 @@ export const ProductSelection = React.memo(
 	}) => {
 		// Catégorie sélectionnée (par défaut la première)
 		const [selectedCategory, setSelectedCategory] = useState(null);
+		// ⭐ État pour la modale d'options
+		const [optionsModalVisible, setOptionsModalVisible] = useState(false);
+		const [productForOptions, setProductForOptions] = useState(null);
 		// ⭐ Valeurs sécurisées (memoizées pour éviter les changements de référence)
 		const safeProducts = useMemo(
 			() => (Array.isArray(products) ? products : []),
@@ -169,20 +174,85 @@ export const ProductSelection = React.memo(
 		const handleDecrement = useCallback(
 			(productId) => {
 				if (!productId) return;
-				editField?.("orderItems", (prev = []) =>
-					(Array.isArray(prev) ? prev : []).map((i) =>
-						i?.productId === productId
-							? { ...i, quantity: Math.max(0, (i.quantity || 0) - 1) }
-							: i
-					)
-				);
+				editField?.("orderItems", (prev = []) => {
+					const safePrev = Array.isArray(prev) ? prev : [];
+
+					// Trouver le dernier item avec ce productId
+					let lastIndex = -1;
+					for (let i = safePrev.length - 1; i >= 0; i--) {
+						if (safePrev[i]?.productId === productId) {
+							lastIndex = i;
+							break;
+						}
+					}
+
+					if (lastIndex === -1) return safePrev;
+
+					const newItems = [...safePrev];
+					const item = newItems[lastIndex];
+
+					if (item.quantity <= 1) {
+						// Supprimer l'entrée si quantité = 0
+						newItems.splice(lastIndex, 1);
+					} else {
+						// Décrémenter la quantité
+						newItems[lastIndex] = { ...item, quantity: item.quantity - 1 };
+					}
+
+					return newItems;
+				});
 			},
 			[editField]
 		);
-
 		const handleIncrement = useCallback(
-			(productId) => {
+			async (productId, product) => {
 				if (!productId) return;
+
+				// Vérifier si le produit a des options
+				try {
+					const token = await AsyncStorage.getItem("@access_token");
+					const url = `${
+						process.env.EXPO_PUBLIC_API_URL ||
+						"https://orderit-backend-6y1m.onrender.com"
+					}/products/${productId}/options`;
+					console.log(
+						"🔍 Vérification options pour:",
+						product?.name,
+						"URL:",
+						url
+					);
+
+					const response = await fetch(url, {
+						headers: {
+							Authorization: `Bearer ${token}`,
+						},
+					});
+					console.log("📡 Response status:", response.status, response.ok);
+
+					if (response.ok) {
+						const options = await response.json();
+						console.log("✅ Options reçues:", options);
+
+						if (Array.isArray(options) && options.length > 0) {
+							// Ouvrir la modale d'options
+							console.log("🎯 Ouverture modale pour:", product?.name);
+							setProductForOptions(
+								product || safeProducts.find((p) => p._id === productId)
+							);
+							setOptionsModalVisible(true);
+							return;
+						} else {
+							console.log("⚠️ Aucune option trouvée ou tableau vide");
+						}
+					} else {
+						console.log("❌ Response non-ok:", response.status);
+					}
+				} catch (error) {
+					console.log("❌ Erreur fetch options:", error.message);
+				}
+
+				// Pas d'options, ajouter directement
+				console.log("➕ Ajout direct sans options");
 				editField?.("orderItems", (prev = []) => {
 					const safePrev = Array.isArray(prev) ? prev : [];
 					const existing = safePrev.find((i) => i?.productId === productId);
@@ -197,15 +267,55 @@ export const ProductSelection = React.memo(
 					}
 				});
 			},
-			[editField]
+			[editField, safeProducts]
+		);
+
+		const handleValidateOptions = useCallback(
+			(selectedOptions) => {
+				if (!productForOptions) return;
+
+				const productId = productForOptions._id;
+				const productName = productForOptions.name;
+
+				// Construire le nom avec options entre parenthèses
+				let finalName = productName;
+				if (selectedOptions.length > 0) {
+					const optionsNames = selectedOptions
+						.map((opt) => opt.name)
+						.join(", ");
+					finalName = `${productName} (${optionsNames})`;
+				}
+
+				// Ajouter le produit avec le nom modifié
+				editField?.("orderItems", (prev = []) => {
+					const safePrev = Array.isArray(prev) ? prev : [];
+					// Toujours créer une nouvelle entrée pour chaque ajout avec options
+					return [
+						...safePrev,
+						{
+							productId,
+							quantity: 1,
+							name: finalName,
+							options: selectedOptions,
+						},
+					];
+				});
+
+				// Fermer la modale
+				setOptionsModalVisible(false);
+				setProductForOptions(null);
+			},
+			[editField, productForOptions]
 		);
 
 		const renderProductItem = useCallback(
 			({ item: product }) => {
 				if (!product?._id) return null;
 
-				const item = safeOrderItems.find((i) => i?.productId === product._id);
-				const quantity = item?.quantity ?? 0;
+				// Compter TOUTES les entrées avec ce productId (y compris celles avec options)
+				const quantity = safeOrderItems
+					.filter((i) => i?.productId === product._id)
+					.reduce((sum, i) => sum + (i.quantity || 0), 0);
 
 				return (
 					<View
@@ -256,7 +366,7 @@ export const ProductSelection = React.memo(
 							</Text>
 							<TouchableOpacity
 								style={styles.counterButton}
-								onPress={() => handleIncrement(product._id)}
+								onPress={() => handleIncrement(product._id, product)}
 							>
 								<Text>+</Text>
 							</TouchableOpacity>
@@ -288,141 +398,155 @@ export const ProductSelection = React.memo(
 		}
 
 		return (
-			<View style={{ width: "50%", paddingLeft: 10, flex: 1 }}>
-				{/* Barre de recherche premium au-dessus des catégories */}
-				<PremiumSearchBar
-					value={searchQuery}
-					onChangeText={setSearchQuery}
-					onClear={() => setSearchQuery("")}
+			<>
+				{/* ⭐ Modale d'options */}
+				<ProductOptionsModal
+					visible={optionsModalVisible}
+					onClose={() => {
+						setOptionsModalVisible(false);
+						setProductForOptions(null);
+					}}
+					product={productForOptions}
+					onValidate={handleValidateOptions}
+					theme={safeTheme}
 				/>
-				{/* Barre de boutons catégories glass/néon/emoji (sans animation) */}
-				<View style={{ flexDirection: "row", marginBottom: 16 }}>
-					{categories.map((cat, idx) => (
+				<View style={{ width: "50%", paddingLeft: 10, flex: 1 }}>
+					{/* Barre de recherche premium au-dessus des catégories */}
+					<PremiumSearchBar
+						value={searchQuery}
+						onChangeText={setSearchQuery}
+						onClear={() => setSearchQuery("")}
+					/>
+					{/* Barre de boutons catégories glass/néon/emoji (sans animation) */}
+					<View style={{ flexDirection: "row", marginBottom: 16 }}>
+						{categories.map((cat, idx) => (
+							<View
+								key={cat.id}
+								style={{ marginRight: idx !== categories.length - 1 ? 10 : 0 }}
+							>
+								<TouchableOpacity
+									onPress={() => setSelectedCategory(cat.id)}
+									activeOpacity={0.85}
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										backgroundColor:
+											selectedCategory === cat.id
+												? "rgba(255,255,255,0.35)"
+												: "rgba(255,255,255,0.18)",
+										borderRadius: 18,
+										borderWidth: selectedCategory === cat.id ? 2 : 1.5,
+										borderColor:
+											selectedCategory === cat.id ? cat.color[0] : cat.color[1],
+										paddingHorizontal: 18,
+										paddingVertical: 10,
+										minWidth: 70,
+										shadowColor: cat.color[0],
+										shadowOpacity: selectedCategory === cat.id ? 0.35 : 0.12,
+										shadowRadius: selectedCategory === cat.id ? 16 : 6,
+										shadowOffset: { width: 0, height: 4 },
+										overflow: "hidden",
+									}}
+								>
+									<Text style={{ fontSize: 22, marginRight: 8 }}>
+										{cat.emoji}
+									</Text>
+									<Text
+										style={{
+											color:
+												selectedCategory === cat.id ? cat.color[0] : "#333",
+											fontWeight: selectedCategory === cat.id ? "700" : "500",
+											fontSize: 16,
+										}}
+									>
+										{cat.label}
+									</Text>
+								</TouchableOpacity>
+							</View>
+						))}
+					</View>
+					{/* Liste des produits filtrés (recherche ou catégorie) */}
+					{/* Affichage d'une illustration et d'un message si aucune catégorie n'est sélectionnée */}
+					{selectedCategory === null ? (
 						<View
-							key={cat.id}
-							style={{ marginRight: idx !== categories.length - 1 ? 10 : 0 }}
+							style={{
+								flex: 1,
+								justifyContent: "center",
+								alignItems: "center",
+								paddingHorizontal: 30,
+								paddingBottom: 100,
+							}}
 						>
-							<TouchableOpacity
-								onPress={() => setSelectedCategory(cat.id)}
-								activeOpacity={0.85}
+							<LinearGradient
+								colors={["rgba(2, 25, 128, 0.1)", "rgba(120, 115, 125, 0.05)"]}
 								style={{
-									flexDirection: "row",
+									padding: 40,
+									borderRadius: 24,
 									alignItems: "center",
-									backgroundColor:
-										selectedCategory === cat.id
-											? "rgba(255,255,255,0.35)"
-											: "rgba(255,255,255,0.18)",
-									borderRadius: 18,
-									borderWidth: selectedCategory === cat.id ? 2 : 1.5,
-									borderColor:
-										selectedCategory === cat.id ? cat.color[0] : cat.color[1],
-									paddingHorizontal: 18,
-									paddingVertical: 10,
-									minWidth: 70,
-									shadowColor: cat.color[0],
-									shadowOpacity: selectedCategory === cat.id ? 0.35 : 0.12,
-									shadowRadius: selectedCategory === cat.id ? 16 : 6,
-									shadowOffset: { width: 0, height: 4 },
-									overflow: "hidden",
+									width: "95%",
+									height: "95%",
+									maxWidth: 512,
+									maxHeight: 512,
+									justifyContent: "center",
 								}}
 							>
-								<Text style={{ fontSize: 22, marginRight: 8 }}>
-									{cat.emoji}
+								<Text
+									style={{
+										fontSize: 60,
+										textAlign: "center",
+									}}
+								>
+									✨
 								</Text>
 								<Text
 									style={{
-										color: selectedCategory === cat.id ? cat.color[0] : "#333",
-										fontWeight: selectedCategory === cat.id ? "700" : "500",
-										fontSize: 16,
+										fontSize: 20,
+										fontWeight: "700",
+										color: "#1a1a2e",
+										marginBottom: 80,
+										textAlign: "center",
 									}}
 								>
-									{cat.label}
+									Choisissez une catégorie
 								</Text>
-							</TouchableOpacity>
+								<Text
+									style={{
+										fontSize: 14,
+										color: "#666",
+										textAlign: "center",
+										marginBottom: 20,
+									}}
+								>
+									Explorez notre sélection de délices
+								</Text>
+							</LinearGradient>
 						</View>
-					))}
-				</View>
-				{/* Liste des produits filtrés (recherche ou catégorie) */}
-				{/* Affichage d'une illustration et d'un message si aucune catégorie n'est sélectionnée */}
-				{selectedCategory === null ? (
-					<View
-						style={{
-							flex: 1,
-							justifyContent: "center",
-							alignItems: "center",
-							paddingHorizontal: 30,
-							paddingBottom: 100,
-						}}
+					) : (
+						<FlatList
+							data={filteredProducts}
+							renderItem={renderProductItem}
+							keyExtractor={(item) => item?._id || Math.random().toString()}
+							style={{ flex: 1 }}
+							contentContainerStyle={{ paddingBottom: 24 }}
+							ListEmptyComponent={
+								<Text
+									style={{ color: "#888", textAlign: "center", marginTop: 24 }}
+								>
+									Aucun produit dans cette catégorie
+								</Text>
+							}
+						/>
+					)}
+					<TouchableOpacity
+						onPress={handleNext}
+						style={[styles.nextButton, { marginTop: 20 }]}
 					>
-						<LinearGradient
-							colors={["rgba(2, 25, 128, 0.1)", "rgba(120, 115, 125, 0.05)"]}
-							style={{
-								padding: 40,
-								borderRadius: 24,
-								alignItems: "center",
-								width: "95%",
-								height: "95%",
-								maxWidth: 512,
-								maxHeight: 512,
-								justifyContent: "center",
-							}}
-						>
-							<Text
-								style={{
-									fontSize: 60,
-									textAlign: "center",
-								}}
-							>
-								✨
-							</Text>
-							<Text
-								style={{
-									fontSize: 20,
-									fontWeight: "700",
-									color: "#1a1a2e",
-									marginBottom: 80,
-									textAlign: "center",
-								}}
-							>
-								Choisissez une catégorie
-							</Text>
-							<Text
-								style={{
-									fontSize: 14,
-									color: "#666",
-									textAlign: "center",
-									marginBottom: 20,
-								}}
-							>
-								Explorez notre sélection de délices
-							</Text>
-						</LinearGradient>
-					</View>
-				) : (
-					<FlatList
-						data={filteredProducts}
-						renderItem={renderProductItem}
-						keyExtractor={(item) => item?._id || Math.random().toString()}
-						style={{ flex: 1 }}
-						contentContainerStyle={{ paddingBottom: 24 }}
-						ListEmptyComponent={
-							<Text
-								style={{ color: "#888", textAlign: "center", marginTop: 24 }}
-							>
-								Aucun produit dans cette catégorie
-							</Text>
-						}
-					/>
-				)}
-				<TouchableOpacity
-					onPress={handleNext}
-					style={[styles.nextButton, { marginTop: 20 }]}
-				>
-					<Text style={styles.buttonText}>
-						{hasSelectedItems ? "➡️ Suivant" : "TOOOTAL"}
-					</Text>
-				</TouchableOpacity>
-			</View>
+						<Text style={styles.buttonText}>
+							{hasSelectedItems ? "➡️ Suivant" : "TOOOTAL"}
+						</Text>
+					</TouchableOpacity>
+				</View>
+			</>
 		);
 	}
 );
