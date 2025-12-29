@@ -59,6 +59,11 @@ export default function Activity() {
 		servers,
 	} = useActivityData();
 
+	// DEBUG VISUEL : Afficher tous les états clés en haut de l'écran
+	const [debugError, setDebugError] = useState(null);
+
+	// On ne force plus le fetch ici, on laisse la logique du hook gérer le chargement via isReservationsLoaded
+
 	// Définir fetchReservations localement pour éviter la dépendance circulaire
 	// Définir fetchReservations localement pour éviter la dépendance circulaire
 	const fetchReservations = React.useCallback(async () => {
@@ -512,7 +517,7 @@ export default function Activity() {
 			<View
 				style={[styles.container, { backgroundColor: theme.backgroundColor }]}
 			>
-				{/* Bouton Commencer - seulement si réservations chargées ET aucune ouverte ET aucun activeId */}
+				{/* Bouton Commencer - on garde la condition stricte sur isReservationsLoaded */}
 				{isReservationsLoaded &&
 					openedReservations.length === 0 &&
 					!activeId && (

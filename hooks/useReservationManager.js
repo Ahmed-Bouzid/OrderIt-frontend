@@ -84,7 +84,22 @@ export const useReservationManager = (reservations) => {
 			reservations.length >= 0 &&
 			!hasLoadedReservationsRef.current
 		) {
+			console.log("[isReservationsLoaded] Passage à true !", {
+				reservationsType: typeof reservations,
+				reservationsIsArray: Array.isArray(reservations),
+				reservationsLength: reservations.length,
+				prevLoaded: hasLoadedReservationsRef.current,
+			});
 			hasLoadedReservationsRef.current = true;
+		} else {
+			console.log("[isReservationsLoaded] NON déclenché", {
+				reservationsType: typeof reservations,
+				reservationsIsArray: Array.isArray(reservations),
+				reservationsLength: Array.isArray(reservations)
+					? reservations.length
+					: "N/A",
+				prevLoaded: hasLoadedReservationsRef.current,
+			});
 		}
 
 		if (Array.isArray(reservations) && reservations.length > 0) {

@@ -1,18 +1,27 @@
 // app/(tabs)/_layout.jsx
-import React, { useState } from "react";
+
+import React, { useState, useEffect } from "react";
 import {
 	View,
 	Text,
 	TouchableOpacity,
 	StyleSheet,
 	Platform,
+	SafeAreaView,
+	ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import Activity from "../../components/screens/Activity";
 import FloorScreen from "../../components/screens/Floor";
 import Settings from "../../components/screens/Settings";
+import useSocket from "../../hooks/useSocket";
 
 export default function TabsLayout() {
 	const [activeTab, setActiveTab] = useState("activity");
+	const [isLoading, setIsLoading] = useState(true);
+	const [userLoggedIn, setUserLoggedIn] = useState(false);
+	const [token, setToken] = useState(null);
+	const { connect, socket } = useSocket();
 
 	const tabs = [
 		{ name: "activity", label: "Activité" },
@@ -20,44 +29,109 @@ export default function TabsLayout() {
 		{ name: "reglage", label: "Réglages" },
 	];
 
-	const renderContent = () => {
-		if (activeTab === "activity") return <Activity />;
-		if (activeTab === "floor") return <FloorScreen />;
-		if (activeTab === "reglage") return <Settings />;
-		return null;
+	useEffect(() => {
+		const checkToken = async () => {
+			const storedToken = await AsyncStorage.getItem("@access_token");
+			const refreshToken = await AsyncStorage.getItem("refreshToken");
+			if (storedToken && refreshToken) {
+				setUserLoggedIn(true);
+				setToken(storedToken);
+			} else {
+				setUserLoggedIn(false);
+				setToken(null);
+			}
+			setIsLoading(false);
+		};
+		checkToken();
+	}, []);
+
+	// Initialiser la socket UNIQUEMENT quand le token est prêt
+	useEffect(() => {
+		if (token) {
+			connect(); // connect() lit le token depuis AsyncStorage
+		}
+	}, [token, connect]);
+
+	const handleStart = () => {
+		// ...
 	};
 
-	return (
-		<View style={{ flex: 1 }}>
-			{/* Tab Bar en haut avec padding pour iOS */}
-			<View
-				style={[styles.navbar, { paddingTop: Platform.OS === "ios" ? 20 : 10 }]}
-			>
-				{tabs.map((tab) => (
-					<TouchableOpacity
-						key={tab.name}
-						onPress={() => setActiveTab(tab.name)}
-						style={styles.tabButton}
-					>
-						<Text
-							style={[
-								styles.tabText,
-								activeTab === tab.name && styles.activeTabText,
-							]}
-						>
-							{tab.label}
-						</Text>
-					</TouchableOpacity>
-				))}
-			</View>
+	const renderContent = () => {
+		switch (activeTab) {
+			case "activity":
+				return <Activity onStart={handleStart} />;
+			case "floor":
+				return <FloorScreen />;
+			case "reglage":
+				return <Settings />;
+			default:
+				return null;
+		}
+	};
 
-			{/* Contenu actif */}
-			<View style={{ flex: 1 }}>{renderContent()}</View>
-		</View>
+	if (isLoading) {
+		return (
+			<View
+				style={[
+					styles.container,
+					{ justifyContent: "center", alignItems: "center" },
+				]}
+			>
+				<ActivityIndicator size="large" color="#2563EB" />
+				<Text style={{ marginTop: 20 }}>Chargement...</Text>
+			</View>
+		);
+	}
+
+	if (!userLoggedIn) {
+		return (
+			<View
+				style={[
+					styles.container,
+					{ justifyContent: "center", alignItems: "center" },
+				]}
+			>
+				<Text style={{ fontSize: 22, color: "#2563EB", fontWeight: "bold" }}>
+					Veuillez vous connecter
+				</Text>
+			</View>
+		);
+	}
+
+	return (
+		<SafeAreaView style={styles.container}>
+			<View style={{ flex: 1 }}>
+				<View
+					style={[
+						styles.navbar,
+						{ paddingTop: Platform.OS === "ios" ? 20 : 10 },
+					]}
+				>
+					{tabs.map((tab) => (
+						<TouchableOpacity
+							key={tab.name}
+							onPress={() => setActiveTab(tab.name)}
+							style={styles.tabButton}
+						>
+							<Text
+								style={[
+									styles.tabText,
+									activeTab === tab.name && styles.activeTabText,
+								]}
+							>
+								{tab.label}
+							</Text>
+						</TouchableOpacity>
+					))}
+				</View>
+				<View style={{ flex: 1 }}>{renderContent()}</View>
+			</View>
+		</SafeAreaView>
 	);
 }
 
 const styles = StyleSheet.create({
+	container: { flex: 1, backgroundColor: "whitesmoke", paddingTop: 60 },
 	navbar: {
 		flexDirection: "row",
 		justifyContent: "space-around",

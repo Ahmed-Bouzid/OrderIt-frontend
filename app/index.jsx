@@ -11,7 +11,7 @@ export default function Index() {
 		let mounted = true;
 		(async () => {
 			try {
-				const token = await AsyncStorage.getItem("token");
+				const token = await AsyncStorage.getItem("@access_token");
 				if (!mounted) return;
 
 				if (token) {

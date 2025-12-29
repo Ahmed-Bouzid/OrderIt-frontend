@@ -1,35 +1,52 @@
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import {
 	View,
 	StyleSheet,
 	TouchableOpacity,
 	Text,
 	SafeAreaView,
+	ActivityIndicator,
 } from "react-native";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import Activite from "../components/screens/Activity";
 import Floor from "../components/screens/Floor";
 import Settings from "../components/screens/Settings";
 import { API_CONFIG } from "../src/config/apiConfig";
-
-console.log("🔧 === CONFIGURATION CHECK ===");
-console.log("API_CONFIG:", API_CONFIG);
-
-console.log("🌐 === API TEST ===");
-fetch(API_CONFIG.baseURL)
-	.then((r) => {
-		console.log("✅ Backend status:", r.status, r.statusText);
-		return r.text();
-	})
-	.then((text) => console.log("✅ Response:", text))
-	.catch((e) => console.log("❌ Fetch error:", e.message));
+import useSocket from "../hooks/useSocket";
 
 export default function App() {
 	const [activeTab, setActiveTab] = useState("Activité");
+	const [isLoading, setIsLoading] = useState(true);
+	const [userLoggedIn, setUserLoggedIn] = useState(false);
+	const [token, setToken] = useState(null);
+	const { connect, socket } = useSocket();
+	console.log("BONJOUR");
 
-	const handleStart = () => {
-		console.log("Début de l'activité !");
-	};
+	useEffect(() => {
+		const checkToken = async () => {
+			const storedToken = await AsyncStorage.getItem("@access_token");
+			const refreshToken = await AsyncStorage.getItem("refreshToken");
+			if (storedToken && refreshToken) {
+				setUserLoggedIn(true);
+				setToken(storedToken);
+			} else {
+				setUserLoggedIn(false);
+				setToken(null);
+			}
+			setIsLoading(false);
+		};
+		checkToken();
+	}, []);
+
+	// Initialiser la socket UNIQUEMENT quand le token est prêt
+	useEffect(() => {
+		if (token) {
+			connect(); // connect() lit le token depuis AsyncStorage
+		}
+	}, [token, connect]);
+
+	const handleStart = () => {};
 
 	const renderContent = () => {
 		switch (activeTab) {
@@ -43,6 +60,35 @@ export default function App() {
 				return null;
 		}
 	};
+
+	if (isLoading) {
+		return (
+			<View
+				style={[
+					styles.container,
+					{ justifyContent: "center", alignItems: "center" },
+				]}
+			>
+				<ActivityIndicator size="large" color="#2563EB" />
+				<Text style={{ marginTop: 20 }}>Chargement...</Text>
+			</View>
+		);
+	}
+
+	if (!userLoggedIn) {
+		return (
+			<View
+				style={[
+					styles.container,
+					{ justifyContent: "center", alignItems: "center" },
+				]}
+			>
+				<Text style={{ fontSize: 22, color: "#2563EB", fontWeight: "bold" }}>
+					Veuillez vous connecter
+				</Text>
+			</View>
+		);
+	}
 
 	return (
 		<>

@@ -19,8 +19,8 @@ const useSocket = () => {
 
 	const connect = useCallback(async () => {
 		try {
-			// Récupérer le token depuis AsyncStorage
-			const token = await AsyncStorage.getItem("token");
+			// Récupérer le token depuis AsyncStorage (clé corrigée)
+			const token = await AsyncStorage.getItem("@access_token");
 			if (!token) {
 				console.warn("⚠️ Socket: Token non disponible, skipping connection");
 				fallbackModeRef.current = true;

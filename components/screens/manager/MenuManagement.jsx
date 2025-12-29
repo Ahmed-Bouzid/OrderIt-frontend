@@ -17,6 +17,7 @@ import {
 import * as ImagePicker from "expo-image-picker";
 import { useAuthFetch } from "../../../hooks/useAuthFetch";
 import useThemeStore from "../../../src/stores/useThemeStore";
+import { getRestaurantId } from "../../../utils/getRestaurantId";
 
 export default function MenuManagement() {
 	const { theme, isDarkMode } = useThemeStore();
@@ -32,9 +33,17 @@ export default function MenuManagement() {
 	const fetchProducts = React.useCallback(async () => {
 		setLoading(true);
 		try {
-			const res = await authFetch("/products", { method: "GET" });
-			const data = await res.json();
-			setProducts(Array.isArray(data) ? data : []);
+			const restaurantId = await getRestaurantId();
+			if (!restaurantId) throw new Error("restaurantId manquant");
+			const url = `/products/restaurant/${restaurantId}`;
+			const res = await authFetch(url, { method: "GET" });
+			// res peut être un tableau ou un objet { products: [...] }
+			let data = Array.isArray(res)
+				? res
+				: Array.isArray(res?.products)
+				? res.products
+				: [];
+			setProducts(data);
 		} catch (error) {
 			console.error("❌ Erreur chargement produits:", error);
 			setProducts([]);
