@@ -30,17 +30,22 @@ export const useDashboardFilters = (reservations) => {
 					// Toutes les "en attente" (présent ou non)
 					return reservations.filter((r) => r?.status === "en attente");
 				case "present":
-					// Toutes les réservations isPresent true (quel que soit le status)
-					return reservations.filter((r) => r?.isPresent === true);
+					// ⭐ RÈGLE MÉTIER: Réservations présentes ET en attente ou ouvertes uniquement
+					// (isPresent=true impossible avec terminée/annulée)
+					return reservations.filter(
+						(r) =>
+							r?.isPresent === true &&
+							(r?.status === "en attente" || r?.status === "ouverte")
+					);
 				case "ouverte":
-					// Toutes les "ouverte" (présent ou non)
+					// Toutes les "ouverte"
 					return reservations.filter((r) => r?.status === "ouverte");
-				case "termine":
-					return reservations.filter((r) => r?.status === "fermee");
-				case "annulee":
-					return reservations.filter((r) => r?.status === "annulee");
+				case "terminée":
+					return reservations.filter((r) => r?.status === "terminée");
+				case "annulée":
+					return reservations.filter((r) => r?.status === "annulée");
 				default:
-					return reservations.filter(Boolean); // ⭐ Filtrer les valeurs null/undefined
+					return reservations.filter(Boolean);
 			}
 		} catch (error) {
 			console.error("❌ Erreur filtrage réservations:", error);

@@ -40,7 +40,20 @@ export const SettingsModal = ({
 	};
 
 	const handleFinish = () => {
-		if (!activeReservation?._id || !onFinishReservation) return;
+		console.log("🔘 [SettingsModal] handleFinish appelé");
+		console.log(
+			"🔘 [SettingsModal] activeReservation:",
+			activeReservation?._id?.slice(-6),
+			"status:",
+			activeReservation?.status
+		);
+
+		if (!activeReservation?._id || !onFinishReservation) {
+			console.error(
+				"❌ [SettingsModal] Pas de reservationId ou onFinishReservation"
+			);
+			return;
+		}
 		Alert.alert(
 			"Confirmation",
 			"Êtes-vous sûr de vouloir terminer cette réservation ?",
@@ -49,8 +62,12 @@ export const SettingsModal = ({
 				{
 					text: "Oui",
 					onPress: async () => {
+						console.log(
+							"🔘 [SettingsModal] Confirmation OK, appel onFinishReservation..."
+						);
 						safeOnClose();
 						await onFinishReservation(activeReservation._id);
+						console.log("🔘 [SettingsModal] onFinishReservation terminé");
 					},
 				},
 			]
@@ -241,7 +258,7 @@ export const SettingsModal = ({
 									)}
 
 									{/* Si réservation annulée */}
-									{status === "annulee" && (
+									{status === "annulée" && (
 										<TouchableOpacity
 											style={[
 												styles.modalButtonSettings,
@@ -259,8 +276,8 @@ export const SettingsModal = ({
 										</TouchableOpacity>
 									)}
 
-									{/* Si réservation fermée */}
-									{status === "fermee" && (
+									{/* Si réservation terminée */}
+									{status === "terminée" && (
 										<View style={{ margin: 10 }}>
 											<Text
 												style={[
@@ -273,8 +290,8 @@ export const SettingsModal = ({
 										</View>
 									)}
 
-									{/* Annuler (sauf si fermée ou annulée) */}
-									{status !== "fermee" && status !== "annulee" && (
+									{/* Annuler (sauf si terminée ou annulée) */}
+									{status !== "terminée" && status !== "annulée" && (
 										<TouchableOpacity
 											style={[
 												styles.modalButtonSettings,

@@ -8,9 +8,9 @@ import {
 	TouchableOpacity,
 	StyleSheet,
 	Platform,
-	SafeAreaView,
 	ActivityIndicator,
 } from "react-native";
+import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import Activity from "../../components/screens/Activity";
 import FloorScreen from "../../components/screens/Floor";

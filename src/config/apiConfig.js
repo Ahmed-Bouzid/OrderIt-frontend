@@ -8,6 +8,7 @@ export const API_CONFIG = {
 		Constants.expoConfig?.extra?.socketUrl ||
 		"https://orderit-backend-6y1m.onrender.com",
 	RESTAURANT_ID: "686af511bb4cba684ff3b72e",
+	DEFAULT_TABLE_ID: "686af692bb4cba684ff3b757", // Table T1 par défaut
 	timeout: 10000,
 };
 
@@ -28,5 +29,3 @@ export const SOCKET_CONFIG = {
 		},
 	},
 };
-
-console.log("API Config loaded:", API_CONFIG);

@@ -542,7 +542,7 @@ export const ProductSelection = React.memo(
 						style={[styles.nextButton, { marginTop: 20 }]}
 					>
 						<Text style={styles.buttonText}>
-							{hasSelectedItems ? "➡️ Suivant" : "TOOOTAL"}
+							{hasSelectedItems ? "➡️ Suivant" : "TOTAL"}
 						</Text>
 					</TouchableOpacity>
 				</View>

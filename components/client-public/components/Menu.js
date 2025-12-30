@@ -1,4 +1,3 @@
-import React, { useState } from "react";
 import { View, Text, Button, FlatList, StyleSheet } from "react-native";
 
 export default function Menu({ menuItems, onAdd }) {

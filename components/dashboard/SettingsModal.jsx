@@ -95,7 +95,11 @@ const SettingsModal = React.memo(
 												{ backgroundColor: "#34A853" },
 											]}
 											onPress={() =>
-												onUpdateStatus?.(reservation._id, "fermee", reservation)
+												onUpdateStatus?.(
+													reservation._id,
+													"terminée",
+													reservation
+												)
 											}
 										>
 											<Text style={styles.buttonTextSettings}>
@@ -131,7 +135,11 @@ const SettingsModal = React.memo(
 												{ backgroundColor: "#34A853" },
 											]}
 											onPress={() =>
-												onUpdateStatus?.(reservation._id, "fermee", reservation)
+												onUpdateStatus?.(
+													reservation._id,
+													"terminée",
+													reservation
+												)
 											}
 										>
 											<Text style={styles.buttonTextSettings}>
@@ -141,7 +149,7 @@ const SettingsModal = React.memo(
 									</>
 								)}
 								{/* Si réservation annulée → bouton Rétablir */}
-								{effectiveStatus === "annulee" && (
+								{effectiveStatus === "annulée" && (
 									<TouchableOpacity
 										style={[
 											styles.modalButtonSettings,
@@ -161,8 +169,8 @@ const SettingsModal = React.memo(
 									</TouchableOpacity>
 								)}
 
-								{/* Si réservation fermée → message info */}
-								{effectiveStatus === "fermee" && (
+								{/* Si réservation terminée → message info */}
+								{effectiveStatus === "terminée" && (
 									<>
 										<View style={{ margin: 10 }}>
 											<Text
@@ -200,9 +208,9 @@ const SettingsModal = React.memo(
 									</>
 								)}
 
-								{/* Annuler (sauf si déjà fermée ou annulée) */}
-								{effectiveStatus !== "fermee" &&
-									effectiveStatus !== "annulee" && (
+								{/* Annuler (sauf si déjà terminée ou annulée) */}
+								{effectiveStatus !== "terminée" &&
+									effectiveStatus !== "annulée" && (
 										<TouchableOpacity
 											style={[
 												styles.modalButtonSettings,

@@ -16,13 +16,9 @@ const useReservationStore = create((set, get) => ({
 			return;
 		}
 
-		console.log("🔌 Attachement des listeners WebSocket pour réservations");
-
 		// Écouter les événements de réservation
 		socket.on("reservation", (event) => {
 			const { type, data } = event;
-			console.log(`📡 Événement réservation reçu: ${type}`, data);
-
 			const state = get();
 
 			switch (type) {
@@ -33,7 +29,6 @@ const useReservationStore = create((set, get) => ({
 						set({
 							reservations: [...state.reservations, data],
 						});
-						console.log("✅ Nouvelle réservation ajoutée au store");
 					}
 					break;
 				}
@@ -46,7 +41,6 @@ const useReservationStore = create((set, get) => ({
 						r._id === data._id ? data : r
 					);
 					set({ reservations: updated });
-					console.log(`✅ Réservation ${type} mise à jour au store`);
 					break;
 				}
 
@@ -54,7 +48,6 @@ const useReservationStore = create((set, get) => ({
 					// Supprimer la réservation
 					const filtered = state.reservations.filter((r) => r._id !== data._id);
 					set({ reservations: filtered });
-					console.log("✅ Réservation supprimée du store");
 					break;
 				}
 
@@ -63,17 +56,11 @@ const useReservationStore = create((set, get) => ({
 			}
 		});
 
-		// Listener pour la déconnexion - réinitialiser le flag
-		socket.on("disconnect", () => {
-			console.log("🔌 Socket déconnecté");
-		});
-
 		// Détachement des listeners au cleanup
 		return () => {
 			if (socket) {
 				socket.off("reservation");
 				socket.off("disconnect");
-				console.log("🔌 Listeners WebSocket détachés");
 			}
 		};
 	},
@@ -104,11 +91,7 @@ const useReservationStore = create((set, get) => ({
 			try {
 				const token = await AsyncStorage.getItem("@access_token");
 				const restaurantId = await AsyncStorage.getItem("restaurantId");
-				console.log("🔍 [ReservationStore] fetchReservations appelé");
-				console.log("🔍 Token:", token ? "présent" : "absent");
-				console.log("🔍 RestaurantId:", restaurantId);
 				if (!token || !restaurantId) {
-					console.log("⚠️ Token ou restaurantId manquant");
 					return {
 						success: false,
 						error: "NO_TOKEN_OR_RESTAURANT",
@@ -117,11 +100,9 @@ const useReservationStore = create((set, get) => ({
 				}
 
 				const url = `${API_CONFIG.baseURL}/reservations/restaurant/${restaurantId}`;
-				console.log("🔍 URL CORRIGÉE:", url);
 				const response = await fetch(url, {
 					headers: { Authorization: `Bearer ${token}` },
 				});
-				console.log("🔍 Status réponse:", response.status);
 
 				// 🔹 si le token est invalide ou expiré
 				if (response.status === 401 || response.status === 403) {
@@ -149,8 +130,31 @@ const useReservationStore = create((set, get) => ({
 				}
 
 				const data = await response.json();
-				set({ reservations: data.reservations || data });
-				return { success: true, data: data.reservations || data };
+				const fetchedReservations = data.reservations || data;
+
+				// ⭐ IMPORTANT: Fusionner au lieu d'écraser pour garder les réservations WebSocket
+				// Les réservations ajoutées via WebSocket qui ne sont pas dans la réponse API
+				// (à cause de la limite de 20) doivent être conservées
+				const currentReservations = get().reservations;
+				const fetchedIds = new Set(fetchedReservations.map((r) => r._id));
+
+				// Garder les réservations actuelles qui ne sont pas dans la réponse
+				// (probablement des nouvelles ajoutées via WebSocket)
+				const newWebSocketReservations = currentReservations.filter(
+					(r) =>
+						!fetchedIds.has(r._id) &&
+						// Ne garder que les réservations récentes (créées dans les dernières 24h)
+						new Date(r.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+				);
+
+				// Fusionner : réservations API + nouvelles WebSocket
+				const mergedReservations = [
+					...fetchedReservations,
+					...newWebSocketReservations,
+				];
+
+				set({ reservations: mergedReservations });
+				return { success: true, data: mergedReservations };
 			} catch (err) {
 				console.error("🚨 Erreur récupération réservations :", err);
 				return {

@@ -15,7 +15,7 @@ const clearCachedActiveId = () => {
 	AsyncStorage.removeItem("activeReservationId").catch(console.error);
 };
 
-export const useReservationManager = (reservations) => {
+export const useReservationManager = (reservations, fetchReservations) => {
 	const authFetch = useAuthFetch();
 	const { socket } = useSocket();
 	const hasRestoredIdRef = useRef(false);
@@ -54,7 +54,6 @@ export const useReservationManager = (reservations) => {
 				// ⭐ Valider que la réservation existe ET est ouverte
 				const savedResa = reservations.find((r) => r._id === saved);
 				if (savedResa && savedResa.status === "ouverte") {
-					console.log("🔄 Restauration activeId valide:", saved);
 					setActiveId(saved);
 					// updateCachedActiveId supprimé (inutile)
 				} else {
@@ -84,22 +83,7 @@ export const useReservationManager = (reservations) => {
 			reservations.length >= 0 &&
 			!hasLoadedReservationsRef.current
 		) {
-			console.log("[isReservationsLoaded] Passage à true !", {
-				reservationsType: typeof reservations,
-				reservationsIsArray: Array.isArray(reservations),
-				reservationsLength: reservations.length,
-				prevLoaded: hasLoadedReservationsRef.current,
-			});
 			hasLoadedReservationsRef.current = true;
-		} else {
-			console.log("[isReservationsLoaded] NON déclenché", {
-				reservationsType: typeof reservations,
-				reservationsIsArray: Array.isArray(reservations),
-				reservationsLength: Array.isArray(reservations)
-					? reservations.length
-					: "N/A",
-				prevLoaded: hasLoadedReservationsRef.current,
-			});
 		}
 
 		if (Array.isArray(reservations) && reservations.length > 0) {
@@ -111,20 +95,18 @@ export const useReservationManager = (reservations) => {
 				// Si la réservation n'existe plus OU est fermée/annulée
 				if (
 					!activeResa ||
-					activeResa.status === "fermee" ||
-					activeResa.status === "annulee"
+					activeResa.status === "terminée" ||
+					activeResa.status === "annulée"
 				) {
-					console.log(
-						"🔄 Réservation active fermée ou inexistante, désélection"
-					);
 					setActiveId(null);
 					setActiveReservation(null);
 					clearCachedActiveId(); // ⭐ Nettoyer le cache global
 					AsyncStorage.removeItem("activeReservationId").catch(console.error);
+					// ⭐ NE PAS auto-sélectionner une autre réservation après fermeture manuelle
+					hasAutoSelectedRef.current = true;
 				}
 			} else if (openedResas.length > 0 && !hasAutoSelectedRef.current) {
 				// ⭐ Auto-sélectionner la première réservation ouverte si aucune n'est active (une seule fois)
-				console.log("🎯 Auto-sélection de la première réservation ouverte");
 				hasAutoSelectedRef.current = true;
 				setActiveId(openedResas[0]._id);
 				// updateCachedActiveId supprimé (inutile)
@@ -134,7 +116,6 @@ export const useReservationManager = (reservations) => {
 			}
 		} else if (hasLoadedReservationsRef.current && activeId) {
 			// Si les réservations sont chargées et qu'il n'y en a aucune, nettoyer activeId
-			console.log("🔄 Aucune réservation, nettoyage activeId");
 			setActiveId(null);
 			setActiveReservation(null);
 			clearCachedActiveId(); // ⭐ Nettoyer le cache global
@@ -161,11 +142,8 @@ export const useReservationManager = (reservations) => {
 		// ⭐ Ne pas mettre à jour si la réservation est fermée/annulée
 		if (
 			reservation &&
-			(reservation.status === "fermee" || reservation.status === "annulee")
+			(reservation.status === "terminée" || reservation.status === "annulée")
 		) {
-			console.log(
-				"🚫 Réservation fermée/annulée, on ne met pas à jour activeReservation"
-			);
 			return;
 		}
 
@@ -304,25 +282,18 @@ export const useReservationManager = (reservations) => {
 	const markReservationAsFinished = useCallback(
 		async (reservationId) => {
 			try {
-				console.log(
-					"🔄 markReservationAsFinished - Envoi requête PUT pour:",
-					reservationId
-				);
-				console.log("🔄 Body envoyé:", { status: "fermee" });
-
-				// ⭐ Utiliser la route générale PUT /:id qui accepte aussi le champ status
+				// ⭐ CORRECTION: Utiliser la route /:id/status qui applique les règles métier
+				// (isPresent=false automatique, validation des transitions)
 				const response = await authFetch(
-					`${API_CONFIG.baseURL}/reservations/${reservationId}`,
+					`${API_CONFIG.baseURL}/reservations/${reservationId}/status`,
 					{
 						method: "PUT",
-						body: { status: "fermee" },
+						body: { status: "terminée" },
 					}
 				);
-
-				console.log("🔄 Réponse reçue:", JSON.stringify(response));
 				return response;
 			} catch (error) {
-				console.error("markReservationAsFinished error :", error);
+				console.error("❌ markReservationAsFinished error:", error);
 				return null;
 			}
 		},
@@ -342,13 +313,13 @@ export const useReservationManager = (reservations) => {
 				);
 
 				if (Array.isArray(response) && response.length === 0) {
-					console.error("❌ Erreur changement statut");
+					console.error("❌ Erreur changement statut - array vide");
 					return null;
 				}
 
 				return response;
 			} catch (error) {
-				console.error("markReservationAsOpened error :", error);
+				console.error("❌ markReservationAsOpened error:", error);
 				return null;
 			}
 		},
@@ -372,46 +343,85 @@ export const useReservationManager = (reservations) => {
 				setOpenedReservations((prev) =>
 					prev.map((r) => (r._id === reservationId ? updatedResa : r))
 				);
-
-				console.log(
-					`✅ Réservation ${reservationId} rafraîchie, totalAmount: ${updatedResa.totalAmount}`
-				);
 			} catch (error) {
-				console.error("refreshReservation error :", error);
+				console.error("❌ refreshReservation error:", error);
 			}
 		},
 		[authFetch]
 	);
 
 	// Ouvrir prochaine réservation
+	// ⭐ RÈGLE MÉTIER: Seules les réservations isPresent=true ET status="en attente" peuvent être ouvertes
 	const openNextReservation = useCallback(async () => {
-		const nextResa = reservations
-			.filter(
-				(r) =>
-					r.isPresent === true &&
-					r.status === "en attente" &&
-					!openedReservations.some((o) => o._id === r._id)
-			)
-			.sort(
-				(a, b) =>
-					new Date(`${a.reservationDate} ${a.reservationTime}`) -
-					new Date(`${b.reservationDate} ${b.reservationTime}`)
-			)[0];
+		// ⭐ IMPORTANT: Utiliser les données du state (synchronisées avec WebSocket)
+		// Le state `reservations` vient maintenant du store Zustand via useActivityData
+		// qui est mis à jour en temps réel par les événements WebSocket
+		let freshReservations = reservations || [];
+
+		// ⭐ Helper pour extraire les 6 derniers caractères de l'ID
+		const getShortId = (id) => (id ? id.slice(-6) : null);
+
+		// ⭐ Debug : afficher les réservations ouvrables (isPresent=true ET status="en attente")
+		// UTILISER freshReservations au lieu de reservations
+		// ⭐ CORRECTION: Comparer avec les bons formats d'ID (openedReservations utilise 'id' court)
+		const openableReservations = freshReservations.filter((r) => {
+			const shortId = getShortId(r._id);
+			const isAlreadyOpened = openedReservations.some(
+				(o) =>
+					o._id === r._id || o.id === shortId || getShortId(o._id) === shortId
+			);
+			return (
+				r.isPresent === true && r.status === "en attente" && !isAlreadyOpened
+			);
+		});
+		console.log("🔍 Réservations ouvrables:", openableReservations.length);
+		openableReservations.forEach((r) => {
+			console.log(
+				`  - ${r._id}: ${r.clientName}, status="${r.status}", isPresent=${r.isPresent}`
+			);
+		});
+
+		// ⭐ RÈGLE MÉTIER: Chercher UNIQUEMENT les réservations présentes EN ATTENTE
+		const nextResa = openableReservations.sort(
+			(a, b) =>
+				new Date(`${a.reservationDate} ${a.reservationTime}`) -
+				new Date(`${b.reservationDate} ${b.reservationTime}`)
+		)[0];
+
 		if (!nextResa) {
 			Alert.alert(
 				"Aucune réservation",
-				"Il n'y a plus de réservation disponible pour le moment.",
+				"Il n'y a pas de réservation présente en attente à ouvrir.\n\nAssurez-vous qu'un client est marqué comme présent.",
 				[{ text: "OK" }]
 			);
 			return null;
 		}
 
-		setOpenedReservations((prev) => [...prev, nextResa]);
 		const updatedResa = await markReservationAsOpened(nextResa._id);
-		if (!updatedResa || updatedResa.status !== "ouverte") return null;
+
+		if (!updatedResa || updatedResa.status !== "ouverte") {
+			console.error("❌ Échec de l'ouverture de la réservation");
+			Alert.alert("Erreur", "Impossible d'ouvrir la réservation");
+			return null;
+		}
+
+		// ⭐ Ajouter immédiatement la nouvelle réservation aux openedReservations
+		setOpenedReservations((prev) => {
+			// Éviter les doublons
+			if (prev.some((r) => r._id === updatedResa._id)) return prev;
+			return [...prev, updatedResa];
+		});
+
 		setActiveId(updatedResa._id);
+		await AsyncStorage.setItem("activeReservationId", updatedResa._id);
+
 		return updatedResa;
-	}, [reservations, openedReservations, markReservationAsOpened]);
+	}, [
+		reservations,
+		openedReservations,
+		markReservationAsOpened,
+		fetchReservations,
+	]);
 
 	// Sauvegarder un champ dans le backend
 	const saveFieldToBackend = useCallback(
@@ -421,7 +431,6 @@ export const useReservationManager = (reservations) => {
 					method: "PUT",
 					body: { [field]: value },
 				});
-				console.log(`✅ Champ ${field} sauvegardé pour ${reservationId}`);
 			} catch (error) {
 				console.error(`❌ Erreur sauvegarde ${field}:`, error);
 			}
@@ -467,6 +476,7 @@ export const useReservationManager = (reservations) => {
 
 	return {
 		openedReservations,
+		setOpenedReservations, // ⭐ Exposer pour permettre le reset immédiat depuis Activity
 		activeId,
 		setActiveId,
 		activeReservation,

@@ -51,11 +51,10 @@ export const SocketProvider = ({ children }) => {
 
 				// ⭐ Écouter les reconnexions et réattacher les listeners
 				socketInstance.on("connect", () => {
+					setConnected(true);
 					console.log("📡 Socket reconnecté, réattachement des listeners...");
 					attachAllListeners(socketInstance);
 				});
-
-				console.log("✅ Socket.io connecté");
 			} else {
 				setConnected(false);
 				console.warn("⚠️ Socket.io non disponible, fallback REST API");

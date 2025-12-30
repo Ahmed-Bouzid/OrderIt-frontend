@@ -15,6 +15,7 @@ import {
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../src/stores/useThemeStore";
 import useTableStore from "../../src/stores/useRestaurantTableStore";
+import useReservationStore from "../../src/stores/useReservationStore";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 
 // Custom hooks
@@ -59,67 +60,38 @@ export default function Activity() {
 		servers,
 	} = useActivityData();
 
-	// DEBUG VISUEL : Afficher tous les états clés en haut de l'écran
-	const [debugError, setDebugError] = useState(null);
+	// ⭐ Utiliser fetchReservations du store Zustand (synchro avec WebSocket)
+	const fetchReservationsFromStore = useReservationStore(
+		(state) => state.fetchReservations
+	);
 
 	// On ne force plus le fetch ici, on laisse la logique du hook gérer le chargement via isReservationsLoaded
 
-	// Définir fetchReservations localement pour éviter la dépendance circulaire
-	// Définir fetchReservations localement pour éviter la dépendance circulaire
+	// ⭐ MODIFIÉ: fetchReservations utilise maintenant le store Zustand avec force=true
 	const fetchReservations = React.useCallback(async () => {
-		console.log("=== DEBUG fetchReservations ===");
-		console.log("1. restaurantId:", restaurantId);
-		console.log("2. API_CONFIG.baseURL:", API_CONFIG.baseURL);
-		console.log(
-			"3. token présent?:",
-			token ? "OUI (" + token.substring(0, 20) + "...)" : "NON"
-		);
-
 		if (!restaurantId) {
 			console.error("❌ restaurantId manquant");
 			throw new Error("RestaurantId manquant");
 		}
 
-		const url = `${API_CONFIG.baseURL}/reservations/restaurant/${restaurantId}`;
-		console.log("4. URL finale:", url);
-		console.log("5. authFetch fonction?:", typeof authFetch);
-
 		try {
-			console.log("6. Tentative d'appel authFetch...");
-			const response = await authFetch(url);
-			console.log(
-				"7. ✅ Réponse reçue:",
-				typeof response,
-				"données:",
-				response ? "OUI" : "NON"
-			);
+			// ⭐ Utiliser le store Zustand avec force=true pour rafraîchir les données
+			const result = await fetchReservationsFromStore(true);
 
-			// Ajouter ceci pour voir la structure exacte
-			if (response && typeof response === "object") {
-				console.log("8. Structure réponse:", Object.keys(response));
-				console.log(
-					"9. Réservations count:",
-					response.reservations?.length || response.length || 0
-				);
+			if (result?.success) {
+				return { reservations: result.data };
+			} else {
+				throw new Error(result?.message || "Erreur fetch réservations");
 			}
-
-			return response;
 		} catch (error) {
-			console.error("💥 Erreur complète fetchReservations:");
-			console.error("- Type:", typeof error);
-			console.error("- Message:", error.message);
-			console.error("- Stack:", error.stack);
-			console.error("- Code:", error.code);
-			console.error("- URL qui a échoué:", url);
+			console.error("❌ Erreur fetchReservations:", error.message);
 			throw error;
 		}
-	}, [restaurantId, authFetch, token]); // ⭐ Ajoutez token aux dépendances
+	}, [restaurantId, fetchReservationsFromStore]);
 
 	// Gestion explicite d'erreur si restaurantId manquant, mais seulement après chargement
 	useEffect(() => {
 		if (isLoading) return;
-		// Log la valeur brute pour debug
-		console.log("[DEBUG] restaurantId dans Activity.jsx:", restaurantId);
 		if (!restaurantId) {
 			console.error(
 				"❌ restaurantId manquant dans Activity.jsx : fetchServers ne sera pas appelé ! (valeur:",
@@ -135,6 +107,7 @@ export default function Activity() {
 
 	const {
 		openedReservations,
+		setOpenedReservations, // ⭐ Pour reset immédiat
 		activeId,
 		setActiveId,
 		activeReservation,
@@ -147,7 +120,7 @@ export default function Activity() {
 		editField,
 		isReservationsLoaded,
 		clearCachedActiveId, // ⭐ Pour nettoyer le cache lors de la fermeture
-	} = useReservationManager(reservations);
+	} = useReservationManager(reservations, fetchReservations);
 
 	// États locaux UI
 	const [showRestrictionsOptions, setShowRestrictionsOptions] = useState(false);
@@ -171,13 +144,7 @@ export default function Activity() {
 	// Initialiser thème
 	useEffect(() => {
 		initTheme();
-		// Affiche le token JWT en entier pour debug
-		if (token) {
-			console.log("🔑 TOKEN JWT:", token);
-		} else {
-			console.log("🔑 TOKEN JWT: NULL");
-		}
-	}, [initTheme, token]);
+	}, [initTheme]);
 
 	// Fetch orders quand tableId OU activeReservation change
 	useEffect(() => {
@@ -241,9 +208,12 @@ export default function Activity() {
 
 		const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
-		// Utiliser le tableId de la réservation si disponible, sinon celui du store
+		// Utiliser le tableId de la réservation si disponible, sinon celui du store, sinon la table par défaut
 		const finalTableId =
-			activeReservation.tableId?._id || activeReservation.tableId || tableId;
+			activeReservation.tableId?._id ||
+			activeReservation.tableId ||
+			tableId ||
+			API_CONFIG.DEFAULT_TABLE_ID;
 
 		const orderData = {
 			reservationId: activeReservation._id,
@@ -353,15 +323,14 @@ export default function Activity() {
 
 	const handleFinishReservation = useCallback(
 		async (reservationId) => {
-			// ⭐ Rafraîchir d'abord la réservation pour avoir les données à jour
-			await refreshReservation(reservationId);
-
-			// ⭐ Attendre un peu pour que le state soit mis à jour
-			setTimeout(async () => {
-				const resa = reservations.find((r) => r._id === reservationId);
+			try {
+				// ⭐ Récupérer les données fraîches via API directement
+				const freshResa = await authFetch(
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`
+				);
 
 				// ⭐ Vérifier si la réservation est payée
-				const totalAmount = parseFloat(resa?.totalAmount || 0);
+				const totalAmount = parseFloat(freshResa?.totalAmount || 0);
 
 				if (totalAmount > 0) {
 					Alert.alert(
@@ -376,23 +345,44 @@ export default function Activity() {
 
 				// ⭐ Si montant = 0, on peut fermer
 				const updated = await markReservationAsFinished(reservationId);
-				if (updated) {
+
+				if (updated && updated.status === "terminée") {
 					// ⭐ Nettoyer le cache et AsyncStorage AVANT de changer activeId
 					clearCachedActiveId();
 					await AsyncStorage.removeItem("activeReservationId");
+
+					setShowSettings(false);
+					setStarted(false);
+					setStep(1);
+
+					// ⭐ IMPORTANT: Retirer immédiatement la réservation terminée de openedReservations
+					setOpenedReservations((prev) =>
+						prev.filter((r) => r._id !== reservationId)
+					);
+
 					setActiveId(null);
+
 					await fetchReservations();
 				} else {
-					alert("Erreur lors de la mise à jour de la réservation.");
+					Alert.alert(
+						"Erreur",
+						"Impossible de terminer la réservation. Statut non mis à jour."
+					);
 				}
-			}, 300);
+			} catch (error) {
+				console.error("❌ Erreur terminaison:", error);
+				Alert.alert(
+					"Erreur",
+					"Erreur lors de la terminaison: " + error.message
+				);
+			}
 		},
 		[
 			markReservationAsFinished,
 			fetchReservations,
 			setActiveId,
-			refreshReservation,
-			reservations,
+			setOpenedReservations,
+			authFetch,
 			clearCachedActiveId,
 		]
 	);
@@ -463,7 +453,7 @@ export default function Activity() {
 					<Text style={styles.miniTitle}>
 						{r.clientName && typeof r.clientName === "string"
 							? r.clientName.charAt(0).toUpperCase() +
-							  r.clientName.slice(1).toLowerCase()
+								r.clientName.slice(1).toLowerCase()
 							: String(r.clientName)}
 					</Text>
 					<Text style={styles.miniSub}>{`Table ${tableNumber}`}</Text>
@@ -547,10 +537,6 @@ export default function Activity() {
 							>
 								<Text style={styles.buttonText}>Commencer</Text>
 							</TouchableOpacity>
-
-							<View style={{ padding: 20 }}>
-								<Button title="Vider AsyncStorage" onPress={clearStorage} />
-							</View>
 						</>
 					)}
 
@@ -830,21 +816,11 @@ export default function Activity() {
 									return (
 										<TouchableOpacity
 											style={[styles.popupMini, styles.addButton]}
-											onPress={() => {
-												Alert.alert(
-													"Nouvelle réservation",
-													"Voulez-vous vraiment ouvrir une nouvelle réservation ?",
-													[
-														{ text: "Annuler", style: "cancel" },
-														{
-															text: "Oui",
-															onPress: async () => {
-																const nextResa = await openNextReservation();
-																if (nextResa) setStarted(true);
-															},
-														},
-													]
-												);
+											onPress={async () => {
+												const nextResa = await openNextReservation();
+												if (nextResa) {
+													setStarted(true);
+												}
 											}}
 										>
 											<Text style={styles.addText}>+</Text>

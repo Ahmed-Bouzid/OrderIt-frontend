@@ -12,7 +12,12 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import styles from "../styles";
 import useThemeStore from "../../src/stores/useThemeStore";
 import useUserStore from "../../src/stores/useUserStore";
-import { ServerManagement, MenuManagement, SecuritySettings } from "./manager";
+import {
+	ServerManagement,
+	MenuManagement,
+	SecuritySettings,
+	TableManagement,
+} from "./manager";
 
 export default function Settings() {
 	const router = useRouter();
@@ -192,6 +197,9 @@ export default function Settings() {
 			case "servers":
 				return <ServerManagement />;
 
+			case "tables":
+				return <TableManagement />;
+
 			case "menu":
 				return <MenuManagement />;
 
@@ -322,6 +330,28 @@ export default function Settings() {
 									]}
 								>
 									👥 Serveurs
+								</Text>
+							</TouchableOpacity>
+
+							<TouchableOpacity
+								style={[
+									settingsStyles.menuItem,
+									activeSection === "tables" && settingsStyles.menuItemActive,
+								]}
+								onPress={() => setActiveSection("tables")}
+							>
+								<Text
+									style={[
+										settingsStyles.menuItemText,
+										{
+											color:
+												activeSection === "tables"
+													? "#007AFF"
+													: theme.textColor,
+										},
+									]}
+								>
+									🪑 Tables
 								</Text>
 							</TouchableOpacity>
 

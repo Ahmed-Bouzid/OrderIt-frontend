@@ -121,7 +121,6 @@ export function useAuthFetch() {
 		}, TOKEN_REFRESH_INTERVAL);
 
 		isRefreshSetup = true;
-		console.log("✅ Auto-refresh configuré GLOBALEMENT (toutes les 1h45)");
 	}, [refreshAccessToken, router, isRedirectingRef]); // ⭐ Démarrer le refresh automatique dès que le composant est monté
 	useEffect(() => {
 		// Vérifier si on a déjà un token, si oui, démarrer le refresh automatique
@@ -130,7 +129,6 @@ export function useAuthFetch() {
 			const refreshToken = await AsyncStorage.getItem("refreshToken");
 
 			if (token && refreshToken && !isRefreshSetup) {
-				console.log("🚀 Initialisation du refresh automatique au démarrage");
 				setupAutoRefresh();
 			}
 		};

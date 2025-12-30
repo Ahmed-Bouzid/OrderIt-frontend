@@ -21,8 +21,8 @@ const FILTERS = [
 	{ key: "actives", label: "En attente", icon: "⏳" },
 	{ key: "present", label: "Présent", icon: "✓" },
 	{ key: "ouverte", label: "Ouverte", icon: "🍽️" },
-	{ key: "termine", label: "Terminée", icon: "✅" },
-	{ key: "annulee", label: "Annulée", icon: "❌" },
+	{ key: "terminée", label: "Terminée", icon: "✅" },
+	{ key: "annulée", label: "Annulée", icon: "❌" },
 ];
 
 const Filters = React.memo(({ activeFilter, onFilterChange, theme }) => {
@@ -36,8 +36,8 @@ const Filters = React.memo(({ activeFilter, onFilterChange, theme }) => {
 			actives: "#FFC107",
 			present: "#4CAF50",
 			ouverte: "#2196F3",
-			termine: "#9E9E9E",
-			annulee: "#F44336",
+			terminée: "#9E9E9E",
+			annulée: "#F44336",
 		};
 		return colors[key] || "#9E9E9E";
 	};

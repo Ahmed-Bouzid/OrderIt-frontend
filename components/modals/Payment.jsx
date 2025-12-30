@@ -15,6 +15,7 @@ import useReservationStore from "../../src/stores/useReservationStore";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
+import { ReceiptModal } from "../receipt";
 
 export default function Payment({
 	reservation,
@@ -26,6 +27,8 @@ export default function Payment({
 	const [loading, setLoading] = useState(false);
 	const [selectedItems, setSelectedItems] = useState(new Set());
 	const [paidItems, setPaidItems] = useState(new Set());
+	const [showReceipt, setShowReceipt] = useState(false);
+	const [receiptData, setReceiptData] = useState(null);
 	const authFetch = useAuthFetch();
 	const { fetchReservations } = useReservationStore();
 
@@ -281,53 +284,62 @@ export default function Payment({
 				// Continuer quand même pour afficher le message
 			}
 
-			// 7. Afficher l'alerte de confirmation
-			const message =
-				`${selectedOrders.length} article(s) payé(s).\n\n` +
-				`💳 Montant payé: ${amountPaid.toFixed(2)}€\n` +
-				(remainingAmount > 0
-					? `📋 Reste à payer: ${remainingAmount.toFixed(2)}€ (${
-							remainingItems.length
-					  } article${remainingItems.length > 1 ? "s" : ""})`
-					: "✅ Tous les articles sont payés !");
+			// 7. Préparer les données du reçu
+			const receiptItems = selectedOrders.map((item) => ({
+				name: item.name,
+				quantity: item.quantity,
+				price: item.price,
+			}));
 
-			Alert.alert(
-				isFullPayment ? "✅ Paiement complet" : "⚠️ Paiement partiel",
-				message,
-				[
+			setReceiptData({
+				items: receiptItems,
+				amount: amountPaid,
+				paymentMethod: "Card",
+				last4Digits: "****",
+			});
+
+			// 8. Afficher le reçu si paiement complet
+			if (isFullPayment) {
+				// Nettoyer le stockage
+				const storageKey = getStorageKey();
+				if (storageKey) {
+					AsyncStorage.removeItem(storageKey);
+				}
+				// Afficher le reçu
+				setShowReceipt(true);
+			} else {
+				// Pour paiement partiel, juste une alerte
+				const message =
+					`${selectedOrders.length} article(s) payé(s).\n\n` +
+					`💳 Montant payé: ${amountPaid.toFixed(2)}€\n` +
+					`📋 Reste à payer: ${remainingAmount.toFixed(2)}€ (${
+						remainingItems.length
+					} article${remainingItems.length > 1 ? "s" : ""})`;
+
+				Alert.alert("⚠️ Paiement partiel", message, [
 					{
 						text: "OK",
 						onPress: () => {
-							// Désélectionner tout
 							setSelectedItems(new Set());
-
-							// Si paiement complet, retour
-							if (isFullPayment) {
-								// Nettoyer le stockage
-								const storageKey = getStorageKey();
-								if (storageKey) {
-									AsyncStorage.removeItem(storageKey);
-								}
-								// Délai pour laisser la modale se fermer, puis suppression de la réservation active côté parent
-								setTimeout(() => {
-									onSuccess?.();
-									setTimeout(() => {
-										if (typeof window !== "undefined" && window.setActiveId) {
-											window.setActiveId(null);
-										}
-									}, 400);
-								}, 0);
-							}
 						},
 					},
-				]
-			);
+				]);
+			}
 		} catch (error) {
 			console.error("❌ Erreur paiement:", error);
 			Alert.alert("Erreur", "Échec du paiement. Veuillez réessayer.");
 		} finally {
 			setLoading(false);
 		}
+	};
+
+	// Handler pour fermer le reçu
+	const handleCloseReceipt = () => {
+		setShowReceipt(false);
+		// Délai pour laisser la modale se fermer, puis suppression de la réservation active
+		setTimeout(() => {
+			onSuccess?.();
+		}, 300);
 	};
 
 	// ⭐ Safe theme pour éviter les erreurs
@@ -574,6 +586,18 @@ export default function Payment({
 					<Text style={styles.buttonText}>Retour</Text>
 				</TouchableOpacity>
 			</View>
+
+			{/* Receipt Modal */}
+			<ReceiptModal
+				visible={showReceipt}
+				onClose={handleCloseReceipt}
+				reservation={reservation}
+				items={receiptData?.items}
+				amount={receiptData?.amount}
+				paymentMethod={receiptData?.paymentMethod}
+				last4Digits={receiptData?.last4Digits}
+				theme={safeTheme}
+			/>
 		</View>
 	);
 }

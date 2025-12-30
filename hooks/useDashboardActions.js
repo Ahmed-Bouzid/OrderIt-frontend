@@ -57,7 +57,7 @@ export const useDashboardActions = (fetchReservations) => {
 	const updateStatus = useCallback(
 		async (id, newStatus, reservation) => {
 			// Validation avant fermeture : vérifier le paiement
-			if (newStatus === "fermee") {
+			if (newStatus === "terminée") {
 				const totalAmount = reservation?.totalAmount || 0;
 				const paidAmount = reservation?.paidAmount || 0;
 				const isPaid = paidAmount >= totalAmount;
@@ -119,8 +119,8 @@ export const useDashboardActions = (fetchReservations) => {
 			);
 
 			if (data && !Array.isArray(data)) {
-				// Si fermée, nettoyer l'état présent
-				if (newStatus === "fermee") {
+				// Si terminée, nettoyer l'état présent
+				if (newStatus === "terminée") {
 					cleanup(id);
 				}
 				Alert.alert("Succès", "Statut mis à jour");
@@ -150,7 +150,7 @@ export const useDashboardActions = (fetchReservations) => {
 									`${API_CONFIG.baseURL}/reservations/${id}/status`,
 									{
 										method: "PUT",
-										body: { status: "annulee" },
+										body: { status: "annulée" },
 									}
 								);
 
