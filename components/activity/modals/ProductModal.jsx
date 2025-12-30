@@ -18,7 +18,6 @@ import { API_CONFIG } from "../../../src/config/apiConfig";
 const API_BASE_URL = API_CONFIG.baseURL;
 
 export const ProductModal = ({ visible, onClose, product, theme }) => {
-	const safeTheme = theme || { textColor: "#fff", cardColor: "#181C24" };
 	const safeOnClose = onClose || (() => {});
 
 	// États pour le flip
@@ -55,6 +54,7 @@ export const ProductModal = ({ visible, onClose, product, theme }) => {
 			setShowAllergens(false);
 			flipAnimation.setValue(0);
 		}
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [visible, product?._id]);
 
 	// Animation flip
