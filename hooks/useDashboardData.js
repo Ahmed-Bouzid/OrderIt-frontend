@@ -37,7 +37,6 @@ export const useDashboardData = () => {
 					const tablesData = await authFetch(
 						`${API_CONFIG.baseURL}/tables/restaurant/${storedRestaurantId}`
 					);
-					console.log("📋 Tables récupérées:", tablesData);
 					if (Array.isArray(tablesData)) {
 						setTables(tablesData);
 					} else if (tablesData && tablesData.tables) {

@@ -10,12 +10,16 @@ import {
 	ActivityIndicator,
 	ScrollView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../../src/stores/useThemeStore";
+import { getTheme } from "../../../utils/themeUtils";
 import { useAuthFetch } from "../../../hooks/useAuthFetch";
 
 export default function SecuritySettings() {
-	const { theme, isDarkMode } = useThemeStore();
+	const { themeMode } = useThemeStore();
+	const THEME = React.useMemo(() => getTheme(themeMode), [themeMode]);
 	const authFetch = useAuthFetch();
 
 	const [hasPin, setHasPin] = useState(false);
@@ -183,10 +187,12 @@ export default function SecuritySettings() {
 		}
 	};
 
+	const styles = React.useMemo(() => createStyles(THEME), [THEME]);
+
 	if (loading) {
 		return (
 			<View style={styles.loadingContainer}>
-				<ActivityIndicator size="large" color="#007AFF" />
+				<ActivityIndicator size="large" color={THEME.colors.primary.amber} />
 			</View>
 		);
 	}
@@ -195,96 +201,110 @@ export default function SecuritySettings() {
 		<ScrollView style={styles.container} showsVerticalScrollIndicator={false}>
 			{/* ===== SECTION MOT DE PASSE ===== */}
 			<View style={styles.section}>
-				<Text style={[styles.title, { color: theme.textColor }]}>
-					🔑 Mot de passe
-				</Text>
+				<View style={styles.sectionHeader}>
+					<Ionicons name="key" size={24} color={THEME.colors.primary.amber} />
+					<Text style={styles.title}>Mot de passe</Text>
+				</View>
 
-				<Text
-					style={[styles.description, { color: theme.textColor, opacity: 0.7 }]}
-				>
+				<Text style={styles.description}>
 					Modifiez votre mot de passe de connexion pour sécuriser votre compte.
 				</Text>
 
 				{!showPasswordForm ? (
 					<TouchableOpacity
-						style={[styles.actionButton, styles.primaryButton]}
+						style={styles.actionButton}
 						onPress={() => setShowPasswordForm(true)}
 					>
-						<Text style={styles.primaryButtonText}>
-							🔐 Modifier mon mot de passe
-						</Text>
+						<LinearGradient
+							colors={[
+								THEME.colors.primary.amber,
+								THEME.colors.primary.amberDark,
+							]}
+							style={styles.actionButtonGradient}
+						>
+							<Ionicons name="lock-closed" size={20} color="#FFFFFF" />
+							<Text style={styles.actionButtonText}>
+								Modifier mon mot de passe
+							</Text>
+						</LinearGradient>
 					</TouchableOpacity>
 				) : (
-					<View
-						style={[
-							styles.pinForm,
-							{ backgroundColor: isDarkMode ? "#1C1C1E" : "#F5F5F5" },
-						]}
-					>
-						<Text style={[styles.formTitle, { color: theme.textColor }]}>
-							Modifier le mot de passe
-						</Text>
-
-						<View style={styles.inputGroup}>
-							<Text style={[styles.inputLabel, { color: theme.textColor }]}>
-								Mot de passe actuel:
-							</Text>
-							<TextInput
-								style={[
-									styles.passwordInput,
-									{ color: theme.textColor, borderColor: theme.separatorColor },
-								]}
-								value={passwordData.currentPassword}
-								onChangeText={(text) =>
-									setPasswordData({ ...passwordData, currentPassword: text })
-								}
-								secureTextEntry
-								placeholder="••••••••"
-								placeholderTextColor={theme.textColor + "50"}
+					<View style={styles.formCard}>
+						<View style={styles.formHeader}>
+							<Ionicons
+								name="key-outline"
+								size={22}
+								color={THEME.colors.primary.amber}
 							/>
+							<Text style={styles.formTitle}>Modifier le mot de passe</Text>
 						</View>
 
 						<View style={styles.inputGroup}>
-							<Text style={[styles.inputLabel, { color: theme.textColor }]}>
-								Nouveau mot de passe:
-							</Text>
-							<TextInput
-								style={[
-									styles.passwordInput,
-									{ color: theme.textColor, borderColor: theme.separatorColor },
-								]}
-								value={passwordData.newPassword}
-								onChangeText={(text) =>
-									setPasswordData({ ...passwordData, newPassword: text })
-								}
-								secureTextEntry
-								placeholder="Minimum 6 caractères"
-								placeholderTextColor={theme.textColor + "50"}
-							/>
+							<Text style={styles.inputLabel}>Mot de passe actuel:</Text>
+							<View style={styles.inputWrapper}>
+								<Ionicons
+									name="lock-closed-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<TextInput
+									style={styles.input}
+									value={passwordData.currentPassword}
+									onChangeText={(text) =>
+										setPasswordData({ ...passwordData, currentPassword: text })
+									}
+									secureTextEntry
+									placeholder="••••••••"
+									placeholderTextColor={THEME.colors.text.muted}
+								/>
+							</View>
 						</View>
 
 						<View style={styles.inputGroup}>
-							<Text style={[styles.inputLabel, { color: theme.textColor }]}>
-								Confirmer le nouveau mot de passe:
-							</Text>
-							<TextInput
-								style={[
-									styles.passwordInput,
-									{ color: theme.textColor, borderColor: theme.separatorColor },
-								]}
-								value={passwordData.confirmPassword}
-								onChangeText={(text) =>
-									setPasswordData({ ...passwordData, confirmPassword: text })
-								}
-								secureTextEntry
-								placeholder="Confirmer le mot de passe"
-								placeholderTextColor={theme.textColor + "50"}
-							/>
+							<Text style={styles.inputLabel}>Nouveau mot de passe:</Text>
+							<View style={styles.inputWrapper}>
+								<Ionicons
+									name="key-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<TextInput
+									style={styles.input}
+									value={passwordData.newPassword}
+									onChangeText={(text) =>
+										setPasswordData({ ...passwordData, newPassword: text })
+									}
+									secureTextEntry
+									placeholder="Minimum 6 caractères"
+									placeholderTextColor={THEME.colors.text.muted}
+								/>
+							</View>
+						</View>
+
+						<View style={styles.inputGroup}>
+							<Text style={styles.inputLabel}>Confirmer:</Text>
+							<View style={styles.inputWrapper}>
+								<Ionicons
+									name="checkmark-circle-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<TextInput
+									style={styles.input}
+									value={passwordData.confirmPassword}
+									onChangeText={(text) =>
+										setPasswordData({ ...passwordData, confirmPassword: text })
+									}
+									secureTextEntry
+									placeholder="Confirmer le mot de passe"
+									placeholderTextColor={THEME.colors.text.muted}
+								/>
+							</View>
 						</View>
 
 						<View style={styles.formButtons}>
 							<TouchableOpacity
-								style={[styles.formButton, styles.cancelFormButton]}
+								style={styles.cancelButton}
 								onPress={() => {
 									setShowPasswordForm(false);
 									setPasswordData({
@@ -294,18 +314,26 @@ export default function SecuritySettings() {
 									});
 								}}
 							>
-								<Text style={styles.cancelFormButtonText}>Annuler</Text>
+								<Text style={styles.cancelButtonText}>Annuler</Text>
 							</TouchableOpacity>
 							<TouchableOpacity
-								style={[styles.formButton, styles.saveFormButton]}
+								style={styles.saveButton}
 								onPress={handleChangePassword}
 								disabled={savingPassword}
 							>
-								{savingPassword ? (
-									<ActivityIndicator size="small" color="#fff" />
-								) : (
-									<Text style={styles.saveFormButtonText}>Enregistrer</Text>
-								)}
+								<LinearGradient
+									colors={[
+										THEME.colors.primary.amber,
+										THEME.colors.primary.amberDark,
+									]}
+									style={styles.saveButtonGradient}
+								>
+									{savingPassword ? (
+										<ActivityIndicator size="small" color="#fff" />
+									) : (
+										<Text style={styles.saveButtonText}>Enregistrer</Text>
+									)}
+								</LinearGradient>
 							</TouchableOpacity>
 						</View>
 					</View>
@@ -313,19 +341,20 @@ export default function SecuritySettings() {
 			</View>
 
 			{/* ===== SÉPARATEUR ===== */}
-			<View
-				style={[styles.separator, { backgroundColor: theme.separatorColor }]}
-			/>
+			<View style={styles.separator} />
 
 			{/* ===== SECTION PIN ===== */}
 			<View style={styles.section}>
-				<Text style={[styles.title, { color: theme.textColor }]}>
-					🔐 PIN Manager
-				</Text>
+				<View style={styles.sectionHeader}>
+					<Ionicons
+						name="keypad"
+						size={24}
+						color={THEME.colors.primary.amber}
+					/>
+					<Text style={styles.title}>PIN Manager</Text>
+				</View>
 
-				<Text
-					style={[styles.description, { color: theme.textColor, opacity: 0.7 }]}
-				>
+				<Text style={styles.description}>
 					Le PIN manager protège les actions sensibles comme la suppression de
 					serveurs, les modifications de commandes, etc.
 				</Text>
@@ -334,21 +363,34 @@ export default function SecuritySettings() {
 				<View
 					style={[
 						styles.statusCard,
-						{ backgroundColor: theme.cardBackground },
 						hasPin ? styles.statusActive : styles.statusInactive,
 					]}
 				>
-					<Text style={[styles.statusIcon]}>{hasPin ? "🔒" : "🔓"}</Text>
+					<View
+						style={[
+							styles.statusIconContainer,
+							{
+								backgroundColor: hasPin
+									? "rgba(16, 185, 129, 0.15)"
+									: "rgba(245, 158, 11, 0.15)",
+							},
+						]}
+					>
+						<Ionicons
+							name={hasPin ? "lock-closed" : "lock-open"}
+							size={24}
+							color={
+								hasPin
+									? THEME.colors.status.success
+									: THEME.colors.status.warning
+							}
+						/>
+					</View>
 					<View style={styles.statusInfo}>
-						<Text style={[styles.statusTitle, { color: theme.textColor }]}>
+						<Text style={styles.statusTitle}>
 							{hasPin ? "PIN activé" : "PIN non configuré"}
 						</Text>
-						<Text
-							style={[
-								styles.statusSubtitle,
-								{ color: theme.textColor, opacity: 0.6 },
-							]}
-						>
+						<Text style={styles.statusSubtitle}>
 							{hasPin
 								? "Les actions sensibles sont protégées"
 								: "Les actions sensibles ne sont pas protégées"}
@@ -360,101 +402,131 @@ export default function SecuritySettings() {
 				{!showPinForm ? (
 					<View style={styles.actionsContainer}>
 						<TouchableOpacity
-							style={[styles.actionButton, styles.primaryButton]}
+							style={styles.actionButton}
 							onPress={() => setShowPinForm(true)}
 						>
-							<Text style={styles.primaryButtonText}>
-								{hasPin ? "🔑 Modifier le PIN" : "➕ Créer un PIN"}
-							</Text>
+							<LinearGradient
+								colors={[
+									THEME.colors.primary.amber,
+									THEME.colors.primary.amberDark,
+								]}
+								style={styles.actionButtonGradient}
+							>
+								<Ionicons
+									name={hasPin ? "create" : "add-circle"}
+									size={20}
+									color="#FFFFFF"
+								/>
+								<Text style={styles.actionButtonText}>
+									{hasPin ? "Modifier le PIN" : "Créer un PIN"}
+								</Text>
+							</LinearGradient>
 						</TouchableOpacity>
 
 						{hasPin && (
 							<TouchableOpacity
-								style={[styles.actionButton, styles.dangerButton]}
+								style={styles.dangerActionButton}
 								onPress={handleDeletePin}
 							>
-								<Text style={styles.dangerButtonText}>🗑️ Supprimer le PIN</Text>
+								<Ionicons
+									name="trash"
+									size={20}
+									color={THEME.colors.status.error}
+								/>
+								<Text style={styles.dangerActionButtonText}>
+									Supprimer le PIN
+								</Text>
 							</TouchableOpacity>
 						)}
 					</View>
 				) : (
 					/* Formulaire PIN */
-					<View
-						style={[styles.pinForm, { backgroundColor: theme.cardBackground }]}
-					>
-						<Text style={[styles.formTitle, { color: theme.textColor }]}>
-							{hasPin ? "Modifier le PIN" : "Créer un nouveau PIN"}
-						</Text>
+					<View style={styles.formCard}>
+						<View style={styles.formHeader}>
+							<Ionicons
+								name="keypad-outline"
+								size={22}
+								color={THEME.colors.primary.amber}
+							/>
+							<Text style={styles.formTitle}>
+								{hasPin ? "Modifier le PIN" : "Créer un nouveau PIN"}
+							</Text>
+						</View>
 
 						{/* PIN actuel (si modification) */}
 						{hasPin && (
 							<View style={styles.inputGroup}>
-								<Text style={[styles.inputLabel, { color: theme.textColor }]}>
-									PIN actuel:
-								</Text>
-								<TextInput
-									style={[
-										styles.pinInput,
-										{
-											color: theme.textColor,
-											borderColor: theme.separatorColor,
-										},
-									]}
-									value={currentPin}
-									onChangeText={setCurrentPin}
-									keyboardType="number-pad"
-									secureTextEntry
-									maxLength={6}
-									placeholder="••••••"
-									placeholderTextColor={theme.textColor + "50"}
-								/>
+								<Text style={styles.inputLabel}>PIN actuel:</Text>
+								<View style={styles.inputWrapper}>
+									<Ionicons
+										name="keypad-outline"
+										size={18}
+										color={THEME.colors.text.muted}
+									/>
+									<TextInput
+										style={[styles.input, styles.pinInput]}
+										value={currentPin}
+										onChangeText={setCurrentPin}
+										keyboardType="number-pad"
+										secureTextEntry
+										maxLength={6}
+										placeholder="••••••"
+										placeholderTextColor={THEME.colors.text.muted}
+									/>
+								</View>
 							</View>
 						)}
 
 						{/* Nouveau PIN */}
 						<View style={styles.inputGroup}>
-							<Text style={[styles.inputLabel, { color: theme.textColor }]}>
+							<Text style={styles.inputLabel}>
 								{hasPin ? "Nouveau PIN:" : "PIN (4-6 chiffres):"}
 							</Text>
-							<TextInput
-								style={[
-									styles.pinInput,
-									{ color: theme.textColor, borderColor: theme.separatorColor },
-								]}
-								value={pin}
-								onChangeText={setPin}
-								keyboardType="number-pad"
-								secureTextEntry
-								maxLength={6}
-								placeholder="••••••"
-								placeholderTextColor={theme.textColor + "50"}
-							/>
+							<View style={styles.inputWrapper}>
+								<Ionicons
+									name="keypad-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<TextInput
+									style={[styles.input, styles.pinInput]}
+									value={pin}
+									onChangeText={setPin}
+									keyboardType="number-pad"
+									secureTextEntry
+									maxLength={6}
+									placeholder="••••••"
+									placeholderTextColor={THEME.colors.text.muted}
+								/>
+							</View>
 						</View>
 
 						{/* Confirmation */}
 						<View style={styles.inputGroup}>
-							<Text style={[styles.inputLabel, { color: theme.textColor }]}>
-								Confirmer le PIN:
-							</Text>
-							<TextInput
-								style={[
-									styles.pinInput,
-									{ color: theme.textColor, borderColor: theme.separatorColor },
-								]}
-								value={confirmPin}
-								onChangeText={setConfirmPin}
-								keyboardType="number-pad"
-								secureTextEntry
-								maxLength={6}
-								placeholder="••••••"
-								placeholderTextColor={theme.textColor + "50"}
-							/>
+							<Text style={styles.inputLabel}>Confirmer le PIN:</Text>
+							<View style={styles.inputWrapper}>
+								<Ionicons
+									name="checkmark-circle-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<TextInput
+									style={[styles.input, styles.pinInput]}
+									value={confirmPin}
+									onChangeText={setConfirmPin}
+									keyboardType="number-pad"
+									secureTextEntry
+									maxLength={6}
+									placeholder="••••••"
+									placeholderTextColor={THEME.colors.text.muted}
+								/>
+							</View>
 						</View>
 
 						{/* Boutons */}
 						<View style={styles.formButtons}>
 							<TouchableOpacity
-								style={[styles.formButton, styles.cancelFormButton]}
+								style={styles.cancelButton}
 								onPress={() => {
 									setShowPinForm(false);
 									setPin("");
@@ -462,208 +534,284 @@ export default function SecuritySettings() {
 									setCurrentPin("");
 								}}
 							>
-								<Text style={styles.cancelFormButtonText}>Annuler</Text>
+								<Text style={styles.cancelButtonText}>Annuler</Text>
 							</TouchableOpacity>
 							<TouchableOpacity
-								style={[styles.formButton, styles.saveFormButton]}
+								style={styles.saveButton}
 								onPress={handleSavePin}
 							>
-								<Text style={styles.saveFormButtonText}>Enregistrer</Text>
+								<LinearGradient
+									colors={[
+										THEME.colors.primary.amber,
+										THEME.colors.primary.amberDark,
+									]}
+									style={styles.saveButtonGradient}
+								>
+									<Text style={styles.saveButtonText}>Enregistrer</Text>
+								</LinearGradient>
 							</TouchableOpacity>
 						</View>
 					</View>
 				)}
 
 				{/* Info sur les actions protégées */}
-				<View
-					style={[styles.infoCard, { backgroundColor: theme.cardBackground }]}
-				>
-					<Text style={[styles.infoTitle, { color: theme.textColor }]}>
-						📋 Actions protégées par le PIN:
-					</Text>
-					<Text
-						style={[styles.infoItem, { color: theme.textColor, opacity: 0.7 }]}
-					>
-						• Supprimer un serveur
-					</Text>
-					<Text
-						style={[styles.infoItem, { color: theme.textColor, opacity: 0.7 }]}
-					>
-						• Modifier les prix du menu
-					</Text>
-					<Text
-						style={[styles.infoItem, { color: theme.textColor, opacity: 0.7 }]}
-					>
-						• Annuler une commande envoyée
-					</Text>
-					<Text
-						style={[styles.infoItem, { color: theme.textColor, opacity: 0.7 }]}
-					>
-						• Appliquer une remise
-					</Text>
-					<Text
-						style={[styles.infoItem, { color: theme.textColor, opacity: 0.7 }]}
-					>
-						• Accéder aux statistiques
-					</Text>
+				<View style={styles.infoCard}>
+					<View style={styles.infoHeader}>
+						<Ionicons
+							name="shield-checkmark"
+							size={20}
+							color={THEME.colors.primary.amber}
+						/>
+						<Text style={styles.infoTitle}>Actions protégées par le PIN:</Text>
+					</View>
+					{[
+						"Supprimer un serveur",
+						"Modifier les prix du menu",
+						"Annuler une commande envoyée",
+						"Appliquer une remise",
+						"Accéder aux statistiques",
+					].map((item, index) => (
+						<View key={index} style={styles.infoItem}>
+							<Ionicons
+								name="checkmark"
+								size={16}
+								color={THEME.colors.status.success}
+							/>
+							<Text style={styles.infoItemText}>{item}</Text>
+						</View>
+					))}
 				</View>
 			</View>
 		</ScrollView>
 	);
 }
 
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-	},
-	loadingContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	section: {
-		marginBottom: 10,
-	},
-	separator: {
-		height: 1,
-		marginVertical: 20,
-	},
-	title: {
-		fontSize: 20,
-		fontWeight: "bold",
-		marginBottom: 10,
-	},
-	passwordInput: {
-		borderWidth: 1,
-		borderRadius: 8,
-		padding: 15,
-		fontSize: 16,
-	},
-	description: {
-		fontSize: 14,
-		lineHeight: 20,
-		marginBottom: 20,
-	},
-	statusCard: {
-		flexDirection: "row",
-		alignItems: "center",
-		padding: 15,
-		borderRadius: 12,
-		marginBottom: 20,
-		borderLeftWidth: 4,
-	},
-	statusActive: {
-		borderLeftColor: "#4CAF50",
-	},
-	statusInactive: {
-		borderLeftColor: "#FF9800",
-	},
-	statusIcon: {
-		fontSize: 30,
-		marginRight: 15,
-	},
-	statusInfo: {
-		flex: 1,
-	},
-	statusTitle: {
-		fontSize: 16,
-		fontWeight: "600",
-	},
-	statusSubtitle: {
-		fontSize: 12,
-		marginTop: 2,
-	},
-	actionsContainer: {
-		gap: 10,
-		marginBottom: 20,
-	},
-	actionButton: {
-		padding: 15,
-		borderRadius: 10,
-		alignItems: "center",
-	},
-	primaryButton: {
-		backgroundColor: "#4CAF50",
-	},
-	dangerButton: {
-		backgroundColor: "#f44336",
-	},
-	primaryButtonText: {
-		color: "#fff",
-		fontSize: 16,
-		fontWeight: "600",
-	},
-	dangerButtonText: {
-		color: "#fff",
-		fontSize: 16,
-		fontWeight: "600",
-	},
-	pinForm: {
-		padding: 20,
-		borderRadius: 12,
-		marginBottom: 20,
-	},
-	formTitle: {
-		fontSize: 18,
-		fontWeight: "600",
-		marginBottom: 20,
-		textAlign: "center",
-	},
-	inputGroup: {
-		marginBottom: 15,
-	},
-	inputLabel: {
-		fontSize: 14,
-		fontWeight: "500",
-		marginBottom: 8,
-	},
-	pinInput: {
-		borderWidth: 1,
-		borderRadius: 8,
-		padding: 15,
-		fontSize: 24,
-		textAlign: "center",
-		letterSpacing: 10,
-	},
-	formButtons: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		marginTop: 20,
-	},
-	formButton: {
-		flex: 1,
-		padding: 12,
-		borderRadius: 8,
-		alignItems: "center",
-	},
-	cancelFormButton: {
-		backgroundColor: "#9E9E9E",
-		marginRight: 10,
-	},
-	saveFormButton: {
-		backgroundColor: "#4CAF50",
-		marginLeft: 10,
-	},
-	cancelFormButtonText: {
-		color: "#fff",
-		fontWeight: "600",
-	},
-	saveFormButtonText: {
-		color: "#fff",
-		fontWeight: "600",
-	},
-	infoCard: {
-		padding: 15,
-		borderRadius: 12,
-	},
-	infoTitle: {
-		fontSize: 14,
-		fontWeight: "600",
-		marginBottom: 10,
-	},
-	infoItem: {
-		fontSize: 13,
-		marginBottom: 5,
-		paddingLeft: 10,
-	},
-});
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 Premium Dark Styles
+// ═══════════════════════════════════════════════════════════════════════
+const createStyles = (THEME) =>
+	StyleSheet.create({
+		container: {
+			flex: 1,
+		},
+		loadingContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		section: {
+			marginBottom: THEME.spacing.lg,
+		},
+		sectionHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+			marginBottom: THEME.spacing.md,
+		},
+		separator: {
+			height: 1,
+			backgroundColor: THEME.colors.border.default,
+			marginVertical: THEME.spacing.xl,
+		},
+		title: {
+			fontSize: 20,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		description: {
+			fontSize: 14,
+			lineHeight: 20,
+			color: THEME.colors.text.secondary,
+			marginBottom: THEME.spacing.xl,
+		},
+		// Status Card
+		statusCard: {
+			flexDirection: "row",
+			alignItems: "center",
+			padding: THEME.spacing.lg,
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+			marginBottom: THEME.spacing.xl,
+		},
+		statusActive: {
+			borderLeftWidth: 3,
+			borderLeftColor: THEME.colors.status.success,
+		},
+		statusInactive: {
+			borderLeftWidth: 3,
+			borderLeftColor: THEME.colors.status.warning,
+		},
+		statusIconContainer: {
+			width: 48,
+			height: 48,
+			borderRadius: THEME.radius.md,
+			justifyContent: "center",
+			alignItems: "center",
+			marginRight: THEME.spacing.lg,
+		},
+		statusInfo: {
+			flex: 1,
+		},
+		statusTitle: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginBottom: THEME.spacing.xs,
+		},
+		statusSubtitle: {
+			fontSize: 13,
+			color: THEME.colors.text.muted,
+		},
+		// Actions
+		actionsContainer: {
+			gap: THEME.spacing.md,
+			marginBottom: THEME.spacing.xl,
+		},
+		actionButton: {
+			borderRadius: THEME.radius.md,
+			overflow: "hidden",
+		},
+		actionButtonGradient: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: THEME.spacing.lg,
+			gap: THEME.spacing.sm,
+		},
+		actionButtonText: {
+			color: "#FFFFFF",
+			fontSize: 16,
+			fontWeight: "600",
+		},
+		dangerActionButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: THEME.spacing.lg,
+			borderRadius: THEME.radius.md,
+			backgroundColor: "rgba(239, 68, 68, 0.1)",
+			borderWidth: 1,
+			borderColor: "rgba(239, 68, 68, 0.3)",
+			gap: THEME.spacing.sm,
+		},
+		dangerActionButtonText: {
+			color: THEME.colors.status.error,
+			fontSize: 16,
+			fontWeight: "600",
+		},
+		// Form
+		formCard: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.xl,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+			marginBottom: THEME.spacing.xl,
+		},
+		formHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.md,
+			marginBottom: THEME.spacing.xl,
+		},
+		formTitle: {
+			fontSize: 18,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+		},
+		inputGroup: {
+			marginBottom: THEME.spacing.lg,
+		},
+		inputLabel: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: THEME.colors.text.secondary,
+			marginBottom: THEME.spacing.sm,
+		},
+		inputWrapper: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+			paddingHorizontal: THEME.spacing.md,
+		},
+		input: {
+			flex: 1,
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.sm,
+			fontSize: 15,
+			color: THEME.colors.text.primary,
+		},
+		pinInput: {
+			fontSize: 20,
+			letterSpacing: 8,
+			textAlign: "center",
+		},
+		formButtons: {
+			flexDirection: "row",
+			gap: THEME.spacing.md,
+			marginTop: THEME.spacing.lg,
+		},
+		cancelButton: {
+			flex: 1,
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			backgroundColor: THEME.colors.background.elevated,
+			alignItems: "center",
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+		},
+		cancelButtonText: {
+			color: THEME.colors.text.secondary,
+			fontWeight: "600",
+			fontSize: 15,
+		},
+		saveButton: {
+			flex: 1,
+			borderRadius: THEME.radius.md,
+			overflow: "hidden",
+		},
+		saveButtonGradient: {
+			paddingVertical: THEME.spacing.md,
+			alignItems: "center",
+		},
+		saveButtonText: {
+			color: "#FFFFFF",
+			fontWeight: "700",
+			fontSize: 15,
+		},
+		// Info Card
+		infoCard: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+		},
+		infoHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+			marginBottom: THEME.spacing.md,
+		},
+		infoTitle: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+		},
+		infoItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+			paddingVertical: THEME.spacing.xs,
+			marginLeft: THEME.spacing.sm,
+		},
+		infoItemText: {
+			fontSize: 13,
+			color: THEME.colors.text.secondary,
+		},
+	});

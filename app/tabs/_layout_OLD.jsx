@@ -42,32 +42,77 @@ const THEME = {
 	radius: { md: 10, lg: 14, xl: 18 },
 };
 
-// TabButton component - Structure simplifiée sans Animated.View wrapper
+// TabButton component
 const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
-	// Extension de zone tactile pour le premier bouton (Activity) uniquement
-	const hitSlop =
-		tab.name === "activity"
-			? { top: 10, bottom: 10, left: 20, right: 10 }
-			: { top: 10, bottom: 10, left: 10, right: 10 };
+	const scaleAnim = useRef(new Animated.Value(1)).current;
+
+	const handlePressIn = (e) => {
+		const touch = e.nativeEvent;
+		console.log(`👆 PressIn ${tab.name}:`, {
+			locationX: touch.locationX?.toFixed(1),
+			locationY: touch.locationY?.toFixed(1),
+			pageX: touch.pageX?.toFixed(1),
+			pageY: touch.pageY?.toFixed(1),
+		});
+		Animated.spring(scaleAnim, {
+			toValue: 0.95,
+			useNativeDriver: true,
+		}).start();
+	};
+
+	const handlePressOut = (e) => {
+		const touch = e.nativeEvent;
+		console.log(`👋 PressOut ${tab.name}:`, {
+			locationX: touch.locationX?.toFixed(1),
+			locationY: touch.locationY?.toFixed(1),
+		});
+		Animated.spring(scaleAnim, {
+			toValue: 1,
+			friction: 3,
+			tension: 40,
+			useNativeDriver: true,
+		}).start();
+	};
+
+	const handlePress = (e) => {
+		const touch = e.nativeEvent;
+		console.log(`🎯 PRESS ${tab.name}:`, {
+			locationX: touch.locationX?.toFixed(1),
+			locationY: touch.locationY?.toFixed(1),
+			pageX: touch.pageX?.toFixed(1),
+			pageY: touch.pageY?.toFixed(1),
+		});
+		onPress();
+	};
 
 	return (
-		<TouchableOpacity
-			onPress={onPress}
-			activeOpacity={0.7}
+		<Animated.View
+			style={{ transform: [{ scale: scaleAnim }] }}
 			onLayout={onLayout}
-			style={[tabStyles.tabButton]}
-			hitSlop={hitSlop}
+			collapsable={false}
 		>
-			<Ionicons
-				name={tab.icon}
-				size={20}
-				color={isActive ? THEME.colors.primary.amber : THEME.colors.text.muted}
-				style={{ marginRight: THEME.spacing.sm }}
-			/>
-			<Text style={[tabStyles.tabText, isActive && tabStyles.tabTextActive]}>
-				{tab.label}
-			</Text>
-		</TouchableOpacity>
+			<TouchableOpacity
+				onPress={handlePress}
+				onPressIn={handlePressIn}
+				onPressOut={handlePressOut}
+				activeOpacity={0.8}
+				style={[tabStyles.tabButton]}
+				hitSlop={{ top: 10, bottom: 10, left: 15, right: 15 }}
+				pressRetentionOffset={{ top: 10, bottom: 10, left: 20, right: 20 }}
+			>
+				<Ionicons
+					name={tab.icon}
+					size={20}
+					color={
+						isActive ? THEME.colors.primary.amber : THEME.colors.text.muted
+					}
+					style={{ marginRight: THEME.spacing.sm }}
+				/>
+				<Text style={[tabStyles.tabText, isActive && tabStyles.tabTextActive]}>
+					{tab.label}
+				</Text>
+			</TouchableOpacity>
+		</Animated.View>
 	);
 });
 
@@ -91,15 +136,28 @@ export default function TabsLayout() {
 
 	const handleTabLayout = (tabName, event) => {
 		const { x, width: w } = event.nativeEvent.layout;
+		console.log(`📐 Layout capturé pour ${tabName}:`, {
+			x: x.toFixed(1),
+			width: w.toFixed(1),
+			right: (x + w).toFixed(1),
+		});
 		setTabLayouts((prev) => {
 			const newLayouts = { ...prev, [tabName]: { x, width: w } };
+			console.log("📊 Layouts actuels:", newLayouts);
 			// Initialiser le slider quand tous les layouts sont capturés
 			if (Object.keys(newLayouts).length === TABS.length && !isSliderReady) {
+				console.log(
+					"✅ Tous les layouts capturés! Initialisation du slider..."
+				);
+				console.log("🎯 activeTab actuel:", activeTab);
 				setIsSliderReady(true);
 				const initialLayout = newLayouts[activeTab];
 				if (initialLayout) {
+					console.log("🎨 Position initiale du slider:", initialLayout);
 					sliderTranslateX.setValue(initialLayout.x);
 					sliderWidth.setValue(initialLayout.width);
+				} else {
+					console.log("⚠️ ERREUR: Pas de layout pour activeTab:", activeTab);
 				}
 			}
 			return newLayouts;
@@ -108,8 +166,15 @@ export default function TabsLayout() {
 
 	// Animation au changement de tab
 	useEffect(() => {
+		console.log(
+			"🔄 useEffect animation - activeTab:",
+			activeTab,
+			"isSliderReady:",
+			isSliderReady
+		);
 		if (isSliderReady && tabLayouts[activeTab]) {
 			const layout = tabLayouts[activeTab];
+			console.log("🎬 Animation vers:", layout);
 			Animated.parallel([
 				Animated.spring(sliderTranslateX, {
 					toValue: layout.x,
@@ -121,7 +186,9 @@ export default function TabsLayout() {
 					useNativeDriver: false,
 					bounciness: 8,
 				}),
-			]).start();
+			]).start(() => console.log("✨ Animation terminée"));
+		} else {
+			console.log("❌ Animation bloquée - layouts:", Object.keys(tabLayouts));
 		}
 	}, [activeTab, tabLayouts, isSliderReady, sliderTranslateX, sliderWidth]);
 
@@ -155,6 +222,7 @@ export default function TabsLayout() {
 
 	const handleTabPress = useCallback(
 		(tabName) => {
+			console.log(`🔄 TAB PRESS: ${activeTab} → ${tabName}`);
 			setActiveTab(tabName);
 		},
 		[activeTab]
@@ -312,6 +380,7 @@ const tabStyles = StyleSheet.create({
 		borderWidth: 1,
 		borderColor: THEME.colors.border.subtle,
 		position: "relative",
+		overflow: "hidden",
 	},
 	tabSlider: {
 		position: "absolute",
@@ -333,7 +402,7 @@ const tabStyles = StyleSheet.create({
 		paddingVertical: THEME.spacing.md,
 		paddingHorizontal: THEME.spacing.xl + 4,
 		borderRadius: THEME.radius.lg,
-		marginHorizontal: 6,
+		marginHorizontal: 3,
 		overflow: "hidden",
 		position: "relative",
 		zIndex: 1,
@@ -346,7 +415,6 @@ const tabStyles = StyleSheet.create({
 		fontSize: 15,
 		fontWeight: "500",
 		color: THEME.colors.text.muted,
-		lineHeight: 20,
 	},
 	tabTextActive: {
 		color: THEME.colors.primary.amber,

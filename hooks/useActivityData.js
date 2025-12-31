@@ -64,14 +64,29 @@ export const useActivityData = () => {
 						let prods = Array.isArray(responseProducts)
 							? responseProducts
 							: Array.isArray(responseProducts?.products)
-							? responseProducts.products
-							: [];
+								? responseProducts.products
+								: [];
 						setProducts(prods);
 						setProductsError(null);
 					} catch (prodErr) {
 						setProducts([]);
 						setProductsError(prodErr?.message || String(prodErr));
 						console.error("❌ Erreur fetch produits:", prodErr);
+					}
+					// ⭐ Fetch des serveurs
+					try {
+						const urlServers = `${API_CONFIG.baseURL}/restaurants/${finalRestaurantId}/servers`;
+						const responseServers = await authFetch(urlServers);
+						const serversData = Array.isArray(responseServers)
+							? responseServers
+							: Array.isArray(responseServers?.servers)
+								? responseServers.servers
+								: [];
+						setServers(serversData);
+						console.log("✅ Serveurs chargés:", serversData.length);
+					} catch (serverErr) {
+						setServers([]);
+						console.error("❌ Erreur fetch serveurs:", serverErr);
 					}
 				}
 			} catch (error) {

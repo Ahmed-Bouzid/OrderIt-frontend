@@ -1,6 +1,18 @@
-import React, { useState, useCallback } from "react";
-import { View, FlatList, Text } from "react-native";
-import DraggableButton from "../ui/draggableButton";
+/**
+ * 🎨 Dashboard - Écran principal des réservations
+ * Design spatial avec gradients et animations fluides
+ */
+import React, { useState, useCallback, useRef, useMemo } from "react";
+import {
+	View,
+	FlatList,
+	Text,
+	StyleSheet,
+	Animated,
+	TouchableOpacity,
+} from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import ReservationCard from "../dashboard/ReservationCard";
 import Filters from "../dashboard/Filters";
 import SettingsModal from "../dashboard/SettingsModal";
@@ -10,11 +22,22 @@ import LoadingSkeleton from "../dashboard/LoadingSkeleton";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { useDashboardActions } from "../../hooks/useDashboardActions";
 import { useDashboardFilters } from "../../hooks/useDashboardFilters";
+import useThemeStore from "../../src/stores/useThemeStore";
+import { getTheme } from "../../utils/themeUtils";
 
 export default function Dashboard() {
+	const { themeMode } = useThemeStore();
+	const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+
+	// Animation FAB
+	const fabScaleAnim = useRef(new Animated.Value(1)).current;
+	const fabRotateAnim = useRef(new Animated.Value(0)).current;
+
 	// ─────────────── Hooks Custom ───────────────
 	const { reservations, tables, theme, loading, fetchReservations } =
 		useDashboardData();
+
+	const localStyles = useMemo(() => createStyles(THEME), [THEME]);
 
 	const {
 		activeReservation,
@@ -27,8 +50,13 @@ export default function Dashboard() {
 		createReservation,
 	} = useDashboardActions(fetchReservations);
 
-	const { filter, filteredReservations, changeFilter } =
-		useDashboardFilters(reservations);
+	const {
+		filter,
+		filteredReservations,
+		changeFilter,
+		searchQuery,
+		setSearchQuery,
+	} = useDashboardFilters(reservations);
 
 	// ─────────────── États Locaux ───────────────
 	const [showSettingsModal, setShowSettingsModal] = useState(false);
@@ -131,58 +159,125 @@ export default function Dashboard() {
 
 	const ListEmptyComponent = useCallback(
 		() => (
-			<View style={{ padding: 20, alignItems: "center" }}>
-				<Text
-					style={{
-						fontSize: 16,
-						color: theme.textColor,
-						textAlign: "center",
-					}}
-				>
-					Aucune réservation
+			<View style={localStyles.emptyContainer}>
+				<Ionicons
+					name="calendar-outline"
+					size={64}
+					color={THEME.colors.text.muted}
+				/>
+				<Text style={localStyles.emptyTitle}>Aucune réservation</Text>
+				<Text style={localStyles.emptySubtitle}>
+					Les réservations pour ce filtre apparaîtront ici
 				</Text>
 			</View>
 		),
-		[theme]
+		[THEME, localStyles]
 	);
+
+	// FAB animations
+	const handleFabPressIn = () => {
+		Animated.parallel([
+			Animated.spring(fabScaleAnim, {
+				toValue: 0.9,
+				friction: 5,
+				useNativeDriver: true,
+			}),
+			Animated.timing(fabRotateAnim, {
+				toValue: 1,
+				duration: 150,
+				useNativeDriver: true,
+			}),
+		]).start();
+	};
+
+	const handleFabPressOut = () => {
+		Animated.parallel([
+			Animated.spring(fabScaleAnim, {
+				toValue: 1,
+				friction: 5,
+				useNativeDriver: true,
+			}),
+			Animated.timing(fabRotateAnim, {
+				toValue: 0,
+				duration: 150,
+				useNativeDriver: true,
+			}),
+		]).start();
+	};
+
+	const fabRotation = fabRotateAnim.interpolate({
+		inputRange: [0, 1],
+		outputRange: ["0deg", "45deg"],
+	});
 
 	// ─────────────── Render ───────────────
 	return (
-		<View style={{ flex: 1, backgroundColor: theme.backgroundColor }}>
+		<View style={localStyles.container}>
+			{/* Background ambient effects */}
+			<View style={StyleSheet.absoluteFill}>
+				<LinearGradient
+					colors={["rgba(245, 158, 11, 0.08)", "transparent"]}
+					style={localStyles.ambientGlow1}
+				/>
+				<LinearGradient
+					colors={["rgba(14, 165, 233, 0.06)", "transparent"]}
+					style={localStyles.ambientGlow2}
+				/>
+			</View>
+
 			{/* Filtres */}
 			<Filters
 				activeFilter={filter}
 				onFilterChange={changeFilter}
+				searchQuery={searchQuery}
+				onSearchChange={setSearchQuery}
 				theme={theme}
 			/>
 
 			{/* Liste des réservations avec FlatList */}
 			{loading ? (
-				<LoadingSkeleton theme={theme} count={5} />
+				<LoadingSkeleton theme={theme} count={6} />
 			) : (
 				<FlatList
 					data={filteredReservations}
 					renderItem={renderReservationCard}
 					keyExtractor={keyExtractor}
 					numColumns={2}
-					contentContainerStyle={{
-						paddingHorizontal: 10,
-						paddingVertical: 10,
-					}}
+					contentContainerStyle={localStyles.listContent}
 					ListEmptyComponent={ListEmptyComponent}
 					initialNumToRender={10}
 					maxToRenderPerBatch={10}
 					windowSize={5}
 					removeClippedSubviews={true}
+					showsVerticalScrollIndicator={false}
 				/>
 			)}
 
-			{/* Bouton flottant */}
-			<DraggableButton
-				onPress={() => setShowNewReservationModal(true)}
-				color="#b87a23ff"
-				initialPosition={{ bottom: 24, right: 24 }}
-			/>
+			{/* FAB Premium */}
+			<Animated.View
+				style={[
+					localStyles.fabContainer,
+					{ transform: [{ scale: fabScaleAnim }] },
+				]}
+			>
+				<TouchableOpacity
+					onPress={() => setShowNewReservationModal(true)}
+					onPressIn={handleFabPressIn}
+					onPressOut={handleFabPressOut}
+					activeOpacity={0.95}
+				>
+					<LinearGradient
+						colors={["#F59E0B", "#D97706"]}
+						style={localStyles.fab}
+						start={{ x: 0, y: 0 }}
+						end={{ x: 1, y: 1 }}
+					>
+						<Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
+							<Ionicons name="add" size={28} color="#FFFFFF" />
+						</Animated.View>
+					</LinearGradient>
+				</TouchableOpacity>
+			</Animated.View>
 
 			{/* Modales */}
 			<SettingsModal
@@ -214,3 +309,93 @@ export default function Dashboard() {
 		</View>
 	);
 }
+
+// ─────────────── Styles Locaux ───────────────
+const createStyles = (THEME) =>
+	StyleSheet.create({
+		container: {
+			flex: 1,
+			backgroundColor: THEME.colors.background.dark,
+		},
+		ambientGlow1: {
+			position: "absolute",
+			top: -100,
+			left: -100,
+			width: 400,
+			height: 400,
+			borderRadius: 200,
+			opacity: 0.5,
+		},
+		ambientGlow2: {
+			position: "absolute",
+			bottom: -50,
+			right: -100,
+			width: 300,
+			height: 300,
+			borderRadius: 150,
+			opacity: 0.5,
+		},
+		listContent: {
+			paddingHorizontal: 12,
+			paddingVertical: 16,
+			paddingBottom: 100,
+		},
+		emptyContainer: {
+			flex: 1,
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: 80,
+		},
+		emptyIconContainer: {
+			width: 80,
+			height: 80,
+			borderRadius: 40,
+			backgroundColor: THEME.colors.background.elevated,
+			alignItems: "center",
+			justifyContent: "center",
+			marginBottom: 16,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		emptyTitle: {
+			fontSize: 18,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginTop: 16,
+			marginBottom: 8,
+		},
+		emptySubtitle: {
+			fontSize: 14,
+			color: THEME.colors.text.muted,
+			textAlign: "center",
+			paddingHorizontal: 32,
+		},
+		emptyText: {
+			fontSize: 17,
+			fontWeight: "600",
+			color: THEME.colors.text.secondary,
+			marginBottom: 4,
+		},
+		emptySubtext: {
+			fontSize: 14,
+			color: THEME.colors.text.muted,
+		},
+		fabContainer: {
+			position: "absolute",
+			bottom: 24,
+			right: 24,
+			zIndex: 100,
+		},
+		fab: {
+			width: 60,
+			height: 60,
+			borderRadius: 30,
+			alignItems: "center",
+			justifyContent: "center",
+			shadowColor: THEME.colors.primary.amber,
+			shadowOffset: { width: 0, height: 4 },
+			shadowOpacity: 0.4,
+			shadowRadius: 12,
+			elevation: 8,
+		},
+	});

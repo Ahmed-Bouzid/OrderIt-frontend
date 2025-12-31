@@ -1,13 +1,22 @@
 // components/elements/ActivityComponents/ReservationDetails.jsx
-import React, { useMemo } from "react";
-import { View, Text, TextInput, TouchableOpacity } from "react-native";
-import styles from "../../styles";
+import React, { useMemo, useState, useCallback } from "react";
+import {
+	View,
+	Text,
+	TextInput,
+	TouchableOpacity,
+	StyleSheet,
+} from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import useThemeStore from "../../../src/stores/useThemeStore";
+import { getTheme } from "../../../utils/themeUtils";
+import { ClientAllergenModal } from "../modals/ClientAllergenModal";
 
 const restrictionsOptions = [
-	{ label: "Aucune", value: "Aucune" },
-	{ label: "Vegan", value: "Vegan" },
-	{ label: "Sans gluten", value: "Sans gluten" },
-	{ label: "Halal", value: "Halal" },
+	{ label: "Aucune", value: "Aucune", icon: "checkmark-circle" },
+	{ label: "Vegan", value: "Vegan", icon: "leaf" },
+	{ label: "Sans gluten", value: "Sans gluten", icon: "nutrition" },
+	{ label: "Halal", value: "Halal", icon: "restaurant" },
 ];
 
 export const ReservationDetails = React.memo(
@@ -26,12 +35,27 @@ export const ReservationDetails = React.memo(
 		setShowRestrictionsOptions,
 		editField,
 		getElapsed,
+		// ⭐ Nouveau: pour les allergènes structurés
+		clientAllergens = [],
+		setClientAllergens,
 	}) => {
-		// ⭐ Valeurs sécurisées avec useMemo - TOUJOURS avant le guard clause
-		const safeTheme = useMemo(
-			() =>
-				theme || { cardColor: "#fff", textColor: "#000", borderColor: "#ddd" },
-			[theme]
+		const { themeMode } = useThemeStore();
+		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const localStyles = useMemo(() => createStyles(THEME), [THEME]);
+
+		// ⭐ État pour la modale d'allergènes
+		const [showAllergenModal, setShowAllergenModal] = useState(false);
+
+		// Handler pour valider les allergènes sélectionnés
+		const handleAllergensValidate = useCallback(
+			(selectedAllergens) => {
+				setClientAllergens?.(selectedAllergens);
+				// Mettre à jour aussi le champ texte pour la persistance
+				const allergenNames = selectedAllergens.map((a) => a.name).join(", ");
+				editField?.("allergies", allergenNames, true);
+				setAllergiesValue?.(allergenNames);
+			},
+			[setClientAllergens, editField, setAllergiesValue]
 		);
 
 		const formattedArrivalTime = useMemo(() => {
@@ -70,173 +94,149 @@ export const ReservationDetails = React.memo(
 			return name.charAt(0).toUpperCase() + name.slice(1).toLowerCase();
 		}, [activeReservation?.clientName]);
 
-		// ⭐ Guard clause APRÈS tous les hooks
 		if (!activeReservation) {
 			return null;
 		}
 
 		return (
-			<View style={[styles.block, { backgroundColor: safeTheme.cardColor }]}>
-				<Text style={[styles.blockTitle, { color: safeTheme.textColor }]}>
-					Détails réservation
-				</Text>
-
-				<View style={[styles.row, { backgroundColor: safeTheme.cardColor }]}>
-					<Text style={[styles.label, { color: safeTheme.textColor }]}>
-						Nom :
-					</Text>
-					<Text style={[styles.value, { color: safeTheme.textColor }]}>
-						{formattedClientName}
-					</Text>
+			<View style={localStyles.block}>
+				{/* Header Section */}
+				<View style={localStyles.sectionHeader}>
+					<Ionicons
+						name="document-text"
+						size={18}
+						color={THEME.colors.primary.amber}
+					/>
+					<Text style={localStyles.sectionTitle}>Détails réservation</Text>
 				</View>
 
-				<View style={[styles.row, { backgroundColor: safeTheme.cardColor }]}>
-					<Text style={[styles.label, { color: safeTheme.textColor }]}>
-						Arrivée :
-					</Text>
-					<Text style={[styles.value, { color: safeTheme.textColor }]}>
-						{formattedArrivalTime}
-					</Text>
-					<Text
-						style={[styles.hint, { color: safeTheme.textColor, opacity: 0.7 }]}
-					>
-						({getElapsed?.(activeReservation?.arrivalTime) || "-"})
-					</Text>
+				{/* Info Rows */}
+				<View style={localStyles.row}>
+					<Text style={localStyles.label}>Nom</Text>
+					<Text style={localStyles.value}>{formattedClientName}</Text>
 				</View>
 
-				<View style={[styles.row, { backgroundColor: safeTheme.cardColor }]}>
-					<Text style={[styles.label, { color: safeTheme.textColor }]}>
-						Date réservation :
-					</Text>
-					<Text style={[styles.value, { color: safeTheme.textColor }]}>
-						{formattedReservationDate}
-					</Text>
+				<View style={localStyles.row}>
+					<Text style={localStyles.label}>Heure d&apos;arrivée</Text>
+					<View style={localStyles.rowRight}>
+						<Text style={localStyles.value}>{formattedArrivalTime}</Text>
+						<Text style={localStyles.hint}>
+							({getElapsed?.(activeReservation?.arrivalTime) || "-"})
+						</Text>
+					</View>
 				</View>
 
-				<Text style={[styles.blockTitle, { color: safeTheme.textColor }]}>
-					Spécificités
-				</Text>
+				<View style={localStyles.row}>
+					<Text style={localStyles.label}>Date de réservation</Text>
+					<Text style={localStyles.value}>{formattedReservationDate}</Text>
+				</View>
+
+				{/* Spécificités Section */}
+				<View
+					style={[localStyles.sectionHeader, { marginTop: THEME.spacing.lg }]}
+				>
+					<Ionicons
+						name="warning"
+						size={18}
+						color={THEME.colors.primary.amber}
+					/>
+					<Text style={localStyles.sectionTitle}>Spécificités</Text>
+				</View>
 
 				{/* Allergies */}
-				<View style={[styles.row, { marginBottom: 4 }]}>
-					<Text style={[styles.label, { color: safeTheme.textColor }]}>
-						Allergies :
-					</Text>
-					{editingAllergies ? (
-						<TextInput
-							style={[
-								styles.value,
-								{
-									borderBottomWidth: 1,
-									borderColor: safeTheme.borderColor,
-									minHeight: 40,
-									color: safeTheme.textColor,
-								},
-							]}
-							value={allergiesValue || ""}
-							onChangeText={(text) => {
-								setAllergiesValue?.(text);
-								editField?.("allergies", text, false);
-							}}
-							onBlur={() => {
-								editField?.("allergies", allergiesValue, true);
-								setEditingAllergies?.(false);
-							}}
-							autoFocus
-							multiline
-							placeholderTextColor={safeTheme.textColor}
+				<View style={localStyles.row}>
+					<Text style={localStyles.label}>Allergies</Text>
+					<TouchableOpacity
+						style={[
+							localStyles.editableField,
+							clientAllergens.length > 0 && localStyles.allergenFieldActive,
+						]}
+						onPress={() => setShowAllergenModal(true)}
+					>
+						{clientAllergens.length > 0 ? (
+							<View style={localStyles.allergenBadges}>
+								{clientAllergens.slice(0, 3).map((a) => (
+									<View key={a._id} style={localStyles.allergenBadge}>
+										<Text style={localStyles.allergenIcon}>{a.icon}</Text>
+									</View>
+								))}
+								{clientAllergens.length > 3 && (
+									<Text style={localStyles.allergenMore}>
+										+{clientAllergens.length - 3}
+									</Text>
+								)}
+							</View>
+						) : (
+							<Text style={[localStyles.value, localStyles.placeholder]}>
+								Sélectionner...
+							</Text>
+						)}
+						<Ionicons
+							name="chevron-forward"
+							size={16}
+							color={
+								clientAllergens.length > 0
+									? THEME.colors.status.error
+									: THEME.colors.text.muted
+							}
 						/>
+					</TouchableOpacity>
+				</View>
+
+				{/* Modale de sélection d'allergènes */}
+				<ClientAllergenModal
+					visible={showAllergenModal}
+					onClose={() => setShowAllergenModal(false)}
+					onValidate={handleAllergensValidate}
+					selectedAllergenIds={clientAllergens.map((a) => a._id)}
+				/>
+
+				{/* Restrictions */}
+				<View style={localStyles.row}>
+					<Text style={localStyles.label}>Régime</Text>
+					{showRestrictionsOptions ? (
+						<View style={localStyles.dropdown}>
+							{restrictionsOptions.map((opt) => (
+								<TouchableOpacity
+									key={opt.value}
+									style={localStyles.dropdownItem}
+									onPress={() => {
+										editField?.("restrictions", opt.value, true);
+										setShowRestrictionsOptions?.(false);
+									}}
+								>
+									<Ionicons
+										name={opt.icon}
+										size={16}
+										color={THEME.colors.text.secondary}
+									/>
+									<Text style={localStyles.dropdownText}>{opt.label}</Text>
+								</TouchableOpacity>
+							))}
+						</View>
 					) : (
 						<TouchableOpacity
-							onPress={() => {
-								setAllergiesValue?.(activeReservation?.allergies || "");
-								setEditingAllergies?.(true);
-							}}
+							style={localStyles.editableField}
+							onPress={() => setShowRestrictionsOptions?.(true)}
 						>
-							<Text style={[styles.value, { color: safeTheme.textColor }]}>
-								{activeReservation?.allergies || "Aucune"}
-								{!activeReservation?.allergies
-									? " (toucher pour modifier)"
-									: ""}
+							<Text style={localStyles.value}>
+								{activeReservation?.restrictions || "Aucune"}
 							</Text>
+							<Ionicons
+								name="chevron-down"
+								size={16}
+								color={THEME.colors.text.muted}
+							/>
 						</TouchableOpacity>
 					)}
 				</View>
 
-				{/* Restrictions */}
-				<View style={[styles.row, { marginBottom: 4 }]}>
-					<Text style={[styles.label, { color: safeTheme.textColor }]}>
-						Restrictions :
-					</Text>
-					<View style={{ flex: 1 }}>
-						{showRestrictionsOptions ? (
-							<View
-								style={[
-									styles.simpleDropdown,
-									{
-										backgroundColor: safeTheme.cardColor,
-										borderColor: safeTheme.borderColor,
-									},
-								]}
-							>
-								{restrictionsOptions.map((opt) => (
-									<TouchableOpacity
-										key={opt.value}
-										style={[
-											styles.simpleDropdownItem,
-											{ backgroundColor: safeTheme.cardColor },
-										]}
-										onPress={() => {
-											editField?.("restrictions", opt.value, true);
-											setShowRestrictionsOptions?.(false);
-										}}
-									>
-										<Text
-											style={[
-												styles.dropdownOptionText,
-												{ color: safeTheme.textColor },
-											]}
-										>
-											{opt.label}
-										</Text>
-									</TouchableOpacity>
-								))}
-							</View>
-						) : (
-							<TouchableOpacity
-								style={[
-									styles.valueButton,
-									{
-										backgroundColor: safeTheme.cardColor,
-										borderColor: safeTheme.borderColor,
-									},
-								]}
-								onPress={() => setShowRestrictionsOptions?.(true)}
-							>
-								<Text style={[styles.value, { color: safeTheme.textColor }]}>
-									{activeReservation?.restrictions || "Aucune"}
-								</Text>
-							</TouchableOpacity>
-						)}
-					</View>
-				</View>
-
 				{/* Observations */}
-				<View style={[styles.row, { marginBottom: 0 }]}>
-					<Text style={[styles.label, { color: safeTheme.textColor }]}>
-						Observations :
-					</Text>
+				<View style={localStyles.row}>
+					<Text style={localStyles.label}>Notes</Text>
 					{editingNotes ? (
 						<TextInput
-							style={[
-								styles.value,
-								{
-									borderBottomWidth: 1,
-									borderColor: safeTheme.borderColor,
-									minHeight: 40,
-									color: safeTheme.textColor,
-								},
-							]}
+							style={localStyles.input}
 							value={notesValue || ""}
 							onChangeText={(text) => {
 								setNotesValue?.(text);
@@ -248,18 +248,30 @@ export const ReservationDetails = React.memo(
 							}}
 							autoFocus
 							multiline
-							placeholderTextColor={safeTheme.textColor}
+							placeholderTextColor={THEME.colors.text.muted}
+							placeholder="Ajouter une observation..."
 						/>
 					) : (
 						<TouchableOpacity
+							style={localStyles.editableField}
 							onPress={() => {
 								setNotesValue?.(activeReservation?.notes || "");
 								setEditingNotes?.(true);
 							}}
 						>
-							<Text style={[styles.value, { color: safeTheme.textColor }]}>
+							<Text
+								style={[
+									localStyles.value,
+									!activeReservation?.notes && localStyles.placeholder,
+								]}
+							>
 								{activeReservation?.notes || "Ajouter une observation..."}
 							</Text>
+							<Ionicons
+								name="pencil"
+								size={14}
+								color={THEME.colors.text.muted}
+							/>
 						</TouchableOpacity>
 					)}
 				</View>
@@ -269,3 +281,139 @@ export const ReservationDetails = React.memo(
 );
 
 ReservationDetails.displayName = "ReservationDetails";
+
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 Premium Dark Styles
+// ═══════════════════════════════════════════════════════════════════════
+const createStyles = (THEME) =>
+	StyleSheet.create({
+		block: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+		},
+		sectionHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginBottom: THEME.spacing.md,
+			gap: THEME.spacing.sm,
+		},
+		sectionTitle: {
+			fontSize: 14,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			textTransform: "uppercase",
+			letterSpacing: 0.5,
+		},
+		row: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.sm,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		rowRight: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		label: {
+			fontSize: 13,
+			fontWeight: "500",
+			color: THEME.colors.text.secondary,
+			flex: 1,
+		},
+		value: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			textAlign: "right",
+		},
+		hint: {
+			fontSize: 12,
+			color: THEME.colors.primary.amber,
+			fontWeight: "500",
+		},
+		placeholder: {
+			color: THEME.colors.text.muted,
+			fontStyle: "italic",
+		},
+		editableField: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+			backgroundColor: THEME.colors.background.elevated,
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.sm,
+			borderRadius: THEME.radius.sm,
+			flex: 1,
+			marginLeft: THEME.spacing.md,
+			justifyContent: "space-between",
+		},
+		input: {
+			flex: 1,
+			marginLeft: THEME.spacing.md,
+			backgroundColor: THEME.colors.background.input,
+			borderRadius: THEME.radius.sm,
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.sm,
+			color: THEME.colors.text.primary,
+			fontSize: 14,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.focus,
+			minHeight: 40,
+		},
+		dropdown: {
+			flex: 1,
+			marginLeft: THEME.spacing.md,
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+			overflow: "hidden",
+		},
+		dropdownItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.sm,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		dropdownText: {
+			fontSize: 14,
+			color: THEME.colors.text.primary,
+			fontWeight: "500",
+		},
+		// ⭐ Styles pour les allergènes
+		allergenFieldActive: {
+			backgroundColor: `${THEME.colors.status.error}15`,
+			borderWidth: 1,
+			borderColor: THEME.colors.status.error,
+		},
+		allergenBadges: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.xs,
+			flex: 1,
+		},
+		allergenBadge: {
+			backgroundColor: `${THEME.colors.status.error}25`,
+			paddingHorizontal: THEME.spacing.sm,
+			paddingVertical: THEME.spacing.xs,
+			borderRadius: THEME.radius.sm,
+		},
+		allergenIcon: {
+			fontSize: 16,
+		},
+		allergenMore: {
+			fontSize: 12,
+			fontWeight: "600",
+			color: THEME.colors.status.error,
+			marginLeft: THEME.spacing.xs,
+		},
+	});

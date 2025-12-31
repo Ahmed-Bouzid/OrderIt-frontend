@@ -6,9 +6,28 @@ import {
 	TouchableOpacity,
 	ActivityIndicator,
 	ScrollView,
+	Animated,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+
+// Design tokens harmonisés avec le thème principal
+const MODAL_THEME = {
+	colors: {
+		background: "#0C0F17",
+		card: "#151923",
+		elevated: "#1E2433",
+		primary: "#F59E0B",
+		primaryDark: "#D97706",
+		text: { primary: "#F8FAFC", secondary: "#94A3B8", muted: "#64748B" },
+		border: "rgba(148, 163, 184, 0.12)",
+		success: "#10B981",
+		overlay: "rgba(12, 15, 23, 0.85)",
+	},
+	radius: { md: 12, lg: 16, xl: 22 },
+	spacing: { sm: 8, md: 12, lg: 16, xl: 24 },
+};
 
 export const ProductOptionsModal = ({
 	visible,
@@ -76,33 +95,47 @@ export const ProductOptionsModal = ({
 			<View
 				style={{
 					flex: 1,
-					backgroundColor: "rgba(10,18,36,0.55)",
+					backgroundColor: MODAL_THEME.colors.overlay,
 					justifyContent: "center",
 					alignItems: "center",
 				}}
 			>
 				<View
 					style={{
-						width: 340,
+						width: 360,
 						minHeight: 220,
-						backgroundColor: theme.cardColor,
-						borderRadius: 22,
-						padding: 24,
+						backgroundColor: MODAL_THEME.colors.card,
+						borderRadius: MODAL_THEME.radius.xl,
+						padding: MODAL_THEME.spacing.xl,
 						alignItems: "center",
+						borderWidth: 1,
+						borderColor: MODAL_THEME.colors.border,
 					}}
 				>
 					<TouchableOpacity
 						onPress={onClose}
 						style={{ position: "absolute", top: 14, right: 14, zIndex: 2 }}
 					>
-						<Ionicons name="close" size={26} color={theme.textColor} />
+						<View
+							style={{
+								backgroundColor: MODAL_THEME.colors.elevated,
+								borderRadius: 20,
+								padding: 6,
+							}}
+						>
+							<Ionicons
+								name="close"
+								size={20}
+								color={MODAL_THEME.colors.text.secondary}
+							/>
+						</View>
 					</TouchableOpacity>
 					<Text
 						style={{
-							fontWeight: "bold",
+							fontWeight: "700",
 							fontSize: 20,
-							color: theme.textColor,
-							marginBottom: 10,
+							color: MODAL_THEME.colors.text.primary,
+							marginBottom: 8,
 							textAlign: "center",
 						}}
 					>
@@ -110,29 +143,30 @@ export const ProductOptionsModal = ({
 					</Text>
 					<Text
 						style={{
-							color: theme.textColor,
-							fontSize: 15,
-							marginBottom: 16,
+							color: MODAL_THEME.colors.text.secondary,
+							fontSize: 14,
+							marginBottom: MODAL_THEME.spacing.lg,
 							textAlign: "center",
-							opacity: 0.7,
 						}}
 					>
 						{product?.description}
 					</Text>
 					{loading ? (
-						<ActivityIndicator color="#007AFF" style={{ marginVertical: 20 }} />
+						<ActivityIndicator
+							color={MODAL_THEME.colors.primary}
+							style={{ marginVertical: 20 }}
+						/>
 					) : options.length === 0 ? (
 						<Text
 							style={{
-								color: theme.textColor,
-								opacity: 0.6,
+								color: MODAL_THEME.colors.text.muted,
 								marginVertical: 20,
 							}}
 						>
 							Aucune option pour ce produit
 						</Text>
 					) : (
-						<ScrollView style={{ maxHeight: 180, width: "100%" }}>
+						<ScrollView style={{ maxHeight: 200, width: "100%" }}>
 							{options.map((option) => {
 								const selected = selectedOptions.find(
 									(opt) => opt._id === option._id
@@ -144,18 +178,17 @@ export const ProductOptionsModal = ({
 										style={{
 											flexDirection: "row",
 											alignItems: "center",
-											paddingVertical: 10,
-											paddingHorizontal: 8,
-											borderRadius: 10,
-											backgroundColor: selected ? "#E8F5E9" : "#f3f4f5ff",
+											paddingVertical: 12,
+											paddingHorizontal: 12,
+											borderRadius: MODAL_THEME.radius.md,
+											backgroundColor: selected
+												? "rgba(245, 158, 11, 0.15)"
+												: MODAL_THEME.colors.elevated,
 											marginBottom: 8,
-											// borderWidth et borderColor supprimés pour éviter le shift
-											shadowColor: selected ? "#4CAF50" : "transparent",
-											shadowOpacity: selected ? 0.18 : 0,
-											shadowRadius: selected ? 6 : 0,
-											shadowOffset: selected
-												? { width: 0, height: 2 }
-												: { width: 0, height: 0 },
+											borderWidth: 1,
+											borderColor: selected
+												? MODAL_THEME.colors.primary
+												: MODAL_THEME.colors.border,
 										}}
 									>
 										<View
@@ -166,20 +199,29 @@ export const ProductOptionsModal = ({
 											}}
 										>
 											<Ionicons
-												name={selected ? "radio-button-on" : "radio-button-off"}
+												name={selected ? "checkmark-circle" : "ellipse-outline"}
 												size={22}
-												color={selected ? "#060c13ff" : "#bbb"}
+												color={
+													selected
+														? MODAL_THEME.colors.primary
+														: MODAL_THEME.colors.text.muted
+												}
 											/>
 										</View>
 										<Text
-											style={{ color: theme.textColor, fontSize: 15, flex: 1 }}
+											style={{
+												color: MODAL_THEME.colors.text.primary,
+												fontSize: 15,
+												flex: 1,
+												fontWeight: selected ? "600" : "400",
+											}}
 										>
 											{option.name}
 										</Text>
 										{option.price > 0 && (
 											<Text
 												style={{
-													color: "#4CAF50",
+													color: MODAL_THEME.colors.success,
 													fontWeight: "bold",
 													marginLeft: 8,
 												}}
@@ -195,16 +237,27 @@ export const ProductOptionsModal = ({
 					<TouchableOpacity
 						onPress={handleValidate}
 						style={{
-							backgroundColor: "#007AFF",
-							borderRadius: 10,
-							paddingVertical: 13,
-							paddingHorizontal: 40,
-							marginTop: 18,
+							borderRadius: MODAL_THEME.radius.lg,
+							overflow: "hidden",
+							marginTop: MODAL_THEME.spacing.lg,
+							width: "100%",
 						}}
 					>
-						<Text style={{ color: "#fff", fontWeight: "bold", fontSize: 16 }}>
-							OK
-						</Text>
+						<LinearGradient
+							colors={[
+								MODAL_THEME.colors.primary,
+								MODAL_THEME.colors.primaryDark,
+							]}
+							style={{
+								paddingVertical: 14,
+								paddingHorizontal: 40,
+								alignItems: "center",
+							}}
+						>
+							<Text style={{ color: "#fff", fontWeight: "700", fontSize: 16 }}>
+								Valider
+							</Text>
+						</LinearGradient>
 					</TouchableOpacity>
 				</View>
 			</View>

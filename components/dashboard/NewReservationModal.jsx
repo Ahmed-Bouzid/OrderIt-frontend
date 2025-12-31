@@ -1,4 +1,14 @@
-import React, { useState, useCallback } from "react";
+/**
+ * NewReservationModal.jsx - Modal de création de réservation Premium
+ * Design spatial inspiré par shadcn/ui mais adapté à React Native
+ */
+import React, {
+	useState,
+	useCallback,
+	useRef,
+	useEffect,
+	useMemo,
+} from "react";
 import {
 	Modal,
 	View,
@@ -8,23 +18,213 @@ import {
 	KeyboardAvoidingView,
 	Platform,
 	ScrollView,
+	StyleSheet,
+	Animated,
+	Dimensions,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import styles from "../styles";
+import useThemeStore from "../../src/stores/useThemeStore";
+import { getTheme } from "../../utils/themeUtils";
 
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
+
+// ─────────────── InputField Component ───────────────
+const InputField = React.memo(
+	({ label, icon, required, error, children, THEME, modalStyles }) => (
+		<View style={modalStyles.inputWrapper}>
+			<View style={modalStyles.labelRow}>
+				<Ionicons name={icon} size={16} color={THEME.colors.text.muted} />
+				<Text style={modalStyles.label}>
+					{label}
+					{required && (
+						<Text style={{ color: THEME.colors.primary.amber }}> *</Text>
+					)}
+				</Text>
+			</View>
+			{children}
+			{error && <Text style={modalStyles.errorText}>{error}</Text>}
+		</View>
+	)
+);
+
+// ─────────────── StepIndicator Component ───────────────
+const StepIndicator = React.memo(({ currentStep, totalSteps, modalStyles }) => (
+	<View style={modalStyles.stepContainer}>
+		{[...Array(totalSteps)].map((_, index) => {
+			const isActive = index + 1 === currentStep;
+			const isCompleted = index + 1 < currentStep;
+			return (
+				<View key={index} style={modalStyles.stepItem}>
+					<View
+						style={[
+							modalStyles.stepDot,
+							isActive && modalStyles.stepDotActive,
+							isCompleted && modalStyles.stepDotCompleted,
+						]}
+					>
+						{isCompleted ? (
+							<Ionicons name="checkmark" size={12} color="#FFF" />
+						) : (
+							<Text
+								style={[
+									modalStyles.stepNumber,
+									isActive && modalStyles.stepNumberActive,
+								]}
+							>
+								{index + 1}
+							</Text>
+						)}
+					</View>
+					{index < totalSteps - 1 && (
+						<View
+							style={[
+								modalStyles.stepLine,
+								isCompleted && modalStyles.stepLineCompleted,
+							]}
+						/>
+					)}
+				</View>
+			);
+		})}
+	</View>
+));
+
+// ─────────────── PersonSelector Component ───────────────
+const PersonSelector = React.memo(({ value, onChange, THEME, modalStyles }) => {
+	const decrementDisabled = value <= 1;
+	const incrementDisabled = value >= 20;
+
+	return (
+		<View style={modalStyles.personSelector}>
+			<TouchableOpacity
+				style={[
+					modalStyles.personButton,
+					decrementDisabled && modalStyles.personButtonDisabled,
+				]}
+				onPress={() => !decrementDisabled && onChange(value - 1)}
+				disabled={decrementDisabled}
+			>
+				<Ionicons
+					name="remove"
+					size={20}
+					color={
+						decrementDisabled
+							? THEME.colors.text.muted
+							: THEME.colors.text.primary
+					}
+				/>
+			</TouchableOpacity>
+			<View style={modalStyles.personValueContainer}>
+				<Text style={modalStyles.personValue}>{value}</Text>
+				<Text style={modalStyles.personLabel}>personnes</Text>
+			</View>
+			<TouchableOpacity
+				style={[
+					modalStyles.personButton,
+					incrementDisabled && modalStyles.personButtonDisabled,
+				]}
+				onPress={() => !incrementDisabled && onChange(value + 1)}
+				disabled={incrementDisabled}
+			>
+				<Ionicons
+					name="add"
+					size={20}
+					color={
+						incrementDisabled
+							? THEME.colors.text.muted
+							: THEME.colors.text.primary
+					}
+				/>
+			</TouchableOpacity>
+		</View>
+	);
+});
+
+// ─────────────── TableSelector Component ───────────────
+const TableSelector = React.memo(
+	({ tables, selectedId, onSelect, THEME, modalStyles }) => (
+		<View style={modalStyles.tableGrid}>
+			<TouchableOpacity
+				style={[
+					modalStyles.tableItem,
+					!selectedId && modalStyles.tableItemSelected,
+				]}
+				onPress={() => onSelect(null)}
+			>
+				<Text
+					style={[
+						modalStyles.tableText,
+						!selectedId && modalStyles.tableTextSelected,
+					]}
+				>
+					Aucune
+				</Text>
+			</TouchableOpacity>
+			{tables?.map((table) => {
+				const isSelected = selectedId === table._id;
+				const isAvailable = table.isAvailable !== false;
+				return (
+					<TouchableOpacity
+						key={table._id}
+						style={[
+							modalStyles.tableItem,
+							isSelected && modalStyles.tableItemSelected,
+							!isAvailable && modalStyles.tableItemUnavailable,
+						]}
+						onPress={() => isAvailable && onSelect(table._id)}
+						disabled={!isAvailable}
+					>
+						<Text
+							style={[
+								modalStyles.tableText,
+								isSelected && modalStyles.tableTextSelected,
+								!isAvailable && modalStyles.tableTextUnavailable,
+							]}
+						>
+							{table.number}
+						</Text>
+						{!isAvailable && (
+							<Text style={modalStyles.tableOccupied}>Occupée</Text>
+						)}
+					</TouchableOpacity>
+				);
+			})}
+		</View>
+	)
+);
+
+// ─────────────── Main Component ───────────────
 const NewReservationModal = React.memo(
 	({ visible, onClose, onCreate, tables, theme }) => {
+		const { themeMode } = useThemeStore();
+		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+
 		const [step, setStep] = useState(1);
 		const [clientName, setClientName] = useState("");
 		const [phone, setPhone] = useState("");
 		const [reservationTime, setReservationTime] = useState("");
 		const [reservationDate, setReservationDate] = useState("");
-		const [nbPersonnes, setNbPersonnes] = useState(1);
+		const [nbPersonnes, setNbPersonnes] = useState(2);
 		const [allergies, setAllergies] = useState("");
 		const [restrictions, setRestrictions] = useState("");
 		const [notes, setNotes] = useState("");
 		const [selectedTableId, setSelectedTableId] = useState(null);
-		const [showTablesOptions, setShowTablesOptions] = useState(false);
+		const [errors, setErrors] = useState({});
+
+		const modalStyles = useMemo(() => createStyles(THEME), [THEME]);
+
+		// Animation
+		const slideAnim = useRef(new Animated.Value(0)).current;
+
+		useEffect(() => {
+			Animated.timing(slideAnim, {
+				toValue: step,
+				duration: 300,
+				useNativeDriver: true,
+			}).start();
+		}, [step]);
 
 		const resetForm = useCallback(() => {
 			setStep(1);
@@ -32,12 +232,12 @@ const NewReservationModal = React.memo(
 			setPhone("");
 			setReservationTime("");
 			setReservationDate("");
-			setNbPersonnes(1);
+			setNbPersonnes(2);
 			setAllergies("");
 			setRestrictions("");
 			setNotes("");
 			setSelectedTableId(null);
-			setShowTablesOptions(false);
+			setErrors({});
 		}, []);
 
 		const handleClose = useCallback(() => {
@@ -45,23 +245,25 @@ const NewReservationModal = React.memo(
 			onClose?.();
 		}, [resetForm, onClose]);
 
-		const handleCreate = useCallback(async () => {
-			// Validation des champs obligatoires
-			if (
-				!clientName.trim() ||
-				!phone.trim() ||
-				!reservationDate ||
-				!reservationTime
-			) {
-				alert("Veuillez remplir tous les champs obligatoires");
-				return;
-			}
+		const validateStep1 = useCallback(() => {
+			const newErrors = {};
+			if (!clientName.trim()) newErrors.clientName = "Nom requis";
+			if (!phone.trim()) newErrors.phone = "Téléphone requis";
+			if (nbPersonnes < 1) newErrors.nbPersonnes = "Minimum 1 personne";
+			setErrors(newErrors);
+			return Object.keys(newErrors).length === 0;
+		}, [clientName, phone, nbPersonnes]);
 
-			// S'assurer que nbPersonnes est un nombre valide
-			const finalNbPersonnes =
-				typeof nbPersonnes === "number"
-					? nbPersonnes
-					: parseInt(nbPersonnes) || 1;
+		const validateStep2 = useCallback(() => {
+			const newErrors = {};
+			if (!reservationDate) newErrors.reservationDate = "Date requise";
+			if (!reservationTime) newErrors.reservationTime = "Heure requise";
+			setErrors(newErrors);
+			return Object.keys(newErrors).length === 0;
+		}, [reservationDate, reservationTime]);
+
+		const handleCreate = useCallback(async () => {
+			if (!validateStep2()) return;
 
 			try {
 				const success = await onCreate({
@@ -69,7 +271,7 @@ const NewReservationModal = React.memo(
 					phone: phone.trim(),
 					reservationTime,
 					reservationDate,
-					nbPersonnes: finalNbPersonnes,
+					nbPersonnes,
 					allergies: allergies.trim(),
 					restrictions: restrictions.trim(),
 					notes: notes.trim(),
@@ -81,8 +283,7 @@ const NewReservationModal = React.memo(
 					onClose?.();
 				}
 			} catch (error) {
-				console.error("Erreur lors de la création de la réservation:", error);
-				alert("Une erreur est survenue lors de la création de la réservation");
+				console.error("Erreur création réservation:", error);
 			}
 		}, [
 			clientName,
@@ -97,23 +298,12 @@ const NewReservationModal = React.memo(
 			onCreate,
 			resetForm,
 			onClose,
+			validateStep2,
 		]);
 
 		const nextStep = useCallback(() => {
-			// Validation des champs de l'étape 1
-			if (
-				!clientName.trim() ||
-				!phone.trim() ||
-				!nbPersonnes ||
-				nbPersonnes < 1
-			) {
-				alert(
-					"Veuillez remplir correctement tous les champs avant de continuer"
-				);
-				return;
-			}
-			setStep(2);
-		}, [clientName, phone, nbPersonnes]);
+			if (validateStep1()) setStep(2);
+		}, [validateStep1]);
 
 		const prevStep = useCallback(() => setStep(1), []);
 
@@ -128,250 +318,287 @@ const NewReservationModal = React.memo(
 					behavior={Platform.OS === "ios" ? "padding" : "height"}
 					style={{ flex: 1 }}
 				>
-					<View
-						style={[
-							styles.modalOverlay,
-							{ backgroundColor: theme.backgroundColor },
-						]}
-					>
-						<View
-							style={[styles.modalForm, { backgroundColor: theme.cardColor }]}
-						>
-							<Text style={[styles.modalTitle, { color: theme.textColor }]}>
-								Nouvelle réservation
-							</Text>
+					<View style={modalStyles.overlay}>
+						{/* Card principale */}
+						<View style={modalStyles.card}>
+							{/* Header */}
+							<View style={modalStyles.header}>
+								<View>
+									<Text style={modalStyles.title}>Nouvelle réservation</Text>
+									<Text style={modalStyles.subtitle}>
+										{step === 1 ? "Informations client" : "Date et table"}
+									</Text>
+								</View>
+								<TouchableOpacity
+									style={modalStyles.closeButton}
+									onPress={handleClose}
+								>
+									<Ionicons
+										name="close"
+										size={22}
+										color={THEME.colors.text.secondary}
+									/>
+								</TouchableOpacity>
+							</View>
 
-							<ScrollView>
-								{/* Page 1 */}
+							{/* Step Indicator */}
+							<StepIndicator
+								currentStep={step}
+								totalSteps={2}
+								modalStyles={modalStyles}
+							/>
+							{/* Divider */}
+							<LinearGradient
+								colors={[
+									"transparent",
+									THEME.colors.border.subtle,
+									"transparent",
+								]}
+								start={{ x: 0, y: 0 }}
+								end={{ x: 1, y: 0 }}
+								style={modalStyles.divider}
+							/>
+
+							{/* Content */}
+							<ScrollView
+								showsVerticalScrollIndicator={false}
+								contentContainerStyle={{ paddingBottom: THEME.spacing.xl }}
+							>
+								{/* Step 1: Informations client */}
 								{step === 1 && (
-									<>
-										<Text style={styles.label}>Nom du client *</Text>
-										<TextInput
-											placeholder="Nom complet"
-											value={clientName}
-											onChangeText={setClientName}
-											style={styles.input}
-											placeholderTextColor="#555"
-										/>
+									<View style={modalStyles.stepContent}>
+										<InputField
+											label="Nom du client"
+											icon="person-outline"
+											required
+											error={errors.clientName}
+											THEME={THEME}
+											modalStyles={modalStyles}
+										>
+											<TextInput
+												placeholder="Ex: Jean Dupont"
+												value={clientName}
+												onChangeText={setClientName}
+												style={[
+													modalStyles.input,
+													errors.clientName && modalStyles.inputError,
+												]}
+												placeholderTextColor={THEME.colors.text.muted}
+											/>
+										</InputField>
 
-										<Text style={styles.label}>Téléphone *</Text>
-										<TextInput
-											placeholder="Téléphone"
-											value={phone}
-											onChangeText={setPhone}
-											keyboardType="phone-pad"
-											textContentType="telephoneNumber"
-											style={styles.input}
-											placeholderTextColor="#555"
-										/>
+										<InputField
+											label="Téléphone"
+											icon="call-outline"
+											required
+											error={errors.phone}
+											THEME={THEME}
+											modalStyles={modalStyles}
+										>
+											<TextInput
+												placeholder="Ex: 06 12 34 56 78"
+												value={phone}
+												onChangeText={setPhone}
+												keyboardType="phone-pad"
+												style={[
+													modalStyles.input,
+													errors.phone && modalStyles.inputError,
+												]}
+												placeholderTextColor={THEME.colors.text.muted}
+											/>
+										</InputField>
 
-										<Text style={styles.label}>Nombre de personnes *</Text>
-										<TextInput
-											placeholder="Nombre de personnes"
-											value={String(nbPersonnes)}
-											onChangeText={(text) => {
-												if (text === "") {
-													setNbPersonnes("");
-												} else {
-													const num = parseInt(text);
-													setNbPersonnes(isNaN(num) ? 1 : Math.max(1, num));
-												}
-											}}
-											onBlur={() => {
-												if (nbPersonnes === "" || nbPersonnes < 1) {
-													setNbPersonnes(1);
-												}
-											}}
-											keyboardType="number-pad"
-											style={styles.input}
-											placeholderTextColor="#555"
-										/>
-
-										<View style={styles.buttonRow}>
-											<TouchableOpacity
-												onPress={handleClose}
-												style={styles.prevButton}
-											>
-												<Text style={styles.buttonText}>❌ Annuler</Text>
-											</TouchableOpacity>
-
-											<TouchableOpacity
-												onPress={nextStep}
-												style={styles.nextButton}
-											>
-												<Text style={styles.buttonText}>➡️ Suivant</Text>
-											</TouchableOpacity>
-										</View>
-									</>
+										<InputField
+											label="Nombre de personnes"
+											icon="people-outline"
+											required
+											THEME={THEME}
+											modalStyles={modalStyles}
+										>
+											<PersonSelector
+												value={nbPersonnes}
+												onChange={setNbPersonnes}
+												THEME={THEME}
+												modalStyles={modalStyles}
+											/>
+										</InputField>
+									</View>
 								)}
 
-								{/* Page 2 */}
+								{/* Step 2: Date, heure et table */}
 								{step === 2 && (
-									<>
-										<Text style={styles.label}>Date de réservation *</Text>
-										<DateTimePicker
-											mode="date"
-											value={
-												reservationDate ? new Date(reservationDate) : new Date()
-											}
-											minimumDate={new Date()}
-											onChange={(event, selectedDate) => {
-												if (selectedDate) {
-													const yyyy = selectedDate.getFullYear();
-													const mm = String(
-														selectedDate.getMonth() + 1
-													).padStart(2, "0");
-													const dd = String(selectedDate.getDate()).padStart(
-														2,
-														"0"
-													);
-													setReservationDate(`${yyyy}-${mm}-${dd}`);
-												}
-											}}
-										/>
-
-										<Text style={styles.label}>Heure de réservation *</Text>
-										<DateTimePicker
-											mode="time"
-											value={
-												reservationTime
-													? new Date(`1970-01-01T${reservationTime}:00`)
-													: (() => {
-															// Si date = aujourd'hui, heure min = maintenant + 15min
-															const isToday = reservationDate
-																? new Date(reservationDate).toDateString() ===
-																  new Date().toDateString()
-																: true;
-
-															if (isToday) {
-																const now = new Date();
-																now.setMinutes(now.getMinutes() + 15);
-																return now;
-															}
-															// Sinon, heure par défaut = 12:00
-															return new Date(1970, 0, 1, 12, 0);
-													  })()
-											}
-											is24Hour={true}
-											display="compact"
-											minimumDate={
-												// Heure minimum uniquement si date = aujourd'hui
-												reservationDate &&
-												new Date(reservationDate).toDateString() ===
-													new Date().toDateString()
-													? (() => {
-															const now = new Date();
-															now.setMinutes(now.getMinutes() + 15);
-															return now;
-													  })()
-													: undefined
-											}
-											onChange={(event, selectedTime) => {
-												if (selectedTime) {
-													let hh = selectedTime.getHours();
-													let mm = selectedTime.getMinutes();
-
-													// Arrondir aux 00 ou 30
-													mm = mm < 30 ? 0 : 30;
-													const hhStr = String(hh).padStart(2, "0");
-													const mmStr = String(mm).padStart(2, "0");
-
-													setReservationTime(`${hhStr}:${mmStr}`);
-												}
-											}}
-										/>
-
-										<Text style={styles.label}>Table</Text>
-										<TouchableOpacity
-											onPress={() => setShowTablesOptions((prev) => !prev)}
-											style={styles.dropdownButton}
-										>
-											<Text style={styles.dropdownButtonText}>
-												{selectedTableId
-													? tables.find((t) => t._id === selectedTableId)
-															?.number
-													: "Aucune table"}
-											</Text>
-										</TouchableOpacity>
-
-										{showTablesOptions && (
-											<View style={styles.simpleDropdown}>
-												<TouchableOpacity
-													style={styles.simpleDropdownItem}
-													onPress={() => {
-														setSelectedTableId(null);
-														setShowTablesOptions(false);
-													}}
+									<View style={modalStyles.stepContent}>
+										{/* Date et Heure côte à côte */}
+										<View style={modalStyles.dateTimeRow}>
+											<View style={{ flex: 1, marginRight: THEME.spacing.md }}>
+												<InputField
+													label="Date"
+													icon="calendar-outline"
+													required
+													error={errors.reservationDate}
+													THEME={THEME}
+													modalStyles={modalStyles}
 												>
-													<Text style={styles.dropdownOptionText}>
-														Aucune table
-													</Text>
-												</TouchableOpacity>
-
-												{tables.map((table) => (
-													<TouchableOpacity
-														key={table._id}
-														style={styles.simpleDropdownItem}
-														onPress={() => {
-															setSelectedTableId(table._id);
-															setShowTablesOptions(false);
-														}}
-													>
-														<Text style={styles.dropdownOptionText}>
-															{table.number || "?"}
-														</Text>
-													</TouchableOpacity>
-												))}
+													<View style={modalStyles.datePickerWrapper}>
+														<DateTimePicker
+															mode="date"
+															value={
+																reservationDate
+																	? new Date(reservationDate)
+																	: new Date()
+															}
+															minimumDate={new Date()}
+															onChange={(event, selectedDate) => {
+																if (selectedDate) {
+																	const yyyy = selectedDate.getFullYear();
+																	const mm = String(
+																		selectedDate.getMonth() + 1
+																	).padStart(2, "0");
+																	const dd = String(
+																		selectedDate.getDate()
+																	).padStart(2, "0");
+																	setReservationDate(`${yyyy}-${mm}-${dd}`);
+																}
+															}}
+															themeVariant="dark"
+															style={{ flex: 1 }}
+														/>
+													</View>
+												</InputField>
 											</View>
-										)}
 
-										<Text style={styles.label}>Allergies</Text>
-										<TextInput
-											placeholder="Allergies éventuelles"
-											value={allergies}
-											onChangeText={setAllergies}
-											style={styles.input}
-											placeholderTextColor="#555"
-											multiline
-										/>
-
-										<Text style={styles.label}>Restrictions</Text>
-										<TextInput
-											placeholder="Restrictions alimentaires"
-											value={restrictions}
-											onChangeText={setRestrictions}
-											style={styles.input}
-											placeholderTextColor="#555"
-											multiline
-										/>
-
-										<Text style={styles.label}>Observations</Text>
-										<TextInput
-											placeholder="Observations"
-											value={notes}
-											onChangeText={setNotes}
-											style={styles.input}
-											placeholderTextColor="#555"
-											multiline
-										/>
-
-										<View style={styles.buttonRow}>
-											<TouchableOpacity
-												onPress={prevStep}
-												style={styles.prevButton}
-											>
-												<Text style={styles.buttonText}>⬅️ Retour</Text>
-											</TouchableOpacity>
-											<TouchableOpacity
-												onPress={handleCreate}
-												style={styles.nextButton}
-											>
-												<Text style={styles.buttonText}>✅ Créer</Text>
-											</TouchableOpacity>
+											<View style={{ flex: 1 }}>
+												<InputField
+													label="Heure"
+													icon="time-outline"
+													required
+													error={errors.reservationTime}
+													THEME={THEME}
+													modalStyles={modalStyles}
+												>
+													<View style={modalStyles.datePickerWrapper}>
+														<DateTimePicker
+															mode="time"
+															value={
+																reservationTime
+																	? new Date(`1970-01-01T${reservationTime}:00`)
+																	: new Date()
+															}
+															is24Hour={true}
+															display="compact"
+															onChange={(event, selectedTime) => {
+																if (selectedTime) {
+																	let hh = selectedTime.getHours();
+																	let mm = selectedTime.getMinutes();
+																	mm = mm < 30 ? 0 : 30;
+																	setReservationTime(
+																		`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
+																	);
+																}
+															}}
+															themeVariant="dark"
+															style={{ flex: 1 }}
+														/>
+													</View>
+												</InputField>
+											</View>
 										</View>
-									</>
+										{/* Table */}
+										<InputField
+											label="Table (optionnel)"
+											icon="grid-outline"
+											THEME={THEME}
+											modalStyles={modalStyles}
+										>
+											<TableSelector
+												tables={tables}
+												selectedId={selectedTableId}
+												onSelect={setSelectedTableId}
+												THEME={THEME}
+												modalStyles={modalStyles}
+											/>
+										</InputField>
+										{/* Notes additionnelles */}
+										<InputField
+											label="Allergies / Restrictions"
+											icon="warning-outline"
+											THEME={THEME}
+											modalStyles={modalStyles}
+										>
+											<TextInput
+												placeholder="Ex: Sans gluten, allergie aux fruits de mer..."
+												value={allergies}
+												onChangeText={setAllergies}
+												style={[modalStyles.input, modalStyles.inputMultiline]}
+												placeholderTextColor={THEME.colors.text.muted}
+												multiline
+												numberOfLines={2}
+											/>
+										</InputField>
+										<InputField
+											label="Notes supplémentaires"
+											icon="document-text-outline"
+											THEME={THEME}
+											modalStyles={modalStyles}
+										>
+											<TextInput
+												placeholder="Ex: Anniversaire, demande spéciale..."
+												value={notes}
+												onChangeText={setNotes}
+												style={[modalStyles.input, modalStyles.inputMultiline]}
+												placeholderTextColor={THEME.colors.text.muted}
+												multiline
+												numberOfLines={2}
+											/>
+										</InputField>
+									</View>
 								)}
 							</ScrollView>
+
+							{/* Footer avec boutons */}
+							<View style={modalStyles.footer}>
+								<TouchableOpacity
+									style={modalStyles.cancelButton}
+									onPress={step === 1 ? handleClose : prevStep}
+								>
+									<Ionicons
+										name={step === 1 ? "close-outline" : "arrow-back-outline"}
+										size={18}
+										color={THEME.colors.text.secondary}
+									/>
+									<Text style={modalStyles.cancelButtonText}>
+										{step === 1 ? "Annuler" : "Retour"}
+									</Text>
+								</TouchableOpacity>
+
+								<TouchableOpacity
+									style={modalStyles.confirmButton}
+									onPress={step === 1 ? nextStep : handleCreate}
+								>
+									<LinearGradient
+										colors={[
+											THEME.colors.primary.amber,
+											THEME.colors.primary.amberDark,
+										]}
+										start={{ x: 0, y: 0 }}
+										end={{ x: 1, y: 0 }}
+										style={modalStyles.confirmGradient}
+									>
+										<Text style={modalStyles.confirmButtonText}>
+											{step === 1 ? "Suivant" : "Confirmer"}
+										</Text>
+										<Ionicons
+											name={
+												step === 1
+													? "arrow-forward-outline"
+													: "checkmark-outline"
+											}
+											size={18}
+											color="#FFF"
+										/>
+									</LinearGradient>
+								</TouchableOpacity>
+							</View>
 						</View>
 					</View>
 				</KeyboardAvoidingView>
@@ -381,5 +608,266 @@ const NewReservationModal = React.memo(
 );
 
 NewReservationModal.displayName = "NewReservationModal";
+
+// ─────────────── Styles ───────────────
+const createStyles = (THEME) =>
+	StyleSheet.create({
+		overlay: {
+			flex: 1,
+			backgroundColor: "rgba(12, 15, 23, 0.9)",
+			justifyContent: "center",
+			alignItems: "center",
+			padding: THEME.spacing.xl,
+		},
+		card: {
+			width: Math.min(SCREEN_WIDTH - 48, 500),
+			maxHeight: "90%",
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius["2xl"],
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			overflow: "hidden",
+		},
+		header: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "flex-start",
+			padding: THEME.spacing.xl,
+			paddingBottom: THEME.spacing.lg,
+		},
+		title: {
+			fontSize: 22,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginBottom: THEME.spacing.xs,
+		},
+		subtitle: {
+			fontSize: 14,
+			color: THEME.colors.text.muted,
+		},
+		closeButton: {
+			width: 36,
+			height: 36,
+			borderRadius: 18,
+			backgroundColor: THEME.colors.background.elevated,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		stepContainer: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingHorizontal: THEME.spacing.xl,
+			paddingBottom: THEME.spacing.lg,
+		},
+		stepItem: {
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		stepDot: {
+			width: 28,
+			height: 28,
+			borderRadius: 14,
+			backgroundColor: THEME.colors.background.elevated,
+			borderWidth: 2,
+			borderColor: THEME.colors.border.default,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		stepDotActive: {
+			borderColor: THEME.colors.primary.amber,
+			backgroundColor: `${THEME.colors.primary.amber}20`,
+		},
+		stepDotCompleted: {
+			backgroundColor: THEME.colors.primary.amber,
+			borderColor: THEME.colors.primary.amber,
+		},
+		stepNumber: {
+			fontSize: 12,
+			fontWeight: "600",
+			color: THEME.colors.text.muted,
+		},
+		stepNumberActive: {
+			color: THEME.colors.primary.amber,
+		},
+		stepLine: {
+			width: 60,
+			height: 2,
+			backgroundColor: THEME.colors.border.default,
+			marginHorizontal: THEME.spacing.sm,
+		},
+		stepLineCompleted: {
+			backgroundColor: THEME.colors.primary.amber,
+		},
+		divider: {
+			height: 1,
+			marginHorizontal: THEME.spacing.xl,
+		},
+		stepContent: {
+			padding: THEME.spacing.xl,
+			paddingTop: THEME.spacing.lg,
+		},
+		inputWrapper: {
+			marginBottom: THEME.spacing.lg,
+		},
+		labelRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginBottom: THEME.spacing.sm,
+		},
+		label: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.text.secondary,
+			marginLeft: THEME.spacing.sm,
+		},
+		input: {
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.lg,
+			fontSize: 16,
+			color: THEME.colors.text.primary,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		inputError: {
+			borderColor: THEME.colors.status.error,
+		},
+		inputMultiline: {
+			minHeight: 70,
+			textAlignVertical: "top",
+		},
+		errorText: {
+			fontSize: 12,
+			color: THEME.colors.status.error,
+			marginTop: THEME.spacing.xs,
+			marginLeft: THEME.spacing.sm,
+		},
+		personSelector: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.sm,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		personButton: {
+			width: 44,
+			height: 44,
+			borderRadius: 22,
+			backgroundColor: THEME.colors.background.card,
+			alignItems: "center",
+			justifyContent: "center",
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		personButtonDisabled: {
+			opacity: 0.4,
+		},
+		personValueContainer: {
+			alignItems: "center",
+			paddingHorizontal: THEME.spacing["2xl"],
+		},
+		personValue: {
+			fontSize: 28,
+			fontWeight: "700",
+			color: THEME.colors.primary.amber,
+		},
+		personLabel: {
+			fontSize: 12,
+			color: THEME.colors.text.muted,
+			marginTop: 2,
+		},
+		dateTimeRow: {
+			flexDirection: "row",
+		},
+		datePickerWrapper: {
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			overflow: "hidden",
+			minHeight: 50,
+			justifyContent: "center",
+		},
+		tableGrid: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			gap: THEME.spacing.sm,
+		},
+		tableItem: {
+			minWidth: 60,
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.lg,
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			alignItems: "center",
+		},
+		tableItemSelected: {
+			borderColor: THEME.colors.primary.amber,
+			backgroundColor: `${THEME.colors.primary.amber}15`,
+		},
+		tableItemUnavailable: {
+			opacity: 0.5,
+			backgroundColor: THEME.colors.background.dark,
+		},
+		tableText: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.text.secondary,
+		},
+		tableTextSelected: {
+			color: THEME.colors.primary.amber,
+		},
+		tableTextUnavailable: {
+			color: THEME.colors.text.muted,
+		},
+		tableOccupied: {
+			fontSize: 10,
+			color: THEME.colors.status.error,
+			marginTop: 2,
+		},
+		footer: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			padding: THEME.spacing.xl,
+			paddingTop: THEME.spacing.lg,
+			borderTopWidth: 1,
+			borderTopColor: THEME.colors.border.subtle,
+			backgroundColor: THEME.colors.background.elevated,
+		},
+		cancelButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.lg,
+		},
+		cancelButtonText: {
+			fontSize: 15,
+			fontWeight: "500",
+			color: THEME.colors.text.secondary,
+			marginLeft: THEME.spacing.sm,
+		},
+		confirmButton: {
+			borderRadius: THEME.radius.lg,
+			overflow: "hidden",
+		},
+		confirmGradient: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.xl,
+		},
+		confirmButtonText: {
+			fontSize: 15,
+			fontWeight: "600",
+			color: "#FFF",
+			marginRight: THEME.spacing.sm,
+		},
+	});
 
 export default NewReservationModal;

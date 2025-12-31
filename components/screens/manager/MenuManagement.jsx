@@ -14,14 +14,18 @@ import {
 	Image,
 	ScrollView,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import * as ImagePicker from "expo-image-picker";
 import { useAuthFetch } from "../../../hooks/useAuthFetch";
 import useThemeStore from "../../../src/stores/useThemeStore";
+import { getTheme } from "../../../utils/themeUtils";
 import { getRestaurantId } from "../../../utils/getRestaurantId";
 import AllergenSelectionModal from "../../modals/AllergenSelectionModal";
 
 export default function MenuManagement() {
-	const { theme, isDarkMode } = useThemeStore();
+	const { themeMode } = useThemeStore();
+	const THEME = React.useMemo(() => getTheme(themeMode), [themeMode]);
 	const authFetch = useAuthFetch();
 
 	const [products, setProducts] = useState([]);
@@ -42,8 +46,8 @@ export default function MenuManagement() {
 			let data = Array.isArray(res)
 				? res
 				: Array.isArray(res?.products)
-				? res.products
-				: [];
+					? res.products
+					: [];
 			setProducts(data);
 		} catch (error) {
 			console.error("❌ Erreur chargement produits:", error);
@@ -327,11 +331,13 @@ export default function MenuManagement() {
 				useNativeDriver: true,
 			}).start();
 		}, [anim, index]);
-		const { theme } = useThemeStore();
+
+		const isAvailable = item.available !== false;
+
 		return (
 			<Animated.View
 				style={[
-					styles.glassProductCard,
+					styles.productCard,
 					{
 						opacity: anim,
 						transform: [
@@ -342,10 +348,8 @@ export default function MenuManagement() {
 								}),
 							},
 						],
-						backgroundColor: !item.available
-							? "rgba(200,200,200,0.18)"
-							: "rgba(255,255,255,0.22)",
 					},
+					!isAvailable && styles.productUnavailable,
 				]}
 			>
 				<TouchableOpacity
@@ -353,55 +357,62 @@ export default function MenuManagement() {
 					onPress={() => handleEdit(item)}
 				>
 					<View style={styles.productHeader}>
-						<Text style={[styles.productName, { color: theme.textColor }]}>
-							{item.name}
-						</Text>
-						<Text style={[styles.productPrice, { color: "#4CAF50" }]}>
-							{item.price?.toFixed(2)}€
-						</Text>
+						<Text style={styles.productName}>{item.name}</Text>
+						<Text style={styles.productPrice}>{item.price?.toFixed(2)}€</Text>
 					</View>
-					<Text
-						style={[
-							styles.productCategory,
-							{ color: theme.textColor, opacity: 0.6 },
-						]}
-					>
+					<Text style={styles.productCategory}>
 						{item.category || "Sans catégorie"}
 					</Text>
 					{item.description && (
-						<Text
-							style={[
-								styles.productDescription,
-								{ color: theme.textColor, opacity: 0.5 },
-							]}
-							numberOfLines={1}
-						>
+						<Text style={styles.productDescription} numberOfLines={1}>
 							{item.description}
 						</Text>
 					)}
 				</TouchableOpacity>
 				<View style={styles.productActions}>
-					<TouchableOpacity
-						style={styles.optionsButton}
-						onPress={() => handleOpenOptionsModal(item)}
-					>
-						<Text style={styles.optionsButtonText}>🛠️ Options</Text>
-					</TouchableOpacity>
-					<TouchableOpacity
-						style={[styles.optionsButton, { marginLeft: 8 }]}
-						onPress={() => handleOpenAllergensModal(item)}
-					>
-						<Text style={styles.optionsButtonText}>⚠️ Allergènes</Text>
-					</TouchableOpacity>
-					<Switch
-						value={item.available !== false}
-						onValueChange={() => handleToggleAvailability(item)}
-						trackColor={{ false: "#767577", true: "#81c784" }}
-						thumbColor={item.available !== false ? "#4caf50" : "#f44336"}
-					/>
-					<Text style={[styles.availabilityText, { color: theme.textColor }]}>
-						{item.available !== false ? "Dispo" : "Indispo"}
-					</Text>
+					<View style={styles.productButtonsRow}>
+						<TouchableOpacity
+							style={styles.optionsButton}
+							onPress={() => handleOpenOptionsModal(item)}
+						>
+							<Ionicons name="settings-outline" size={14} color="#FFFFFF" />
+							<Text style={styles.optionsButtonText}>Options</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={[styles.optionsButton, styles.allergensButton]}
+							onPress={() => handleOpenAllergensModal(item)}
+						>
+							<Ionicons name="warning-outline" size={14} color="#FFFFFF" />
+							<Text style={styles.optionsButtonText}>Allergènes</Text>
+						</TouchableOpacity>
+					</View>
+					<View style={styles.availabilityRow}>
+						<Switch
+							value={isAvailable}
+							onValueChange={() => handleToggleAvailability(item)}
+							trackColor={{
+								false: THEME.colors.text.muted,
+								true: "rgba(16, 185, 129, 0.4)",
+							}}
+							thumbColor={
+								isAvailable
+									? THEME.colors.status.success
+									: THEME.colors.status.error
+							}
+						/>
+						<Text
+							style={[
+								styles.availabilityText,
+								{
+									color: isAvailable
+										? THEME.colors.status.success
+										: THEME.colors.status.error,
+								},
+							]}
+						>
+							{isAvailable ? "Dispo" : "Indispo"}
+						</Text>
+					</View>
 				</View>
 			</Animated.View>
 		);
@@ -448,13 +459,13 @@ export default function MenuManagement() {
 		}
 	};
 
+	const styles = React.useMemo(() => createStyles(THEME), [THEME]);
+
 	if (loading) {
 		return (
 			<View style={styles.loadingContainer}>
-				<ActivityIndicator size="large" color="#007AFF" />
-				<Text style={{ color: theme.textColor, marginTop: 10 }}>
-					Chargement du menu...
-				</Text>
+				<ActivityIndicator size="large" color={THEME.colors.primary} />
+				<Text style={styles.loadingText}>Chargement du menu...</Text>
 			</View>
 		);
 	}
@@ -463,32 +474,61 @@ export default function MenuManagement() {
 		<View style={styles.container}>
 			{/* Header */}
 			<View style={styles.header}>
-				<Text style={[styles.title, { color: theme.textColor }]}>
-					🍽️ Gestion du Menu
-				</Text>
-				<Text
-					style={[styles.subtitle, { color: theme.textColor, opacity: 0.6 }]}
-				>
-					{products.length} produit{products.length > 1 ? "s" : ""}
-				</Text>
+				<View style={styles.headerRow}>
+					<View style={styles.headerIconContainer}>
+						<Ionicons
+							name="restaurant"
+							size={24}
+							color={THEME.colors.primary}
+						/>
+					</View>
+					<View style={styles.headerTextContainer}>
+						<Text style={styles.title}>Gestion du Menu</Text>
+						<Text style={styles.subtitle}>
+							{products.length} produit{products.length > 1 ? "s" : ""}
+						</Text>
+					</View>
+				</View>
 			</View>
 
 			{/* Barre de recherche */}
-			<TextInput
-				style={[
-					styles.searchInput,
-					{ color: theme.textColor, borderColor: theme.separatorColor },
-				]}
-				placeholder="🔍 Rechercher un produit..."
-				placeholderTextColor={theme.textColor + "60"}
-				value={searchQuery}
-				onChangeText={setSearchQuery}
-			/>
+			<View style={styles.searchContainer}>
+				<Ionicons
+					name="search-outline"
+					size={20}
+					color={THEME.colors.text.muted}
+					style={styles.searchIcon}
+				/>
+				<TextInput
+					style={styles.searchInput}
+					placeholder="Rechercher un produit..."
+					placeholderTextColor={THEME.colors.text.muted}
+					value={searchQuery}
+					onChangeText={setSearchQuery}
+				/>
+				{searchQuery.length > 0 && (
+					<TouchableOpacity
+						onPress={() => setSearchQuery("")}
+						style={styles.clearSearch}
+					>
+						<Ionicons
+							name="close-circle"
+							size={20}
+							color={THEME.colors.text.muted}
+						/>
+					</TouchableOpacity>
+				)}
+			</View>
 
 			{/* Liste des produits */}
 			{filteredProducts.length === 0 ? (
 				<View style={styles.emptyContainer}>
-					<Text style={[styles.emptyText, { color: theme.textColor }]}>
+					<Ionicons
+						name="fast-food-outline"
+						size={48}
+						color={THEME.colors.text.muted}
+					/>
+					<Text style={styles.emptyText}>
 						{searchQuery
 							? "Aucun produit trouvé"
 							: "Aucun produit dans le menu"}
@@ -502,12 +542,12 @@ export default function MenuManagement() {
 						<ProductCard
 							item={item}
 							index={index}
-							theme={theme}
 							handleEdit={handleEdit}
 							handleToggleAvailability={handleToggleAvailability}
 						/>
 					)}
 					contentContainerStyle={styles.listContainer}
+					showsVerticalScrollIndicator={false}
 				/>
 			)}
 
@@ -519,22 +559,32 @@ export default function MenuManagement() {
 				onRequestClose={() => setModalVisible(false)}
 			>
 				<View style={styles.modalOverlay}>
-					<View
-						style={[
-							styles.modalContent,
-							{ backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF" },
-						]}
-					>
-						<Text style={[styles.modalTitle, { color: theme.textColor }]}>
-							✏️ Modifier le produit
-						</Text>
+					<View style={styles.modalContent}>
+						<View style={styles.modalHeader}>
+							<View style={styles.modalTitleRow}>
+								<Ionicons
+									name="create-outline"
+									size={24}
+									color={THEME.colors.primary}
+								/>
+								<Text style={styles.modalTitle}>Modifier le produit</Text>
+							</View>
+							<TouchableOpacity
+								style={styles.modalCloseButton}
+								onPress={() => setModalVisible(false)}
+							>
+								<Ionicons
+									name="close"
+									size={24}
+									color={THEME.colors.text.secondary}
+								/>
+							</TouchableOpacity>
+						</View>
 
 						<ScrollView showsVerticalScrollIndicator={false}>
 							{/* Section Image */}
-							<View style={styles.imageSection}>
-								<Text style={[styles.label, { color: theme.textColor }]}>
-									Photo du produit:
-								</Text>
+							<View style={styles.formSection}>
+								<Text style={styles.formLabel}>Photo du produit</Text>
 								{formData.image ? (
 									<View style={styles.imagePreviewContainer}>
 										<Image
@@ -547,7 +597,12 @@ export default function MenuManagement() {
 												style={styles.imageActionButton}
 												onPress={handlePickImage}
 											>
-												<Text style={styles.imageActionText}>📷 Changer</Text>
+												<Ionicons
+													name="camera-outline"
+													size={16}
+													color="#FFFFFF"
+												/>
+												<Text style={styles.imageActionText}>Changer</Text>
 											</TouchableOpacity>
 											<TouchableOpacity
 												style={[
@@ -556,80 +611,90 @@ export default function MenuManagement() {
 												]}
 												onPress={handleRemoveImage}
 											>
-												<Text style={styles.removeImageText}>🗑️ Supprimer</Text>
+												<Ionicons
+													name="trash-outline"
+													size={16}
+													color="#FFFFFF"
+												/>
+												<Text style={styles.imageActionText}>Supprimer</Text>
 											</TouchableOpacity>
 										</View>
 									</View>
 								) : (
 									<TouchableOpacity
-										style={[
-											styles.addImageButton,
-											{ borderColor: theme.separatorColor },
-										]}
+										style={styles.addImageButton}
 										onPress={handlePickImage}
 									>
-										<Text style={styles.addImageIcon}>📷</Text>
-										<Text
-											style={[styles.addImageText, { color: theme.textColor }]}
-										>
-											Ajouter une photo
-										</Text>
+										<Ionicons
+											name="camera-outline"
+											size={32}
+											color={THEME.colors.text.muted}
+										/>
+										<Text style={styles.addImageText}>Ajouter une photo</Text>
 									</TouchableOpacity>
 								)}
 							</View>
 
-							<TextInput
-								style={[
-									styles.input,
-									{ color: theme.textColor, borderColor: theme.separatorColor },
-								]}
-								placeholder="Nom du produit *"
-								placeholderTextColor={theme.textColor + "80"}
-								value={formData.name}
-								onChangeText={(text) =>
-									setFormData({ ...formData, name: text })
-								}
-							/>
+							<View style={styles.formSection}>
+								<Text style={styles.formLabel}>Nom du produit *</Text>
+								<View style={styles.inputWrapper}>
+									<TextInput
+										style={styles.input}
+										placeholder="Entrez le nom"
+										placeholderTextColor={THEME.colors.text.muted}
+										value={formData.name}
+										onChangeText={(text) =>
+											setFormData({ ...formData, name: text })
+										}
+									/>
+								</View>
+							</View>
 
-							<TextInput
-								style={[
-									styles.input,
-									{ color: theme.textColor, borderColor: theme.separatorColor },
-								]}
-								placeholder="Prix *"
-								placeholderTextColor={theme.textColor + "80"}
-								value={formData.price}
-								onChangeText={(text) =>
-									setFormData({ ...formData, price: text })
-								}
-								keyboardType="decimal-pad"
-							/>
+							<View style={styles.formSection}>
+								<Text style={styles.formLabel}>Prix *</Text>
+								<View style={styles.inputWrapper}>
+									<TextInput
+										style={styles.input}
+										placeholder="0.00"
+										placeholderTextColor={THEME.colors.text.muted}
+										value={formData.price}
+										onChangeText={(text) =>
+											setFormData({ ...formData, price: text })
+										}
+										keyboardType="decimal-pad"
+									/>
+									<Text style={styles.inputSuffix}>€</Text>
+								</View>
+							</View>
 
 							{/* Sélection catégorie */}
-							<Text style={[styles.label, { color: theme.textColor }]}>
-								Catégorie:
-							</Text>
-							<View style={styles.categoryContainer}>
-								{categories.map((cat) => (
-									<TouchableOpacity
-										key={cat}
-										style={[
-											styles.categoryButton,
-											formData.category === cat && styles.categoryButtonActive,
-										]}
-										onPress={() => setFormData({ ...formData, category: cat })}
-									>
-										<Text
+							<View style={styles.formSection}>
+								<Text style={styles.formLabel}>Catégorie</Text>
+								<View style={styles.categoryContainer}>
+									{categories.map((cat) => (
+										<TouchableOpacity
+											key={cat}
 											style={[
-												styles.categoryButtonText,
+												styles.categoryButton,
 												formData.category === cat &&
-													styles.categoryButtonTextActive,
+													styles.categoryButtonActive,
 											]}
+											onPress={() =>
+												setFormData({ ...formData, category: cat })
+											}
 										>
-											{cat}
-										</Text>
-									</TouchableOpacity>
-								))}
+											<Text
+												style={[
+													styles.categoryButtonText,
+													formData.category === cat &&
+														styles.categoryButtonTextActive,
+												]}
+											>
+												{cat}
+											</Text>
+										</TouchableOpacity>
+									))}
+								</View>
 							</View>
 
 							{/* Flip Card: Description ↔ Allergènes */}
@@ -640,16 +705,27 @@ export default function MenuManagement() {
 									onPress={showAllergens ? flipToDescription : flipToAllergens}
 									activeOpacity={0.7}
 								>
-									<Text style={styles.flipIndicatorText}>
-										{showAllergens ? "📝 Description" : "⚠️ Allergènes"}
-										{!showAllergens && productAllergensDisplay.length > 0 && (
-											<Text style={styles.allergenCountBadge}>
-												{" "}
-												({productAllergensDisplay.length})
-											</Text>
-										)}
-									</Text>
-									<Text style={styles.flipHint}>Appuyer pour basculer ↻</Text>
+									<View style={styles.flipIndicatorRow}>
+										<Ionicons
+											name={
+												showAllergens
+													? "document-text-outline"
+													: "warning-outline"
+											}
+											size={18}
+											color={THEME.colors.primary}
+										/>
+										<Text style={styles.flipIndicatorText}>
+											{showAllergens ? "Description" : "Allergènes"}
+											{!showAllergens && productAllergensDisplay.length > 0 && (
+												<Text style={styles.allergenCountBadge}>
+													{" "}
+													({productAllergensDisplay.length})
+												</Text>
+											)}
+										</Text>
+									</View>
+									<Text style={styles.flipHint}>Appuyer pour basculer</Text>
 								</TouchableOpacity>
 
 								{/* Carte flip */}
@@ -659,18 +735,14 @@ export default function MenuManagement() {
 										style={[
 											styles.flipCardFace,
 											styles.flipCardFront,
-											{
-												borderColor: theme.separatorColor,
-												backgroundColor: isDarkMode ? "#1a1a1a" : "#fff",
-											},
 											frontAnimatedStyle,
 										]}
 										pointerEvents={showAllergens ? "none" : "auto"}
 									>
 										<TextInput
-											style={[styles.flipCardInput, { color: theme.textColor }]}
+											style={styles.flipCardInput}
 											placeholder="Description du produit..."
-											placeholderTextColor={theme.textColor + "60"}
+											placeholderTextColor={THEME.colors.text.muted}
 											value={formData.description}
 											onChangeText={(text) =>
 												setFormData({ ...formData, description: text })
@@ -686,10 +758,6 @@ export default function MenuManagement() {
 										style={[
 											styles.flipCardFace,
 											styles.flipCardBack,
-											{
-												borderColor: "#ff9800",
-												backgroundColor: isDarkMode ? "#3d2e1f" : "#fff8e1",
-											},
 											backAnimatedStyle,
 										]}
 										pointerEvents={showAllergens ? "auto" : "none"}
@@ -710,21 +778,11 @@ export default function MenuManagement() {
 																{allergen.icon || "⚠️"}
 															</Text>
 															<View style={styles.allergenItemContent}>
-																<Text
-																	style={[
-																		styles.allergenItemName,
-																		{ color: theme.textColor },
-																	]}
-																>
+																<Text style={styles.allergenItemName}>
 																	{allergen.name}
 																</Text>
 																{allergen.description && (
-																	<Text
-																		style={[
-																			styles.allergenItemDesc,
-																			{ color: theme.textColor + "99" },
-																		]}
-																	>
+																	<Text style={styles.allergenItemDesc}>
 																		{allergen.description}
 																	</Text>
 																)}
@@ -734,13 +792,12 @@ export default function MenuManagement() {
 												</View>
 											) : (
 												<View style={styles.noAllergenContainer}>
-													<Text style={styles.noAllergenEmoji}>✅</Text>
-													<Text
-														style={[
-															styles.noAllergenText,
-															{ color: theme.textColor },
-														]}
-													>
+													<Ionicons
+														name="checkmark-circle"
+														size={32}
+														color={THEME.colors.status.success}
+													/>
+													<Text style={styles.noAllergenText}>
 														Aucun allergène déclaré
 													</Text>
 												</View>
@@ -752,31 +809,41 @@ export default function MenuManagement() {
 
 							{/* Toggle disponibilité */}
 							<View style={styles.switchRow}>
-								<Text style={[styles.label, { color: theme.textColor }]}>
-									Disponible:
-								</Text>
+								<Text style={styles.formLabel}>Disponible</Text>
 								<Switch
 									value={formData.available}
 									onValueChange={(value) =>
 										setFormData({ ...formData, available: value })
 									}
-									trackColor={{ false: "#767577", true: "#81c784" }}
-									thumbColor={formData.available ? "#4caf50" : "#f44336"}
+									trackColor={{
+										false: THEME.colors.text.muted,
+										true: "rgba(16, 185, 129, 0.4)",
+									}}
+									thumbColor={
+										formData.available
+											? THEME.colors.status.success
+											: THEME.colors.status.error
+									}
 								/>
 							</View>
 
 							<View style={styles.modalButtons}>
 								<TouchableOpacity
-									style={[styles.modalButton, styles.cancelButton]}
+									style={styles.cancelButton}
 									onPress={() => setModalVisible(false)}
 								>
 									<Text style={styles.cancelButtonText}>Annuler</Text>
 								</TouchableOpacity>
-								<TouchableOpacity
-									style={[styles.modalButton, styles.saveButton]}
-									onPress={handleSave}
-								>
-									<Text style={styles.saveButtonText}>Enregistrer</Text>
+								<TouchableOpacity onPress={handleSave}>
+									<LinearGradient
+										colors={["#F59E0B", "#D97706"]}
+										start={{ x: 0, y: 0 }}
+										end={{ x: 1, y: 0 }}
+										style={styles.saveButton}
+									>
+										<Ionicons name="checkmark" size={20} color="#FFFFFF" />
+										<Text style={styles.saveButtonText}>Enregistrer</Text>
+									</LinearGradient>
 								</TouchableOpacity>
 							</View>
 						</ScrollView>
@@ -793,15 +860,29 @@ export default function MenuManagement() {
 				onRequestClose={() => setOptionsModalVisible(false)}
 			>
 				<View style={styles.modalOverlay}>
-					<View
-						style={[
-							styles.optionsModalContent,
-							{ backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF" },
-						]}
-					>
-						<Text style={[styles.modalTitle, { color: theme.textColor }]}>
-							🛠️ Options pour {currentProductForOptions?.name}
-						</Text>
+					<View style={styles.optionsModalContent}>
+						<View style={styles.modalHeader}>
+							<View style={styles.modalTitleRow}>
+								<Ionicons
+									name="settings-outline"
+									size={24}
+									color={THEME.colors.primary}
+								/>
+								<Text style={styles.modalTitle}>
+									Options pour {currentProductForOptions?.name}
+								</Text>
+							</View>
+							<TouchableOpacity
+								style={styles.modalCloseButton}
+								onPress={() => setOptionsModalVisible(false)}
+							>
+								<Ionicons
+									name="close"
+									size={24}
+									color={THEME.colors.text.secondary}
+								/>
+							</TouchableOpacity>
+						</View>
 
 						<ScrollView
 							showsVerticalScrollIndicator={false}
@@ -810,32 +891,25 @@ export default function MenuManagement() {
 						>
 							{/* Liste des options existantes */}
 							{loadingOptions ? (
-								<ActivityIndicator size="small" color="#007AFF" />
+								<ActivityIndicator size="small" color={THEME.colors.primary} />
 							) : productOptions.length === 0 ? (
-								<Text
-									style={[
-										styles.emptyOptionsText,
-										{ color: theme.textColor, opacity: 0.6 },
-									]}
-								>
-									Aucune option pour ce plat
-								</Text>
+								<View style={styles.emptyOptionsContainer}>
+									<Ionicons
+										name="list-outline"
+										size={32}
+										color={THEME.colors.text.muted}
+									/>
+									<Text style={styles.emptyOptionsText}>
+										Aucune option pour ce plat
+									</Text>
+								</View>
 							) : (
 								productOptions.map((option) => (
 									<View key={option._id} style={styles.optionItem}>
 										<View style={styles.optionInfo}>
-											<Text
-												style={[styles.optionName, { color: theme.textColor }]}
-											>
-												{option.name}
-											</Text>
+											<Text style={styles.optionName}>{option.name}</Text>
 											{option.price > 0 && (
-												<Text
-													style={[
-														styles.optionPrice,
-														{ color: theme.textColor, opacity: 0.6 },
-													]}
-												>
+												<Text style={styles.optionPrice}>
 													+{option.price.toFixed(2)}€
 												</Text>
 											)}
@@ -844,7 +918,11 @@ export default function MenuManagement() {
 											onPress={() => handleDeleteOption(option._id)}
 											style={styles.deleteOptionButton}
 										>
-											<Text style={styles.deleteOptionText}>🗑️</Text>
+											<Ionicons
+												name="trash-outline"
+												size={18}
+												color={THEME.colors.status.error}
+											/>
 										</TouchableOpacity>
 									</View>
 								))
@@ -852,48 +930,39 @@ export default function MenuManagement() {
 
 							{/* Formulaire ajout option */}
 							<View style={styles.addOptionForm}>
-								<Text
-									style={[
-										styles.label,
-										{ color: theme.textColor, marginTop: 15 },
-									]}
-								>
-									Ajouter une option:
-								</Text>
-								<TextInput
-									style={[
-										styles.input,
-										{
-											color: theme.textColor,
-											borderColor: theme.separatorColor,
-										},
-									]}
-									placeholder="Nom de l'option (ex: coulis de fraise)"
-									placeholderTextColor={theme.textColor + "80"}
-									value={newOptionName}
-									onChangeText={setNewOptionName}
-								/>
-								<TextInput
-									style={[
-										styles.input,
-										{
-											color: theme.textColor,
-											borderColor: theme.separatorColor,
-										},
-									]}
-									placeholder="Prix supplémentaire (optionnel)"
-									placeholderTextColor={theme.textColor + "80"}
-									value={newOptionPrice}
-									onChangeText={setNewOptionPrice}
-									keyboardType="decimal-pad"
-								/>
-								<TouchableOpacity
-									style={styles.addOptionButton}
-									onPress={handleAddOption}
-								>
-									<Text style={styles.addOptionButtonText}>
-										➕ Ajouter l`option
-									</Text>
+								<Text style={styles.formLabel}>Ajouter une option</Text>
+								<View style={styles.inputWrapper}>
+									<TextInput
+										style={styles.input}
+										placeholder="Nom de l'option (ex: coulis de fraise)"
+										placeholderTextColor={THEME.colors.text.muted}
+										value={newOptionName}
+										onChangeText={setNewOptionName}
+									/>
+								</View>
+								<View style={styles.inputWrapper}>
+									<TextInput
+										style={styles.input}
+										placeholder="Prix supplémentaire (optionnel)"
+										placeholderTextColor={THEME.colors.text.muted}
+										value={newOptionPrice}
+										onChangeText={setNewOptionPrice}
+										keyboardType="decimal-pad"
+									/>
+									<Text style={styles.inputSuffix}>€</Text>
+								</View>
+								<TouchableOpacity onPress={handleAddOption}>
+									<LinearGradient
+										colors={["#F59E0B", "#D97706"]}
+										start={{ x: 0, y: 0 }}
+										end={{ x: 1, y: 0 }}
+										style={styles.addOptionButton}
+									>
+										<Ionicons name="add" size={20} color="#FFFFFF" />
+										<Text style={styles.addOptionButtonText}>
+											Ajouter l'option
+										</Text>
+									</LinearGradient>
 								</TouchableOpacity>
 							</View>
 						</ScrollView>
@@ -923,516 +992,559 @@ export default function MenuManagement() {
 	);
 }
 
-const styles = StyleSheet.create({
-	// --- GLASSMORPHISM PRODUCT CARD ---
-	glassProductCard: {
-		marginVertical: 8,
-		borderRadius: 22,
-		borderWidth: 2,
-		borderColor: "#00eaff",
-		backgroundColor: "rgba(255,255,255,0.22)",
-		shadowColor: "#00eaff",
-		shadowOffset: { width: 0, height: 8 },
-		shadowOpacity: 0.18,
-		shadowRadius: 24,
-		elevation: 8,
-		padding: 18,
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "space-between",
-		minHeight: 90,
-		// backdropFilter: "blur(8px)", // web only
-		borderBottomWidth: 4,
-		borderBottomColor: "#a259ff",
-		position: "relative",
-		overflow: "hidden",
-	},
-	// --- GLASSMORPHISM BAR ---
-	glassBarContainer: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		marginBottom: 18,
-		paddingHorizontal: 6,
-		paddingVertical: 8,
-		backgroundColor: "rgba(255,255,255,0.18)",
-		borderRadius: 22,
-		borderWidth: 1.5,
-		borderColor: "rgba(255,255,255,0.25)",
-		shadowColor: "#00eaff",
-		shadowOffset: { width: 0, height: 8 },
-		shadowOpacity: 0.18,
-		shadowRadius: 24,
-		// backdropFilter: "blur(12px)", // web only, mais pour cohérence design
-		elevation: 8,
-	},
-	glassButton: {
-		flexDirection: "column",
-		alignItems: "center",
-		justifyContent: "center",
-		marginHorizontal: 6,
-		paddingVertical: 12,
-		paddingHorizontal: 18,
-		borderRadius: 16,
-		borderWidth: 2.5,
-		backgroundColor: "rgba(255,255,255,0.22)",
-		shadowColor: "#00eaff",
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.18,
-		shadowRadius: 12,
-		elevation: 6,
-		minWidth: 70,
-		minHeight: 70,
-		marginBottom: 2,
-	},
-	glassButtonActive: {
-		backgroundColor: "rgba(0,234,255,0.18)",
-		borderColor: "#00eaff",
-		shadowColor: "#00eaff",
-		shadowOpacity: 0.35,
-		shadowRadius: 18,
-		elevation: 10,
-	},
-	glassIcon: {
-		fontSize: 28,
-		marginBottom: 2,
-		textShadowColor: "#00eaff",
-		textShadowOffset: { width: 0, height: 0 },
-		textShadowRadius: 8,
-	},
-	glassLabel: {
-		fontSize: 14,
-		fontWeight: "600",
-		color: "#222",
-		letterSpacing: 0.5,
-		textShadowColor: "#fff",
-		textShadowOffset: { width: 0, height: 0 },
-		textShadowRadius: 2,
-	},
-	container: {
-		flex: 1,
-	},
-	loadingContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	header: {
-		marginBottom: 15,
-	},
-	title: {
-		fontSize: 20,
-		fontWeight: "bold",
-	},
-	subtitle: {
-		fontSize: 14,
-		marginTop: 4,
-	},
-	searchInput: {
-		borderWidth: 1,
-		borderRadius: 10,
-		padding: 12,
-		marginBottom: 15,
-		fontSize: 16,
-	},
-	listContainer: {
-		paddingBottom: 20,
-	},
-	productCard: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		padding: 15,
-		borderRadius: 10,
-		marginBottom: 10,
-		elevation: 2,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 1 },
-		shadowOpacity: 0.1,
-		shadowRadius: 2,
-	},
-	productUnavailable: {
-		opacity: 0.6,
-	},
-	productInfo: {
-		flex: 1,
-		marginRight: 10,
-	},
-	productHeader: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-	},
-	productName: {
-		fontSize: 16,
-		fontWeight: "600",
-		flex: 1,
-	},
-	productPrice: {
-		fontSize: 16,
-		fontWeight: "bold",
-	},
-	productCategory: {
-		fontSize: 12,
-		marginTop: 4,
-		textTransform: "capitalize",
-	},
-	productDescription: {
-		fontSize: 12,
-		marginTop: 2,
-	},
-	productActions: {
-		alignItems: "center",
-	},
-	availabilityText: {
-		fontSize: 10,
-		marginTop: 2,
-	},
-	emptyContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	emptyText: {
-		fontSize: 16,
-	},
-	// Modal
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: "rgba(0, 0, 0, 0)",
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	modalContent: {
-		width: "90%",
-		maxWidth: 400,
-		padding: 20,
-		borderRadius: 15,
-		maxHeight: "80%",
-	},
-	modalTitle: {
-		fontSize: 20,
-		fontWeight: "bold",
-		marginVertical: 30,
-		textAlign: "center",
-	},
-	input: {
-		borderWidth: 1,
-		borderRadius: 8,
-		padding: 12,
-		marginBottom: 15,
-		fontSize: 16,
-	},
-	textArea: {
-		height: 80,
-		textAlignVertical: "top",
-	},
-	label: {
-		fontSize: 14,
-		fontWeight: "500",
-		marginBottom: 8,
-	},
-	categoryContainer: {
-		flexDirection: "row",
-		flexWrap: "wrap",
-		gap: 8,
-		marginBottom: 15,
-	},
-	categoryButton: {
-		paddingHorizontal: 12,
-		paddingVertical: 6,
-		borderRadius: 15,
-		backgroundColor: "#E0E0E0",
-	},
-	categoryButtonActive: {
-		backgroundColor: "#4CAF50",
-	},
-	categoryButtonText: {
-		fontSize: 12,
-		color: "#666",
-		textTransform: "capitalize",
-	},
-	categoryButtonTextActive: {
-		color: "#fff",
-	},
-	switchRow: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		marginBottom: 20,
-	},
-	modalButtons: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		marginTop: 10,
-	},
-	modalButton: {
-		flex: 1,
-		padding: 12,
-		borderRadius: 8,
-		alignItems: "center",
-	},
-	cancelButton: {
-		backgroundColor: "#9E9E9E",
-		marginRight: 10,
-	},
-	saveButton: {
-		backgroundColor: "#4CAF50",
-		marginLeft: 10,
-	},
-	cancelButtonText: {
-		color: "#fff",
-		fontWeight: "600",
-	},
-	saveButtonText: {
-		color: "#fff",
-		fontWeight: "600",
-	},
-	// Styles Image
-	imageSection: {
-		marginBottom: 15,
-	},
-	imagePreviewContainer: {
-		alignItems: "center",
-	},
-	imagePreview: {
-		width: "100%",
-		height: 150,
-		borderRadius: 10,
-		marginBottom: 10,
-	},
-	imageActions: {
-		flexDirection: "row",
-		gap: 10,
-	},
-	imageActionButton: {
-		paddingHorizontal: 15,
-		paddingVertical: 8,
-		borderRadius: 8,
-		backgroundColor: "#007AFF",
-	},
-	imageActionText: {
-		color: "#fff",
-		fontSize: 14,
-		fontWeight: "500",
-	},
-	removeImageButton: {
-		backgroundColor: "#FF3B30",
-	},
-	removeImageText: {
-		color: "#fff",
-		fontSize: 14,
-		fontWeight: "500",
-	},
-	addImageButton: {
-		borderWidth: 2,
-		borderStyle: "dashed",
-		borderRadius: 10,
-		paddingVertical: 25,
-		alignItems: "center",
-		justifyContent: "center",
-	},
-	addImageIcon: {
-		fontSize: 32,
-		marginBottom: 8,
-	},
-	addImageText: {
-		fontSize: 14,
-		fontWeight: "500",
-	},
-	// ⭐ Styles pour les options
-	optionsButton: {
-		backgroundColor: "#007AFF",
-		paddingHorizontal: 12,
-		paddingVertical: 6,
-		borderRadius: 8,
-		marginBottom: 8,
-	},
-	optionsButtonText: {
-		color: "#fff",
-		fontSize: 12,
-		fontWeight: "600",
-	},
-	emptyOptionsText: {
-		textAlign: "center",
-		paddingVertical: 20,
-		fontSize: 14,
-	},
-	optionItem: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		paddingVertical: 12,
-		paddingHorizontal: 10,
-		borderBottomWidth: 1,
-		borderBottomColor: "#E0E0E0",
-	},
-	optionInfo: {
-		flex: 1,
-	},
-	optionName: {
-		fontSize: 16,
-		fontWeight: "500",
-	},
-	optionPrice: {
-		fontSize: 14,
-		marginTop: 2,
-	},
-	deleteOptionButton: {
-		padding: 8,
-	},
-	deleteOptionText: {
-		fontSize: 20,
-	},
-	addOptionForm: {
-		marginTop: 10,
-	},
-	addOptionButton: {
-		backgroundColor: "#4CAF50",
-		paddingVertical: 12,
-		borderRadius: 8,
-		alignItems: "center",
-		marginTop: 10,
-	},
-	addOptionButtonText: {
-		color: "#fff",
-		fontWeight: "600",
-		fontSize: 16,
-	},
-	// ⭐ Styles spécifiques modale options
-	optionsModalContent: {
-		width: "100%",
-		maxWidth: 500,
-		maxHeight: "100%",
-		borderRadius: 15,
-		overflow: "hidden",
-		borderWidth: 1,
-		borderColor: "#000000ff",
-	},
-	optionsScrollView: {
-		paddingHorizontal: 20,
-		marginTop: 10,
-	},
-	optionsModalFooter: {
-		paddingHorizontal: 20,
-		paddingVertical: 15,
-		borderTopWidth: 1,
-		borderTopColor: "#E0E0E0",
-		backgroundColor: "inherit",
-	},
-	closeOptionsButton: {
-		backgroundColor: "#007AFF",
-		paddingVertical: 14,
-		borderRadius: 10,
-		alignItems: "center",
-	},
-	closeOptionsButtonText: {
-		color: "#fff",
-		fontWeight: "700",
-		fontSize: 16,
-	},
-	// Styles Flip Card Description/Allergènes
-	flipCardContainer: {
-		marginTop: 15,
-		marginBottom: 10,
-	},
-	flipIndicator: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		paddingVertical: 10,
-		paddingHorizontal: 14,
-		backgroundColor: "rgba(255, 152, 0, 0.08)",
-		borderRadius: 10,
-		marginBottom: 10,
-		borderWidth: 1,
-		borderColor: "rgba(255, 152, 0, 0.2)",
-	},
-	flipIndicatorText: {
-		fontSize: 15,
-		fontWeight: "600",
-		color: "#ff9800",
-	},
-	allergenCountBadge: {
-		fontSize: 13,
-		fontWeight: "700",
-		color: "#f57c00",
-	},
-	flipHint: {
-		fontSize: 12,
-		color: "#9e9e9e",
-		fontStyle: "italic",
-	},
-	flipCard: {
-		height: 140,
-		position: "relative",
-		perspective: 1000,
-	},
-	flipCardFace: {
-		position: "absolute",
-		width: "100%",
-		height: "100%",
-		borderRadius: 12,
-		borderWidth: 1.5,
-		overflow: "hidden",
-	},
-	flipCardFront: {
-		backgroundColor: "#fff",
-		zIndex: 2,
-	},
-	flipCardBack: {
-		zIndex: 1,
-	},
-	flipCardInput: {
-		flex: 1,
-		padding: 14,
-		fontSize: 15,
-		lineHeight: 22,
-	},
-	allergenScrollView: {
-		flex: 1,
-		padding: 10,
-	},
-	allergenList: {
-		gap: 8,
-	},
-	allergenItem: {
-		flexDirection: "row",
-		alignItems: "flex-start",
-		padding: 10,
-		backgroundColor: "rgba(255, 152, 0, 0.08)",
-		borderRadius: 8,
-		borderLeftWidth: 3,
-		borderLeftColor: "#ff9800",
-	},
-	allergenItemIcon: {
-		fontSize: 20,
-		marginRight: 10,
-	},
-	allergenItemContent: {
-		flex: 1,
-	},
-	allergenItemName: {
-		fontSize: 14,
-		fontWeight: "600",
-		marginBottom: 2,
-	},
-	allergenItemDesc: {
-		fontSize: 12,
-	},
-	noAllergenContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-		paddingVertical: 30,
-	},
-	noAllergenEmoji: {
-		fontSize: 32,
-		marginBottom: 8,
-	},
-	noAllergenText: {
-		fontSize: 14,
-		fontStyle: "italic",
-		opacity: 0.7,
-	},
-});
+const createStyles = (THEME) =>
+	StyleSheet.create({
+		container: {
+			flex: 1,
+		},
+		loadingContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			backgroundColor: THEME.colors.background,
+		},
+		loadingText: {
+			color: THEME.colors.text.secondary,
+			marginTop: THEME.spacing.md,
+			fontSize: 14,
+		},
+		// Header
+		header: {
+			marginBottom: THEME.spacing.lg,
+		},
+		headerRow: {
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		headerIconContainer: {
+			width: 44,
+			height: 44,
+			borderRadius: THEME.radius.md,
+			backgroundColor: "rgba(245, 158, 11, 0.15)",
+			justifyContent: "center",
+			alignItems: "center",
+			marginRight: THEME.spacing.md,
+		},
+		headerTextContainer: {
+			flex: 1,
+		},
+		title: {
+			fontSize: 20,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		subtitle: {
+			fontSize: 14,
+			color: THEME.colors.text.secondary,
+			marginTop: 2,
+		},
+		// Search
+		searchContainer: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: THEME.colors.card,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+			paddingHorizontal: THEME.spacing.md,
+			marginBottom: THEME.spacing.lg,
+		},
+		searchIcon: {
+			marginRight: THEME.spacing.sm,
+		},
+		searchInput: {
+			flex: 1,
+			paddingVertical: THEME.spacing.md,
+			fontSize: 16,
+			color: THEME.colors.text.primary,
+		},
+		clearSearch: {
+			padding: THEME.spacing.xs,
+		},
+		// Product List
+		listContainer: {
+			paddingBottom: THEME.spacing.xl,
+		},
+		productCard: {
+			backgroundColor: THEME.colors.card,
+			borderRadius: THEME.radius.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+			padding: THEME.spacing.md,
+			marginBottom: THEME.spacing.md,
+		},
+		productUnavailable: {
+			opacity: 0.5,
+		},
+		productInfo: {
+			marginBottom: THEME.spacing.md,
+		},
+		productHeader: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+		},
+		productName: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			flex: 1,
+		},
+		productPrice: {
+			fontSize: 16,
+			fontWeight: "700",
+			color: THEME.colors.status.success,
+		},
+		productCategory: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			marginTop: 4,
+			textTransform: "capitalize",
+		},
+		productDescription: {
+			fontSize: 12,
+			color: THEME.colors.text.muted,
+			marginTop: 4,
+		},
+		productActions: {
+			borderTopWidth: 1,
+			borderTopColor: THEME.colors.border,
+			paddingTop: THEME.spacing.md,
+		},
+		productButtonsRow: {
+			flexDirection: "row",
+			gap: THEME.spacing.sm,
+			marginBottom: THEME.spacing.md,
+		},
+		optionsButton: {
+			flex: 1,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: 6,
+			backgroundColor: "rgba(59, 130, 246, 0.15)",
+			paddingVertical: 8,
+			paddingHorizontal: 12,
+			borderRadius: THEME.radius.sm,
+			borderWidth: 1,
+			borderColor: "rgba(59, 130, 246, 0.3)",
+		},
+		allergensButton: {
+			backgroundColor: "rgba(245, 158, 11, 0.15)",
+			borderColor: "rgba(245, 158, 11, 0.3)",
+		},
+		optionsButtonText: {
+			color: "#FFFFFF",
+			fontSize: 12,
+			fontWeight: "600",
+		},
+		availabilityRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		availabilityText: {
+			fontSize: 12,
+			fontWeight: "600",
+		},
+		// Empty State
+		emptyContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			paddingVertical: 60,
+		},
+		emptyText: {
+			fontSize: 16,
+			color: THEME.colors.text.secondary,
+			marginTop: THEME.spacing.md,
+		},
+		// Modal
+		modalOverlay: {
+			flex: 1,
+			backgroundColor: "rgba(0, 0, 0, 0.7)",
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		modalContent: {
+			width: "90%",
+			maxWidth: 400,
+			maxHeight: "85%",
+			backgroundColor: THEME.colors.card,
+			borderRadius: THEME.radius.xl,
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+			overflow: "hidden",
+		},
+		modalHeader: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.md,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border,
+		},
+		modalTitleRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		modalTitle: {
+			fontSize: 18,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		modalCloseButton: {
+			padding: THEME.spacing.xs,
+		},
+		// Form Elements
+		formSection: {
+			paddingHorizontal: THEME.spacing.lg,
+			paddingTop: THEME.spacing.md,
+		},
+		formLabel: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.text.secondary,
+			marginBottom: THEME.spacing.sm,
+		},
+		inputWrapper: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: THEME.colors.inputBg,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+			marginBottom: THEME.spacing.md,
+		},
+		input: {
+			flex: 1,
+			padding: THEME.spacing.md,
+			fontSize: 16,
+			color: THEME.colors.text.primary,
+		},
+		inputSuffix: {
+			paddingRight: THEME.spacing.md,
+			fontSize: 16,
+			color: THEME.colors.text.secondary,
+			fontWeight: "600",
+		},
+		// Image Section
+		imagePreviewContainer: {
+			alignItems: "center",
+		},
+		imagePreview: {
+			width: "100%",
+			height: 150,
+			borderRadius: THEME.radius.md,
+			marginBottom: THEME.spacing.md,
+		},
+		imageActions: {
+			flexDirection: "row",
+			gap: THEME.spacing.sm,
+		},
+		imageActionButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.sm,
+			borderRadius: THEME.radius.sm,
+			backgroundColor: "rgba(59, 130, 246, 0.8)",
+		},
+		imageActionText: {
+			color: "#FFFFFF",
+			fontSize: 14,
+			fontWeight: "500",
+		},
+		removeImageButton: {
+			backgroundColor: "rgba(239, 68, 68, 0.8)",
+		},
+		addImageButton: {
+			borderWidth: 2,
+			borderStyle: "dashed",
+			borderColor: THEME.colors.border,
+			borderRadius: THEME.radius.md,
+			paddingVertical: 30,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		addImageText: {
+			fontSize: 14,
+			fontWeight: "500",
+			color: THEME.colors.text.muted,
+			marginTop: THEME.spacing.sm,
+		},
+		// Categories
+		categoryContainer: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			gap: THEME.spacing.sm,
+			marginBottom: THEME.spacing.md,
+		},
+		categoryButton: {
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.sm,
+			borderRadius: THEME.radius.pill,
+			backgroundColor: THEME.colors.inputBg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+		},
+		categoryButtonActive: {
+			backgroundColor: THEME.colors.primary,
+			borderColor: THEME.colors.primary,
+		},
+		categoryButtonText: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			textTransform: "capitalize",
+		},
+		categoryButtonTextActive: {
+			color: "#FFFFFF",
+			fontWeight: "600",
+		},
+		// Switch Row
+		switchRow: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.md,
+			borderTopWidth: 1,
+			borderTopColor: THEME.colors.border,
+		},
+		// Modal Buttons
+		modalButtons: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.lg,
+			gap: THEME.spacing.md,
+		},
+		cancelButton: {
+			flex: 1,
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			backgroundColor: THEME.colors.inputBg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+			alignItems: "center",
+		},
+		cancelButtonText: {
+			color: THEME.colors.text.secondary,
+			fontWeight: "600",
+			fontSize: 16,
+		},
+		saveButton: {
+			flex: 1,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: THEME.spacing.sm,
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+		},
+		saveButtonText: {
+			color: "#FFFFFF",
+			fontWeight: "700",
+			fontSize: 16,
+		},
+		// Flip Card
+		flipCardContainer: {
+			paddingHorizontal: THEME.spacing.lg,
+			marginTop: THEME.spacing.md,
+			marginBottom: THEME.spacing.md,
+		},
+		flipIndicator: {
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			backgroundColor: "rgba(245, 158, 11, 0.1)",
+			borderRadius: THEME.radius.md,
+			marginBottom: THEME.spacing.sm,
+			borderWidth: 1,
+			borderColor: "rgba(245, 158, 11, 0.2)",
+		},
+		flipIndicatorRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		flipIndicatorText: {
+			fontSize: 15,
+			fontWeight: "600",
+			color: THEME.colors.primary,
+		},
+		allergenCountBadge: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: THEME.colors.primary,
+		},
+		flipHint: {
+			fontSize: 11,
+			color: THEME.colors.text.muted,
+			marginTop: 2,
+		},
+		flipCard: {
+			height: 140,
+			position: "relative",
+		},
+		flipCardFace: {
+			position: "absolute",
+			width: "100%",
+			height: "100%",
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			overflow: "hidden",
+		},
+		flipCardFront: {
+			backgroundColor: THEME.colors.inputBg,
+			borderColor: THEME.colors.border,
+			zIndex: 2,
+		},
+		flipCardBack: {
+			backgroundColor: "rgba(245, 158, 11, 0.1)",
+			borderColor: "rgba(245, 158, 11, 0.3)",
+			zIndex: 1,
+		},
+		flipCardInput: {
+			flex: 1,
+			padding: THEME.spacing.md,
+			fontSize: 15,
+			lineHeight: 22,
+			color: THEME.colors.text.primary,
+		},
+		allergenScrollView: {
+			flex: 1,
+			padding: THEME.spacing.sm,
+		},
+		allergenList: {
+			gap: THEME.spacing.sm,
+		},
+		allergenItem: {
+			flexDirection: "row",
+			alignItems: "flex-start",
+			padding: THEME.spacing.sm,
+			backgroundColor: "rgba(245, 158, 11, 0.1)",
+			borderRadius: THEME.radius.sm,
+			borderLeftWidth: 3,
+			borderLeftColor: THEME.colors.primary,
+		},
+		allergenItemIcon: {
+			fontSize: 20,
+			marginRight: THEME.spacing.sm,
+		},
+		allergenItemContent: {
+			flex: 1,
+		},
+		allergenItemName: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginBottom: 2,
+		},
+		allergenItemDesc: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+		},
+		noAllergenContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			paddingVertical: 30,
+		},
+		noAllergenText: {
+			fontSize: 14,
+			color: THEME.colors.text.secondary,
+			marginTop: THEME.spacing.sm,
+		},
+		// Options Modal
+		optionsModalContent: {
+			width: "90%",
+			maxWidth: 450,
+			maxHeight: "80%",
+			backgroundColor: THEME.colors.card,
+			borderRadius: THEME.radius.xl,
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+			overflow: "hidden",
+		},
+		optionsScrollView: {
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.md,
+		},
+		emptyOptionsContainer: {
+			alignItems: "center",
+			paddingVertical: 30,
+		},
+		emptyOptionsText: {
+			textAlign: "center",
+			fontSize: 14,
+			color: THEME.colors.text.muted,
+			marginTop: THEME.spacing.sm,
+		},
+		optionItem: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.sm,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border,
+		},
+		optionInfo: {
+			flex: 1,
+		},
+		optionName: {
+			fontSize: 16,
+			fontWeight: "500",
+			color: THEME.colors.text.primary,
+		},
+		optionPrice: {
+			fontSize: 14,
+			color: THEME.colors.status.success,
+			marginTop: 2,
+		},
+		deleteOptionButton: {
+			padding: THEME.spacing.sm,
+		},
+		addOptionForm: {
+			marginTop: THEME.spacing.lg,
+			paddingTop: THEME.spacing.lg,
+			borderTopWidth: 1,
+			borderTopColor: THEME.colors.border,
+		},
+		addOptionButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: THEME.spacing.sm,
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			marginTop: THEME.spacing.sm,
+		},
+		addOptionButtonText: {
+			color: "#FFFFFF",
+			fontWeight: "700",
+			fontSize: 16,
+		},
+		optionsModalFooter: {
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.md,
+			borderTopWidth: 1,
+			borderTopColor: THEME.colors.border,
+		},
+		closeOptionsButton: {
+			backgroundColor: THEME.colors.inputBg,
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			alignItems: "center",
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+		},
+		closeOptionsButtonText: {
+			color: THEME.colors.text.secondary,
+			fontWeight: "600",
+			fontSize: 16,
+		},
+	});

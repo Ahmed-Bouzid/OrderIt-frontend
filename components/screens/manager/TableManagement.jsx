@@ -11,24 +11,42 @@ import {
 	StyleSheet,
 	Modal,
 } from "react-native";
+import { Ionicons } from "@expo/vector-icons";
+import { LinearGradient } from "expo-linear-gradient";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthFetch } from "../../../hooks/useAuthFetch";
 import useThemeStore from "../../../src/stores/useThemeStore";
+import { getTheme } from "../../../utils/themeUtils";
 
 // Statuts disponibles pour une table
-const TABLE_STATUSES = [
-	{ value: "available", label: "Disponible", emoji: "🟢", color: "#4CAF50" },
-	{ value: "occupied", label: "Occupée", emoji: "🟠", color: "#FF9800" },
+const getTableStatuses = (THEME) => [
+	{
+		value: "available",
+		label: "Disponible",
+		icon: "checkmark-circle",
+		color: THEME.colors.status.success,
+		bgColor: "rgba(16, 185, 129, 0.15)",
+	},
+	{
+		value: "occupied",
+		label: "Occupée",
+		icon: "people",
+		color: THEME.colors.status.warning,
+		bgColor: "rgba(245, 158, 11, 0.15)",
+	},
 	{
 		value: "unavailable",
 		label: "Indisponible",
-		emoji: "🔴",
-		color: "#F44336",
+		icon: "close-circle",
+		color: THEME.colors.status.error,
+		bgColor: "rgba(239, 68, 68, 0.15)",
 	},
 ];
 
 export default function TableManagement() {
-	const { theme, isDarkMode } = useThemeStore();
+	const { themeMode } = useThemeStore();
+	const THEME = React.useMemo(() => getTheme(themeMode), [themeMode]);
+	const TABLE_STATUSES = React.useMemo(() => getTableStatuses(THEME), [THEME]);
 	const authFetch = useAuthFetch();
 
 	const [tables, setTables] = useState([]);
@@ -217,54 +235,64 @@ export default function TableManagement() {
 		const statusInfo = getStatusInfo(item.status);
 
 		return (
-			<View
-				style={[styles.tableCard, { backgroundColor: theme.cardBackground }]}
-			>
+			<View style={styles.tableCard}>
 				<TouchableOpacity
 					style={styles.tableInfo}
 					onPress={() => handleToggleStatus(item)}
 					activeOpacity={0.7}
 				>
 					<View style={styles.tableHeader}>
-						<Text style={[styles.tableNumber, { color: theme.textColor }]}>
-							🪑 Table {item.number}
-						</Text>
+						<Ionicons
+							name="restaurant"
+							size={20}
+							color={THEME.colors.primary.amber}
+						/>
+						<Text style={styles.tableNumber}>Table {item.number}</Text>
 						<View
 							style={[
 								styles.statusBadge,
-								{ backgroundColor: statusInfo.color + "20" },
+								{ backgroundColor: statusInfo.bgColor },
 							]}
 						>
+							<Ionicons
+								name={statusInfo.icon}
+								size={14}
+								color={statusInfo.color}
+							/>
 							<Text
 								style={[styles.statusBadgeText, { color: statusInfo.color }]}
 							>
-								{statusInfo.emoji} {statusInfo.label}
+								{statusInfo.label}
 							</Text>
 						</View>
 					</View>
-					<Text
-						style={[
-							styles.tableCapacity,
-							{ color: theme.textColor, opacity: 0.7 },
-						]}
-					>
-						👥 {item.capacity} places
-					</Text>
-					{item.qrCodeUrl && (
-						<Text
-							style={[styles.tableQR, { color: theme.textColor, opacity: 0.5 }]}
-							numberOfLines={1}
-						>
-							📱 QR configuré
-						</Text>
-					)}
+					<View style={styles.tableDetails}>
+						<View style={styles.detailItem}>
+							<Ionicons
+								name="people-outline"
+								size={16}
+								color={THEME.colors.text.muted}
+							/>
+							<Text style={styles.tableCapacity}>{item.capacity} places</Text>
+						</View>
+						{item.qrCodeUrl && (
+							<View style={styles.detailItem}>
+								<Ionicons
+									name="qr-code-outline"
+									size={16}
+									color={THEME.colors.status.success}
+								/>
+								<Text style={styles.tableQR}>QR configuré</Text>
+							</View>
+						)}
+					</View>
 				</TouchableOpacity>
 				<View style={styles.tableActions}>
 					<TouchableOpacity
 						style={[styles.actionButton, styles.editButton]}
 						onPress={() => handleEdit(item)}
 					>
-						<Text style={styles.actionButtonText}>✏️</Text>
+						<Ionicons name="pencil" size={18} color="#FFFFFF" />
 					</TouchableOpacity>
 					<TouchableOpacity
 						style={[
@@ -275,7 +303,7 @@ export default function TableManagement() {
 						onPress={() => handleDelete(item)}
 						disabled={item.status === "occupied"}
 					>
-						<Text style={styles.actionButtonText}>🗑️</Text>
+						<Ionicons name="trash" size={18} color="#FFFFFF" />
 					</TouchableOpacity>
 				</View>
 			</View>
@@ -297,13 +325,13 @@ export default function TableManagement() {
 		};
 	};
 
+	const styles = React.useMemo(() => createStyles(THEME), [THEME]);
+
 	if (loading) {
 		return (
 			<View style={styles.loadingContainer}>
-				<ActivityIndicator size="large" color="#007AFF" />
-				<Text style={{ color: theme.textColor, marginTop: 10 }}>
-					Chargement des tables...
-				</Text>
+				<ActivityIndicator size="large" color={THEME.colors.primary.amber} />
+				<Text style={styles.loadingText}>Chargement des tables...</Text>
 			</View>
 		);
 	}
@@ -314,56 +342,81 @@ export default function TableManagement() {
 		<View style={styles.container}>
 			{/* Header */}
 			<View style={styles.header}>
-				<Text style={[styles.title, { color: theme.textColor }]}>
-					🪑 Gestion des Tables
-				</Text>
+				<View style={styles.headerLeft}>
+					<Ionicons name="grid" size={24} color={THEME.colors.primary.amber} />
+					<Text style={styles.title}>Gestion des Tables</Text>
+				</View>
 				<TouchableOpacity style={styles.addButton} onPress={handleCreate}>
-					<Text style={styles.addButtonText}>+ Ajouter</Text>
+					<LinearGradient
+						colors={[
+							THEME.colors.primary.amber,
+							THEME.colors.primary.amberDark,
+						]}
+						style={styles.addButtonGradient}
+					>
+						<Ionicons name="add" size={20} color="#FFFFFF" />
+						<Text style={styles.addButtonText}>Ajouter</Text>
+					</LinearGradient>
 				</TouchableOpacity>
 			</View>
 
 			{/* Stats rapides */}
 			{tables.length > 0 && (
-				<View
-					style={[
-						styles.statsContainer,
-						{ backgroundColor: theme.cardBackground },
-					]}
-				>
+				<View style={styles.statsContainer}>
 					<View style={styles.statItem}>
-						<Text style={[styles.statValue, { color: "#4CAF50" }]}>
+						<Ionicons
+							name="checkmark-circle"
+							size={20}
+							color={THEME.colors.status.success}
+						/>
+						<Text
+							style={[styles.statValue, { color: THEME.colors.status.success }]}
+						>
 							{stats.available}
 						</Text>
-						<Text style={[styles.statLabel, { color: theme.textColor }]}>
-							Libres
-						</Text>
+						<Text style={styles.statLabel}>Libres</Text>
 					</View>
 					<View style={styles.statDivider} />
 					<View style={styles.statItem}>
-						<Text style={[styles.statValue, { color: "#FF9800" }]}>
+						<Ionicons
+							name="people"
+							size={20}
+							color={THEME.colors.status.warning}
+						/>
+						<Text
+							style={[styles.statValue, { color: THEME.colors.status.warning }]}
+						>
 							{stats.occupied}
 						</Text>
-						<Text style={[styles.statLabel, { color: theme.textColor }]}>
-							Occupées
-						</Text>
+						<Text style={styles.statLabel}>Occupées</Text>
 					</View>
 					<View style={styles.statDivider} />
 					<View style={styles.statItem}>
-						<Text style={[styles.statValue, { color: "#F44336" }]}>
+						<Ionicons
+							name="close-circle"
+							size={20}
+							color={THEME.colors.status.error}
+						/>
+						<Text
+							style={[styles.statValue, { color: THEME.colors.status.error }]}
+						>
 							{stats.unavailable}
 						</Text>
-						<Text style={[styles.statLabel, { color: theme.textColor }]}>
-							Indispo.
-						</Text>
+						<Text style={styles.statLabel}>Indispo.</Text>
 					</View>
 					<View style={styles.statDivider} />
 					<View style={styles.statItem}>
-						<Text style={[styles.statValue, { color: theme.textColor }]}>
+						<Ionicons
+							name="people-outline"
+							size={20}
+							color={THEME.colors.text.secondary}
+						/>
+						<Text
+							style={[styles.statValue, { color: THEME.colors.text.primary }]}
+						>
 							{stats.totalCapacity}
 						</Text>
-						<Text style={[styles.statLabel, { color: theme.textColor }]}>
-							Places
-						</Text>
+						<Text style={styles.statLabel}>Places</Text>
 					</View>
 				</View>
 			)}
@@ -371,16 +424,14 @@ export default function TableManagement() {
 			{/* Liste des tables */}
 			{tables.length === 0 ? (
 				<View style={styles.emptyContainer}>
-					<Text style={[styles.emptyText, { color: theme.textColor }]}>
-						Aucune table enregistrée
-					</Text>
-					<Text
-						style={[
-							styles.emptySubtext,
-							{ color: theme.textColor, opacity: 0.6 },
-						]}
-					>
-						{`Cliquez sur "+ Ajouter" pour créer une table`}
+					<Ionicons
+						name="grid-outline"
+						size={64}
+						color={THEME.colors.text.muted}
+					/>
+					<Text style={styles.emptyText}>Aucune table enregistrée</Text>
+					<Text style={styles.emptySubtext}>
+						Cliquez sur "Ajouter" pour créer une table
 					</Text>
 				</View>
 			) : (
@@ -389,6 +440,7 @@ export default function TableManagement() {
 					keyExtractor={(item) => item._id}
 					renderItem={renderTable}
 					contentContainerStyle={styles.listContainer}
+					showsVerticalScrollIndicator={false}
 				/>
 			)}
 
@@ -400,105 +452,146 @@ export default function TableManagement() {
 				onRequestClose={() => setModalVisible(false)}
 			>
 				<View style={styles.modalOverlay}>
-					<View
-						style={[
-							styles.modalContent,
-							{ backgroundColor: isDarkMode ? "#1C1C1E" : "#FFFFFF" },
-						]}
-					>
-						<Text style={[styles.modalTitle, { color: theme.textColor }]}>
-							{editingTable ? "✏️ Modifier la table" : "➕ Nouvelle table"}
-						</Text>
-
-						<TextInput
-							style={[
-								styles.input,
-								{ color: theme.textColor, borderColor: theme.separatorColor },
-							]}
-							placeholder="Numéro de table *"
-							placeholderTextColor={theme.textColor + "80"}
-							value={formData.number}
-							onChangeText={(text) =>
-								setFormData({ ...formData, number: text })
-							}
-						/>
-
-						<TextInput
-							style={[
-								styles.input,
-								{ color: theme.textColor, borderColor: theme.separatorColor },
-							]}
-							placeholder="Capacité (nombre de places)"
-							placeholderTextColor={theme.textColor + "80"}
-							value={formData.capacity}
-							onChangeText={(text) =>
-								setFormData({
-									...formData,
-									capacity: text.replace(/[^0-9]/g, ""),
-								})
-							}
-							keyboardType="numeric"
-						/>
-
-						<TextInput
-							style={[
-								styles.input,
-								{ color: theme.textColor, borderColor: theme.separatorColor },
-							]}
-							placeholder="URL du QR Code (optionnel)"
-							placeholderTextColor={theme.textColor + "80"}
-							value={formData.qrCodeUrl}
-							onChangeText={(text) =>
-								setFormData({ ...formData, qrCodeUrl: text })
-							}
-							autoCapitalize="none"
-						/>
-
-						{/* Sélection du statut */}
-						<Text style={[styles.label, { color: theme.textColor }]}>
-							Statut:
-						</Text>
-						<View style={styles.statusContainer}>
-							{TABLE_STATUSES.map((status) => (
-								<TouchableOpacity
-									key={status.value}
-									style={[
-										styles.statusButton,
-										formData.status === status.value && {
-											backgroundColor: status.color,
-										},
-									]}
-									onPress={() =>
-										setFormData({ ...formData, status: status.value })
-									}
-								>
-									<Text
-										style={[
-											styles.statusButtonText,
-											formData.status === status.value &&
-												styles.statusButtonTextActive,
-										]}
-									>
-										{status.emoji} {status.label}
-									</Text>
-								</TouchableOpacity>
-							))}
+					<View style={styles.modalContent}>
+						{/* Header Modal */}
+						<View style={styles.modalHeader}>
+							<Ionicons
+								name={editingTable ? "pencil" : "add-circle"}
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<Text style={styles.modalTitle}>
+								{editingTable ? "Modifier la table" : "Nouvelle table"}
+							</Text>
 						</View>
 
+						{/* Formulaire */}
+						<View style={styles.inputGroup}>
+							<Text style={styles.inputLabel}>Numéro de table *</Text>
+							<View style={styles.inputWrapper}>
+								<Ionicons
+									name="restaurant-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<TextInput
+									style={styles.input}
+									placeholder="Ex: 1, A1, Terrasse 1..."
+									placeholderTextColor={THEME.colors.text.muted}
+									value={formData.number}
+									onChangeText={(text) =>
+										setFormData({ ...formData, number: text })
+									}
+								/>
+							</View>
+						</View>
+
+						<View style={styles.inputGroup}>
+							<Text style={styles.inputLabel}>Capacité (nombre de places)</Text>
+							<View style={styles.inputWrapper}>
+								<Ionicons
+									name="people-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<TextInput
+									style={styles.input}
+									placeholder="4"
+									placeholderTextColor={THEME.colors.text.muted}
+									value={formData.capacity}
+									onChangeText={(text) =>
+										setFormData({
+											...formData,
+											capacity: text.replace(/[^0-9]/g, ""),
+										})
+									}
+									keyboardType="numeric"
+								/>
+							</View>
+						</View>
+
+						<View style={styles.inputGroup}>
+							<Text style={styles.inputLabel}>URL du QR Code (optionnel)</Text>
+							<View style={styles.inputWrapper}>
+								<Ionicons
+									name="qr-code-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<TextInput
+									style={styles.input}
+									placeholder="https://..."
+									placeholderTextColor={THEME.colors.text.muted}
+									value={formData.qrCodeUrl}
+									onChangeText={(text) =>
+										setFormData({ ...formData, qrCodeUrl: text })
+									}
+									autoCapitalize="none"
+								/>
+							</View>
+						</View>
+
+						{/* Sélection du statut */}
+						<View style={styles.inputGroup}>
+							<Text style={styles.inputLabel}>Statut</Text>
+							<View style={styles.statusContainer}>
+								{TABLE_STATUSES.map((status) => {
+									const isSelected = formData.status === status.value;
+									return (
+										<TouchableOpacity
+											key={status.value}
+											style={[
+												styles.statusButton,
+												isSelected && {
+													backgroundColor: status.bgColor,
+													borderColor: status.color,
+												},
+											]}
+											onPress={() =>
+												setFormData({ ...formData, status: status.value })
+											}
+										>
+											<Ionicons
+												name={status.icon}
+												size={18}
+												color={
+													isSelected ? status.color : THEME.colors.text.muted
+												}
+											/>
+											<Text
+												style={[
+													styles.statusButtonText,
+													isSelected && { color: status.color },
+												]}
+											>
+												{status.label}
+											</Text>
+										</TouchableOpacity>
+									);
+								})}
+							</View>
+						</View>
+
+						{/* Boutons */}
 						<View style={styles.modalButtons}>
 							<TouchableOpacity
-								style={[styles.modalButton, styles.cancelButton]}
+								style={styles.cancelButton}
 								onPress={() => setModalVisible(false)}
 							>
 								<Text style={styles.cancelButtonText}>Annuler</Text>
 							</TouchableOpacity>
-							<TouchableOpacity
-								style={[styles.modalButton, styles.saveButton]}
-								onPress={handleSave}
-							>
-								<Text style={styles.saveButtonText}>
-									{editingTable ? "Modifier" : "Créer"}
-								</Text>
+							<TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+								<LinearGradient
+									colors={[
+										THEME.colors.primary.amber,
+										THEME.colors.primary.amberDark,
+									]}
+									style={styles.saveButtonGradient}
+								>
+									<Text style={styles.saveButtonText}>
+										{editingTable ? "Modifier" : "Créer"}
+									</Text>
+								</LinearGradient>
 							</TouchableOpacity>
 						</View>
 					</View>
@@ -508,225 +601,294 @@ export default function TableManagement() {
 	);
 }
 
-const styles = StyleSheet.create({
-	container: {
-		flex: 1,
-	},
-	loadingContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	header: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		marginBottom: 15,
-	},
-	title: {
-		fontSize: 20,
-		fontWeight: "bold",
-	},
-	addButton: {
-		backgroundColor: "#4CAF50",
-		paddingHorizontal: 15,
-		paddingVertical: 8,
-		borderRadius: 8,
-	},
-	addButtonText: {
-		color: "#fff",
-		fontWeight: "600",
-	},
-	// Stats
-	statsContainer: {
-		flexDirection: "row",
-		justifyContent: "space-around",
-		alignItems: "center",
-		padding: 15,
-		borderRadius: 12,
-		marginBottom: 15,
-	},
-	statItem: {
-		alignItems: "center",
-	},
-	statValue: {
-		fontSize: 22,
-		fontWeight: "bold",
-	},
-	statLabel: {
-		fontSize: 12,
-		marginTop: 2,
-		opacity: 0.7,
-	},
-	statDivider: {
-		width: 1,
-		height: 30,
-		backgroundColor: "#E0E0E0",
-	},
-	// Liste
-	listContainer: {
-		paddingBottom: 20,
-	},
-	tableCard: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		alignItems: "center",
-		padding: 15,
-		borderRadius: 10,
-		marginBottom: 10,
-		elevation: 2,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 1 },
-		shadowOpacity: 0.1,
-		shadowRadius: 2,
-	},
-	tableInfo: {
-		flex: 1,
-	},
-	tableHeader: {
-		flexDirection: "row",
-		alignItems: "center",
-		gap: 10,
-		marginBottom: 4,
-	},
-	tableNumber: {
-		fontSize: 16,
-		fontWeight: "600",
-	},
-	tableCapacity: {
-		fontSize: 14,
-		marginBottom: 2,
-	},
-	tableQR: {
-		fontSize: 12,
-	},
-	tableActions: {
-		flexDirection: "row",
-		gap: 10,
-	},
-	actionButton: {
-		width: 40,
-		height: 40,
-		borderRadius: 8,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	editButton: {
-		backgroundColor: "#FFA726",
-	},
-	deleteButton: {
-		backgroundColor: "#EF5350",
-	},
-	disabledButton: {
-		backgroundColor: "#BDBDBD",
-		opacity: 0.6,
-	},
-	actionButtonText: {
-		fontSize: 18,
-	},
-	// Status badge
-	statusBadge: {
-		paddingHorizontal: 10,
-		paddingVertical: 4,
-		borderRadius: 12,
-	},
-	statusBadgeText: {
-		fontSize: 12,
-		fontWeight: "600",
-	},
-	// Empty state
-	emptyContainer: {
-		flex: 1,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	emptyText: {
-		fontSize: 18,
-		fontWeight: "500",
-		marginBottom: 8,
-	},
-	emptySubtext: {
-		fontSize: 14,
-	},
-	// Modal
-	modalOverlay: {
-		flex: 1,
-		backgroundColor: "rgba(0,0,0,0.5)",
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	modalContent: {
-		width: "90%",
-		maxWidth: 400,
-		padding: 20,
-		borderRadius: 15,
-	},
-	modalTitle: {
-		fontSize: 20,
-		fontWeight: "bold",
-		marginBottom: 20,
-		textAlign: "center",
-	},
-	input: {
-		borderWidth: 1,
-		borderRadius: 8,
-		padding: 12,
-		marginBottom: 15,
-		fontSize: 16,
-	},
-	label: {
-		fontSize: 14,
-		fontWeight: "500",
-		marginBottom: 8,
-	},
-	statusContainer: {
-		flexDirection: "row",
-		gap: 8,
-		marginBottom: 20,
-		flexWrap: "wrap",
-	},
-	statusButton: {
-		flex: 1,
-		minWidth: 90,
-		paddingVertical: 10,
-		paddingHorizontal: 12,
-		borderRadius: 10,
-		backgroundColor: "#E0E0E0",
-		alignItems: "center",
-	},
-	statusButtonText: {
-		fontSize: 12,
-		fontWeight: "500",
-		color: "#666",
-	},
-	statusButtonTextActive: {
-		color: "#fff",
-	},
-	modalButtons: {
-		flexDirection: "row",
-		justifyContent: "space-between",
-		marginTop: 10,
-	},
-	modalButton: {
-		flex: 1,
-		padding: 12,
-		borderRadius: 8,
-		alignItems: "center",
-	},
-	cancelButton: {
-		backgroundColor: "#9E9E9E",
-		marginRight: 10,
-	},
-	saveButton: {
-		backgroundColor: "#4CAF50",
-		marginLeft: 10,
-	},
-	cancelButtonText: {
-		color: "#fff",
-		fontWeight: "600",
-	},
-	saveButtonText: {
-		color: "#fff",
-		fontWeight: "600",
-	},
-});
+// ═══════════════════════════════════════════════════════════════════════
+// 🎨 Premium Dark Styles
+// ═══════════════════════════════════════════════════════════════════════
+const createStyles = (THEME) =>
+	StyleSheet.create({
+		container: {
+			flex: 1,
+		},
+		loadingContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		loadingText: {
+			color: THEME.colors.text.secondary,
+			marginTop: THEME.spacing.md,
+			fontSize: 14,
+		},
+		header: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			marginBottom: THEME.spacing.lg,
+		},
+		headerLeft: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		title: {
+			fontSize: 20,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		addButton: {
+			borderRadius: THEME.radius.md,
+			overflow: "hidden",
+		},
+		addButtonGradient: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.sm + 2,
+			gap: THEME.spacing.xs,
+		},
+		addButtonText: {
+			color: "#FFFFFF",
+			fontWeight: "600",
+			fontSize: 14,
+		},
+		// Stats
+		statsContainer: {
+			flexDirection: "row",
+			justifyContent: "space-around",
+			alignItems: "center",
+			padding: THEME.spacing.lg,
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+			marginBottom: THEME.spacing.lg,
+		},
+		statItem: {
+			alignItems: "center",
+			gap: THEME.spacing.xs,
+		},
+		statValue: {
+			fontSize: 20,
+			fontWeight: "700",
+		},
+		statLabel: {
+			fontSize: 11,
+			color: THEME.colors.text.muted,
+			fontWeight: "500",
+		},
+		statDivider: {
+			width: 1,
+			height: 40,
+			backgroundColor: THEME.colors.border.default,
+		},
+		// Liste
+		listContainer: {
+			paddingBottom: THEME.spacing.xl,
+		},
+		tableCard: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			padding: THEME.spacing.lg,
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+			marginBottom: THEME.spacing.md,
+		},
+		tableInfo: {
+			flex: 1,
+		},
+		tableHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+			marginBottom: THEME.spacing.sm,
+		},
+		tableNumber: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			flex: 1,
+		},
+		tableDetails: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.lg,
+			marginLeft: 28,
+		},
+		detailItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.xs,
+		},
+		tableCapacity: {
+			fontSize: 14,
+			color: THEME.colors.text.secondary,
+		},
+		tableQR: {
+			fontSize: 12,
+			color: THEME.colors.status.success,
+		},
+		tableActions: {
+			flexDirection: "row",
+			gap: THEME.spacing.sm,
+		},
+		actionButton: {
+			width: 40,
+			height: 40,
+			borderRadius: THEME.radius.md,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		editButton: {
+			backgroundColor: THEME.colors.status.warning,
+		},
+		deleteButton: {
+			backgroundColor: THEME.colors.status.error,
+		},
+		disabledButton: {
+			backgroundColor: THEME.colors.text.muted,
+			opacity: 0.5,
+		},
+		// Status badge
+		statusBadge: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.xs,
+			paddingHorizontal: THEME.spacing.sm,
+			paddingVertical: THEME.spacing.xs,
+			borderRadius: THEME.radius.sm,
+		},
+		statusBadgeText: {
+			fontSize: 11,
+			fontWeight: "600",
+		},
+		// Empty state
+		emptyContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			paddingHorizontal: THEME.spacing.xl,
+		},
+		emptyText: {
+			fontSize: 18,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginTop: THEME.spacing.lg,
+			marginBottom: THEME.spacing.sm,
+		},
+		emptySubtext: {
+			fontSize: 14,
+			color: THEME.colors.text.muted,
+			textAlign: "center",
+		},
+		// Modal
+		modalOverlay: {
+			flex: 1,
+			backgroundColor: "rgba(0, 0, 0, 0.7)",
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		modalContent: {
+			width: "90%",
+			maxWidth: 420,
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.xl,
+			padding: THEME.spacing.xl,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+		},
+		modalHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.md,
+			marginBottom: THEME.spacing.xl,
+		},
+		modalTitle: {
+			fontSize: 20,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		inputGroup: {
+			marginBottom: THEME.spacing.lg,
+		},
+		inputLabel: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: THEME.colors.text.secondary,
+			marginBottom: THEME.spacing.sm,
+		},
+		inputWrapper: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+			paddingHorizontal: THEME.spacing.md,
+		},
+		input: {
+			flex: 1,
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.sm,
+			fontSize: 15,
+			color: THEME.colors.text.primary,
+		},
+		statusContainer: {
+			flexDirection: "row",
+			gap: THEME.spacing.sm,
+			flexWrap: "wrap",
+		},
+		statusButton: {
+			flex: 1,
+			minWidth: 100,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			backgroundColor: THEME.colors.background.elevated,
+			borderWidth: 1.5,
+			borderColor: THEME.colors.border.default,
+			gap: THEME.spacing.xs,
+		},
+		statusButtonText: {
+			fontSize: 12,
+			fontWeight: "600",
+			color: THEME.colors.text.muted,
+		},
+		modalButtons: {
+			flexDirection: "row",
+			gap: THEME.spacing.md,
+			marginTop: THEME.spacing.lg,
+		},
+		cancelButton: {
+			flex: 1,
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			backgroundColor: THEME.colors.background.elevated,
+			alignItems: "center",
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+		},
+		cancelButtonText: {
+			color: THEME.colors.text.secondary,
+			fontWeight: "600",
+			fontSize: 15,
+		},
+		saveButton: {
+			flex: 1,
+			borderRadius: THEME.radius.md,
+			overflow: "hidden",
+		},
+		saveButtonGradient: {
+			paddingVertical: THEME.spacing.md,
+			alignItems: "center",
+		},
+		saveButtonText: {
+			color: "#FFFFFF",
+			fontWeight: "700",
+			fontSize: 15,
+		},
+	});

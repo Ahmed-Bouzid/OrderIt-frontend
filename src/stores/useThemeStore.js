@@ -1,74 +1,147 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import {
+	DARK_THEME,
+	LIGHT_THEME,
+	OCEAN_THEME,
+	THEME_MODES,
+	getTheme,
+} from "../styles/themes";
 
-// ⭐ Thème clair (défaut)
+// ⭐ Thème clair (legacy - pour compatibilité)
 const lightTheme = {
 	mode: "light",
-	backgroundColor: "#ffffff",
-	textColor: "#000000",
-	cardColor: "#f9f9f9",
-	borderColor: "#e0e0e0",
-	containerBg: "#ffffff",
-	separatorColor: "#d0d0d0",
-	buttonBg: "#007AFF",
+	backgroundColor: LIGHT_THEME.colors.background,
+	textColor: LIGHT_THEME.colors.text.primary,
+	cardColor: LIGHT_THEME.colors.card,
+	borderColor: LIGHT_THEME.colors.border,
+	containerBg: LIGHT_THEME.colors.background,
+	separatorColor: LIGHT_THEME.colors.border,
+	buttonBg: LIGHT_THEME.colors.primary,
 	buttonText: "#ffffff",
 };
 
-// ⭐ Thème sombre
+// ⭐ Thème sombre (legacy - pour compatibilité)
 const darkTheme = {
 	mode: "dark",
-	backgroundColor: "#1a1a1a",
-	textColor: "#ffffff",
-	cardColor: "#2a2a2a",
-	borderColor: "#444444",
-	containerBg: "#000000",
-	separatorColor: "#444444",
-	buttonBg: "#0A84FF",
+	backgroundColor: DARK_THEME.colors.background,
+	textColor: DARK_THEME.colors.text.primary,
+	cardColor: DARK_THEME.colors.card,
+	borderColor: DARK_THEME.colors.border,
+	containerBg: DARK_THEME.colors.background,
+	separatorColor: DARK_THEME.colors.border,
+	buttonBg: DARK_THEME.colors.primary,
 	buttonText: "#ffffff",
 };
 
-const useThemeStore = create((set) => ({
-	isDarkMode: false,
-	theme: lightTheme,
+// 🌊 Thème Ocean (legacy - pour compatibilité)
+const oceanTheme = {
+	mode: "ocean",
+	backgroundColor: OCEAN_THEME.colors.background,
+	textColor: OCEAN_THEME.colors.text.primary,
+	cardColor: OCEAN_THEME.colors.card,
+	borderColor: OCEAN_THEME.colors.border,
+	containerBg: OCEAN_THEME.colors.background,
+	separatorColor: OCEAN_THEME.colors.border,
+	buttonBg: OCEAN_THEME.colors.primary,
+	buttonText: "#ffffff",
+};
+
+// Helper pour obtenir le thème legacy par mode
+const getLegacyTheme = (mode) => {
+	switch (mode) {
+		case THEME_MODES.LIGHT:
+			return lightTheme;
+		case THEME_MODES.OCEAN:
+			return oceanTheme;
+		case THEME_MODES.DARK:
+		default:
+			return darkTheme;
+	}
+};
+
+const useThemeStore = create((set, get) => ({
+	// ⭐ Nouveau système: themeMode ('dark', 'light', 'ocean')
+	themeMode: THEME_MODES.DARK,
+	// Legacy: isDarkMode (maintenu pour compatibilité)
+	isDarkMode: true,
+	theme: darkTheme,
 
 	// Initialiser le thème depuis AsyncStorage
 	initTheme: async () => {
 		try {
-			const savedMode = await AsyncStorage.getItem("darkMode");
-			const isDark = savedMode === "true";
+			const savedMode = await AsyncStorage.getItem("themeMode");
+			// Support legacy
+			const savedDarkMode = await AsyncStorage.getItem("darkMode");
+
+			let mode = THEME_MODES.DARK;
+			if (savedMode) {
+				mode = savedMode;
+			} else if (savedDarkMode !== null) {
+				mode = savedDarkMode === "true" ? THEME_MODES.DARK : THEME_MODES.LIGHT;
+			}
+
 			set({
-				isDarkMode: isDark,
-				theme: isDark ? darkTheme : lightTheme,
+				themeMode: mode,
+				isDarkMode: mode === THEME_MODES.DARK,
+				theme: getLegacyTheme(mode),
 			});
 		} catch (error) {
 			console.error("Erreur chargement thème:", error);
 		}
 	},
 
-	// Basculer entre clair et sombre
-	toggleDarkMode: async () => {
+	// ⭐ Nouveau: Définir le thème directement
+	setThemeMode: async (mode) => {
 		try {
-			set((state) => {
-				const newDarkMode = !state.isDarkMode;
-				const newTheme = newDarkMode ? darkTheme : lightTheme;
-
-				// Sauvegarder dans AsyncStorage
-				AsyncStorage.setItem("darkMode", newDarkMode.toString());
-
-				return {
-					isDarkMode: newDarkMode,
-					theme: newTheme,
-				};
+			await AsyncStorage.setItem("themeMode", mode);
+			set({
+				themeMode: mode,
+				isDarkMode: mode === THEME_MODES.DARK,
+				theme: getLegacyTheme(mode),
 			});
 		} catch (error) {
-			console.error("Erreur toggle dark mode:", error);
+			console.error("Erreur changement thème:", error);
 		}
+	},
+
+	// ⭐ Nouveau: Cycler entre les thèmes (dark -> light -> ocean -> dark)
+	cycleTheme: async () => {
+		const { themeMode } = get();
+		let newMode;
+		switch (themeMode) {
+			case THEME_MODES.DARK:
+				newMode = THEME_MODES.LIGHT;
+				break;
+			case THEME_MODES.LIGHT:
+				newMode = THEME_MODES.OCEAN;
+				break;
+			case THEME_MODES.OCEAN:
+			default:
+				newMode = THEME_MODES.DARK;
+				break;
+		}
+		await get().setThemeMode(newMode);
+	},
+
+	// Legacy: Basculer entre clair et sombre (maintenu pour compatibilité)
+	toggleDarkMode: async () => {
+		const { themeMode } = get();
+		const newMode =
+			themeMode === THEME_MODES.DARK ? THEME_MODES.LIGHT : THEME_MODES.DARK;
+		await get().setThemeMode(newMode);
 	},
 
 	// Obtenir la couleur du thème actuel
 	getThemeColor: (colorKey) => {
-		return lightTheme[colorKey]; // sera mis à jour avec le sélecteur
+		return get().theme[colorKey];
+	},
+
+	// ⭐ Obtenir le thème premium complet
+	getPremiumTheme: () => {
+		return getTheme(get().themeMode);
 	},
 }));
 
+export { DARK_THEME, LIGHT_THEME, OCEAN_THEME, THEME_MODES, getTheme };
 export default useThemeStore;

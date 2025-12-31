@@ -1,6 +1,16 @@
+/**
+ * Activity.jsx - Écran Activité Premium
+ * Interface de gestion des réservations actives avec design spatial
+ */
 import { API_CONFIG } from "../../src/config/apiConfig";
-// components/screens/Activity.jsx
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, {
+	useState,
+	useEffect,
+	useMemo,
+	useCallback,
+	useRef,
+} from "react";
+import { getTheme } from "../../utils/themeUtils";
 import styles from "../styles";
 import Login from "../../app/login";
 import {
@@ -8,10 +18,14 @@ import {
 	Text,
 	TouchableOpacity,
 	ScrollView,
-	Button,
 	Alert,
 	FlatList,
+	StyleSheet,
+	Dimensions,
+	Animated,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../src/stores/useThemeStore";
 import useTableStore from "../../src/stores/useRestaurantTableStore";
@@ -41,8 +55,10 @@ export default function Activity() {
 		const interval = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(interval);
 	}, []);
-	const { theme, initTheme } = useThemeStore();
+	const { themeMode, theme, initTheme } = useThemeStore();
+	const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
 	const authFetch = useAuthFetch();
+	const activityStyles = useMemo(() => createStyles(THEME), [THEME]);
 
 	// Custom hooks
 
@@ -140,6 +156,134 @@ export default function Activity() {
 	const [editingStaffNotes, setEditingStaffNotes] = useState(false);
 	const [selectedProduct, setSelectedProduct] = useState(null);
 	const [activeServer, setActiveServer] = useState(null);
+	// ⭐ État pour les allergènes structurés du client
+	const [clientAllergens, setClientAllergens] = useState([]);
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// 🎬 Animation de transition Popup - Style Card Stack (React Native Animated)
+	// ═══════════════════════════════════════════════════════════════════════
+	const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+	// Animation principale de la popup active (entrée)
+	const popupAnimY = useRef(new Animated.Value(0)).current;
+	const popupAnimOpacity = useRef(new Animated.Value(1)).current;
+	const popupAnimScale = useRef(new Animated.Value(1)).current;
+
+	// Animation de l'ancienne popup (sortie)
+	const exitAnimY = useRef(new Animated.Value(0)).current;
+	const exitAnimOpacity = useRef(new Animated.Value(0)).current;
+	const exitAnimScale = useRef(new Animated.Value(1)).current;
+
+	// Tracking
+	const previousActiveId = useRef(null);
+	const [exitingReservation, setExitingReservation] = useState(null);
+	const [showExitCard, setShowExitCard] = useState(false);
+	const currentAnimation = useRef(null); // Pour annuler l'animation en cours
+
+	// Fonction pour nettoyer après l'animation de sortie
+	const clearExitingCard = useCallback(() => {
+		setExitingReservation(null);
+		setShowExitCard(false);
+	}, []);
+
+	// Déclencher l'animation quand activeId change
+	useEffect(() => {
+		// Ne pas animer si c'est la première apparition
+		if (
+			previousActiveId.current !== null &&
+			activeId &&
+			previousActiveId.current !== activeId
+		) {
+			// ⭐ Annuler l'animation en cours si elle existe
+			if (currentAnimation.current) {
+				currentAnimation.current.stop();
+				clearExitingCard();
+			}
+
+			// Sauvegarder la réservation sortante pour l'afficher pendant l'animation
+			const exitingResa = openedReservations.find(
+				(r) => r._id === previousActiveId.current
+			);
+			if (exitingResa) {
+				setExitingReservation(exitingResa);
+				setShowExitCard(true);
+			}
+
+			// Reset des valeurs de sortie
+			exitAnimY.setValue(0);
+			exitAnimOpacity.setValue(1);
+			exitAnimScale.setValue(1);
+
+			// Reset des valeurs d'entrée (position de départ - PLUS BAS pour effet visible)
+			popupAnimY.setValue(SCREEN_HEIGHT * 0.7); // 70% au lieu de 40%
+			popupAnimOpacity.setValue(0);
+			popupAnimScale.setValue(0.8); // Plus petit au départ
+
+			// === ANIMATION PARALLÈLE : Sortie + Entrée ===
+			currentAnimation.current = Animated.parallel([
+				// SORTIE : ancienne popup glisse vers le bas (plus loin)
+				Animated.timing(exitAnimY, {
+					toValue: SCREEN_HEIGHT * 0.8, // Plus loin vers le bas
+					duration: 400,
+					useNativeDriver: true,
+				}),
+				Animated.timing(exitAnimOpacity, {
+					toValue: 0,
+					duration: 300,
+					useNativeDriver: true,
+				}),
+				Animated.timing(exitAnimScale, {
+					toValue: 0.85,
+					duration: 350,
+					useNativeDriver: true,
+				}),
+				// ENTRÉE : nouvelle popup monte depuis le bas
+				Animated.sequence([
+					Animated.delay(30),
+					Animated.spring(popupAnimY, {
+						toValue: 0,
+						tension: 55, // Plus de tension = plus rapide
+						friction: 6, // Moins de friction = plus de rebond visible
+						useNativeDriver: true,
+					}),
+				]),
+				Animated.sequence([
+					Animated.delay(20),
+					Animated.timing(popupAnimOpacity, {
+						toValue: 1,
+						duration: 200,
+						useNativeDriver: true,
+					}),
+				]),
+				Animated.sequence([
+					Animated.delay(30),
+					Animated.spring(popupAnimScale, {
+						toValue: 1,
+						tension: 60,
+						friction: 5,
+						useNativeDriver: true,
+					}),
+				]),
+			]);
+
+			currentAnimation.current.start(() => {
+				currentAnimation.current = null;
+				setTimeout(clearExitingCard, 20);
+			});
+		}
+		previousActiveId.current = activeId;
+	}, [
+		activeId,
+		openedReservations,
+		clearExitingCard,
+		SCREEN_HEIGHT,
+		exitAnimY,
+		exitAnimOpacity,
+		exitAnimScale,
+		popupAnimY,
+		popupAnimOpacity,
+		popupAnimScale,
+	]);
 
 	// Initialiser thème
 	useEffect(() => {
@@ -412,7 +556,7 @@ export default function Activity() {
 		}
 	}, [activeReservation, clearCachedActiveId]);
 
-	// Render miniatures avec FlatList
+	// Render miniatures Premium avec FlatList
 	const renderMiniature = useCallback(
 		({ item: r }) => {
 			const allTables = useTableStore.getState().tables || [];
@@ -436,7 +580,7 @@ export default function Activity() {
 			let arriveDisplay = "-";
 			if (r.arrivalTime) {
 				const arriveDate = new Date(r.arrivalTime);
-				let diff = Math.max(0, now - arriveDate.getTime()); // en ms
+				let diff = Math.max(0, now - arriveDate.getTime());
 				const hours = String(Math.floor(diff / 3600000)).padStart(2, "0");
 				diff = diff % 3600000;
 				const mins = String(Math.floor(diff / 60000)).padStart(2, "0");
@@ -447,17 +591,26 @@ export default function Activity() {
 
 			return (
 				<TouchableOpacity
-					style={styles.popupMini}
+					style={activityStyles.popupMini}
 					onPress={() => setActiveId(r._id)}
+					activeOpacity={0.8}
 				>
-					<Text style={styles.miniTitle}>
+					<Text style={activityStyles.miniTitle}>
 						{r.clientName && typeof r.clientName === "string"
 							? r.clientName.charAt(0).toUpperCase() +
 								r.clientName.slice(1).toLowerCase()
 							: String(r.clientName)}
 					</Text>
-					<Text style={styles.miniSub}>{`Table ${tableNumber}`}</Text>
-					<Text style={styles.miniArrive}>{`🕐 ${arriveDisplay}`}</Text>
+					<Text style={activityStyles.miniSub}>{`Table ${tableNumber}`}</Text>
+					<View style={{ flexDirection: "row", alignItems: "center" }}>
+						<Ionicons
+							name="time-outline"
+							size={12}
+							color={THEME.colors.primary.amber}
+							style={{ marginRight: 4 }}
+						/>
+						<Text style={activityStyles.miniArrive}>{arriveDisplay}</Text>
+					</View>
 				</TouchableOpacity>
 			);
 		},
@@ -519,120 +672,300 @@ export default function Activity() {
 
 	return (
 		<>
-			<View
-				style={[styles.container, { backgroundColor: theme.backgroundColor }]}
-			>
-				{/* Bouton Commencer - on garde la condition stricte sur isReservationsLoaded */}
+			<View style={activityStyles.container}>
+				{/* Background ambient effects */}
+				<View style={StyleSheet.absoluteFill}>
+					<LinearGradient
+						colors={["rgba(245, 158, 11, 0.06)", "transparent"]}
+						style={activityStyles.ambientGlow1}
+					/>
+					<LinearGradient
+						colors={["rgba(14, 165, 233, 0.04)", "transparent"]}
+						style={activityStyles.ambientGlow2}
+					/>
+				</View>
+
+				{/* Bouton Commencer Premium */}
 				{isReservationsLoaded &&
 					openedReservations.length === 0 &&
 					!activeId && (
-						<>
+						<View style={activityStyles.startContainer}>
 							<TouchableOpacity
-								style={styles.button}
 								onPress={async () => {
 									const nextResa = await openNextReservation();
 									if (!nextResa) return;
 									setStarted(true);
 								}}
+								activeOpacity={0.85}
 							>
-								<Text style={styles.buttonText}>Commencer</Text>
+								<LinearGradient
+									colors={["#F59E0B", "#D97706"]}
+									style={activityStyles.startButton}
+									start={{ x: 0, y: 0 }}
+									end={{ x: 1, y: 1 }}
+								>
+									<Ionicons
+										name="play"
+										size={24}
+										color="#FFFFFF"
+										style={{ marginRight: 12 }}
+									/>
+									<Text style={activityStyles.startButtonText}>Commencer</Text>
+								</LinearGradient>
 							</TouchableOpacity>
-						</>
+						</View>
 					)}
 
-				{/* Popup principal - ⭐ Ne pas afficher si réservation fermée/annulée */}
+				{/* Popup principal Premium avec animation Card Stack */}
 				{activeReservation && activeReservation.status === "ouverte" && (
-					<View style={styles.popupMainWrapper}>
-						<View
-							style={[styles.popupMain, { backgroundColor: theme.cardColor }]}
-						>
-							{/* Header unifié : Table info + Badge Occupée + Infos réservation + Molette */}
-							<View
-								style={[styles.headerRow, { backgroundColor: theme.cardColor }]}
+					<View style={activityStyles.popupMainWrapper}>
+						{/* 🎬 Carte sortante (exit animation) */}
+						{showExitCard && exitingReservation && (
+							<Animated.View
+								style={[
+									activityStyles.popupMain,
+									activityStyles.exitCard,
+									{
+										transform: [
+											{ translateY: exitAnimY },
+											{ scale: exitAnimScale },
+										],
+										opacity: exitAnimOpacity,
+									},
+								]}
+								pointerEvents="none"
 							>
-								<View>
-									<Text
-										style={[styles.realTableText, { color: theme.textColor }]}
-									>
-										{activeReservation.realTable || ""}
-									</Text>
-									<Text
-										style={[styles.internalText, { color: theme.textColor }]}
-									>
-										{activeReservation.internal || ""}
-									</Text>
-								</View>
-								<View
-									style={[
-										styles.badge,
-										styles.badgeOccupied,
-										{ marginLeft: 8 },
+								<LinearGradient
+									colors={[
+										"rgba(245, 158, 11, 0.1)",
+										"rgba(245, 158, 11, 0.02)",
 									]}
+									style={activityStyles.headerRow}
+									start={{ x: 0, y: 0 }}
+									end={{ x: 1, y: 0 }}
 								>
-									<Text style={[styles.badgeText, { color: theme.textColor }]}>
-										Occupée
+									<View style={activityStyles.headerLeft}>
+										<Text style={activityStyles.realTableText}>
+											{(() => {
+												const name = exitingReservation.clientName;
+												if (!name) return "Table";
+												const formattedName =
+													name.charAt(0).toUpperCase() +
+													name.slice(1).toLowerCase();
+												const vowels = [
+													"a",
+													"e",
+													"i",
+													"o",
+													"u",
+													"é",
+													"è",
+													"ê",
+													"à",
+													"â",
+													"î",
+													"ô",
+													"û",
+													"h",
+												];
+												const firstLetter = name.charAt(0).toLowerCase();
+												const prefix = vowels.includes(firstLetter)
+													? "Table d'"
+													: "Table de ";
+												return `${prefix}${formattedName}`;
+											})()}
+										</Text>
+										<Text style={activityStyles.internalText}>
+											{exitingReservation.realTable ||
+												`Table ${exitingReservation.tableId?.number || ""}`}
+										</Text>
+									</View>
+									<View
+										style={[
+											activityStyles.badge,
+											{ backgroundColor: "rgba(34, 197, 94, 0.1)" },
+										]}
+									>
+										<View style={activityStyles.badgeDot} />
+										<Text style={activityStyles.badgeText}>En cours</Text>
+									</View>
+								</LinearGradient>
+								{/* Contenu simplifié pour la carte de sortie */}
+								<View style={activityStyles.exitCardContent}>
+									<Ionicons
+										name="restaurant-outline"
+										size={48}
+										color="rgba(245, 158, 11, 0.3)"
+									/>
+								</View>
+							</Animated.View>
+						)}
+
+						{/* 🎬 Carte principale (enter animation) */}
+						<Animated.View
+							style={[
+								activityStyles.popupMain,
+								{
+									transform: [
+										{ translateY: popupAnimY },
+										{ scale: popupAnimScale },
+									],
+									opacity: popupAnimOpacity,
+									// Bordure statique (borderColor ne supporte pas useNativeDriver)
+									borderColor: "rgba(255, 255, 255, 0.15)",
+									borderWidth: 2,
+								},
+							]}
+						>
+							{/* Header Premium */}
+							<LinearGradient
+								colors={["rgba(245, 158, 11, 0.1)", "rgba(245, 158, 11, 0.02)"]}
+								style={activityStyles.headerRow}
+								start={{ x: 0, y: 0 }}
+								end={{ x: 1, y: 0 }}
+							>
+								<View style={activityStyles.headerLeft}>
+									{/* ⭐ Afficher "Table de/d'[clientName]" avec élision française */}
+									<Text style={activityStyles.realTableText}>
+										{(() => {
+											const name = activeReservation.clientName;
+											if (!name) return "Table";
+											const formattedName =
+												name.charAt(0).toUpperCase() +
+												name.slice(1).toLowerCase();
+											// Élision devant voyelle ou h muet
+											const vowels = [
+												"a",
+												"e",
+												"i",
+												"o",
+												"u",
+												"é",
+												"è",
+												"ê",
+												"à",
+												"â",
+												"î",
+												"ô",
+												"û",
+												"h",
+											];
+											const firstLetter = name.charAt(0).toLowerCase();
+											const prefix = vowels.includes(firstLetter)
+												? "Table d'"
+												: "Table de ";
+											return `${prefix}${formattedName}`;
+										})()}
+									</Text>
+									<Text style={activityStyles.internalText}>
+										{activeReservation.realTable ||
+											`Table ${activeReservation.tableId?.number || ""}`}
 									</Text>
 								</View>
-								<View
-									style={{ flex: 1, marginLeft: 10, justifyContent: "center" }}
+
+								{/* Badge Status Premium */}
+								<LinearGradient
+									colors={[
+										"rgba(16, 185, 129, 0.2)",
+										"rgba(16, 185, 129, 0.1)",
+									]}
+									style={activityStyles.badge}
 								>
-									<Text style={[styles.smallText, { color: theme.textColor }]}>
-										Réservée: {activeReservation.reservationTime || "N/A"} (
+									<View style={activityStyles.badgeDot} />
+									<Text style={activityStyles.badgeText}>Occupée</Text>
+								</LinearGradient>
+
+								{/* Infos réservation */}
+								<View style={activityStyles.headerInfo}>
+									<Text style={activityStyles.headerInfoText}>
+										<Ionicons
+											name="time-outline"
+											size={14}
+											color={THEME.colors.text.muted}
+										/>{" "}
+										{activeReservation.reservationTime || "N/A"} •{" "}
 										{new Date(
 											activeReservation.reservationDate
 										).toLocaleDateString("fr-FR")}
-										) • {activeReservation.nbPersonnes || 0} pers.
+									</Text>
+									<Text style={activityStyles.headerInfoText}>
+										<Ionicons
+											name="people-outline"
+											size={14}
+											color={THEME.colors.text.muted}
+										/>{" "}
+										{activeReservation.nbPersonnes || 0} personnes
 									</Text>
 								</View>
+
+								{/* Bouton Settings */}
 								<TouchableOpacity
-									style={styles.settingsButton}
+									style={activityStyles.settingsButton}
 									onPress={() => setShowSettings(true)}
 								>
-									<Text style={{ fontSize: 24 }}>⚙️</Text>
+									<Ionicons
+										name="settings-outline"
+										size={22}
+										color={THEME.colors.text.secondary}
+									/>
 								</TouchableOpacity>
-							</View>
+							</LinearGradient>
+
 							{/* Conteneur colonnes */}
-							<View style={{ flexDirection: "row", flex: 1, marginTop: 10 }}>
-								{/* Colonne gauche */}
-								<ScrollView style={{ maxWidth: "50%", paddingRight: 10 }}>
-									<ReservationDetails
-										activeReservation={activeReservation}
-										theme={theme}
-										editingAllergies={editingAllergies}
-										setEditingAllergies={setEditingAllergies}
-										allergiesValue={allergiesValue}
-										setAllergiesValue={setAllergiesValue}
-										editingNotes={editingNotes}
-										setEditingNotes={setEditingNotes}
-										notesValue={notesValue}
-										setNotesValue={setNotesValue}
-										showRestrictionsOptions={showRestrictionsOptions}
-										setShowRestrictionsOptions={setShowRestrictionsOptions}
-										editField={editField}
-										getElapsed={getElapsed}
-									/>
+							<View
+								style={{
+									flexDirection: "row",
+									flex: 1,
+									marginTop: THEME.spacing.md,
+								}}
+							>
+								{/* Colonne gauche - flex: 1 pour partage égal */}
+								<View style={{ flex: 1, paddingRight: THEME.spacing.sm }}>
+									<ScrollView
+										style={{ flex: 1 }}
+										contentContainerStyle={{ flexGrow: 1 }}
+									>
+										<ReservationDetails
+											activeReservation={activeReservation}
+											theme={theme}
+											editingAllergies={editingAllergies}
+											setEditingAllergies={setEditingAllergies}
+											allergiesValue={allergiesValue}
+											setAllergiesValue={setAllergiesValue}
+											editingNotes={editingNotes}
+											setEditingNotes={setEditingNotes}
+											notesValue={notesValue}
+											setNotesValue={setNotesValue}
+											showRestrictionsOptions={showRestrictionsOptions}
+											setShowRestrictionsOptions={setShowRestrictionsOptions}
+											editField={editField}
+											getElapsed={getElapsed}
+											clientAllergens={clientAllergens}
+											setClientAllergens={setClientAllergens}
+										/>
 
-									<ServiceSection
-										activeReservation={activeReservation}
-										theme={theme}
-										servers={servers}
-										activeServer={activeServer}
-										showServerOptions={showServerOptions}
-										setShowServerOptions={setShowServerOptions}
-										editField={editField}
-										setActiveServer={setActiveServer}
-									/>
+										<ServiceSection
+											activeReservation={activeReservation}
+											theme={theme}
+											servers={servers}
+											activeServer={activeServer}
+											showServerOptions={showServerOptions}
+											setShowServerOptions={setShowServerOptions}
+											editField={editField}
+											setActiveServer={setActiveServer}
+										/>
 
-									<PaymentSection
-										activeReservation={activeReservation}
-										theme={theme}
-										editingStaffNotes={editingStaffNotes}
-										setEditingStaffNotes={setEditingStaffNotes}
-										staffNotesValue={staffNotesValue}
-										setStaffNotesValue={setStaffNotesValue}
-										editField={editField}
-									/>
-								</ScrollView>
+										<PaymentSection
+											activeReservation={activeReservation}
+											theme={theme}
+											editingStaffNotes={editingStaffNotes}
+											setEditingStaffNotes={setEditingStaffNotes}
+											staffNotesValue={staffNotesValue}
+											setStaffNotesValue={setStaffNotesValue}
+											editField={editField}
+										/>
+									</ScrollView>
+								</View>
 
 								{/* Colonne droite */}
 								{step === 1 && (
@@ -645,6 +978,7 @@ export default function Activity() {
 										setShowProductModal={setShowProductModal}
 										step={step}
 										setStep={setStep}
+										clientAllergens={clientAllergens}
 									/>
 								)}
 
@@ -798,13 +1132,13 @@ export default function Activity() {
 									</View>
 								)}
 							</View>
-						</View>
+						</Animated.View>
 					</View>
 				)}
 
-				{/* Miniatures - seulement si activeId existe */}
+				{/* Miniatures Premium - seulement si activeId existe */}
 				{activeId && (
-					<View style={styles.miniWrapper}>
+					<View style={activityStyles.miniWrapper}>
 						<FlatList
 							style={{ overflow: "visible" }}
 							data={[
@@ -815,15 +1149,28 @@ export default function Activity() {
 								if (item.isAddButton) {
 									return (
 										<TouchableOpacity
-											style={[styles.popupMini, styles.addButton]}
+											style={activityStyles.addButton}
 											onPress={async () => {
 												const nextResa = await openNextReservation();
 												if (nextResa) {
 													setStarted(true);
 												}
 											}}
+											activeOpacity={0.8}
 										>
-											<Text style={styles.addText}>+</Text>
+											<LinearGradient
+												colors={[
+													"rgba(245, 158, 11, 0.2)",
+													"rgba(245, 158, 11, 0.1)",
+												]}
+												style={activityStyles.addButtonInner}
+											>
+												<Ionicons
+													name="add"
+													size={24}
+													color={THEME.colors.primary.amber}
+												/>
+											</LinearGradient>
 										</TouchableOpacity>
 									);
 								}
@@ -832,12 +1179,7 @@ export default function Activity() {
 							keyExtractor={(item) => item._id}
 							horizontal
 							showsHorizontalScrollIndicator={false}
-							contentContainerStyle={{
-								flexGrow: 1, // ⭐ ESSENTIEL pour centrer
-								justifyContent: "center",
-								alignItems: "center",
-								gap: 8,
-							}}
+							contentContainerStyle={activityStyles.miniListContent}
 						/>
 					</View>
 				)}
@@ -873,3 +1215,197 @@ export default function Activity() {
 		</>
 	);
 }
+
+// ─────────────── Styles Premium Activity ───────────────
+const createStyles = (THEME) =>
+	StyleSheet.create({
+		container: {
+			flex: 1,
+			backgroundColor: THEME.colors.background.dark,
+		},
+		ambientGlow1: {
+			position: "absolute",
+			top: -100,
+			left: -100,
+			width: 400,
+			height: 400,
+			borderRadius: 200,
+			opacity: 0.5,
+		},
+		ambientGlow2: {
+			position: "absolute",
+			bottom: -100,
+			right: -100,
+			width: 350,
+			height: 350,
+			borderRadius: 175,
+			opacity: 0.5,
+		},
+		startContainer: {
+			flex: 1,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		startButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.xl + THEME.spacing.lg,
+			borderRadius: THEME.radius.xl,
+			shadowColor: THEME.colors.primary.amber,
+			shadowOffset: { width: 0, height: 4 },
+			shadowOpacity: 0.4,
+			shadowRadius: 12,
+			elevation: 8,
+		},
+		startButtonText: {
+			fontSize: THEME.typography.sizes.lg,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "#FFFFFF",
+		},
+		popupMainWrapper: {
+			flex: 1,
+			padding: THEME.spacing.md,
+		},
+		popupMain: {
+			flex: 1,
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.xl,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			overflow: "hidden",
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 8 },
+			shadowOpacity: 0.15,
+			shadowRadius: 24,
+			elevation: 10,
+		},
+		headerRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.lg,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		headerLeft: {
+			marginRight: THEME.spacing.md,
+		},
+		realTableText: {
+			fontSize: THEME.typography.sizes.xl,
+			fontWeight: THEME.typography.weights.bold,
+			color: THEME.colors.text.primary,
+		},
+		internalText: {
+			fontSize: THEME.typography.sizes.xs,
+			color: THEME.colors.text.muted,
+			marginTop: 2,
+		},
+		badge: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.xs,
+			paddingHorizontal: THEME.spacing.sm,
+			borderRadius: THEME.radius.full,
+			marginLeft: THEME.spacing.sm,
+		},
+		badgeDot: {
+			width: 6,
+			height: 6,
+			borderRadius: 3,
+			backgroundColor: THEME.colors.status.success,
+			marginRight: THEME.spacing.xs,
+		},
+		badgeText: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: THEME.typography.weights.semibold,
+			color: THEME.colors.status.success,
+		},
+		headerInfo: {
+			flex: 1,
+			marginLeft: THEME.spacing.lg,
+		},
+		headerInfoText: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.secondary,
+			marginBottom: 2,
+		},
+		settingsButton: {
+			width: 44,
+			height: 44,
+			borderRadius: THEME.radius.md,
+			backgroundColor: THEME.colors.background.elevated,
+			alignItems: "center",
+			justifyContent: "center",
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		miniWrapper: {
+			position: "absolute",
+			bottom: THEME.spacing.lg,
+			left: 0,
+			right: 0,
+			paddingHorizontal: THEME.spacing.md,
+		},
+		miniListContent: {
+			flexGrow: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		popupMini: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.md + 3, // +20% (12 → ~15)
+			minWidth: 144, // +20% (120 → 144)
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			alignItems: "center",
+		},
+		miniTitle: {
+			fontSize: THEME.typography.sizes.sm + 2, // +20% environ
+			fontWeight: THEME.typography.weights.semibold,
+			color: THEME.colors.text.primary,
+			marginBottom: 5,
+		},
+		miniSub: {
+			fontSize: THEME.typography.sizes.xs + 1, // +20% environ
+			color: THEME.colors.text.secondary,
+			marginBottom: 5,
+		},
+		miniArrive: {
+			fontSize: THEME.typography.sizes.xs + 1, // +20% environ
+			color: THEME.colors.primary.amber,
+			fontWeight: THEME.typography.weights.medium,
+		},
+		addButton: {
+			borderRadius: THEME.radius.lg,
+			overflow: "hidden",
+		},
+		addButtonInner: {
+			width: 52,
+			height: 52,
+			borderRadius: THEME.radius.lg,
+			alignItems: "center",
+			justifyContent: "center",
+			borderWidth: 1,
+			borderColor: "rgba(245, 158, 11, 0.3)",
+			borderStyle: "dashed",
+		},
+		// 🎬 Styles pour l'animation Card Stack
+		exitCard: {
+			position: "absolute",
+			top: 0,
+			left: 0,
+			right: 0,
+			bottom: 0,
+			zIndex: 10,
+		},
+		exitCardContent: {
+			flex: 1,
+			alignItems: "center",
+			justifyContent: "center",
+			backgroundColor: THEME.colors.background.card,
+		},
+	});

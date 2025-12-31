@@ -33,7 +33,7 @@ export function useFetchWithAuth() {
 			// 🔥 CRITIQUE : Gérer les erreurs de token SANS créer de boucle
 			if (response.status === 401 || response.status === 403) {
 				console.log("🔒 Token invalide/expiré, nettoyage...");
-				await AsyncStorage.removeItem("token");
+				await AsyncStorage.removeItem("@access_token");
 
 				// NE PAS appeler Alert.alert ou router.replace ici
 				// À la place, lancer une erreur spéciale

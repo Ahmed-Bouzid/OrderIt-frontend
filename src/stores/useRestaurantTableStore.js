@@ -78,7 +78,7 @@ const useTableStore = create((set, get) => ({
 		try {
 			set({ isLoading: true });
 
-			const token = await AsyncStorage.getItem("token");
+			const token = await AsyncStorage.getItem("@access_token");
 			if (!token) {
 				console.log("⚠️ Aucun token trouvé — redirection vers Login");
 				set({ isLoading: false });
@@ -94,7 +94,7 @@ const useTableStore = create((set, get) => ({
 
 			if (response.status === 401 || response.status === 403) {
 				console.log("🔒 Token expiré ou invalide — redirection vers Login");
-				await AsyncStorage.removeItem("token");
+				await AsyncStorage.removeItem("@access_token");
 				set({ isLoading: false });
 				RootNavigation.navigate("Login");
 				return;

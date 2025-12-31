@@ -223,7 +223,7 @@ export const useDashboardActions = (fetchReservations) => {
 				}
 
 				// Récupérer l'ID du serveur depuis le token JWT
-				const token = await AsyncStorage.getItem("token");
+				const token = await AsyncStorage.getItem("@access_token");
 				let serverId = null;
 				if (token) {
 					try {

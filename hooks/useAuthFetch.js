@@ -108,7 +108,7 @@ export function useAuthFetch() {
 							"❌ PROBLÈME CRITQUE: refreshToken disparu d'AsyncStorage!"
 						);
 						// Force logout si refresh token est perdu
-						await AsyncStorage.removeItem("token");
+						await AsyncStorage.removeItem("@access_token");
 						await AsyncStorage.removeItem("restaurantId");
 						redirectToLogin(router, isRedirectingRef);
 					}
@@ -197,7 +197,7 @@ export function useAuthFetch() {
 						}
 					} catch (refreshError) {
 						console.error("❌ Refresh échoué:", refreshError);
-						await AsyncStorage.removeItem("token");
+						await AsyncStorage.removeItem("@access_token");
 						await AsyncStorage.removeItem("refreshToken");
 						redirectToLogin(router, isRedirectingRef);
 						return []; // ⭐ Retourne tableau vide = airbag
