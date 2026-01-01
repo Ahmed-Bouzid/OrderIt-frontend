@@ -32,15 +32,6 @@ export const ServiceSection = React.memo(
 			[servers]
 		);
 
-		// Debug: Log les serveurs disponibles
-		useEffect(() => {
-			console.log(
-				"🔍 ServiceSection - serveurs disponibles:",
-				safeServers.length,
-				safeServers
-			);
-		}, [safeServers]);
-
 		const serverDisplayName = useMemo(() => {
 			if (activeServer?.name) {
 				return activeServer.name;
