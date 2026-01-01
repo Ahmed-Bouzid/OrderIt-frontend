@@ -9,12 +9,16 @@ let globalReconnectAttempts = 0;
 let globalFallbackMode = false;
 let reconnectTimer = null;
 let fallbackExitTimer = null;
+let heartbeatTimer = null; // Timer pour le heartbeat custom
+let lastPingTime = null; // Timestamp du dernier ping
+let connectionLostNotified = false; // Pour éviter les notifications en double
 
 // ============ CONSTANTES ============
 const MAX_RECONNECT_ATTEMPTS = 5;
 const INITIAL_RECONNECT_DELAY = 1000; // 1s
 const MAX_RECONNECT_DELAY = 30000; // 30s
 const FALLBACK_EXIT_DELAY = 5 * 60 * 1000; // 5 minutes
+const HEARTBEAT_INTERVAL = 25000; // 25s (avant le timeout de 30s)
 const SOFT_DISCONNECT_TYPES = [
 	"ping timeout",
 	"transport close",
@@ -69,6 +73,74 @@ const scheduleFallbackExit = () => {
 			}
 		}
 	}, FALLBACK_EXIT_DELAY);
+};
+
+/**
+ * Démarre le heartbeat custom pour maintenir la connexion active
+ * Envoie un ping régulier au serveur pour éviter les timeouts d'inactivité
+ */
+const startHeartbeat = (socket) => {
+	// Nettoyer l'ancien timer si existant
+	if (heartbeatTimer) {
+		clearInterval(heartbeatTimer);
+		heartbeatTimer = null;
+	}
+
+	if (!socket || !socket.connected) {
+		console.log("⏭️ Heartbeat ignoré: socket non connecté");
+		return;
+	}
+
+	console.log(
+		`💓 Démarrage du heartbeat (intervalle: ${HEARTBEAT_INTERVAL}ms)`
+	);
+	lastPingTime = Date.now();
+
+	heartbeatTimer = setInterval(() => {
+		if (socket && socket.connected) {
+			// Émettre un ping custom au serveur
+			socket.emit("client-ping", { timestamp: Date.now() });
+			lastPingTime = Date.now();
+
+			// Log silencieux pour debug (décommenter si besoin)
+			// console.log("💓 Heartbeat envoyé");
+		} else {
+			console.warn("💓 Heartbeat: socket déconnecté, arrêt du heartbeat");
+			stopHeartbeat();
+		}
+	}, HEARTBEAT_INTERVAL);
+};
+
+/**
+ * Arrête le heartbeat custom
+ */
+const stopHeartbeat = () => {
+	if (heartbeatTimer) {
+		console.log("🛑 Arrêt du heartbeat");
+		clearInterval(heartbeatTimer);
+		heartbeatTimer = null;
+		lastPingTime = null;
+	}
+};
+
+/**
+ * Notifie l'utilisateur d'un changement de connexion
+ * @param {string} type - Type de notification ("lost", "restored")
+ * @param {string} message - Message à afficher
+ */
+const notifyConnectionChange = (type, message) => {
+	// Pour l'instant, on log - tu peux intégrer react-native-toast-message ici
+	if (type === "lost" && !connectionLostNotified) {
+		console.warn("📡 " + message);
+		connectionLostNotified = true;
+		// TODO: Intégrer Toast ici si disponible
+		// Toast.show({ type: "error", text1: "Connexion perdue", text2: message });
+	} else if (type === "restored" && connectionLostNotified) {
+		console.log("📡 " + message);
+		connectionLostNotified = false;
+		// TODO: Intégrer Toast ici si disponible
+		// Toast.show({ type: "success", text1: "Reconnecté", text2: message });
+	}
 };
 
 /**
@@ -162,6 +234,14 @@ const useSocket = () => {
 					clearTimeout(fallbackExitTimer);
 					fallbackExitTimer = null;
 				}
+
+				// Démarrer le heartbeat pour maintenir la connexion active
+				startHeartbeat(socket);
+
+				// Notifier la restauration de la connexion si elle était perdue
+				if (connectionLostNotified) {
+					notifyConnectionChange("restored", "Connexion rétablie avec succès");
+				}
 			});
 
 			// ============ LISTENER: DÉCONNEXION ============
@@ -169,16 +249,31 @@ const useSocket = () => {
 			socket.on("disconnect", (reason) => {
 				console.warn(`🔌 Socket déconnecté: ${reason}`);
 
+				// Arrêter le heartbeat
+				stopHeartbeat();
+
 				// Différencier les types de déconnexion
 				if (isSoftDisconnect(reason)) {
 					console.log(
-						"💤 Déconnexion douce (timeout/inactivité) - reconnexion rapide"
+						"💤 Déconnexion douce (timeout/inactivité) - reconnexion automatique..."
 					);
 					// Ne pas incrémenter le compteur pour les déconnexions douces
 					// Socket.io reconnectera automatiquement avec un délai court
+
+					// Notifier l'utilisateur seulement après plusieurs échecs
+					if (globalReconnectAttempts > 2) {
+						notifyConnectionChange(
+							"lost",
+							"Connexion instable, tentative de reconnexion..."
+						);
+					}
 				} else if (reason === "io server disconnect") {
 					console.warn("⚠️ Déconnexion initiée par le serveur");
 					// Le serveur a fermé la connexion, reconnexion manuelle requise
+					notifyConnectionChange(
+						"lost",
+						"Serveur déconnecté, reconnexion en cours..."
+					);
 					socket.connect();
 				} else if (reason === "io client disconnect") {
 					console.log("ℹ️ Déconnexion manuelle par le client");
@@ -186,31 +281,55 @@ const useSocket = () => {
 				} else {
 					console.error(`❌ Déconnexion critique: ${reason}`);
 					globalReconnectAttempts += 1;
+					notifyConnectionChange(
+						"lost",
+						`Connexion perdue (${reason}), reconnexion...`
+					);
 				}
 			});
 
 			// ============ LISTENER: ERREUR DE CONNEXION ============
 			socket.off("connect_error");
 			socket.on("connect_error", (error) => {
-				console.error("❌ Erreur connexion Socket:", error?.message || error);
+				const errorMsg = error?.message || error?.toString() || "unknown";
 
-				globalReconnectAttempts += 1;
+				// Gérer les timeouts différemment des vraies erreurs
+				if (errorMsg.includes("timeout")) {
+					console.warn("⏱️ Timeout de connexion (inactivité détectée)");
+					// Ne pas compter les timeouts comme des échecs critiques
+					// Socket.io va automatiquement réessayer
 
-				// Calcul du backoff
-				const delay = calculateBackoffDelay(globalReconnectAttempts - 1);
-				console.log(
-					`🔄 Tentative ${globalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} - Prochaine dans ${delay}ms`
-				);
+					// Notifier seulement après plusieurs timeouts
+					if (globalReconnectAttempts > 3) {
+						notifyConnectionChange(
+							"lost",
+							"Connexion lente, reconnexion en cours..."
+						);
+					}
+				} else {
+					console.error("❌ Erreur connexion Socket:", errorMsg);
+					globalReconnectAttempts += 1;
 
-				// Activer le fallback après max tentatives
-				if (globalReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-					console.error(
-						"❌ Max tentatives atteint → Activation du mode fallback REST"
+					// Calcul du backoff
+					const delay = calculateBackoffDelay(globalReconnectAttempts - 1);
+					console.log(
+						`🔄 Tentative ${globalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} - Prochaine dans ${delay}ms`
 					);
-					globalFallbackMode = true;
 
-					// Planifier une sortie automatique du fallback
-					scheduleFallbackExit();
+					// Activer le fallback après max tentatives
+					if (globalReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
+						console.error(
+							"❌ Max tentatives atteint → Activation du mode fallback REST"
+						);
+						globalFallbackMode = true;
+						notifyConnectionChange(
+							"lost",
+							"Mode hors ligne activé, certaines fonctionnalités limitées"
+						);
+
+						// Planifier une sortie automatique du fallback
+						scheduleFallbackExit();
+					}
 				}
 			});
 
@@ -240,6 +359,9 @@ const useSocket = () => {
 	const disconnect = useCallback(() => {
 		console.log("🔌 Déconnexion manuelle du socket...");
 
+		// Arrêter le heartbeat
+		stopHeartbeat();
+
 		// Nettoyer les timers
 		if (reconnectTimer) {
 			clearTimeout(reconnectTimer);
@@ -249,6 +371,9 @@ const useSocket = () => {
 			clearTimeout(fallbackExitTimer);
 			fallbackExitTimer = null;
 		}
+
+		// Réinitialiser le flag de notification
+		connectionLostNotified = false;
 
 		// Nettoyer les listeners custom de cette instance
 		listenerMapRef.current.forEach((callback, event) => {

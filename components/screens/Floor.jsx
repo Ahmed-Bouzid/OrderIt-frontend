@@ -16,7 +16,6 @@ import {
 	TouchableOpacity,
 	Animated,
 	ScrollView,
-	FlatList,
 	ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
@@ -27,6 +26,7 @@ import { useAuthFetch } from "../../hooks/useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { getTheme } from "../../utils/themeUtils";
+import useSocket from "../../hooks/useSocket";
 
 // ─────────────── Menu Item Component ───────────────
 const MenuItem = React.memo(
@@ -120,11 +120,37 @@ export default function Floor({ onStart }) {
 	const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
 	const floorStyles = useMemo(() => createFloorStyles(THEME), [THEME]);
 	const authFetch = useAuthFetch();
+	const { socket, on, off, isConnected, connect } = useSocket();
+	const [socketReady, setSocketReady] = useState(false);
+
+	// Connecter le socket au montage
+	useEffect(() => {
+		console.log("📦 [STOCK] Initialisation socket...");
+		connect();
+	}, [connect]);
+
+	// Vérifier la connexion socket périodiquement (moins fréquemment)
+	useEffect(() => {
+		const checkSocket = setInterval(() => {
+			const connected = isConnected();
+			if (connected !== socketReady) {
+				console.log("📦 [STOCK] Socket status changé:", connected);
+				setSocketReady(connected);
+			}
+		}, 1000);
+
+		return () => clearInterval(checkSocket);
+	}, [isConnected, socketReady]);
 
 	const [activeCategory, setActiveCategory] = useState(null);
 	const [orders, setOrders] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const [restaurantId, setRestaurantId] = useState(null);
+
+	// 📦 Stock bas
+	const [lowStockProducts, setLowStockProducts] = useState({});
+	const [stockExpanded, setStockExpanded] = useState(null); // catégorie stock ouverte
+	const [stockLoading, setStockLoading] = useState(false);
 
 	useEffect(() => {
 		initTheme();
@@ -134,89 +160,194 @@ export default function Floor({ onStart }) {
 	const loadRestaurantId = async () => {
 		try {
 			const id = await AsyncStorage.getItem("restaurantId");
+			console.log("📦 [STOCK] RestaurantId chargé:", id);
 			if (id) {
 				setRestaurantId(id);
 			}
 		} catch (error) {
-			console.error("Erreur chargement restaurantId:", error);
+			console.error("❌ [STOCK] Erreur chargement restaurantId:", error);
 		}
 	};
 
-	// Charger les commandes
-	const fetchOrders = useCallback(async () => {
+	// 📦 Charger les produits à stock bas
+	const fetchLowStock = useCallback(async () => {
 		if (!restaurantId) return;
 
 		try {
-			setLoading(true);
-			const response = await authFetch(
-				`/orders?restaurantId=${restaurantId}&status=confirmed,in_progress,ready`,
-				{ method: "GET" }
-			);
+			setStockLoading(true);
+			const url = `/products/low-stock/${restaurantId}`;
 
-			if (response.ok) {
-				const data = await response.json();
-				setOrders(data || []);
+			const result = await authFetch(url, { method: "GET" });
+			const products = result?.lowStockProducts || {};
+			const total = result?.total || 0;
 
-				// 📦 Log des commandes reçues
-				console.log(`📦 ${data.length} commandes chargées`);
-				data.forEach((order, idx) => {
-					console.log(`\n📋 Commande ${idx + 1}/${data.length}:`);
-					console.log(`  - ID: ${order._id}`);
-					console.log(`  - Table: ${order.tableId?.number || "?"}`);
-					console.log(`  - Serveur: ${order.serverId?.name || "Non assigné"}`);
-					console.log(`  - Statut commande: ${order.status}`);
-					console.log(`  - Items (${order.items.length}):`);
-					order.items.forEach((item, itemIdx) => {
-						console.log(`    ${itemIdx + 1}. ${item.name} x${item.quantity}`);
-						console.log(
-							`       - Catégorie: ${item.category || "non définie"}`
-						);
-						console.log(
-							`       - Statut item: ${item.itemStatus || "non défini"}`
-						);
-						if (item.startTime) {
-							const elapsed = Math.floor(
-								(Date.now() - new Date(item.startTime)) / 1000
-							);
-							console.log(`       - En préparation depuis: ${elapsed}s`);
-						}
-					});
-				});
-			}
+			console.log("📦 [STOCK] Stocks bas récupérés:", total, "produits");
+
+			setLowStockProducts(products);
 		} catch (error) {
-			console.error("Erreur chargement commandes:", error);
+			console.error("❌ [STOCK] Erreur chargement stocks:", error);
+		} finally {
+			setStockLoading(false);
+		}
+	}, [restaurantId, authFetch]);
+
+	// Charger les commandes
+	const fetchOrders = useCallback(async () => {
+		if (!restaurantId) {
+			return;
+		}
+
+		try {
+			setLoading(true);
+			const url = `/orders?restaurantId=${restaurantId}`;
+
+			const result = await authFetch(url, { method: "GET" });
+
+			const data = result.orders || result || [];
+			setOrders(data);
+		} catch (error) {
 		} finally {
 			setLoading(false);
 		}
 	}, [restaurantId, authFetch]);
 
+	// WebSocket listeners pour updates instantanées
+	useEffect(() => {
+		if (!restaurantId || !socketReady) return;
+
+		console.log("📦 [SOCKET] Attachement listeners orders");
+
+		const handleOrderCreated = (order) => {
+			if (order.restaurantId === restaurantId) {
+				setOrders((prev) => [...prev, order]);
+			}
+		};
+
+		const handleOrderUpdated = (order) => {
+			if (order.restaurantId === restaurantId) {
+				setOrders((prev) => prev.map((o) => (o._id === order._id ? order : o)));
+			}
+		};
+
+		const handleOrderItemStatusUpdated = ({ orderId, itemId, newStatus }) => {
+			setOrders((prev) =>
+				prev.map((order) =>
+					order._id === orderId
+						? {
+								...order,
+								items: order.items.map((item) =>
+									item._id === itemId
+										? { ...item, itemStatus: newStatus }
+										: item
+								),
+							}
+						: order
+				)
+			);
+		};
+
+		on("order:created", handleOrderCreated);
+		on("order:updated", handleOrderUpdated);
+		on("order:item:status:updated", handleOrderItemStatusUpdated);
+
+		return () => {
+			off("order:created", handleOrderCreated);
+			off("order:updated", handleOrderUpdated);
+			off("order:item:status:updated", handleOrderItemStatusUpdated);
+		};
+	}, [restaurantId, socketReady, on, off]);
+
+	// 📦 WebSocket listener pour mise à jour stock
+	useEffect(() => {
+		if (!restaurantId || !socketReady) return;
+
+		const handleStockUpdated = (data) => {
+			console.log("📦 [STOCK] WebSocket product:stock:updated");
+			fetchLowStock();
+		};
+
+		const handleProductUpdated = (data) => {
+			console.log(
+				"📦 [STOCK] WebSocket product:updated - ",
+				data.name,
+				"quantifiable:",
+				data.quantifiable
+			);
+			if (data.quantifiable) {
+				fetchLowStock();
+			}
+		};
+
+		console.log("📦 [STOCK] ✅ Listeners WebSocket attachés");
+		on("product:stock:updated", handleStockUpdated);
+		on("product:updated", handleProductUpdated);
+
+		return () => {
+			off("product:stock:updated", handleStockUpdated);
+			off("product:updated", handleProductUpdated);
+		};
+	}, [restaurantId, socketReady, fetchLowStock, on, off]);
+
 	useEffect(() => {
 		if (restaurantId) {
 			fetchOrders();
-			const interval = setInterval(fetchOrders, 30000);
+			fetchLowStock(); // 📦 Charger aussi les stocks
+			// Réduire l'intervalle puisque WebSocket gère les updates
+			const interval = setInterval(fetchOrders, 60000); // 1 min au lieu de 30s
 			return () => clearInterval(interval);
 		}
-	}, [restaurantId, fetchOrders]);
+	}, [restaurantId, fetchOrders, fetchLowStock]);
 
-	// Extraire tous les items avec métadonnées
+	// Extraire tous les items avec métadonnées (exclure "autre")
 	const allItems = useMemo(() => {
-		return orders.flatMap((order) =>
-			order.items.map((item) => ({
-				...item,
-				orderId: order._id,
-				tableNumber: order.tableId?.number || "?",
-				serverName: order.serverId?.name || "Non assigné",
-			}))
-		);
+		const items = orders
+			.flatMap((order) =>
+				order.items.map((item) => ({
+					...item,
+					orderId: order._id,
+					tableNumber: order.tableId?.number || "?",
+					serverName:
+						order.serverId?.name ||
+						(order.origin === "client" ? "Client" : "Non assigné"),
+				}))
+			)
+			.filter((item) => item.category && item.category !== "autre");
+		return items;
 	}, [orders]);
 
-	// Compter items par catégorie
+	// Compter items par catégorie (exclure servis/annulés)
 	const getCategoryCount = useCallback(
 		(category) => {
-			return allItems.filter((item) => item.category === category).length;
+			return allItems.filter(
+				(item) =>
+					item.category === category &&
+					item.itemStatus !== "served" &&
+					item.itemStatus !== "cancelled"
+			).length;
 		},
 		[allItems]
 	);
+
+	// 📦 Compter produits à stock bas par catégorie
+	const getLowStockCount = useCallback(
+		(category) => {
+			return (lowStockProducts[category] || []).length;
+		},
+		[lowStockProducts]
+	);
+
+	// 📦 Total produits à stock bas
+	const totalLowStock = useMemo(() => {
+		return Object.values(lowStockProducts).reduce(
+			(sum, arr) => sum + arr.length,
+			0
+		);
+	}, [lowStockProducts]);
+
+	// 📦 Handler pour ouvrir/fermer catégorie stock
+	const handleStockCategoryPress = useCallback((category) => {
+		setStockExpanded((prev) => (prev === category ? null : category));
+	}, []);
 
 	// Items filtrés par catégorie active
 	const filteredItems = useMemo(() => {
@@ -235,41 +366,33 @@ export default function Floor({ onStart }) {
 		setActiveCategory((prev) => (prev === category ? null : category));
 	}, []);
 
-	// Mettre à jour le statut d'un item
+	// Mettre à jour le statut d'un item (optimiste + WebSocket)
 	const handleUpdateItemStatus = useCallback(
 		async (orderId, itemId, newStatus) => {
-			try {
-				const response = await authFetch(
-					`/orders/${orderId}/items/${itemId}/status`,
-					{
-						method: "PUT",
-						body: JSON.stringify({ status: newStatus }),
-					}
-				);
+			// Update optimiste immédiat
+			setOrders((prev) =>
+				prev.map((order) =>
+					order._id === orderId
+						? {
+								...order,
+								items: order.items.map((item) =>
+									item._id === itemId
+										? { ...item, itemStatus: newStatus }
+										: item
+								),
+							}
+						: order
+				)
+			);
 
-				if (response.ok) {
-					const result = await response.json();
-					console.log(`\n🔄 Mise à jour statut item:`);
-					console.log(`  - Commande: ${orderId}`);
-					console.log(`  - Item: ${result.item?.name || itemId}`);
-					console.log(`  - Nouveau statut: ${newStatus}`);
-					if (result.item?.startTime) {
-						console.log(
-							`  - Timer démarré à: ${new Date(result.item.startTime).toLocaleTimeString()}`
-						);
-					}
-					if (result.item?.endTime) {
-						const duration = Math.floor(
-							(new Date(result.item.endTime) -
-								new Date(result.item.startTime)) /
-								1000
-						);
-						console.log(`  - Durée totale: ${duration}s`);
-					}
-					await fetchOrders();
-				}
+			try {
+				await authFetch(`/orders/${orderId}/items/${itemId}/status`, {
+					method: "PUT",
+					body: { status: newStatus },
+				});
 			} catch (error) {
-				console.error("Erreur mise à jour statut:", error);
+				// Rollback en cas d'erreur
+				await fetchOrders();
 			}
 		},
 		[authFetch, fetchOrders]
@@ -549,6 +672,189 @@ export default function Floor({ onStart }) {
 							/>
 						</GroupBox>
 
+						{/* 📦 Stock Section */}
+						<SectionHeader
+							icon="cube-outline"
+							label="Stock"
+							gradientColors={[
+								"rgba(239, 68, 68, 0.15)",
+								"rgba(239, 68, 68, 0.05)",
+							]}
+							floorStyles={floorStyles}
+							THEME={THEME}
+						/>
+						<GroupBox floorStyles={floorStyles}>
+							{totalLowStock === 0 ? (
+								<View style={floorStyles.emptyStockContainer}>
+									<Ionicons
+										name="checkmark-circle-outline"
+										size={20}
+										color={THEME.colors.status.success}
+									/>
+									<Text style={floorStyles.emptyStockText}>Stocks OK</Text>
+								</View>
+							) : (
+								<>
+									{/* Boissons en stock bas */}
+									<MenuItem
+										icon="wine-outline"
+										label="Boissons"
+										count={getLowStockCount("boisson")}
+										isActive={stockExpanded === "boisson"}
+										onPress={() => handleStockCategoryPress("boisson")}
+										floorStyles={floorStyles}
+										THEME={THEME}
+									/>
+									{stockExpanded === "boisson" && (
+										<View style={floorStyles.stockItemsSection}>
+											{stockLoading ? (
+												<ActivityIndicator
+													size="small"
+													color={THEME.colors.primary.amber}
+												/>
+											) : (lowStockProducts.boisson || []).length === 0 ? (
+												<Text style={floorStyles.stockOkText}>✓ Stock OK</Text>
+											) : (
+												(lowStockProducts.boisson || []).map((product) => (
+													<View
+														key={product._id}
+														style={[
+															floorStyles.stockItem,
+															product.quantity === 0 &&
+																floorStyles.stockItemOutOfStock,
+														]}
+													>
+														<Text style={floorStyles.stockItemName}>
+															{product.name}
+														</Text>
+														<View
+															style={[
+																floorStyles.stockBadge,
+																product.quantity === 0
+																	? floorStyles.stockBadgeOut
+																	: floorStyles.stockBadgeLow,
+															]}
+														>
+															<Text style={floorStyles.stockBadgeText}>
+																{product.quantity === 0
+																	? "Épuisé"
+																	: product.quantity}
+															</Text>
+														</View>
+													</View>
+												))
+											)}
+										</View>
+									)}
+
+									{/* Plats en stock bas */}
+									<MenuItem
+										icon="restaurant-outline"
+										label="Plats"
+										count={getLowStockCount("plat")}
+										isActive={stockExpanded === "plat"}
+										onPress={() => handleStockCategoryPress("plat")}
+										floorStyles={floorStyles}
+										THEME={THEME}
+									/>
+									{stockExpanded === "plat" && (
+										<View style={floorStyles.stockItemsSection}>
+											{stockLoading ? (
+												<ActivityIndicator
+													size="small"
+													color={THEME.colors.primary.amber}
+												/>
+											) : (lowStockProducts.plat || []).length === 0 ? (
+												<Text style={floorStyles.stockOkText}>✓ Stock OK</Text>
+											) : (
+												(lowStockProducts.plat || []).map((product) => (
+													<View
+														key={product._id}
+														style={[
+															floorStyles.stockItem,
+															product.quantity === 0 &&
+																floorStyles.stockItemOutOfStock,
+														]}
+													>
+														<Text style={floorStyles.stockItemName}>
+															{product.name}
+														</Text>
+														<View
+															style={[
+																floorStyles.stockBadge,
+																product.quantity === 0
+																	? floorStyles.stockBadgeOut
+																	: floorStyles.stockBadgeLow,
+															]}
+														>
+															<Text style={floorStyles.stockBadgeText}>
+																{product.quantity === 0
+																	? "Épuisé"
+																	: product.quantity}
+															</Text>
+														</View>
+													</View>
+												))
+											)}
+										</View>
+									)}
+
+									{/* Desserts en stock bas */}
+									<MenuItem
+										icon="ice-cream-outline"
+										label="Desserts"
+										count={getLowStockCount("dessert")}
+										isActive={stockExpanded === "dessert"}
+										onPress={() => handleStockCategoryPress("dessert")}
+										isLast
+										floorStyles={floorStyles}
+										THEME={THEME}
+									/>
+									{stockExpanded === "dessert" && (
+										<View style={floorStyles.stockItemsSection}>
+											{stockLoading ? (
+												<ActivityIndicator
+													size="small"
+													color={THEME.colors.primary.amber}
+												/>
+											) : (lowStockProducts.dessert || []).length === 0 ? (
+												<Text style={floorStyles.stockOkText}>✓ Stock OK</Text>
+											) : (
+												(lowStockProducts.dessert || []).map((product) => (
+													<View
+														key={product._id}
+														style={[
+															floorStyles.stockItem,
+															product.quantity === 0 &&
+																floorStyles.stockItemOutOfStock,
+														]}
+													>
+														<Text style={floorStyles.stockItemName}>
+															{product.name}
+														</Text>
+														<View
+															style={[
+																floorStyles.stockBadge,
+																product.quantity === 0
+																	? floorStyles.stockBadgeOut
+																	: floorStyles.stockBadgeLow,
+															]}
+														>
+															<Text style={floorStyles.stockBadgeText}>
+																{product.quantity === 0
+																	? "Épuisé"
+																	: product.quantity}
+															</Text>
+														</View>
+													</View>
+												))
+											)}
+										</View>
+									)}
+								</>
+							)}
+						</GroupBox>
+
 						{/* Caisse Section */}
 						<SectionHeader
 							icon="card-outline"
@@ -737,6 +1043,71 @@ const createFloorStyles = (THEME) =>
 		emptyText: {
 			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.muted,
+		},
+		// 📦 Stock Section Styles
+		emptyStockContainer: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: THEME.spacing.lg,
+			gap: THEME.spacing.sm,
+		},
+		emptyStockText: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: THEME.typography.weights.medium,
+			color: THEME.colors.status.success,
+		},
+		stockItemsSection: {
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			backgroundColor: "rgba(239, 68, 68, 0.05)",
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		stockOkText: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.status.success,
+			textAlign: "center",
+			paddingVertical: THEME.spacing.sm,
+		},
+		stockItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.sm,
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.md,
+			marginBottom: THEME.spacing.xs,
+		},
+		stockItemOutOfStock: {
+			backgroundColor: "rgba(239, 68, 68, 0.1)",
+			borderWidth: 1,
+			borderColor: "rgba(239, 68, 68, 0.3)",
+		},
+		stockItemName: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: THEME.typography.weights.medium,
+			color: THEME.colors.text.primary,
+			flex: 1,
+		},
+		stockBadge: {
+			borderRadius: THEME.radius.sm,
+			paddingHorizontal: THEME.spacing.sm,
+			paddingVertical: 2,
+			minWidth: 40,
+			alignItems: "center",
+		},
+		stockBadgeLow: {
+			backgroundColor: "rgba(245, 158, 11, 0.2)",
+		},
+		stockBadgeOut: {
+			backgroundColor: "rgba(239, 68, 68, 0.3)",
+		},
+		stockBadgeText: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: THEME.typography.weights.bold,
+			color: THEME.colors.text.primary,
 		},
 		verticalSeparator: {
 			width: 1,

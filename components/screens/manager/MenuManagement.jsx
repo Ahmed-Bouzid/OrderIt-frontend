@@ -77,6 +77,11 @@ export default function MenuManagement() {
 			description: product.description || "",
 			available: product.available !== false,
 			image: product.image || "",
+			quantifiable: product.quantifiable || false,
+			quantity:
+				product.quantifiable && typeof product.quantity === "number"
+					? product.quantity.toString()
+					: "",
 		});
 		setShowAllergens(false);
 		// Charger les allergènes du produit
@@ -430,13 +435,11 @@ export default function MenuManagement() {
 			Alert.alert("Erreur", "Le nom et le prix sont requis");
 			return;
 		}
-
 		const price = parseFloat(formData.price);
 		if (isNaN(price) || price < 0) {
 			Alert.alert("Erreur", "Le prix doit être un nombre valide");
 			return;
 		}
-
 		try {
 			await authFetch(`/products/${editingProduct._id}`, {
 				method: "PUT",
@@ -447,9 +450,13 @@ export default function MenuManagement() {
 					description: formData.description,
 					available: formData.available,
 					image: formData.image,
+					quantifiable: !!formData.quantifiable,
+					quantity:
+						!!formData.quantifiable && formData.quantity !== ""
+							? parseInt(formData.quantity, 10)
+							: null,
 				}),
 			});
-
 			Alert.alert("Succès", "Produit modifié");
 			setModalVisible(false);
 			fetchProducts();
@@ -695,6 +702,57 @@ export default function MenuManagement() {
 										</TouchableOpacity>
 									))}
 								</View>
+							</View>
+
+							{/* Toggle quantifiable + quantité */}
+							<View style={styles.formSection}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										justifyContent: "space-between",
+									}}
+								>
+									<Text style={styles.formLabel}>Produit quantifiable</Text>
+									<Switch
+										value={!!formData.quantifiable}
+										onValueChange={(value) =>
+											setFormData({ ...formData, quantifiable: value })
+										}
+										trackColor={{
+											false: THEME.colors.text.muted,
+											true: THEME.colors.primary,
+										}}
+										thumbColor={
+											formData.quantifiable
+												? THEME.colors.primary
+												: THEME.colors.text.muted
+										}
+									/>
+								</View>
+								{formData.quantifiable && (
+									<View style={{ marginTop: 10 }}>
+										<Text style={styles.formLabel}>Quantité en stock</Text>
+										<View style={styles.inputWrapper}>
+											<TextInput
+												style={styles.input}
+												placeholder="Quantité"
+												placeholderTextColor={THEME.colors.text.muted}
+												value={formData.quantity?.toString() || ""}
+												onChangeText={(text) =>
+													setFormData({
+														...formData,
+														quantity: text.replace(/[^0-9]/g, ""),
+													})
+												}
+												keyboardType="number-pad"
+											/>
+										</View>
+										<Text style={styles.inputHint}>
+											Décrémente automatiquement à chaque commande
+										</Text>
+									</View>
+								)}
 							</View>
 
 							{/* Flip Card: Description ↔ Allergènes */}
@@ -960,7 +1018,7 @@ export default function MenuManagement() {
 									>
 										<Ionicons name="add" size={20} color="#FFFFFF" />
 										<Text style={styles.addOptionButtonText}>
-											Ajouter l'option
+											Ajouter l&apos;option
 										</Text>
 									</LinearGradient>
 								</TouchableOpacity>
