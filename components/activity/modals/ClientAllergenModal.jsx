@@ -22,7 +22,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../../src/stores/useThemeStore";
-import { getTheme } from "../../../utils/themeUtils";
+import { useTheme } from "../../../hooks/useTheme";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -117,7 +117,7 @@ const DEFAULT_ALLERGENS = [
 export const ClientAllergenModal = React.memo(
 	({ visible, onClose, onValidate, selectedAllergenIds = [] }) => {
 		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const styles = useMemo(
 			() => createStyles(THEME, themeMode === "dark" || themeMode === "ocean"),
 			[THEME, themeMode]
@@ -386,7 +386,10 @@ export const ClientAllergenModal = React.memo(
 										renderItem={renderAllergenItem}
 										keyExtractor={(item) => item._id}
 										style={styles.list}
-										contentContainerStyle={styles.listContent}
+										contentContainerStyle={[
+											styles.listContent,
+											{ flexGrow: 1 },
+										]}
 										showsVerticalScrollIndicator={false}
 									/>
 								)}
@@ -504,7 +507,7 @@ const createStyles = (THEME, isDarkMode) =>
 			paddingVertical: THEME.spacing["3xl"],
 		},
 		list: {
-			flex: 1,
+			maxHeight: 400,
 			marginTop: THEME.spacing.md,
 		},
 		listContent: {

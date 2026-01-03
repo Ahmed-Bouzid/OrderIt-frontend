@@ -46,8 +46,8 @@ export default function MenuManagement() {
 			let data = Array.isArray(res)
 				? res
 				: Array.isArray(res?.products)
-					? res.products
-					: [];
+				? res.products
+				: [];
 			setProducts(data);
 		} catch (error) {
 			console.error("❌ Erreur chargement produits:", error);
@@ -777,7 +777,6 @@ export default function MenuManagement() {
 											{showAllergens ? "Description" : "Allergènes"}
 											{!showAllergens && productAllergensDisplay.length > 0 && (
 												<Text style={styles.allergenCountBadge}>
-													{" "}
 													({productAllergensDisplay.length})
 												</Text>
 											)}

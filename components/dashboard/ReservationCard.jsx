@@ -3,7 +3,7 @@
  * Card animée avec effets de profondeur et gradient glow
  * Support Mode Clair/Sombre
  */
-import React, { useRef, useEffect, useMemo } from "react";
+import React, { useRef, useEffect, useMemo, useState } from "react";
 import {
 	View,
 	Text,
@@ -14,7 +14,8 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme, getThemeGradients } from "../../utils/themeUtils";
+import { useTheme } from "../../hooks/useTheme";
+import { getThemeGradients } from "../../utils/themeUtils";
 
 // Configuration des statuts (les couleurs restent les mêmes pour clarté visuelle)
 const getStatusConfig = (status, gradients) => {
@@ -64,16 +65,25 @@ const getStatusConfig = (status, gradients) => {
 };
 
 const ReservationCard = React.memo(
-	({ reservation, onSettingsPress, onAssignTablePress }) => {
+	({
+		reservation,
+		onSettingsPress,
+		onAssignTablePress,
+		onEditNbPersonnes,
+		onEditPhone,
+	}) => {
 		// Thème dynamique (avant tout)
 		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const gradients = useMemo(() => getThemeGradients(themeMode), [themeMode]);
 		const styles = useMemo(() => createStyles(THEME), [THEME]);
 
 		// Animation refs
 		const scaleAnim = useRef(new Animated.Value(1)).current;
 		const glowAnim = useRef(new Animated.Value(0)).current;
+
+		// ⭐ State pour le temps écoulé (mise à jour chaque minute)
+		const [elapsedTime, setElapsedTime] = useState("--:--");
 
 		// Statut effectif
 		const effectiveStatus = reservation
@@ -85,6 +95,38 @@ const ReservationCard = React.memo(
 		const statusConfig = getStatusConfig(effectiveStatus, gradients);
 		const isActive =
 			effectiveStatus === "present" || effectiveStatus === "ouverte";
+
+		// ⭐ Détermine si les champs sont modifiables (pas terminée ni annulée)
+		const isEditable =
+			effectiveStatus !== "terminée" &&
+			effectiveStatus !== "termine" &&
+			effectiveStatus !== "annulée" &&
+			effectiveStatus !== "annulee";
+
+		// ⭐ Calcul du temps écoulé depuis arrivalTime
+		useEffect(() => {
+			const calcElapsed = () => {
+				if (!reservation?.arrivalTime) {
+					setElapsedTime("--:--");
+					return;
+				}
+				const arrival = new Date(reservation.arrivalTime);
+				const now = new Date();
+				const diffMs = now - arrival;
+				if (diffMs < 0) {
+					setElapsedTime("--:--");
+					return;
+				}
+				const hours = Math.floor(diffMs / 3600000);
+				const mins = Math.floor((diffMs % 3600000) / 60000);
+				setElapsedTime(
+					`${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`
+				);
+			};
+			calcElapsed();
+			const interval = setInterval(calcElapsed, 60000); // Update every minute
+			return () => clearInterval(interval);
+		}, [reservation?.arrivalTime]);
 
 		// Animation de pulsation pour les cartes actives
 		useEffect(() => {
@@ -216,19 +258,55 @@ const ReservationCard = React.memo(
 							</TouchableOpacity>
 						</View>
 
-						{/* Info grid */}
+						{/* Info grid - 3 colonnes */}
 						<View style={styles.infoGrid}>
-							{/* Left column */}
+							{/* Colonne 1: Personnes, Téléphone, Table */}
+							<View style={styles.infoCol}>
+								<TouchableOpacity
+									onPress={() => isEditable && onEditNbPersonnes?.(reservation)}
+									disabled={!isEditable}
+								>
+									<InfoRow
+										icon="people"
+										value={`${reservation.nbPersonnes || 0} pers.`}
+										highlight={isEditable}
+										styles={styles}
+										THEME={THEME}
+									/>
+								</TouchableOpacity>
+								<TouchableOpacity
+									onPress={() => isEditable && onEditPhone?.(reservation)}
+									disabled={!isEditable}
+								>
+									<InfoRow
+										icon="call"
+										value={reservation.phone || "-"}
+										highlight={isEditable}
+										styles={styles}
+										THEME={THEME}
+									/>
+								</TouchableOpacity>
+								<TouchableOpacity
+									onPress={() =>
+										isEditable && onAssignTablePress?.(reservation)
+									}
+									disabled={!isEditable}
+								>
+									<InfoRow
+										icon="restaurant"
+										value={`Table ${reservation.tableId?.number || "-"}`}
+										highlight={isEditable}
+										styles={styles}
+										THEME={THEME}
+									/>
+								</TouchableOpacity>
+							</View>
+
+							{/* Colonne 2: Heure, Date, Montant */}
 							<View style={styles.infoCol}>
 								<InfoRow
-									icon="people"
-									value={`${reservation.nbPersonnes || 0} pers.`}
-									styles={styles}
-									THEME={THEME}
-								/>
-								<InfoRow
-									icon="call"
-									value={reservation.phone || "-"}
+									icon="time"
+									value={reservation.reservationTime || "N/A"}
 									styles={styles}
 									THEME={THEME}
 								/>
@@ -238,35 +316,6 @@ const ReservationCard = React.memo(
 									styles={styles}
 									THEME={THEME}
 								/>
-							</View>
-
-							{/* Right column */}
-							<View style={styles.infoCol}>
-								<InfoRow
-									icon="time"
-									value={reservation.reservationTime || "N/A"}
-									styles={styles}
-									THEME={THEME}
-								/>
-								<TouchableOpacity
-									onPress={() =>
-										effectiveStatus !== "fermee" &&
-										effectiveStatus !== "annulee" &&
-										onAssignTablePress?.(reservation)
-									}
-									disabled={
-										effectiveStatus === "fermee" ||
-										effectiveStatus === "annulee"
-									}
-								>
-									<InfoRow
-										icon="restaurant"
-										value={`Table ${reservation.tableId?.number || "-"}`}
-										highlight={isActive}
-										styles={styles}
-										THEME={THEME}
-									/>
-								</TouchableOpacity>
 								<InfoRow
 									icon="wallet"
 									value={
@@ -275,6 +324,38 @@ const ReservationCard = React.memo(
 											: "0.00€"
 									}
 									highlight
+									styles={styles}
+									THEME={THEME}
+								/>
+							</View>
+
+							{/* Colonne 3: Serveur, Temps resté, Mode paiement */}
+							<View style={styles.infoCol}>
+								<InfoRow
+									icon="person"
+									value={
+										reservation.serverId?.name ||
+										reservation.serverId?.username ||
+										"-"
+									}
+									styles={styles}
+									THEME={THEME}
+								/>
+								<InfoRow
+									icon="hourglass"
+									value={elapsedTime}
+									styles={styles}
+									THEME={THEME}
+								/>
+								<InfoRow
+									icon={
+										reservation.paymentMethod === "Carte"
+											? "card"
+											: reservation.paymentMethod === "Espèces"
+											? "cash"
+											: "help-circle"
+									}
+									value={reservation.paymentMethod || "-"}
 									styles={styles}
 									THEME={THEME}
 								/>
@@ -357,7 +438,7 @@ const createStyles = (THEME) =>
 			flex: 1,
 		},
 		clientName: {
-			fontSize: 16,
+			fontSize: THEME.typography.sizes.base,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 			letterSpacing: 0.5,
@@ -378,7 +459,7 @@ const createStyles = (THEME) =>
 			marginRight: 6,
 		},
 		statusText: {
-			fontSize: 11,
+			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "600",
 			textTransform: "uppercase",
 			letterSpacing: 0.5,
@@ -389,24 +470,24 @@ const createStyles = (THEME) =>
 		},
 		infoGrid: {
 			flexDirection: "row",
-			padding: 16,
-			paddingTop: 12,
-			gap: 16,
+			padding: 12,
+			paddingTop: 10,
+			gap: 8,
 		},
 		infoCol: {
 			flex: 1,
-			gap: 10,
+			gap: 8,
 		},
 		infoRow: {
 			flexDirection: "row",
 			alignItems: "center",
 		},
 		infoIcon: {
-			marginRight: 8,
-			width: 16,
+			marginRight: 6,
+			width: 14,
 		},
 		infoText: {
-			fontSize: 13,
+			fontSize: THEME.typography.sizes.xs,
 			color: THEME.colors.text.secondary,
 			fontWeight: "500",
 			flex: 1,

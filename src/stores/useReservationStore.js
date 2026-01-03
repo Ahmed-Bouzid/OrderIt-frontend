@@ -73,6 +73,7 @@ const useReservationStore = create((set, get) => ({
 			console.log("📦 Réservations déjà en cache, pas de fetch");
 			return { success: true, data: state.reservations };
 		}
+		// Si force=true, on ne retourne jamais le cache, on continue le fetch
 
 		// ⭐ BLOQUER COMPLÈTEMENT les appels parallèles
 		if (isFetching || fetchPromise) {
@@ -83,7 +84,7 @@ const useReservationStore = create((set, get) => ({
 				await new Promise((resolve) => setTimeout(resolve, 50));
 			}
 			// Réessayer une fois le flag déverrouillé
-			return useReservationStore.getState().fetchReservations();
+			return useReservationStore.getState().fetchReservations(force);
 		}
 
 		fetchPromise = (async () => {
@@ -153,7 +154,10 @@ const useReservationStore = create((set, get) => ({
 					...newWebSocketReservations,
 				];
 
-				set({ reservations: mergedReservations });
+				// Forcer un nouveau tableau d'objets (deep copy) pour garantir le re-render
+				const refreshedReservations = mergedReservations.map((r) => ({ ...r }));
+				set({ reservations: refreshedReservations });
+				return { success: true, data: refreshedReservations };
 				return { success: true, data: mergedReservations };
 			} catch (err) {
 				console.error("🚨 Erreur récupération réservations :", err);

@@ -10,11 +10,13 @@ import {
 	StyleSheet,
 	Animated,
 	TouchableOpacity,
+	Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import ReservationCard from "../dashboard/ReservationCard";
 import Filters from "../dashboard/Filters";
+import DateNavigator from "../dashboard/DateNavigator";
 import SettingsModal from "../dashboard/SettingsModal";
 import NewReservationModal from "../dashboard/NewReservationModal";
 import AssignTableModal from "../dashboard/AssignTableModal";
@@ -23,15 +25,23 @@ import { useDashboardData } from "../../hooks/useDashboardData";
 import { useDashboardActions } from "../../hooks/useDashboardActions";
 import { useDashboardFilters } from "../../hooks/useDashboardFilters";
 import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme } from "../../utils/themeUtils";
+import { useTheme } from "../../hooks/useTheme";
 
 export default function Dashboard() {
 	const { themeMode } = useThemeStore();
-	const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 
 	// Animation FAB
 	const fabScaleAnim = useRef(new Animated.Value(1)).current;
 	const fabRotateAnim = useRef(new Animated.Value(0)).current;
+
+	// ─────────────── États Locaux ───────────────
+	const [showSettingsModal, setShowSettingsModal] = useState(false);
+	const [showNewReservationModal, setShowNewReservationModal] = useState(false);
+	const [showAssignTableModal, setShowAssignTableModal] = useState(false);
+	const [selectedReservation, setSelectedReservation] = useState(null);
+	const [recreateData, setRecreateData] = useState(null); // ⭐ Données pour recréer une réservation
+	const [selectedDate, setSelectedDate] = useState(new Date()); // 📅 Date sélectionnée pour le filtrage
 
 	// ─────────────── Hooks Custom ───────────────
 	const { reservations, tables, theme, loading, fetchReservations } =
@@ -47,6 +57,7 @@ export default function Dashboard() {
 		updateStatus,
 		cancelReservation,
 		assignTable,
+		updateReservationField,
 		createReservation,
 	} = useDashboardActions(fetchReservations);
 
@@ -56,13 +67,7 @@ export default function Dashboard() {
 		changeFilter,
 		searchQuery,
 		setSearchQuery,
-	} = useDashboardFilters(reservations);
-
-	// ─────────────── États Locaux ───────────────
-	const [showSettingsModal, setShowSettingsModal] = useState(false);
-	const [showNewReservationModal, setShowNewReservationModal] = useState(false);
-	const [showAssignTableModal, setShowAssignTableModal] = useState(false);
-	const [selectedReservation, setSelectedReservation] = useState(null);
+	} = useDashboardFilters(reservations, selectedDate);
 
 	// ─────────────── Callbacks ───────────────
 	const handleOpenSettings = useCallback((reservation) => {
@@ -78,6 +83,27 @@ export default function Dashboard() {
 	const handleCloseSettings = useCallback(() => {
 		setShowSettingsModal(false);
 		setSelectedReservation(null);
+	}, []);
+
+	// ⭐ Handler pour recréer une réservation
+	const handleRecreateReservation = useCallback((reservation) => {
+		console.log("🔄 Recréation réservation:", reservation.clientName);
+		setRecreateData({
+			clientName: reservation.clientName,
+			phone: reservation.phone,
+			nbPersonnes: reservation.nbPersonnes,
+			allergies: reservation.allergies,
+			restrictions: reservation.restrictions,
+			notes: reservation.notes,
+			tableId: reservation.tableId,
+		});
+		setShowNewReservationModal(true);
+	}, []);
+
+	// ⭐ Fermer le modal de nouvelle réservation et reset recreateData
+	const handleCloseNewReservation = useCallback(() => {
+		setShowNewReservationModal(false);
+		setRecreateData(null);
 	}, []);
 
 	const handleTogglePresent = useCallback(
@@ -116,6 +142,67 @@ export default function Dashboard() {
 		[refreshActiveReservation]
 	);
 
+	// ⭐ Handler pour éditer le nombre de personnes
+	const handleEditNbPersonnes = useCallback(
+		(reservation) => {
+			Alert.prompt(
+				"Nombre de personnes",
+				"Entrez le nouveau nombre de personnes :",
+				[
+					{ text: "Annuler", style: "cancel" },
+					{
+						text: "OK",
+						onPress: async (value) => {
+							const nb = parseInt(value, 10);
+							if (!isNaN(nb) && nb > 0) {
+								await updateReservationField(
+									reservation._id,
+									"nbPersonnes",
+									nb
+								);
+							} else {
+								Alert.alert("Erreur", "Veuillez entrer un nombre valide");
+							}
+						},
+					},
+				],
+				"plain-text",
+				String(reservation.nbPersonnes || 1),
+				"number-pad"
+			);
+		},
+		[updateReservationField]
+	);
+
+	// ⭐ Handler pour éditer le téléphone
+	const handleEditPhone = useCallback(
+		(reservation) => {
+			Alert.prompt(
+				"Numéro de téléphone",
+				"Entrez le nouveau numéro :",
+				[
+					{ text: "Annuler", style: "cancel" },
+					{
+						text: "OK",
+						onPress: async (value) => {
+							if (value && value.trim()) {
+								await updateReservationField(
+									reservation._id,
+									"phone",
+									value.trim()
+								);
+							}
+						},
+					},
+				],
+				"plain-text",
+				reservation.phone || "",
+				"phone-pad"
+			);
+		},
+		[updateReservationField]
+	);
+
 	const handleCloseAssignTable = useCallback(() => {
 		setShowAssignTableModal(false);
 		setActiveReservation(null);
@@ -149,10 +236,18 @@ export default function Dashboard() {
 				reservation={item}
 				onSettingsPress={handleOpenSettings}
 				onAssignTablePress={handleOpenAssignTable}
+				onEditNbPersonnes={handleEditNbPersonnes}
+				onEditPhone={handleEditPhone}
 				theme={theme}
 			/>
 		),
-		[handleOpenSettings, handleOpenAssignTable, theme]
+		[
+			handleOpenSettings,
+			handleOpenAssignTable,
+			handleEditNbPersonnes,
+			handleEditPhone,
+			theme,
+		]
 	);
 
 	const keyExtractor = useCallback((item) => item._id, []);
@@ -234,6 +329,12 @@ export default function Dashboard() {
 				theme={theme}
 			/>
 
+			{/* 📅 Navigateur de date */}
+			<DateNavigator
+				selectedDate={selectedDate}
+				onDateChange={setSelectedDate}
+			/>
+
 			{/* Liste des réservations avec FlatList */}
 			{loading ? (
 				<LoadingSkeleton theme={theme} count={6} />
@@ -288,14 +389,16 @@ export default function Dashboard() {
 				onTogglePresent={handleTogglePresent}
 				onUpdateStatus={handleUpdateStatus}
 				onCancel={handleCancel}
+				onRecreate={handleRecreateReservation}
 			/>
 
 			<NewReservationModal
 				visible={showNewReservationModal}
-				onClose={() => setShowNewReservationModal(false)}
+				onClose={handleCloseNewReservation}
 				onCreate={handleCreateReservation}
 				tables={tables}
 				theme={theme}
+				initialData={recreateData}
 			/>
 
 			<AssignTableModal

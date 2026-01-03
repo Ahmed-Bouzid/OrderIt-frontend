@@ -25,12 +25,23 @@ import ItemRow from "../floor/ItemRow";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme } from "../../utils/themeUtils";
+import useReservationStore from "../../src/stores/useReservationStore";
+import { useTheme } from "../../hooks/useTheme";
 import useSocket from "../../hooks/useSocket";
 
 // ─────────────── Menu Item Component ───────────────
 const MenuItem = React.memo(
-	({ icon, label, isLast, count, isActive, onPress, floorStyles, THEME }) => {
+	({
+		icon,
+		label,
+		isLast,
+		count,
+		value,
+		isActive,
+		onPress,
+		floorStyles,
+		THEME,
+	}) => {
 		const scaleAnim = useRef(new Animated.Value(1)).current;
 
 		const handlePressIn = () => {
@@ -83,6 +94,9 @@ const MenuItem = React.memo(
 							<Text style={floorStyles.countBadgeText}>{count}</Text>
 						</View>
 					)}
+					{value !== undefined && (
+						<Text style={floorStyles.valueBadge}>{value.toFixed(2)}€</Text>
+					)}
 				</TouchableOpacity>
 			</Animated.View>
 		);
@@ -117,11 +131,29 @@ GroupBox.displayName = "GroupBox";
 
 export default function Floor({ onStart }) {
 	const { themeMode, initTheme } = useThemeStore();
-	const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 	const floorStyles = useMemo(() => createFloorStyles(THEME), [THEME]);
 	const authFetch = useAuthFetch();
 	const { socket, on, off, isConnected, connect } = useSocket();
 	const [socketReady, setSocketReady] = useState(false);
+
+	// ⭐ Récupérer les réservations du store pour la Caisse
+	const reservations = useReservationStore((state) => state.reservations);
+
+	// ⭐ Stats Caisse dynamiques + listes de réservations
+	const caisseStats = useMemo(() => {
+		const enCours = reservations.filter((r) => r.status === "ouverte");
+		const payees = reservations.filter((r) => r.status === "terminée");
+
+		return {
+			enCoursCount: enCours.length,
+			enCoursMontant: enCours.reduce((sum, r) => sum + (r.totalAmount || 0), 0),
+			enCoursList: enCours,
+			payeesCount: payees.length,
+			payeesMontant: payees.reduce((sum, r) => sum + (r.totalAmount || 0), 0),
+			payeesList: payees,
+		};
+	}, [reservations]);
 
 	// Connecter le socket au montage
 	useEffect(() => {
@@ -151,6 +183,9 @@ export default function Floor({ onStart }) {
 	const [lowStockProducts, setLowStockProducts] = useState({});
 	const [stockExpanded, setStockExpanded] = useState(null); // catégorie stock ouverte
 	const [stockLoading, setStockLoading] = useState(false);
+
+	// 💰 Caisse - catégorie expandable
+	const [caisseExpanded, setCaisseExpanded] = useState(null); // "enCours" ou "payees"
 
 	useEffect(() => {
 		initTheme();
@@ -240,7 +275,7 @@ export default function Floor({ onStart }) {
 										? { ...item, itemStatus: newStatus }
 										: item
 								),
-							}
+						  }
 						: order
 				)
 			);
@@ -380,7 +415,7 @@ export default function Floor({ onStart }) {
 										? { ...item, itemStatus: newStatus }
 										: item
 								),
-							}
+						  }
 						: order
 				)
 			);
@@ -870,18 +905,78 @@ export default function Floor({ onStart }) {
 							<MenuItem
 								icon="time-outline"
 								label="En cours"
-								count={0}
+								count={caisseStats.enCoursCount}
+								value={caisseStats.enCoursMontant}
+								isActive={caisseExpanded === "enCours"}
+								onPress={() =>
+									setCaisseExpanded(
+										caisseExpanded === "enCours" ? null : "enCours"
+									)
+								}
 								floorStyles={floorStyles}
 								THEME={THEME}
 							/>
+							{caisseExpanded === "enCours" && (
+								<View style={floorStyles.caisseDetailSection}>
+									{caisseStats.enCoursList.length === 0 ? (
+										<Text style={floorStyles.caisseDetailEmpty}>
+											Aucune réservation en cours
+										</Text>
+									) : (
+										caisseStats.enCoursList.map((r) => (
+											<View key={r._id} style={floorStyles.caisseDetailItem}>
+												<Text style={floorStyles.caisseDetailName}>
+													{r.clientName || "Client"}
+												</Text>
+												<Text style={floorStyles.caisseDetailAmount}>
+													{(r.totalAmount || 0).toFixed(2)}€
+												</Text>
+												<Text style={floorStyles.caisseDetailPers}>
+													{r.nbPersonnes || 1} pers
+												</Text>
+											</View>
+										))
+									)}
+								</View>
+							)}
 							<MenuItem
 								icon="checkmark-circle-outline"
 								label="Payée"
-								count={0}
-								isLast
+								count={caisseStats.payeesCount}
+								value={caisseStats.payeesMontant}
+								isActive={caisseExpanded === "payees"}
+								onPress={() =>
+									setCaisseExpanded(
+										caisseExpanded === "payees" ? null : "payees"
+									)
+								}
+								isLast={caisseExpanded !== "payees"}
 								floorStyles={floorStyles}
 								THEME={THEME}
 							/>
+							{caisseExpanded === "payees" && (
+								<View style={floorStyles.caisseDetailSection}>
+									{caisseStats.payeesList.length === 0 ? (
+										<Text style={floorStyles.caisseDetailEmpty}>
+											Aucune réservation payée
+										</Text>
+									) : (
+										caisseStats.payeesList.map((r) => (
+											<View key={r._id} style={floorStyles.caisseDetailItem}>
+												<Text style={floorStyles.caisseDetailName}>
+													{r.clientName || "Client"}
+												</Text>
+												<Text style={floorStyles.caisseDetailAmount}>
+													{(r.totalAmount || 0).toFixed(2)}€
+												</Text>
+												<Text style={floorStyles.caisseDetailPers}>
+													{r.nbPersonnes || 1} pers
+												</Text>
+											</View>
+										))
+									)}
+								</View>
+							)}
 						</GroupBox>
 					</ScrollView>
 				</View>
@@ -1019,6 +1114,55 @@ const createFloorStyles = (THEME) =>
 			fontSize: 12,
 			fontWeight: THEME.typography.weights.bold,
 			color: "#FFF",
+		},
+		valueBadge: {
+			fontSize: 12,
+			fontWeight: THEME.typography.weights.bold,
+			color: THEME.colors.status.success,
+			marginLeft: 8,
+		},
+		// 💰 Caisse Detail Styles
+		caisseDetailSection: {
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			backgroundColor: "rgba(16, 185, 129, 0.05)",
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		caisseDetailItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.sm,
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.md,
+			marginBottom: THEME.spacing.xs,
+		},
+		caisseDetailName: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: THEME.typography.weights.medium,
+			color: THEME.colors.text.primary,
+			flex: 1,
+		},
+		caisseDetailAmount: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: THEME.typography.weights.bold,
+			color: THEME.colors.status.success,
+			marginHorizontal: THEME.spacing.sm,
+		},
+		caisseDetailPers: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: THEME.typography.weights.medium,
+			color: THEME.colors.text.muted,
+			minWidth: 50,
+			textAlign: "right",
+		},
+		caisseDetailEmpty: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.muted,
+			textAlign: "center",
+			paddingVertical: THEME.spacing.sm,
 		},
 		itemsSection: {
 			paddingTop: THEME.spacing.sm,

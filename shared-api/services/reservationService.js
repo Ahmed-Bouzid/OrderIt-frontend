@@ -18,4 +18,28 @@ export const reservationService = {
 		);
 		return response.json();
 	},
+
+	/**
+	 * Ferme une réservation (passe status à "terminée")
+	 * @param {string} reservationId - ID de la réservation
+	 * @returns {Promise<Object>} Réservation mise à jour
+	 */
+	async closeReservation(reservationId) {
+		if (!reservationId) throw new Error("reservationId required");
+
+		const response = await fetch(
+			`${API_CONFIG.baseURL}/reservations/client/${reservationId}/close`,
+			{
+				method: "PUT",
+				headers: { "Content-Type": "application/json" },
+			}
+		);
+
+		if (!response.ok) {
+			const error = await response.json();
+			throw new Error(error.message || "Failed to close reservation");
+		}
+
+		return response.json();
+	},
 };

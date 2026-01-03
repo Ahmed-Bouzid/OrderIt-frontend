@@ -1,15 +1,8 @@
 // components/elements/ActivityComponents/ReservationDetails.jsx
 import React, { useMemo, useState, useCallback } from "react";
-import {
-	View,
-	Text,
-	TextInput,
-	TouchableOpacity,
-	StyleSheet,
-} from "react-native";
+import { View, Text, TouchableOpacity, StyleSheet } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import useThemeStore from "../../../src/stores/useThemeStore";
-import { getTheme } from "../../../utils/themeUtils";
+import { useTheme } from "../../../hooks/useTheme";
 import { ClientAllergenModal } from "../modals/ClientAllergenModal";
 
 const restrictionsOptions = [
@@ -39,8 +32,7 @@ export const ReservationDetails = React.memo(
 		clientAllergens = [],
 		setClientAllergens,
 	}) => {
-		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const localStyles = useMemo(() => createStyles(THEME), [THEME]);
 
 		// ⭐ État pour la modale d'allergènes
@@ -230,51 +222,6 @@ export const ReservationDetails = React.memo(
 						</TouchableOpacity>
 					)}
 				</View>
-
-				{/* Observations */}
-				<View style={localStyles.row}>
-					<Text style={localStyles.label}>Notes</Text>
-					{editingNotes ? (
-						<TextInput
-							style={localStyles.input}
-							value={notesValue || ""}
-							onChangeText={(text) => {
-								setNotesValue?.(text);
-								editField?.("notes", text, false);
-							}}
-							onBlur={() => {
-								editField?.("notes", notesValue, true);
-								setEditingNotes?.(false);
-							}}
-							autoFocus
-							multiline
-							placeholderTextColor={THEME.colors.text.muted}
-							placeholder="Ajouter une observation..."
-						/>
-					) : (
-						<TouchableOpacity
-							style={localStyles.editableField}
-							onPress={() => {
-								setNotesValue?.(activeReservation?.notes || "");
-								setEditingNotes?.(true);
-							}}
-						>
-							<Text
-								style={[
-									localStyles.value,
-									!activeReservation?.notes && localStyles.placeholder,
-								]}
-							>
-								{activeReservation?.notes || "Ajouter une observation..."}
-							</Text>
-							<Ionicons
-								name="pencil"
-								size={14}
-								color={THEME.colors.text.muted}
-							/>
-						</TouchableOpacity>
-					)}
-				</View>
 			</View>
 		);
 	}
@@ -301,7 +248,7 @@ const createStyles = (THEME) =>
 			gap: THEME.spacing.sm,
 		},
 		sectionTitle: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 			textTransform: "uppercase",
@@ -321,19 +268,19 @@ const createStyles = (THEME) =>
 			gap: THEME.spacing.sm,
 		},
 		label: {
-			fontSize: 13,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "500",
 			color: THEME.colors.text.secondary,
 			flex: 1,
 		},
 		value: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 			textAlign: "right",
 		},
 		hint: {
-			fontSize: 12,
+			fontSize: THEME.typography.sizes.xs,
 			color: THEME.colors.primary.amber,
 			fontWeight: "500",
 		},
@@ -361,7 +308,7 @@ const createStyles = (THEME) =>
 			paddingHorizontal: THEME.spacing.md,
 			paddingVertical: THEME.spacing.sm,
 			color: THEME.colors.text.primary,
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.focus,
 			minHeight: 40,
@@ -385,7 +332,7 @@ const createStyles = (THEME) =>
 			borderBottomColor: THEME.colors.border.subtle,
 		},
 		dropdownText: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.primary,
 			fontWeight: "500",
 		},
@@ -408,10 +355,10 @@ const createStyles = (THEME) =>
 			borderRadius: THEME.radius.sm,
 		},
 		allergenIcon: {
-			fontSize: 16,
+			fontSize: THEME.typography.sizes.base,
 		},
 		allergenMore: {
-			fontSize: 12,
+			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "600",
 			color: THEME.colors.status.error,
 			marginLeft: THEME.spacing.xs,

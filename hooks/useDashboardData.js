@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { useAuthFetch } from "./useAuthFetch";
+import { useAuthFetch } from "../hooks/useAuthFetch";
 import { API_CONFIG } from "../src/config/apiConfig";
 import useReservationStore from "../src/stores/useReservationStore";
 import useThemeStore from "../src/stores/useThemeStore";

@@ -41,7 +41,7 @@ export const useDashboardActions = (fetchReservations) => {
 				if (data && !Array.isArray(data)) {
 					markAsPresent(id);
 					Alert.alert("Succès", "Client marqué comme présent");
-					await fetchReservations();
+					await fetchReservations(true); // force le refetch même si cache
 					return true;
 				}
 			} catch (error) {
@@ -56,6 +56,11 @@ export const useDashboardActions = (fetchReservations) => {
 	// Mettre à jour le statut
 	const updateStatus = useCallback(
 		async (id, newStatus, reservation) => {
+			console.log("[DEBUG] updateStatus called", {
+				id,
+				newStatus,
+				reservation,
+			});
 			// Validation avant fermeture : vérifier le paiement
 			if (newStatus === "terminée") {
 				const totalAmount = reservation?.totalAmount || 0;
@@ -102,7 +107,9 @@ export const useDashboardActions = (fetchReservations) => {
 			}
 
 			// Procéder normalement
-			return await proceedWithStatusUpdate(id, newStatus);
+			const result = await proceedWithStatusUpdate(id, newStatus);
+			console.log("[DEBUG] Résultat proceedWithStatusUpdate:", result);
+			return result;
 		},
 		[authFetch, fetchReservations, cleanup]
 	);
@@ -117,21 +124,27 @@ export const useDashboardActions = (fetchReservations) => {
 					body: { status: newStatus },
 				}
 			);
-
+			console.log("[DEBUG] Réponse backend update status:", data);
 			if (data && !Array.isArray(data)) {
-				// Si terminée, nettoyer l'état présent
-				if (newStatus === "terminée") {
+				// Nettoyer l'état présent si besoin
+				if (newStatus === "terminée" || newStatus === "en attente") {
 					cleanup(id);
 				}
 				Alert.alert("Succès", "Statut mis à jour");
-				await fetchReservations();
+				await fetchReservations(true); // ✅ FORCE le refetch même si cache
 				return true;
+			} else {
+				Alert.alert("Erreur", "Réponse invalide du serveur");
+				return false;
 			}
 		} catch (error) {
 			console.error("❌ Erreur update status:", error);
-			Alert.alert("Erreur", "Impossible de mettre à jour le statut");
+			Alert.alert(
+				"Erreur",
+				"Impossible de mettre à jour le statut: " + (error?.message || error)
+			);
+			return false;
 		}
-		return false;
 	};
 
 	// Annuler une réservation
@@ -157,7 +170,7 @@ export const useDashboardActions = (fetchReservations) => {
 								if (data && !Array.isArray(data)) {
 									cleanup(id); // Nettoyer l'état présent
 									Alert.alert("Succès", "Réservation annulée");
-									await fetchReservations();
+									await fetchReservations(true);
 									return true;
 								}
 							} catch (error) {
@@ -187,7 +200,7 @@ export const useDashboardActions = (fetchReservations) => {
 
 				if (data && !Array.isArray(data)) {
 					Alert.alert("Succès", "Table assignée avec succès");
-					await fetchReservations();
+					await fetchReservations(true);
 					await refreshActiveReservation(reservationId);
 					return true;
 				}
@@ -198,6 +211,32 @@ export const useDashboardActions = (fetchReservations) => {
 			return false;
 		},
 		[authFetch, fetchReservations, refreshActiveReservation]
+	);
+
+	// ⭐ Mettre à jour un champ de la réservation (phone, nbPersonnes, etc.)
+	const updateReservationField = useCallback(
+		async (reservationId, fieldName, value) => {
+			try {
+				const body = { [fieldName]: value };
+				const data = await authFetch(
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`,
+					{
+						method: "PUT",
+						body,
+					}
+				);
+
+				if (data && !Array.isArray(data)) {
+					await fetchReservations(true);
+					return true;
+				}
+			} catch (error) {
+				console.error(`❌ Erreur mise à jour ${fieldName}:`, error);
+				Alert.alert("Erreur", `Impossible de mettre à jour ${fieldName}`);
+			}
+			return false;
+		},
+		[authFetch, fetchReservations]
 	);
 
 	// Créer une réservation
@@ -258,7 +297,7 @@ export const useDashboardActions = (fetchReservations) => {
 
 				if (data && !Array.isArray(data)) {
 					Alert.alert("Succès", "Réservation créée avec succès !");
-					await fetchReservations();
+					await fetchReservations(true);
 					return true;
 				} else {
 					throw new Error("Erreur création réservation");
@@ -283,6 +322,7 @@ export const useDashboardActions = (fetchReservations) => {
 		updateStatus,
 		cancelReservation,
 		assignTable,
+		updateReservationField,
 		createReservation,
 	};
 };

@@ -10,7 +10,7 @@ import React, {
 	useCallback,
 	useRef,
 } from "react";
-import { getTheme } from "../../utils/themeUtils";
+import { useTheme } from "../../hooks/useTheme";
 import styles from "../styles";
 import Login from "../../app/login";
 import {
@@ -56,7 +56,7 @@ export default function Activity() {
 		return () => clearInterval(interval);
 	}, []);
 	const { themeMode, theme, initTheme } = useThemeStore();
-	const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 	const authFetch = useAuthFetch();
 	const activityStyles = useMemo(() => createStyles(THEME), [THEME]);
 
@@ -290,11 +290,16 @@ export default function Activity() {
 		initTheme();
 	}, [initTheme]);
 
-	// Fetch orders quand tableId OU activeReservation change
+	// Fetch orders quand activeReservation change
 	useEffect(() => {
-		if (!tableId || !activeReservation?._id) return;
-		fetchOrders(tableId, activeReservation._id);
-	}, [tableId, activeReservation?._id, fetchOrders]);
+		if (!activeReservation?._id) return;
+		// ⭐ Force=true pour toujours refetch quand la réservation change
+		// Note: tableId n'est pas utilisé par l'API /orders/reservation/:id
+		const resaTableId =
+			activeReservation.tableId?._id || activeReservation.tableId || tableId;
+		console.log("🔄 Fetching orders for reservation:", activeReservation._id);
+		fetchOrders(resaTableId, activeReservation._id, true);
+	}, [activeReservation?._id, tableId, fetchOrders]);
 
 	// ✅ Réinitialiser started quand il n'y a plus de réservation active
 	useEffect(() => {
@@ -442,27 +447,106 @@ export default function Activity() {
 		[authFetch, fetchReservations]
 	);
 
-	const handleCancelReservation = useCallback(
+	// ⭐ Helper pour finaliser les items d'une réservation
+	const finalizeReservationItems = useCallback(
+		async (reservationId, status) => {
+			try {
+				await authFetch(
+					`${API_CONFIG.baseURL}/orders/reservation/${reservationId}/finalize-items`,
+					{
+						method: "PUT",
+						body: JSON.stringify({ status }),
+					}
+				);
+				console.log(`✅ Items de la réservation ${reservationId} mis en "${status}"`);
+			} catch (error) {
+				console.warn(`⚠️ Impossible de finaliser les items:`, error.message);
+			}
+		},
+		[authFetch]
+	);
+
+	// ⭐ Vérifier si une réservation a des commandes non finalisées
+	const hasUnfinalizedOrders = useCallback(
 		async (reservationId) => {
 			try {
-				await authFetch(`${API_CONFIG.baseURL}/reservations/${reservationId}`, {
-					method: "DELETE",
-				});
-				await fetchReservations();
-				if (activeId === reservationId) {
-					// ⭐ Nettoyer le cache et AsyncStorage
-					clearCachedActiveId();
-					await AsyncStorage.removeItem("activeReservationId");
-					setActiveId(null);
+				const ordersData = await authFetch(
+					`${API_CONFIG.baseURL}/orders/reservation/${reservationId}`
+				);
+				const orders = ordersData.orders || ordersData || [];
+				
+				for (const order of orders) {
+					for (const item of order.items || []) {
+						if (item.itemStatus !== "served" && item.itemStatus !== "cancelled") {
+							return true;
+						}
+					}
 				}
-				return true;
+				return false;
 			} catch (error) {
-				console.error("❌ Erreur annulation:", error);
-				Alert.alert("Erreur", "Impossible d'annuler la réservation");
+				console.warn("⚠️ Erreur vérification commandes:", error.message);
 				return false;
 			}
 		},
-		[authFetch, fetchReservations, activeId, setActiveId, clearCachedActiveId]
+		[authFetch]
+	);
+
+	const handleCancelReservation = useCallback(
+		async (reservationId) => {
+			// ⭐ Vérifier s'il y a des commandes non finalisées
+			const hasUnfinalized = await hasUnfinalizedOrders(reservationId);
+			
+			const performCancel = async () => {
+				try {
+					// ⭐ D'abord, mettre tous les items non finalisés en "cancelled"
+					await finalizeReservationItems(reservationId, "cancelled");
+					
+					// Puis supprimer la réservation
+					await authFetch(`${API_CONFIG.baseURL}/reservations/${reservationId}`, {
+						method: "DELETE",
+					});
+					await fetchReservations();
+					if (activeId === reservationId) {
+						clearCachedActiveId();
+						await AsyncStorage.removeItem("activeReservationId");
+						setActiveId(null);
+					}
+					return true;
+				} catch (error) {
+					console.error("❌ Erreur annulation:", error);
+					Alert.alert("Erreur", "Impossible d'annuler la réservation");
+					return false;
+				}
+			};
+
+			// ⭐ Si des commandes non finalisées, afficher une alerte
+			if (hasUnfinalized) {
+				return new Promise((resolve) => {
+					Alert.alert(
+						"Commandes en cours",
+						"Des commandes de cette réservation ne sont pas encore servies ou annulées. Elles seront automatiquement annulées.\n\nVoulez-vous continuer ?",
+						[
+							{
+								text: "Non",
+								style: "cancel",
+								onPress: () => resolve(false),
+							},
+							{
+								text: "Oui, annuler",
+								style: "destructive",
+								onPress: async () => {
+									const result = await performCancel();
+									resolve(result);
+								},
+							},
+						]
+					);
+				});
+			}
+
+			return performCancel();
+		},
+		[authFetch, fetchReservations, activeId, setActiveId, clearCachedActiveId, finalizeReservationItems, hasUnfinalizedOrders]
 	);
 
 	const handleFinishReservation = useCallback(
@@ -475,8 +559,10 @@ export default function Activity() {
 
 				// ⭐ Vérifier si la réservation est payée
 				const totalAmount = parseFloat(freshResa?.totalAmount || 0);
+				const paidAmount = parseFloat(freshResa?.paidAmount || 0);
 
-				if (totalAmount > 0) {
+				// ⭐ Si montant > 0 ET pas encore payé, bloquer
+				if (totalAmount > 0 && paidAmount < totalAmount) {
 					Alert.alert(
 						"Paiement requis",
 						`Cette réservation a un montant de ${totalAmount.toFixed(
@@ -487,7 +573,7 @@ export default function Activity() {
 					return;
 				}
 
-				// ⭐ Si montant = 0, on peut fermer
+				// ⭐ Si montant = 0 OU déjà payé, on peut fermer
 				const updated = await markReservationAsFinished(reservationId);
 
 				if (updated && updated.status === "terminée") {
@@ -531,30 +617,51 @@ export default function Activity() {
 		]
 	);
 
-	const handlePaymentSuccess = useCallback(async () => {
-		console.log("💳 Paiement réussi - Fermeture de la réservation...");
+	// ⭐ Helpers pour ouvrir/fermer le paiement
+	const closePayment = useCallback(() => {
 		setShowPayment(false);
+	}, []);
 
-		const reservationId = activeReservation?._id;
-		if (!reservationId) {
-			console.error("❌ Pas de reservationId");
-			return;
-		}
+	const handlePaymentSuccess = useCallback(
+		async (receiptData = null) => {
+			closePayment();
 
-		try {
-			// ⭐ Nettoyer AsyncStorage immédiatement
-			await AsyncStorage.removeItem("activeReservationId");
+			const reservationId = activeReservation?._id;
+			if (!reservationId) return;
 
-			// ⭐ Nettoyer le cache global pour éviter le flash visuel
-			clearCachedActiveId();
-		} catch (error) {
-			console.error("❌ Erreur lors de la fermeture:", error);
-			Alert.alert(
-				"Erreur",
-				"Impossible de fermer la réservation après paiement"
-			);
-		}
-	}, [activeReservation, clearCachedActiveId]);
+			try {
+				// ⭐ D'abord, marquer tous les items non finalisés comme "served"
+				await finalizeReservationItems(reservationId, "served");
+
+				const { reservationService } =
+					await import("../../shared-api/services/reservationService");
+				await reservationService.closeReservation(reservationId);
+
+				// ⭐ Fermer la modale principale en mettant activeId à null
+				setActiveId(null);
+
+				// Nettoyer le cache
+				await AsyncStorage.removeItem("activeReservationId");
+				clearCachedActiveId();
+
+				// ⭐ Rafraîchir les réservations pour avoir le nouveau status
+				await fetchReservations();
+			} catch (error) {
+				Alert.alert(
+					"Erreur",
+					"Impossible de fermer la réservation après paiement: " + error.message
+				);
+			}
+		},
+		[
+			activeReservation,
+			clearCachedActiveId,
+			closePayment,
+			setActiveId,
+			fetchReservations,
+			finalizeReservationItems,
+		]
+	);
 
 	// Render miniatures Premium avec FlatList
 	const renderMiniature = useCallback(
@@ -592,7 +699,13 @@ export default function Activity() {
 			return (
 				<TouchableOpacity
 					style={activityStyles.popupMini}
-					onPress={() => setActiveId(r._id)}
+					onPress={() => {
+						setActiveId(r._id);
+						// ⭐ Forcer le refresh des orders quand on clique sur une réservation
+						if (tableId) {
+							fetchOrders(tableId, r._id, true);
+						}
+					}}
 					activeOpacity={0.8}
 				>
 					<Text style={activityStyles.miniTitle}>
@@ -614,7 +727,7 @@ export default function Activity() {
 				</TouchableOpacity>
 			);
 		},
-		[setActiveId, now]
+		[setActiveId, now, tableId, fetchOrders]
 	);
 
 	const filteredReservations = useMemo(
@@ -882,8 +995,8 @@ export default function Activity() {
 											name="time-outline"
 											size={14}
 											color={THEME.colors.text.muted}
-										/>{" "}
-										{activeReservation.reservationTime || "N/A"} •{" "}
+										/>
+										{activeReservation.reservationTime || "N/A"} 
 										{new Date(
 											activeReservation.reservationDate
 										).toLocaleDateString("fr-FR")}
@@ -893,7 +1006,7 @@ export default function Activity() {
 											name="people-outline"
 											size={14}
 											color={THEME.colors.text.muted}
-										/>{" "}
+										/>
 										{activeReservation.nbPersonnes || 0} personnes
 									</Text>
 								</View>
@@ -963,6 +1076,8 @@ export default function Activity() {
 											staffNotesValue={staffNotesValue}
 											setStaffNotesValue={setStaffNotesValue}
 											editField={editField}
+											orders={orders}
+											onPayClick={() => setShowPayment(true)}
 										/>
 									</ScrollView>
 								</View>
@@ -983,152 +1098,298 @@ export default function Activity() {
 								)}
 
 								{step === 2 && (
-									<ScrollView style={{ width: "50%", paddingLeft: 10 }}>
-										{renderValidationItems}
-										<TouchableOpacity
-											onPress={() => setStep(step - 1)}
-											style={[styles.nextButton, { marginTop: 20 }]}
+									<View style={activityStyles.validationContainer}>
+										{/* Header */}
+										<View style={activityStyles.validationHeader}>
+											<Ionicons
+												name="checkmark-circle-outline"
+												size={24}
+												color="#fff"
+											/>
+											<Text style={activityStyles.validationTitle}>
+												Validation
+											</Text>
+										</View>
+
+										<ScrollView
+											style={activityStyles.validationScroll}
+											showsVerticalScrollIndicator={false}
 										>
-											<Text style={styles.buttonText}>⬅️ Précédent</Text>
-										</TouchableOpacity>
-										<TouchableOpacity
-											onPress={submitOrder}
-											style={[styles.nextButton, { marginTop: 20 }]}
-										>
-											<Text style={styles.buttonText}>✅ Valider</Text>
-										</TouchableOpacity>
-									</ScrollView>
+											{activeReservation?.orderItems
+												?.filter((i) => i.quantity > 0)
+												.map((i, index) => {
+													const product = products.find(
+														(p) => p._id === i.productId
+													);
+													const displayName = i.name || product?.name;
+													return (
+														<View
+															key={`${i.productId}-${index}`}
+															style={activityStyles.validationItem}
+														>
+															<View style={activityStyles.validationItemLeft}>
+																<Text style={activityStyles.validationItemQty}>
+																	{i.quantity}×
+																</Text>
+																<Text style={activityStyles.validationItemName}>
+																	{displayName}
+																</Text>
+															</View>
+															<View style={activityStyles.validationItemRight}>
+																<Text style={activityStyles.validationItemPrice}>
+																	{product?.price}€
+																</Text>
+																<TouchableOpacity
+																	onPress={() => {
+																		// Retirer ce produit des orderItems
+																		const updatedItems = activeReservation.orderItems.map(item => 
+																			item.productId === i.productId 
+																				? { ...item, quantity: 0 } 
+																				: item
+																		);
+																		editField("orderItems", updatedItems);
+																	}}
+																	style={activityStyles.validationItemDelete}
+																>
+																	<Ionicons
+																		name="trash-outline"
+																		size={18}
+																		color="#EF4444"
+																	/>
+																</TouchableOpacity>
+															</View>
+														</View>
+													);
+												})}
+										</ScrollView>
+
+										{/* Boutons */}
+										<View style={activityStyles.validationButtons}>
+											<TouchableOpacity
+												onPress={() => setStep(step - 1)}
+												style={activityStyles.validationBtnSecondary}
+											>
+												<Ionicons
+													name="arrow-back-outline"
+													size={20}
+													color="#fff"
+												/>
+												<Text style={activityStyles.validationBtnSecondaryText}>
+													Précédent
+												</Text>
+											</TouchableOpacity>
+											<TouchableOpacity
+												onPress={submitOrder}
+												style={activityStyles.validationBtnPrimary}
+											>
+												<Ionicons
+													name="checkmark-outline"
+													size={20}
+													color="#fff"
+												/>
+												<Text style={activityStyles.validationBtnPrimaryText}>
+													Valider
+												</Text>
+											</TouchableOpacity>
+										</View>
+									</View>
 								)}
 
 								{step === 3 && (
-									<View style={{ width: "50%", padding: 10, flex: 1 }}>
-										<Text style={styles.modalTitle}>Total de la commande</Text>
-
+									<View style={activityStyles.recapContainer}>
 										{Array.isArray(orders) && orders.length > 0 ? (
 											<>
-												<ScrollView style={{ maxHeight: 400 }}>
+												{/* Header */}
+												<View style={activityStyles.recapHeader}>
+													<Ionicons
+														name="receipt-outline"
+														size={24}
+														color="#fff"
+													/>
+													<Text style={activityStyles.recapTitle}>
+														Récapitulatif
+													</Text>
+												</View>
+												<ScrollView
+													style={activityStyles.recapScroll}
+													showsVerticalScrollIndicator={false}
+												>
 													{orders
 														.filter(
 															(order) =>
 																Array.isArray(order.items) &&
 																order.items.length > 0
 														)
-														.map((order) => (
-															<View
-																key={order._id}
-																style={{ marginBottom: 15 }}
-															>
-																<Text style={{ fontWeight: "bold" }}>
-																	Commande #{order._id.slice(-4)} - Table{" "}
-																	{order.tableId?.number || "-"} -{" "}
-																	{new Date(order.createdAt).toLocaleTimeString(
-																		[],
-																		{
-																			hour: "2-digit",
-																			minute: "2-digit",
-																		}
-																	)}
-																</Text>
-																{order.items.map((i, itemIndex) => (
+														.map((order, orderIndex, array) => {
+															const isLatest = orderIndex === array.length - 1;
+															return (
+																<View
+																	key={order._id}
+																	style={[
+																		activityStyles.recapOrderCard,
+																		isLatest &&
+																			activityStyles.recapOrderCardLatest,
+																	]}
+																>
+																	{/* Order Header - juste l'heure */}
 																	<View
-																		key={`${order._id}-${i.productId}-${itemIndex}`}
-																		style={{
-																			flexDirection: "row",
-																			marginVertical: 4,
-																		}}
+																		style={[
+																			activityStyles.recapOrderHeader,
+																			isLatest &&
+																				activityStyles.recapOrderHeaderLatest,
+																		]}
 																	>
 																		<Text
 																			style={[
-																				{ flex: 1 },
-																				{ color: theme.textColor },
+																				activityStyles.recapOrderTime,
+																				isLatest &&
+																					activityStyles.recapOrderTimeLatest,
 																			]}
 																		>
-																			{i.name}
+																			{isLatest ? "✨ " : ""}
+																			{new Date(
+																				order.createdAt
+																			).toLocaleTimeString([], {
+																				hour: "2-digit",
+																				minute: "2-digit",
+																			})}
+																		</Text>
+																		{isLatest && (
+																			<Text
+																				style={activityStyles.recapLatestBadge}
+																			>
+																				DERNIÈRE
+																			</Text>
+																		)}
+																	</View>
+
+																	{/* Items */}
+																	{order.items.map((i, itemIndex) => (
+																		<View
+																			key={`${order._id}-${i.productId}-${itemIndex}`}
+																			style={activityStyles.recapItem}
+																		>
+																			<View
+																				style={activityStyles.recapItemLeft}
+																			>
+																				<Text
+																					style={activityStyles.recapItemQty}
+																				>
+																					{i.quantity}×
+																				</Text>
+																				<Text
+																					style={activityStyles.recapItemName}
+																				>
+																					{i.name}
+																				</Text>
+																			</View>
+																			<Text
+																				style={activityStyles.recapItemPrice}
+																			>
+																				{(i.price * i.quantity).toFixed(2)}€
+																			</Text>
+																		</View>
+																	))}
+
+																	{/* Order Total */}
+																	<View style={activityStyles.recapOrderTotal}>
+																		<Text
+																			style={
+																				activityStyles.recapOrderTotalLabel
+																			}
+																		>
+																			Sous-total
 																		</Text>
 																		<Text
-																			style={{
-																				width: 50,
-																				textAlign: "center",
-																				color: theme.textColor,
-																			}}
+																			style={
+																				activityStyles.recapOrderTotalValue
+																			}
 																		>
-																			{i.quantity}
-																		</Text>
-																		<Text
-																			style={{
-																				width: 60,
-																				textAlign: "right",
-																				color: theme.textColor,
-																			}}
-																		>
-																			{(i.price * i.quantity).toFixed(2)}€
+																			{order.items
+																				.reduce(
+																					(sum, i) =>
+																						sum + i.price * i.quantity,
+																					0
+																				)
+																				.toFixed(2)}
+																			€
 																		</Text>
 																	</View>
-																))}
-																<Text
-																	style={{
-																		fontWeight: "bold",
-																		textAlign: "right",
-																		marginTop: 5,
-																	}}
-																>
-																	Total :{" "}
-																	{order.items
-																		.reduce(
-																			(sum, i) => sum + i.price * i.quantity,
-																			0
-																		)
-																		.toFixed(2)}
-																	€
-																</Text>
-															</View>
-														))}
+																</View>
+															);
+														})}
 												</ScrollView>
+												<View style={activityStyles.recapGrandTotal}>
+													<Text style={activityStyles.recapGrandTotalLabel}>
+														TOTAL
+													</Text>
+													<Text style={activityStyles.recapGrandTotalValue}>
+														{Number(
+															activeReservation?.totalAmount || 0
+														).toFixed(2)}
+														€
+													</Text>
+												</View>
 
-												<Text
-													style={{
-														fontWeight: "bold",
-														textAlign: "right",
-														marginTop: 10,
-														color: theme.textColor,
+												{/* Bouton Nouvelle commande */}
+												<TouchableOpacity
+													onPress={() => {
+														setStep(1);
+														editField(
+															"orderItems",
+															products.map((p) => ({
+																productId: p._id,
+																quantity: 0,
+															}))
+														);
 													}}
+													style={activityStyles.recapNewOrderBtn}
 												>
-													{`Total général : ${Number(
-														activeReservation?.totalAmount || 0
-													).toFixed(2)} €`}
-												</Text>
+													<Ionicons
+														name="add-circle-outline"
+														size={20}
+														color="#fff"
+													/>
+													<Text style={activityStyles.recapNewOrderBtnText}>
+														Nouvelle commande
+													</Text>
+												</TouchableOpacity>
 											</>
 										) : (
-											<Text>Aucune commande disponible</Text>
+											<View style={activityStyles.recapEmpty}>
+												<Ionicons
+													name="cart-outline"
+													size={48}
+													color="rgba(255,255,255,0.2)"
+												/>
+												<Text style={activityStyles.recapEmptyText}>
+													Aucune commande
+												</Text>
+												{/* Bouton Nouvelle commande - état vide */}
+												<TouchableOpacity
+													onPress={() => {
+														setStep(1);
+														editField(
+															"orderItems",
+															products.map((p) => ({
+																productId: p._id,
+																quantity: 0,
+															}))
+														);
+													}}
+													style={activityStyles.recapNewOrderBtn}
+												>
+													<Ionicons
+														name="add-circle-outline"
+														size={20}
+														color="#fff"
+													/>
+													<Text style={activityStyles.recapNewOrderBtnText}>
+														Nouvelle commande
+													</Text>
+												</TouchableOpacity>
+											</View>
 										)}
-
-										<TouchableOpacity
-											onPress={() => setShowPayment(true)}
-											style={[
-												styles.nextButton,
-												{ marginTop: 20, backgroundColor: "#4CAF50" },
-											]}
-										>
-											<Text style={styles.buttonText}>💳 Payer</Text>
-										</TouchableOpacity>
-
-										<TouchableOpacity
-											onPress={() => {
-												setStep(1);
-												editField(
-													"orderItems",
-													products.map((p) => ({
-														productId: p._id,
-														quantity: 0,
-													}))
-												);
-											}}
-											style={[styles.nextButton, { marginTop: 10 }]}
-										>
-											<Text style={styles.buttonText}>
-												🆕 Nouvelle commande
-											</Text>
-										</TouchableOpacity>
 									</View>
 								)}
 							</View>
@@ -1206,7 +1467,7 @@ export default function Activity() {
 
 			<PaymentModal
 				visible={showPayment}
-				onClose={() => setShowPayment(false)}
+				onClose={closePayment}
 				activeReservation={activeReservation}
 				orders={orders}
 				onSuccess={handlePaymentSuccess}
@@ -1407,5 +1668,288 @@ const createStyles = (THEME) =>
 			alignItems: "center",
 			justifyContent: "center",
 			backgroundColor: THEME.colors.background.card,
+		},
+
+		// 📋 Styles pour le Récapitulatif (step 3)
+		recapContainer: {
+			flex: 1,
+			backgroundColor: THEME.colors.background.primary,
+			paddingBottom: 140,
+		},
+		recapHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.md,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		recapTitle: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "rgba(255,255,255,0.8)",
+			marginLeft: THEME.spacing.sm,
+		},
+		recapScroll: {
+			flex: 1,
+			padding: THEME.spacing.md,
+		},
+		// Carte ancienne commande (gris)
+		recapOrderCard: {
+			backgroundColor: "rgba(255,255,255,0.03)",
+			borderRadius: THEME.radius.md,
+			marginBottom: THEME.spacing.sm,
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.08)",
+			overflow: "hidden",
+			opacity: 0.7,
+		},
+		// Carte dernière commande (mise en avant)
+		recapOrderCardLatest: {
+			backgroundColor: "rgba(34, 197, 94, 0.08)",
+			borderColor: "rgba(34, 197, 94, 0.3)",
+			opacity: 1,
+		},
+		recapOrderHeader: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.xs,
+			paddingHorizontal: THEME.spacing.md,
+			borderBottomWidth: 1,
+			borderBottomColor: "rgba(255,255,255,0.05)",
+		},
+		recapOrderHeaderLatest: {
+			borderBottomColor: "rgba(34, 197, 94, 0.2)",
+		},
+		recapOrderTime: {
+			fontSize: THEME.typography.sizes.sm,
+			color: "rgba(255,255,255,0.5)",
+		},
+		recapOrderTimeLatest: {
+			color: "#22C55E",
+			fontWeight: THEME.typography.weights.semibold,
+		},
+		recapLatestBadge: {
+			fontSize: THEME.typography.sizes.xs,
+			color: "#22C55E",
+			fontWeight: THEME.typography.weights.bold,
+			backgroundColor: "rgba(34, 197, 94, 0.15)",
+			paddingHorizontal: THEME.spacing.sm,
+			paddingVertical: 2,
+			borderRadius: THEME.radius.full,
+		},
+		recapItem: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+		},
+		recapItemLeft: {
+			flexDirection: "row",
+			alignItems: "center",
+			flex: 1,
+		},
+		recapItemQty: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: THEME.typography.weights.bold,
+			color: "rgba(255,255,255,0.6)",
+			width: 32,
+		},
+		recapItemName: {
+			fontSize: THEME.typography.sizes.sm,
+			color: "rgba(255,255,255,0.85)",
+			flex: 1,
+		},
+		recapItemPrice: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: THEME.typography.weights.medium,
+			color: "rgba(255,255,255,0.6)",
+		},
+		recapOrderTotal: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			backgroundColor: "rgba(255,255,255,0.02)",
+		},
+		recapOrderTotalLabel: {
+			fontSize: THEME.typography.sizes.sm,
+			color: "rgba(255,255,255,0.4)",
+		},
+		recapOrderTotalValue: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "rgba(255,255,255,0.7)",
+		},
+		recapGrandTotal: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			backgroundColor: "rgba(255,255,255,0.05)",
+			marginTop: THEME.spacing.sm,
+			marginHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.lg,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.1)",
+		},
+		recapGrandTotalLabel: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "rgba(255,255,255,0.7)",
+		},
+		recapGrandTotalValue: {
+			fontSize: THEME.typography.sizes.xl,
+			fontWeight: THEME.typography.weights.bold,
+			color: "#fff",
+		},
+		recapEmpty: {
+			flex: 1,
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: THEME.spacing.xxl || 48,
+		},
+		recapEmptyText: {
+			fontSize: THEME.typography.sizes.md,
+			color: THEME.colors.text.tertiary,
+			marginTop: THEME.spacing.md,
+			marginBottom: THEME.spacing.lg,
+		},
+		recapNewOrderBtn: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: THEME.spacing.sm,
+			backgroundColor: "rgba(34, 197, 94, 0.15)",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.xl,
+			borderRadius: THEME.radius.md,
+			marginTop: THEME.spacing.md,
+			marginBottom: -36,
+			marginHorizontal: THEME.spacing.md,
+			borderWidth: 1,
+			borderColor: "rgba(34, 197, 94, 0.3)",
+		},
+		recapNewOrderBtnText: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "#22C55E",
+		},
+
+		// 📋 Styles pour la Validation (step 2)
+		validationContainer: {
+			flex: 1,
+			backgroundColor: THEME.colors.background.primary,
+		},
+		validationHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.md,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		validationTitle: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "rgba(255,255,255,0.8)",
+			marginLeft: THEME.spacing.sm,
+		},
+		validationScroll: {
+			flex: 1,
+			padding: THEME.spacing.md,
+		},
+		validationItem: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			backgroundColor: "rgba(255,255,255,0.04)",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			marginBottom: THEME.spacing.sm,
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.08)",
+		},
+		validationItemLeft: {
+			flexDirection: "row",
+			alignItems: "center",
+			flex: 1,
+		},
+		validationItemQty: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: THEME.typography.weights.bold,
+			color: "rgba(255,255,255,0.6)",
+			width: 40,
+		},
+		validationItemName: {
+			fontSize: THEME.typography.sizes.sm,
+			color: "rgba(255,255,255,0.85)",
+			flex: 1,
+		},
+		validationItemPrice: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "rgba(255,255,255,0.8)",
+			marginRight: THEME.spacing.sm,
+		},
+		validationItemRight: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		validationItemDelete: {
+			padding: THEME.spacing.xs,
+			borderRadius: THEME.radius.sm,
+			backgroundColor: "rgba(239, 68, 68, 0.1)",
+			borderWidth: 1,
+			borderColor: "rgba(239, 68, 68, 0.3)",
+		},
+		validationButtons: {
+			flexDirection: "row",
+			gap: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.lg,
+			borderTopWidth: 1,
+			borderTopColor: THEME.colors.border.subtle,
+			marginBottom: 90,
+		},
+		validationBtnSecondary: {
+			flex: 1,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			backgroundColor: "rgba(255,255,255,0.08)",
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.15)",
+		},
+		validationBtnSecondaryText: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "rgba(255,255,255,0.8)",
+			marginLeft: THEME.spacing.xs,
+		},
+		validationBtnPrimary: {
+			flex: 1,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			backgroundColor: "rgba(34, 197, 94, 0.2)",
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: "rgba(34, 197, 94, 0.4)",
+		},
+		validationBtnPrimaryText: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: THEME.typography.weights.semibold,
+			color: "#22C55E",
+			marginLeft: THEME.spacing.xs,
 		},
 	});

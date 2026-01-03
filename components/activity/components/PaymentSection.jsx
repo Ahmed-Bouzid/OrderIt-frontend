@@ -1,5 +1,5 @@
 // components/elements/ActivityComponents/PaymentSection.jsx
-import React, { useMemo } from "react";
+import React, { useMemo, useState } from "react";
 import {
 	View,
 	Text,
@@ -9,7 +9,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../../src/stores/useThemeStore";
-import { getTheme } from "../../../utils/themeUtils";
+import { useTheme } from "../../../hooks/useTheme";
 
 export const PaymentSection = React.memo(
 	({
@@ -20,17 +20,46 @@ export const PaymentSection = React.memo(
 		staffNotesValue,
 		setStaffNotesValue,
 		editField,
+		orders, // ✅ Nouveau prop pour calculer le total
+		onPayClick, // ✅ Prop pour ouvrir la modale de paiement
 	}) => {
 		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const localStyles = useMemo(() => createStyles(THEME), [THEME]);
 
+		// ✅ State pour choisir CB ou Espèce
+		const [paymentMethod, setPaymentMethod] = useState("Carte");
+
+		// ✅ Calculer le total depuis les orders (plus fiable)
 		const totalAmount = useMemo(() => {
+			// D'abord essayer avec orders
+			if (Array.isArray(orders) && orders.length > 0) {
+				const ordersTotal = orders.reduce((sum, order) => {
+					if (Array.isArray(order?.items)) {
+						return (
+							sum +
+							order.items.reduce((itemSum, item) => {
+								return itemSum + (item.price || 0) * (item.quantity || 0);
+							}, 0)
+						);
+					}
+					return sum;
+				}, 0);
+				if (ordersTotal > 0) {
+					return ordersTotal.toFixed(2);
+				}
+			}
+			// Fallback sur activeReservation.totalAmount
 			if (typeof activeReservation?.totalAmount === "number") {
 				return Number(activeReservation.totalAmount).toFixed(2);
 			}
 			return "0.00";
-		}, [activeReservation?.totalAmount]);
+		}, [orders, activeReservation?.totalAmount]);
+
+		const totalAmountNum = useMemo(
+			() => parseFloat(totalAmount),
+			[totalAmount]
+		);
 
 		const formattedStaffNotesTime = useMemo(() => {
 			if (!activeReservation?.staffNotesUpdatedAt) return null;
@@ -55,9 +84,9 @@ export const PaymentSection = React.memo(
 					<Text style={localStyles.sectionTitle}>Paiement & Notes</Text>
 				</View>
 
-				{/* Total */}
+				{/* Sous-total */}
 				<View style={localStyles.row}>
-					<Text style={localStyles.label}>Total</Text>
+					<Text style={localStyles.label}>Sous-total</Text>
 					<View style={localStyles.totalBadge}>
 						<Text style={localStyles.totalAmount}>{totalAmount}€</Text>
 					</View>
@@ -65,18 +94,48 @@ export const PaymentSection = React.memo(
 
 				{/* Méthode de paiement */}
 				<View style={localStyles.row}>
-					<Text style={localStyles.label}>Paiement</Text>
-					<View style={localStyles.paymentBadge}>
+					<Text style={localStyles.label}>Moyen de paiement</Text>
+					<TouchableOpacity
+						style={localStyles.paymentSelector}
+						onPress={() =>
+							setPaymentMethod((prev) =>
+								prev === "Carte" ? "Espèce" : "Carte"
+							)
+						}
+					>
 						<Ionicons
-							name={activeReservation?.paymentMethod === "CB" ? "card" : "cash"}
-							size={14}
-							color={THEME.colors.text.secondary}
+							name={paymentMethod === "Carte" ? "card" : "cash"}
+							size={16}
+							color={THEME.colors.text.primary}
 						/>
-						<Text style={localStyles.value}>
-							{activeReservation?.paymentMethod || "Non défini"}
-						</Text>
-					</View>
+						<Text style={localStyles.paymentMethodText}>{paymentMethod}</Text>
+						<Ionicons
+							name="swap-horizontal"
+							size={14}
+							color={THEME.colors.text.muted}
+						/>
+					</TouchableOpacity>
 				</View>
+
+				{/* Bouton Payer - Toujours visible */}
+				<TouchableOpacity
+					style={[
+						localStyles.payButton,
+						totalAmountNum === 0 && localStyles.payButtonDisabled,
+					]}
+					onPress={() => onPayClick(totalAmountNum)}
+					activeOpacity={0.8}
+					disabled={totalAmountNum === 0}
+				>
+					<Ionicons
+						name={paymentMethod === "Carte" ? "card" : "cash"}
+						size={24}
+						color="#FFF"
+					/>
+					<Text style={localStyles.payButtonText}>
+						{totalAmountNum > 0 ? `Payer ${totalAmount}€` : "Aucune commande"}
+					</Text>
+				</TouchableOpacity>
 
 				{/* Notes staff */}
 				<View style={localStyles.notesRow}>
@@ -161,7 +220,7 @@ const createStyles = (THEME) =>
 			gap: THEME.spacing.sm,
 		},
 		sectionTitle: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 			textTransform: "uppercase",
@@ -176,12 +235,12 @@ const createStyles = (THEME) =>
 			borderBottomColor: THEME.colors.border.subtle,
 		},
 		label: {
-			fontSize: 13,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "500",
 			color: THEME.colors.text.secondary,
 		},
 		value: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 		},
@@ -198,7 +257,7 @@ const createStyles = (THEME) =>
 			borderColor: "rgba(245, 158, 11, 0.3)",
 		},
 		totalAmount: {
-			fontSize: 18,
+			fontSize: THEME.typography.sizes.lg,
 			fontWeight: "700",
 			color: THEME.colors.primary.amber,
 		},
@@ -211,6 +270,49 @@ const createStyles = (THEME) =>
 			paddingVertical: THEME.spacing.xs,
 			borderRadius: THEME.radius.sm,
 		},
+		// ✅ Nouveau style pour sélecteur paiement
+		paymentSelector: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+			backgroundColor: THEME.colors.background.elevated,
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.sm,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+		},
+		paymentMethodText: {
+			fontSize: THEME.typography.sizes.base,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+		},
+		// ✅ Nouveau style pour bouton Payer
+		payButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: THEME.spacing.md,
+			backgroundColor: THEME.colors.primary.amber,
+			paddingVertical: THEME.spacing.lg,
+			borderRadius: THEME.radius.lg,
+			marginTop: THEME.spacing.lg,
+			shadowColor: THEME.colors.primary.amber,
+			shadowOffset: { width: 0, height: 4 },
+			shadowOpacity: 0.3,
+			shadowRadius: 8,
+			elevation: 6,
+		},
+		payButtonDisabled: {
+			backgroundColor: "rgba(100, 100, 100, 0.5)",
+			shadowOpacity: 0,
+		},
+		payButtonText: {
+			fontSize: THEME.typography.sizes.lg,
+			fontWeight: "700",
+			color: "#FFF",
+			letterSpacing: 0.5,
+		},
 		notesRow: {
 			marginTop: THEME.spacing.md,
 		},
@@ -221,7 +323,7 @@ const createStyles = (THEME) =>
 			marginBottom: THEME.spacing.sm,
 		},
 		notesTime: {
-			fontSize: 11,
+			fontSize: THEME.typography.sizes.xs,
 			color: THEME.colors.text.muted,
 			fontStyle: "italic",
 			marginLeft: "auto",
@@ -237,7 +339,7 @@ const createStyles = (THEME) =>
 		},
 		notesText: {
 			flex: 1,
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.primary,
 			lineHeight: 20,
 		},
@@ -246,7 +348,7 @@ const createStyles = (THEME) =>
 			borderRadius: THEME.radius.md,
 			padding: THEME.spacing.md,
 			color: THEME.colors.text.primary,
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.focus,
 			minHeight: 80,

@@ -7,7 +7,7 @@ import React, { useMemo } from "react";
 import { View, Animated, StyleSheet } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme } from "../../utils/themeUtils";
+import { useTheme } from "../../hooks/useTheme";
 
 // ─────────────── Skeleton Card Component ───────────────
 const ReservationCardSkeleton = React.memo(({ index, styles }) => {
@@ -87,7 +87,7 @@ const ReservationCardSkeleton = React.memo(({ index, styles }) => {
 // ─────────────── Main Loading Skeleton ───────────────
 const LoadingSkeleton = React.memo(({ count = 6 }) => {
 	const { themeMode } = useThemeStore();
-	const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 	const styles = useMemo(() => createStyles(THEME), [THEME]);
 	const safeCount = typeof count === "number" && count > 0 ? count : 6;
 

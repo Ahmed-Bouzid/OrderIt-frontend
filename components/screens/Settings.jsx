@@ -17,11 +17,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore, {
-	DARK_THEME,
-	LIGHT_THEME,
-	OCEAN_THEME,
 	THEME_MODES,
+	FONT_SIZES,
 } from "../../src/stores/useThemeStore";
+import { useTheme } from "../../hooks/useTheme";
 import useUserStore from "../../src/stores/useUserStore";
 import {
 	ServerManagement,
@@ -29,52 +28,12 @@ import {
 	SecuritySettings,
 	TableManagement,
 } from "./manager";
-
-// Design tokens constants (non-color)
-const SPACING = { xs: 4, sm: 8, md: 12, lg: 16, xl: 20, "2xl": 24 };
-const RADIUS = { sm: 6, md: 10, lg: 14, xl: 18 };
-
-// Fonction pour obtenir les couleurs selon le mode
-const getThemeColors = (themeMode) => {
-	let colors;
-	switch (themeMode) {
-		case THEME_MODES.LIGHT:
-			colors = LIGHT_THEME.colors;
-			break;
-		case THEME_MODES.OCEAN:
-			colors = OCEAN_THEME.colors;
-			break;
-		case THEME_MODES.DARK:
-		default:
-			colors = DARK_THEME.colors;
-			break;
-	}
-	return {
-		background: {
-			dark: colors.background,
-			card: colors.card,
-			elevated: colors.cardAlt,
-		},
-		primary: { amber: colors.primary },
-		text: {
-			primary: colors.text.primary,
-			secondary: colors.text.secondary,
-			muted: colors.text.muted,
-		},
-		border: {
-			default: colors.border,
-			subtle: colors.borderLight,
-		},
-		status: {
-			success: colors.status.success,
-			error: colors.status.error,
-		},
-	};
-};
+import FeedbackModal from "../modals/FeedbackModal";
+import feedbackService from "../../services/feedbackService";
 
 export default function Settings() {
 	const router = useRouter();
-	const { isDarkMode, themeMode, theme, initTheme, setThemeMode } =
+	const { themeMode, initTheme, setThemeMode, fontSize, setFontSize } =
 		useThemeStore();
 	const {
 		isManager,
@@ -86,17 +45,13 @@ export default function Settings() {
 	} = useUserStore();
 
 	// État pour la section active du menu
-	const [activeSection, setActiveSection] = useState("appearance");
+	const [activeSection, setActiveSection] = useState("account");
 
-	// ⭐ Couleurs dynamiques selon le mode
-	const THEME = useMemo(
-		() => ({
-			colors: getThemeColors(themeMode),
-			spacing: SPACING,
-			radius: RADIUS,
-		}),
-		[themeMode]
-	);
+	// État pour la modale feedback
+	const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+	// ⭐ Utiliser useTheme() pour avoir le thème complet avec typography scalée
+	const THEME = useTheme();
 
 	// ⭐ Styles dynamiques selon le thème
 	const settingsStyles = useMemo(() => createStyles(THEME), [THEME]);
@@ -144,6 +99,24 @@ export default function Settings() {
 		]);
 	};
 
+	const handleFeedbackSubmit = async (feedbackData) => {
+		try {
+			await feedbackService.sendFeedback(feedbackData);
+			Alert.alert(
+				"Merci !",
+				"Votre feedback a bien été envoyé à l'équipe OrderIt.",
+				[{ text: "OK" }]
+			);
+		} catch (error) {
+			console.error("[Settings] Erreur envoi feedback:", error);
+			Alert.alert(
+				"Erreur",
+				"Impossible d'envoyer le feedback. Réessayez plus tard.",
+				[{ text: "OK" }]
+			);
+		}
+	};
+
 	// Rendu de la section active
 	const renderActiveSection = () => {
 		switch (activeSection) {
@@ -163,7 +136,7 @@ export default function Settings() {
 								<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
 									<Text style={settingsStyles.settingLabel}>Thème</Text>
 									<Text style={settingsStyles.settingDescription}>
-										Choisissez l'apparence de l'application
+										Choisissez l&apos;apparence de l&apos;application
 									</Text>
 								</View>
 							</View>
@@ -251,6 +224,176 @@ export default function Settings() {
 										]}
 									>
 										Ocean
+									</Text>
+								</TouchableOpacity>
+
+								{/* Cloud Mode */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										themeMode === THEME_MODES.CLOUD &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => setThemeMode(THEME_MODES.CLOUD)}
+								>
+									<View
+										style={[
+											settingsStyles.themePreview,
+											{ backgroundColor: "#EFF6FF" },
+										]}
+									>
+										<Ionicons name="cloud" size={20} color="#38BDF8" />
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											themeMode === THEME_MODES.CLOUD &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										Cloud
+									</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+
+						{/* Sélecteur de taille de police */}
+						<View style={settingsStyles.themeSection}>
+							<View style={settingsStyles.themeLabelRow}>
+								<Ionicons
+									name="text-outline"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+									<Text style={settingsStyles.settingLabel}>
+										Taille de police
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Ajustez la taille du texte
+									</Text>
+								</View>
+							</View>
+
+							{/* Boutons de sélection de la taille */}
+							<View style={settingsStyles.themeSelector}>
+								{/* Small */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										fontSize === FONT_SIZES.SMALL &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => {
+										console.log("🔤 Setting font size to SMALL");
+										setFontSize(FONT_SIZES.SMALL);
+									}}
+									activeOpacity={0.7}
+								>
+									<View style={settingsStyles.fontSizePreview}>
+										<Text
+											style={[
+												settingsStyles.fontSizePreviewText,
+												{
+													fontSize: 14,
+													color:
+														fontSize === FONT_SIZES.SMALL
+															? THEME.colors.primary.amber
+															: THEME.colors.text.muted,
+												},
+											]}
+										>
+											Aa
+										</Text>
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											fontSize === FONT_SIZES.SMALL &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										S
+									</Text>
+								</TouchableOpacity>
+
+								{/* Medium */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										fontSize === FONT_SIZES.MEDIUM &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => {
+										console.log("🔤 Setting font size to MEDIUM");
+										setFontSize(FONT_SIZES.MEDIUM);
+									}}
+									activeOpacity={0.7}
+								>
+									<View style={settingsStyles.fontSizePreview}>
+										<Text
+											style={[
+												settingsStyles.fontSizePreviewText,
+												{
+													fontSize: 18,
+													color:
+														fontSize === FONT_SIZES.MEDIUM
+															? THEME.colors.primary.amber
+															: THEME.colors.text.muted,
+												},
+											]}
+										>
+											Aa
+										</Text>
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											fontSize === FONT_SIZES.MEDIUM &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										M
+									</Text>
+								</TouchableOpacity>
+
+								{/* Large */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										fontSize === FONT_SIZES.LARGE &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => {
+										console.log("🔤 Setting font size to LARGE");
+										setFontSize(FONT_SIZES.LARGE);
+									}}
+									activeOpacity={0.7}
+								>
+									<View style={settingsStyles.fontSizePreview}>
+										<Text
+											style={[
+												settingsStyles.fontSizePreviewText,
+												{
+													fontSize: 22,
+													color:
+														fontSize === FONT_SIZES.LARGE
+															? THEME.colors.primary.amber
+															: THEME.colors.text.muted,
+												},
+											]}
+										>
+											Aa
+										</Text>
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											fontSize === FONT_SIZES.LARGE &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										L
 									</Text>
 								</TouchableOpacity>
 							</View>
@@ -372,7 +515,6 @@ export default function Settings() {
 				colors={[THEME.colors.background.dark, THEME.colors.background.card]}
 				style={StyleSheet.absoluteFill}
 			/>
-
 			{/* Container des colonnes */}
 			<View style={{ flexDirection: "row", flex: 1 }}>
 				{/* Sidebar - Menu des options */}
@@ -389,11 +531,6 @@ export default function Settings() {
 
 					<ScrollView showsVerticalScrollIndicator={false}>
 						{/* Menu items de base */}
-						<MenuItem
-							icon="color-palette-outline"
-							label="Thème"
-							section="appearance"
-						/>
 						<MenuItem icon="person-outline" label="Compte" section="account" />
 
 						{/* Section Manager - visible uniquement pour managers/admins */}
@@ -433,6 +570,31 @@ export default function Settings() {
 								/>
 							</>
 						)}
+
+						{/* Thème en dernier - moins prioritaire */}
+						<MenuItem
+							icon="color-palette-outline"
+							label="Thème"
+							section="appearance"
+						/>
+						{/* Feedback */}
+						<TouchableOpacity
+							style={settingsStyles.menuItem}
+							onPress={() => setShowFeedbackModal(true)}
+						>
+							<Ionicons
+								name="chatbox-ellipses-outline"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+							<Text style={settingsStyles.menuItemText}>Feedback</Text>
+							<Text> </Text>
+							<Ionicons
+								name="chevron-forward"
+								size={18}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
 					</ScrollView>
 				</View>
 
@@ -462,6 +624,18 @@ export default function Settings() {
 					)}
 				</View>
 			</View>
+
+			{/* Modale Feedback */}
+			<FeedbackModal
+				visible={showFeedbackModal}
+				onClose={() => setShowFeedbackModal(false)}
+				onSubmit={handleFeedbackSubmit}
+				userContext={{
+					email,
+					role,
+					userType,
+				}}
+			/>
 		</View>
 	);
 }
@@ -487,7 +661,7 @@ const createStyles = (THEME) =>
 			borderBottomColor: THEME.colors.border.subtle,
 		},
 		sidebarTitle: {
-			fontSize: 18,
+			fontSize: THEME.typography.sizes.md,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 			marginLeft: THEME.spacing.md,
@@ -507,7 +681,7 @@ const createStyles = (THEME) =>
 			borderLeftColor: THEME.colors.primary.amber,
 		},
 		menuItemText: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "500",
 			color: THEME.colors.text.secondary,
 			marginLeft: THEME.spacing.md,
@@ -529,7 +703,7 @@ const createStyles = (THEME) =>
 			marginBottom: THEME.spacing.md,
 		},
 		sectionLabel: {
-			fontSize: 11,
+			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "600",
 			color: THEME.colors.text.muted,
 			marginTop: THEME.spacing.sm,
@@ -542,7 +716,7 @@ const createStyles = (THEME) =>
 			padding: THEME.spacing["2xl"],
 		},
 		sectionHeaderText: {
-			fontSize: 22,
+			fontSize: THEME.typography.sizes.xl,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 			marginBottom: THEME.spacing.xl,
@@ -558,13 +732,13 @@ const createStyles = (THEME) =>
 			borderColor: THEME.colors.border.subtle,
 		},
 		settingLabel: {
-			fontSize: 16,
+			fontSize: THEME.typography.sizes.base,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 			marginBottom: 4,
 		},
 		settingDescription: {
-			fontSize: 13,
+			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.muted,
 			lineHeight: 18,
 		},
@@ -581,13 +755,13 @@ const createStyles = (THEME) =>
 			paddingVertical: THEME.spacing.md,
 		},
 		infoLabel: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.muted,
 			marginLeft: THEME.spacing.md,
 			flex: 1,
 		},
 		infoValue: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 		},
@@ -609,13 +783,13 @@ const createStyles = (THEME) =>
 			paddingHorizontal: THEME.spacing.xl,
 		},
 		logoutText: {
-			fontSize: 16,
+			fontSize: THEME.typography.sizes.base,
 			fontWeight: "600",
 			color: "#FFF",
 			marginLeft: THEME.spacing.sm,
 		},
 		versionText: {
-			fontSize: 12,
+			fontSize: THEME.typography.sizes.xs,
 			color: THEME.colors.text.muted,
 			textAlign: "center",
 			position: "absolute",
@@ -640,20 +814,18 @@ const createStyles = (THEME) =>
 		themeSelector: {
 			flexDirection: "row",
 			justifyContent: "space-between",
-			gap: THEME.spacing.md,
+			gap: THEME.spacing.sm,
 		},
 		themeOption: {
 			flex: 1,
 			alignItems: "center",
-			padding: THEME.spacing.md,
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.sm,
 			borderRadius: THEME.radius.lg,
-			backgroundColor: THEME.colors.background.dark,
-			borderWidth: 2,
-			borderColor: "transparent",
+			backgroundColor: "transparent",
 		},
 		themeOptionActive: {
-			borderColor: THEME.colors.primary.amber,
-			backgroundColor: `${THEME.colors.primary.amber}15`,
+			backgroundColor: `${THEME.colors.primary.amber}10`,
 		},
 		themePreview: {
 			width: 48,
@@ -662,16 +834,33 @@ const createStyles = (THEME) =>
 			alignItems: "center",
 			justifyContent: "center",
 			marginBottom: THEME.spacing.sm,
-			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
+		},
+		fontSizePreview: {
+			width: 48,
+			height: 48,
+			borderRadius: THEME.radius.md,
+			alignItems: "center",
+			justifyContent: "center",
+			marginBottom: THEME.spacing.sm,
+			backgroundColor: THEME.colors.background.dark,
+		},
+		fontSizePreviewText: {
+			fontWeight: "700",
+			color: THEME.colors.text.secondary,
 		},
 		themeOptionLabel: {
-			fontSize: 13,
+			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "500",
 			color: THEME.colors.text.muted,
 		},
 		themeOptionLabelActive: {
 			color: THEME.colors.primary.amber,
 			fontWeight: "600",
+		},
+		// Style spécifique pour le bouton feedback
+		feedbackButton: {
+			borderWidth: 1,
+			borderColor: THEME.colors.primary.amber,
+			backgroundColor: `${THEME.colors.primary.amber}15`,
 		},
 	});

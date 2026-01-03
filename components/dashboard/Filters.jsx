@@ -11,7 +11,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme } from "../../utils/themeUtils";
+import { useTheme } from "../../hooks/useTheme";
 
 // Enable LayoutAnimation on Android
 if (
@@ -57,7 +57,7 @@ const FILTERS = [
 const Filters = React.memo(
 	({ activeFilter, onFilterChange, searchQuery, onSearchChange }) => {
 		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const filterStyles = useMemo(() => createFilterStyles(THEME), [THEME]);
 
 		const [layouts, setLayouts] = useState({});
@@ -246,7 +246,7 @@ const createFilterStyles = (THEME) =>
 		},
 		searchInput: {
 			flex: 1,
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.primary,
 			paddingVertical: THEME.spacing.xs,
 		},
@@ -290,7 +290,7 @@ const createFilterStyles = (THEME) =>
 			zIndex: 1,
 		},
 		label: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			letterSpacing: 0,
 		},
 	});

@@ -1,5 +1,5 @@
 // components/elements/ActivityComponents/ServiceSection.jsx
-import React, { useMemo, useCallback, useEffect } from "react";
+import React, { useMemo } from "react";
 import {
 	View,
 	Text,
@@ -9,8 +9,7 @@ import {
 	ScrollView,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import useThemeStore from "../../../src/stores/useThemeStore";
-import { getTheme } from "../../../utils/themeUtils";
+import { useTheme } from "../../../hooks/useTheme";
 
 export const ServiceSection = React.memo(
 	({
@@ -23,8 +22,7 @@ export const ServiceSection = React.memo(
 		editField,
 		setActiveServer,
 	}) => {
-		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const localStyles = useMemo(() => createStyles(THEME), [THEME]);
 
 		const safeServers = useMemo(
@@ -288,7 +286,7 @@ const createStyles = (THEME) =>
 			gap: THEME.spacing.sm,
 		},
 		sectionTitle: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 			textTransform: "uppercase",
@@ -303,13 +301,13 @@ const createStyles = (THEME) =>
 			borderBottomColor: THEME.colors.border.subtle,
 		},
 		label: {
-			fontSize: 13,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "500",
 			color: THEME.colors.text.secondary,
 			flex: 1,
 		},
 		value: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 		},
@@ -357,7 +355,7 @@ const createStyles = (THEME) =>
 		},
 		dropdownText: {
 			flex: 1,
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.primary,
 			fontWeight: "500",
 		},
@@ -380,7 +378,7 @@ const createStyles = (THEME) =>
 			borderRadius: 4,
 		},
 		statusText: {
-			fontSize: 13,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 		},
@@ -417,7 +415,7 @@ const createStyles = (THEME) =>
 			borderBottomColor: THEME.colors.border.subtle,
 		},
 		modalTitle: {
-			fontSize: 16,
+			fontSize: THEME.typography.sizes.base,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 		},
@@ -437,13 +435,13 @@ const createStyles = (THEME) =>
 			paddingHorizontal: THEME.spacing.lg,
 		},
 		emptyText: {
-			fontSize: 16,
+			fontSize: THEME.typography.sizes.base,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 			marginTop: THEME.spacing.md,
 		},
 		emptySubtext: {
-			fontSize: 13,
+			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.muted,
 			marginTop: THEME.spacing.xs,
 			textAlign: "center",
@@ -482,7 +480,7 @@ const createStyles = (THEME) =>
 			borderColor: THEME.colors.primary.amber,
 		},
 		modalName: {
-			fontSize: 14,
+			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 		},
@@ -490,7 +488,7 @@ const createStyles = (THEME) =>
 			color: THEME.colors.primary.amber,
 		},
 		modalEmail: {
-			fontSize: 12,
+			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "400",
 			color: THEME.colors.text.muted,
 			marginTop: 2,
@@ -520,7 +518,7 @@ const createStyles = (THEME) =>
 			marginRight: THEME.spacing.xs,
 		},
 		statusTagText: {
-			fontSize: 11,
+			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "500",
 		},
 	});

@@ -160,6 +160,16 @@ export default function Login() {
 					setRestaurantId(restaurantId); // 🔹 assignation immédiate dans le store
 				}
 
+				// ✅ Stocker serverId et tableId si présents (serveur uniquement)
+				if (data.serverId) {
+					await AsyncStorage.setItem("serverId", data.serverId);
+					console.log("✅ serverId sauvegardé:", data.serverId);
+				}
+				if (data.tableId) {
+					await AsyncStorage.setItem("tableId", data.tableId);
+					console.log("✅ tableId sauvegardé:", data.tableId);
+				}
+
 				// ✅ Stocker les infos utilisateur (role, userType)
 				await setUser({
 					userId: data.userId,

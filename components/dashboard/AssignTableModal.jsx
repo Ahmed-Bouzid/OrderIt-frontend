@@ -17,11 +17,18 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme } from "../../utils/themeUtils";
+import { useTheme } from "../../hooks/useTheme";
 
 // ─────────────── Table Button Component ───────────────
 const TableButton = React.memo(
-	({ table, isAssignedToCurrent, isAvailable, onPress, THEME }) => {
+	({
+		table,
+		isAssignedToCurrent,
+		isAvailable,
+		onPress,
+		THEME,
+		tableStyles,
+	}) => {
 		const scaleAnim = useRef(new Animated.Value(1)).current;
 
 		const handlePressIn = () => {
@@ -104,6 +111,8 @@ const TableButton = React.memo(
 	}
 );
 
+TableButton.displayName = "TableButton";
+
 const AssignTableModal = React.memo(
 	({ visible, onClose, tables, activeReservation, onAssignTable }) => {
 		// Animations
@@ -112,7 +121,7 @@ const AssignTableModal = React.memo(
 
 		// Thème dynamique
 		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const modalStyles = useMemo(() => createModalStyles(THEME), [THEME]);
 		const tableStyles = useMemo(() => createTableStyles(THEME), [THEME]);
 
@@ -135,7 +144,7 @@ const AssignTableModal = React.memo(
 				scaleAnim.setValue(0.9);
 				opacityAnim.setValue(0);
 			}
-		}, [visible]);
+		}, [visible, scaleAnim, opacityAnim]);
 
 		// Guard clause
 		if (!activeReservation || !visible) return null;
@@ -277,14 +286,7 @@ const AssignTableModal = React.memo(
 															isAssignedToCurrent={isAssignedToCurrent}
 															isAvailable={true}
 															THEME={THEME}
-															onPress={async () => {
-																if (onAssignTable) {
-																	await onAssignTable(
-																		activeReservation._id,
-																		table._id
-																	);
-																}
-															}}
+															tableStyles={tableStyles}
 														/>
 													);
 												})}
@@ -313,6 +315,7 @@ const AssignTableModal = React.memo(
 															isAssignedToCurrent={false}
 															isAvailable={false}
 															THEME={THEME}
+															tableStyles={tableStyles}
 															onPress={() => {}}
 														/>
 													);

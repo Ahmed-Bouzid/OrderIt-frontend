@@ -146,6 +146,9 @@ export function useAuthFetch() {
 
 				if (!token) {
 					console.warn("⚠️ Aucun token disponible, requête annulée :", url);
+					// ⭐ Rediriger vers login si pas de token
+					await AsyncStorage.multiRemove(["@access_token", "refreshToken"]);
+					redirectToLogin(router, isRedirectingRef);
 					throw new Error("Token manquant, fetch annulé");
 				}
 
@@ -260,8 +263,8 @@ export async function startTokenRefresh() {
 	}
 }
 
-// Fonction helper pour la redirection
-const redirectToLogin = (router, isRedirectingRef) => {
+// ⭐ Fonction helper pour la redirection (exportée pour réutilisation)
+export const redirectToLogin = (router, isRedirectingRef) => {
 	if (!isRedirectingRef.current) {
 		isRedirectingRef.current = true;
 

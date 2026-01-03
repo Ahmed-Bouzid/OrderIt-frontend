@@ -26,7 +26,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme } from "../../utils/themeUtils";
+import { useTheme } from "../../hooks/useTheme";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -197,9 +197,9 @@ const TableSelector = React.memo(
 
 // ─────────────── Main Component ───────────────
 const NewReservationModal = React.memo(
-	({ visible, onClose, onCreate, tables, theme }) => {
+	({ visible, onClose, onCreate, tables, theme, initialData = null }) => {
 		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 
 		const [step, setStep] = useState(1);
 		const [clientName, setClientName] = useState("");
@@ -212,6 +212,26 @@ const NewReservationModal = React.memo(
 		const [notes, setNotes] = useState("");
 		const [selectedTableId, setSelectedTableId] = useState(null);
 		const [errors, setErrors] = useState({});
+
+		// ⭐ Pré-remplir les champs si initialData est fourni (recréation)
+		useEffect(() => {
+			if (visible && initialData) {
+				console.log("📋 Pré-remplissage avec données:", initialData.clientName);
+				setClientName(initialData.clientName || "");
+				setPhone(initialData.phone || "");
+				setNbPersonnes(initialData.nbPersonnes || 2);
+				setAllergies(initialData.allergies || "");
+				setRestrictions(initialData.restrictions || "");
+				setNotes(initialData.notes || "");
+				// Ne pas pré-remplir date/heure - l'utilisateur doit les choisir
+				setReservationTime("");
+				setReservationDate("");
+				setSelectedTableId(
+					initialData.tableId?._id || initialData.tableId || null
+				);
+				setStep(1);
+			}
+		}, [visible, initialData]);
 
 		const modalStyles = useMemo(() => createStyles(THEME), [THEME]);
 
@@ -492,7 +512,9 @@ const NewReservationModal = React.memo(
 																	let mm = selectedTime.getMinutes();
 																	mm = mm < 30 ? 0 : 30;
 																	setReservationTime(
-																		`${String(hh).padStart(2, "0")}:${String(mm).padStart(2, "0")}`
+																		`${String(hh).padStart(2, "0")}:${String(
+																			mm
+																		).padStart(2, "0")}`
 																	);
 																}
 															}}

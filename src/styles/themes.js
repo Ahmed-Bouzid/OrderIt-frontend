@@ -228,11 +228,87 @@ export const OCEAN_THEME = {
 	},
 };
 
+// ☁️ Thème Cloud - Bleu ciel doux et lumineux (basé sur LIGHT)
+export const CLOUD_THEME = {
+	colors: {
+		// Backgrounds - Bleu ciel très clair
+		background: "#EFF6FF", // sky-50
+		card: "#FFFFFF",
+		cardAlt: "#DBEAFE", // sky-100
+		inputBg: "#F0F9FF", // sky-50 variant
+
+		// Primary - Bleu sky doux
+		primary: "#38BDF8", // sky-400
+		primaryLight: "rgba(56, 189, 248, 0.12)",
+		primaryDark: "#0EA5E9", // sky-500
+
+		// Text - Plus doux que le blanc pur
+		text: {
+			primary: "#1E3A8A", // blue-900
+			secondary: "#475569", // slate-600
+			muted: "#94A3B8", // slate-400
+		},
+
+		// Borders - Subtiles
+		border: "rgba(30, 58, 138, 0.08)",
+		borderLight: "rgba(30, 58, 138, 0.05)",
+
+		// Status - Couleurs douces
+		status: {
+			success: "#10B981", // emerald-500
+			successLight: "rgba(16, 185, 129, 0.12)",
+			warning: "#F59E0B", // amber-500
+			warningLight: "rgba(245, 158, 11, 0.12)",
+			error: "#EF4444", // red-500
+			errorLight: "rgba(239, 68, 68, 0.12)",
+			info: "#38BDF8", // sky-400
+			infoLight: "rgba(56, 189, 248, 0.12)",
+		},
+
+		// Overlay - Très léger
+		overlay: "rgba(30, 58, 138, 0.3)",
+
+		// Role colors
+		role: {
+			server: { bg: "rgba(56, 189, 248, 0.12)", text: "#0EA5E9" },
+			manager: { bg: "rgba(245, 158, 11, 0.12)", text: "#F59E0B" },
+		},
+	},
+
+	// Spacing (identique)
+	spacing: {
+		xs: 4,
+		sm: 8,
+		md: 12,
+		lg: 16,
+		xl: 24,
+		xxl: 32,
+	},
+
+	// Border radius (identique)
+	radius: {
+		sm: 6,
+		md: 10,
+		lg: 14,
+		xl: 20,
+		pill: 50,
+	},
+
+	// Gradients - Dégradés ciel
+	gradients: {
+		primary: ["#38BDF8", "#0EA5E9"], // sky-400 to sky-500
+		success: ["#10B981", "#059669"], // emerald
+		danger: ["#EF4444", "#DC2626"], // red
+		info: ["#60A5FA", "#3B82F6"], // blue-400 to blue-500
+	},
+};
+
 // Types de thème disponibles
 export const THEME_MODES = {
 	DARK: "dark",
 	LIGHT: "light",
 	OCEAN: "ocean",
+	CLOUD: "cloud",
 };
 
 /**
@@ -251,6 +327,8 @@ export const getTheme = (mode) => {
 			return LIGHT_THEME;
 		case THEME_MODES.OCEAN:
 			return OCEAN_THEME;
+		case THEME_MODES.CLOUD:
+			return CLOUD_THEME;
 		case THEME_MODES.DARK:
 		default:
 			return DARK_THEME;
@@ -300,6 +378,7 @@ export default {
 	DARK_THEME,
 	LIGHT_THEME,
 	OCEAN_THEME,
+	CLOUD_THEME,
 	THEME_MODES,
 	getTheme,
 	getBaseStyles,

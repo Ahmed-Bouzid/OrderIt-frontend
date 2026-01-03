@@ -8,7 +8,6 @@ import {
 	Text,
 	StyleSheet,
 	TouchableOpacity,
-	FlatList,
 	Animated,
 	ActivityIndicator,
 	ScrollView,

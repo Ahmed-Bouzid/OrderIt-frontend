@@ -22,6 +22,7 @@ import Activity from "../../components/screens/Activity";
 import FloorScreen from "../../components/screens/Floor";
 import Settings from "../../components/screens/Settings";
 import useSocket from "../../hooks/useSocket";
+import ClientMessageNotification from "../../components/ui/ClientMessageNotification";
 
 // Configuration des tabs
 const TABS = [
@@ -196,6 +197,16 @@ export default function TabsLayout() {
 				colors={[THEME.colors.background.dark, THEME.colors.background.card]}
 				style={StyleSheet.absoluteFill}
 			/>
+
+			{/* 🔔 Notification des messages clients */}
+			<ClientMessageNotification
+				onMessagePress={(message) => {
+					console.log("📨 Message cliqué:", message);
+					// TODO: Naviguer vers la table ou ouvrir un détail
+					setActiveTab("activity");
+				}}
+			/>
+
 			<View style={{ flex: 1 }}>
 				{/* Premium Navbar */}
 				<View style={tabStyles.navbar}>

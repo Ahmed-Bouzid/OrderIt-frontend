@@ -1,6 +1,7 @@
 // hooks/useActivityData.js
-import { useState, useEffect } from "react";
-import { useAuthFetch } from "./useAuthFetch";
+import { useState, useEffect, useRef } from "react";
+import { useRouter } from "expo-router";
+import { useAuthFetch, redirectToLogin } from "./useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../src/config/apiConfig";
 import useReservationStore from "../src/stores/useReservationStore";
@@ -12,6 +13,8 @@ import useReservationStore from "../src/stores/useReservationStore";
  */
 
 export const useActivityData = () => {
+	const router = useRouter();
+	const isRedirectingRef = useRef(false);
 	const [token, setToken] = useState(null);
 	const [restaurantId, setRestaurantId] = useState(null);
 	const [isLoading, setIsLoading] = useState(true);
@@ -36,13 +39,26 @@ export const useActivityData = () => {
 			setProducts([]);
 			setProductsError(null);
 			try {
-				const [tokenValue, ridValue] = await Promise.all([
+				const [tokenValue, ridValue, tidValue, sidValue] = await Promise.all([
 					AsyncStorage.getItem("@access_token"),
 					AsyncStorage.getItem("restaurantId"),
+					AsyncStorage.getItem("tableId"),
+					AsyncStorage.getItem("serverId"),
 				]);
 				const finalRestaurantId = ridValue || API_CONFIG.RESTAURANT_ID;
 				setToken(tokenValue);
 				setRestaurantId(finalRestaurantId);
+				setTableId(tidValue); // ⭐ Charger tableId
+				setServerId(sidValue); // ⭐ Charger serverId
+
+				console.log(
+					"🔑 useActivityData chargé - restaurantId:",
+					finalRestaurantId,
+					"| tableId:",
+					tidValue,
+					"| serverId:",
+					sidValue
+				);
 
 				// ⭐ Fetch des réservations via le store Zustand (force refresh au chargement)
 				if (tokenValue && finalRestaurantId) {

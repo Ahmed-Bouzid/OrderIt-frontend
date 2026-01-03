@@ -257,7 +257,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 								<Ionicons
 									name={isManager ? "shield-checkmark" : "person"}
 									size={12}
-									color={roleColor}
+									color={THEME.colors.text.secondary}
 								/>
 								<Text style={[styles.roleText, { color: roleColor }]}>
 									{roleLabel}
@@ -626,6 +626,7 @@ const createStyles = (THEME) =>
 		roleText: {
 			fontSize: 11,
 			fontWeight: "600",
+			color: THEME.colors.text.secondary,
 		},
 		serverEmail: {
 			fontSize: 13,

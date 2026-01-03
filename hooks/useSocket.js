@@ -1,6 +1,8 @@
 import { useRef, useCallback, useEffect } from "react";
 import { io } from "socket.io-client";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useRouter } from "expo-router";
+import { redirectToLogin } from "./useAuthFetch";
 import { SOCKET_CONFIG } from "../src/config/apiConfig";
 
 // ============ SINGLETON & ÉTAT GLOBAL ============
@@ -158,6 +160,8 @@ const cleanupInternalListeners = (socket) => {
 // ============ HOOK PRINCIPAL ============
 
 const useSocket = () => {
+	const router = useRouter();
+	const isRedirectingRef = useRef(false);
 	const socketRef = useRef(null);
 	const listenerMapRef = useRef(new Map()); // Track des listeners custom pour cleanup
 
@@ -308,6 +312,24 @@ const useSocket = () => {
 					}
 				} else {
 					console.error("❌ Erreur connexion Socket:", errorMsg);
+
+					// ⭐ Vérifier si c'est une erreur d'authentification
+					if (
+						errorMsg.toLowerCase().includes("token invalide") ||
+						errorMsg.toLowerCase().includes("unauthorized") ||
+						errorMsg.toLowerCase().includes("authentification")
+					) {
+						console.error(
+							"🔐 Erreur d'authentification Socket → Redirection login"
+						);
+						AsyncStorage.multiRemove(["@access_token", "refreshToken"]).then(
+							() => {
+								redirectToLogin(router, isRedirectingRef);
+							}
+						);
+						return;
+					}
+
 					globalReconnectAttempts += 1;
 
 					// Calcul du backoff

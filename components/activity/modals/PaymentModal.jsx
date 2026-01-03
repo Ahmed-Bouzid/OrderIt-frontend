@@ -1,7 +1,19 @@
 // components/activity/modals/PaymentModal.jsx
 import React from "react";
-import { Modal } from "react-native";
-import Payment from "../../modals/Payment";
+import { PremiumTPEModal } from "./PremiumTPEModal";
+
+/**
+ * ✅ VERSION PREMIUM TPE - Terminal de paiement stylisé
+ *
+ * Modale de paiement ultra-premium style terminal bancaire :
+ * - Slide-up animation depuis le bas
+ * - Effets NFC pulsants concentriques
+ * - Loader puff + quantum pulse (4 secondes)
+ * - Check de validation avec son
+ * - Design style carte bancaire / TPE
+ *
+ * Intégration Stripe API test (PaymentIntent + pm_card_visa)
+ */
 
 export const PaymentModal = ({
 	visible,
@@ -11,23 +23,31 @@ export const PaymentModal = ({
 	onSuccess,
 	theme,
 }) => {
-	// ⭐ Guard clause
-	if (!visible) return null;
-
-	const safeTheme = theme || { textColor: "#000", backgroundColor: "#fff" };
-	const safeOnClose = onClose || (() => {});
-	const safeOnSuccess = onSuccess || (() => {});
 	const safeOrders = Array.isArray(orders) ? orders : [];
 
+	// 🔧 Calculer le total et récupérer lastOrderId
+	let totalAmount = 0;
+	let lastOrderId = null;
+
+	safeOrders.forEach((order) => {
+		if (Array.isArray(order?.items)) {
+			order.items.forEach((item) => {
+				totalAmount += (item.price || 0) * (item.quantity || 0);
+			});
+		}
+		lastOrderId = order._id;
+	});
+
+	// Ne pas rendre si pas visible
+	if (!visible) return null;
+
 	return (
-		<Modal visible={visible} animationType="slide" onRequestClose={safeOnClose}>
-			<Payment
-				reservation={activeReservation}
-				orders={safeOrders}
-				onSuccess={safeOnSuccess}
-				onBack={safeOnClose}
-				theme={safeTheme}
-			/>
-		</Modal>
+		<PremiumTPEModal
+			visible={visible}
+			amount={totalAmount}
+			orderId={lastOrderId}
+			onSuccess={onSuccess}
+			onCancel={onClose}
+		/>
 	);
 };

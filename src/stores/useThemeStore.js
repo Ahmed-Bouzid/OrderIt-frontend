@@ -4,9 +4,24 @@ import {
 	DARK_THEME,
 	LIGHT_THEME,
 	OCEAN_THEME,
+	CLOUD_THEME,
 	THEME_MODES,
 	getTheme,
 } from "../styles/themes";
+
+// Tailles de police disponibles
+const FONT_SIZES = {
+	SMALL: "small",
+	MEDIUM: "medium",
+	LARGE: "large",
+};
+
+// Multiplicateurs pour chaque taille
+const FONT_MULTIPLIERS = {
+	[FONT_SIZES.SMALL]: 0.9,
+	[FONT_SIZES.MEDIUM]: 1.0,
+	[FONT_SIZES.LARGE]: 1.15,
+};
 
 // ⭐ Thème clair (legacy - pour compatibilité)
 const lightTheme = {
@@ -47,6 +62,19 @@ const oceanTheme = {
 	buttonText: "#ffffff",
 };
 
+// ☁️ Thème Cloud (legacy - pour compatibilité)
+const cloudTheme = {
+	mode: "cloud",
+	backgroundColor: CLOUD_THEME.colors.background,
+	textColor: CLOUD_THEME.colors.text.primary,
+	cardColor: CLOUD_THEME.colors.card,
+	borderColor: CLOUD_THEME.colors.border,
+	containerBg: CLOUD_THEME.colors.background,
+	separatorColor: CLOUD_THEME.colors.border,
+	buttonBg: CLOUD_THEME.colors.primary,
+	buttonText: "#ffffff",
+};
+
 // Helper pour obtenir le thème legacy par mode
 const getLegacyTheme = (mode) => {
 	switch (mode) {
@@ -54,6 +82,8 @@ const getLegacyTheme = (mode) => {
 			return lightTheme;
 		case THEME_MODES.OCEAN:
 			return oceanTheme;
+		case THEME_MODES.CLOUD:
+			return cloudTheme;
 		case THEME_MODES.DARK:
 		default:
 			return darkTheme;
@@ -61,16 +91,20 @@ const getLegacyTheme = (mode) => {
 };
 
 const useThemeStore = create((set, get) => ({
-	// ⭐ Nouveau système: themeMode ('dark', 'light', 'ocean')
+	// ⭐ Nouveau système: themeMode ('dark', 'light', 'ocean', 'cloud')
 	themeMode: THEME_MODES.DARK,
 	// Legacy: isDarkMode (maintenu pour compatibilité)
 	isDarkMode: true,
 	theme: darkTheme,
 
+	// 📏 Taille de police (S, M, L)
+	fontSize: FONT_SIZES.MEDIUM,
+
 	// Initialiser le thème depuis AsyncStorage
 	initTheme: async () => {
 		try {
 			const savedMode = await AsyncStorage.getItem("themeMode");
+			const savedFontSize = await AsyncStorage.getItem("fontSize");
 			// Support legacy
 			const savedDarkMode = await AsyncStorage.getItem("darkMode");
 
@@ -81,10 +115,13 @@ const useThemeStore = create((set, get) => ({
 				mode = savedDarkMode === "true" ? THEME_MODES.DARK : THEME_MODES.LIGHT;
 			}
 
+			const fontSize = savedFontSize || FONT_SIZES.MEDIUM;
+
 			set({
 				themeMode: mode,
 				isDarkMode: mode === THEME_MODES.DARK,
 				theme: getLegacyTheme(mode),
+				fontSize,
 			});
 		} catch (error) {
 			console.error("Erreur chargement thème:", error);
@@ -105,7 +142,7 @@ const useThemeStore = create((set, get) => ({
 		}
 	},
 
-	// ⭐ Nouveau: Cycler entre les thèmes (dark -> light -> ocean -> dark)
+	// ⭐ Nouveau: Cycler entre les thèmes (dark -> light -> ocean -> cloud -> dark)
 	cycleTheme: async () => {
 		const { themeMode } = get();
 		let newMode;
@@ -117,6 +154,9 @@ const useThemeStore = create((set, get) => ({
 				newMode = THEME_MODES.OCEAN;
 				break;
 			case THEME_MODES.OCEAN:
+				newMode = THEME_MODES.CLOUD;
+				break;
+			case THEME_MODES.CLOUD:
 			default:
 				newMode = THEME_MODES.DARK;
 				break;
@@ -132,6 +172,47 @@ const useThemeStore = create((set, get) => ({
 		await get().setThemeMode(newMode);
 	},
 
+	// 📏 Définir la taille de police
+	setFontSize: async (size) => {
+		try {
+			if (!Object.values(FONT_SIZES).includes(size)) {
+				console.error("Taille de police invalide:", size);
+				return;
+			}
+			// Set state FIRST pour un re-render immédiat
+			set({ fontSize: size });
+			// Puis sauvegarder en async
+			await AsyncStorage.setItem("fontSize", size);
+		} catch (error) {
+			console.error("Erreur changement taille police:", error);
+		}
+	},
+
+	// 📏 Obtenir le multiplicateur de la taille de police actuelle
+	getFontMultiplier: () => {
+		const { fontSize } = get();
+		return FONT_MULTIPLIERS[fontSize] || 1.0;
+	},
+
+	// 📏 Cycler entre les tailles (S -> M -> L -> S)
+	cycleFontSize: async () => {
+		const { fontSize } = get();
+		let newSize;
+		switch (fontSize) {
+			case FONT_SIZES.SMALL:
+				newSize = FONT_SIZES.MEDIUM;
+				break;
+			case FONT_SIZES.MEDIUM:
+				newSize = FONT_SIZES.LARGE;
+				break;
+			case FONT_SIZES.LARGE:
+			default:
+				newSize = FONT_SIZES.SMALL;
+				break;
+		}
+		await get().setFontSize(newSize);
+	},
+
 	// Obtenir la couleur du thème actuel
 	getThemeColor: (colorKey) => {
 		return get().theme[colorKey];
@@ -143,5 +224,13 @@ const useThemeStore = create((set, get) => ({
 	},
 }));
 
-export { DARK_THEME, LIGHT_THEME, OCEAN_THEME, THEME_MODES, getTheme };
+export {
+	DARK_THEME,
+	LIGHT_THEME,
+	OCEAN_THEME,
+	CLOUD_THEME,
+	THEME_MODES,
+	FONT_SIZES,
+	getTheme,
+};
 export default useThemeStore;
