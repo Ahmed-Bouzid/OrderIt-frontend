@@ -386,6 +386,7 @@ const NewReservationModal = React.memo(
 		const prevStep = useCallback(() => setStep(1), []);
 
 		return (
+		<>
 			<Modal
 				visible={visible}
 				transparent

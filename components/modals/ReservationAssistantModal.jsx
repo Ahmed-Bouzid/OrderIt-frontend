@@ -342,7 +342,7 @@ const createStyles = (THEME) =>
 			color: THEME.colors.text.muted,
 		},
 		resultCard: {
-			backgroundColor: `${THEME.colors.surface.base}80`,
+			backgroundColor: `${THEME.colors.background.card}80`,
 			borderRadius: 16,
 			padding: 20,
 			marginBottom: 20,
@@ -412,7 +412,7 @@ const createStyles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			backgroundColor: `${THEME.colors.surface.base}80`,
+			backgroundColor: `${THEME.colors.background.card}80`,
 			borderRadius: 12,
 			padding: 16,
 			marginBottom: 12,
