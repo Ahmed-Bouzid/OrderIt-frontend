@@ -108,6 +108,19 @@ const ReservationAssistantModal = ({
 
 	return (
 		<Modal visible={visible} transparent animationType="none">
+			<View
+				style={{
+					position: "absolute",
+					top: 100,
+					left: 50,
+					width: 300,
+					height: 200,
+					backgroundColor: "red",
+					zIndex: 99999,
+				}}
+			>
+				<Text style={{ color: "white", fontSize: 24 }}>MODAL VISIBLE TEST</Text>
+			</View>
 			<BlurView intensity={40} style={styles.overlay}>
 				<TouchableOpacity
 					style={styles.backdrop}

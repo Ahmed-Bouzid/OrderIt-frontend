@@ -29,6 +29,7 @@ import DateTimePicker from "@react-native-community/datetimepicker";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
+import ReservationAssistantModalSimple from "../modals/ReservationAssistantModalSimple";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -216,60 +217,10 @@ const NewReservationModal = React.memo(
 		const [selectedTableId, setSelectedTableId] = useState(null);
 		const [errors, setErrors] = useState({});
 
-		// ⭐ Tables avec disponibilité calculée dynamiquement
-		const [tablesWithAvailability, setTablesWithAvailability] = useState(tables || []);
-		const [loadingTables, setLoadingTables] = useState(false);
-
 		// ⭐ Assistant de réservations
 		const [assistantVisible, setAssistantVisible] = useState(false);
 		const [assistantResult, setAssistantResult] = useState(null);
 		const [assistantLoading, setAssistantLoading] = useState(false);
-
-		// ⭐ Charger les tables avec disponibilité quand date/heure change
-		useEffect(() => {
-			const fetchTablesWithAvailability = async () => {
-				if (!visible) return;
-				
-				// Si pas de date/heure, utiliser les tables par défaut
-				if (!reservationDate || !reservationTime) {
-					setTablesWithAvailability(tables || []);
-					return;
-				}
-
-				setLoadingTables(true);
-				try {
-					const restaurantId = tables[0]?.restaurantId;
-					if (!restaurantId) {
-						setTablesWithAvailability(tables || []);
-						return;
-					}
-
-					// Formater la date en ISO
-					const dateISO = new Date(reservationDate).toISOString().split('T')[0];
-					
-					console.log("🔄 [TABLES] Chargement disponibilité:", {
-						date: dateISO,
-						time: reservationTime,
-						restaurantId
-					});
-
-					const enrichedTables = await authFetch(
-						`/tables/restaurant/${restaurantId}/available?date=${dateISO}&time=${reservationTime}`
-					);
-
-					console.log("✅ [TABLES] Tables avec disponibilité:", enrichedTables);
-					setTablesWithAvailability(enrichedTables || tables || []);
-				} catch (error) {
-					console.error("❌ [TABLES] Erreur chargement disponibilité:", error);
-					setTablesWithAvailability(tables || []);
-				} finally {
-					setLoadingTables(false);
-				}
-			};
-
-			fetchTablesWithAvailability();
-		}, [visible, reservationDate, reservationTime, tables, authFetch]);
-
 		useEffect(() => {
 			if (visible && initialData) {
 				console.log("📋 Pré-remplissage avec données:", initialData.clientName);
@@ -655,109 +606,18 @@ const NewReservationModal = React.memo(
 																	style={{ flex: 1 }}
 																/>
 															</View>
-															{/* Bouton Info Assistant */}
+															{/* Bouton Assistant */}
 															<TouchableOpacity
-																style={modalStyles.infoButton}
+																style={modalStyles.assistantButton}
 																onPress={handleCheckAvailability}
 															>
 																<Ionicons
-																	name="information-circle-outline"
-																	size={24}
-																	color={THEME.colors.text.secondary}
+																	name="sparkles"
+																	size={20}
+																	color={THEME.colors.primary.amber}
 																/>
 															</TouchableOpacity>
 														</View>
-														{/* Résultats Assistant inline */}
-														{assistantResult && (
-															<View
-																style={{
-																	marginTop: 10,
-																	padding: 12,
-																	backgroundColor:
-																		THEME.colors.background.elevated,
-																	borderRadius: 8,
-																}}
-															>
-																<Text
-																	style={{
-																		color: THEME.colors.text.primary,
-																		fontSize: 14,
-																		fontWeight: "600",
-																		marginBottom: 8,
-																	}}
-																>
-																	{assistantResult.status === "ok" &&
-																		"✅ Créneau disponible"}
-																	{assistantResult.status === "warning" &&
-																		"⚠️ Créneau risqué"}
-																	{assistantResult.status === "refused" &&
-																		"❌ Pas de disponibilité"}
-																</Text>
-																<Text
-																	style={{
-																		color: THEME.colors.text.secondary,
-																		fontSize: 12,
-																		marginBottom: 8,
-																	}}
-																>
-																	{assistantResult.reason}
-																</Text>
-																{assistantResult.alternatives &&
-																	assistantResult.alternatives.length > 0 && (
-																		<View>
-																			<Text
-																				style={{
-																					color: THEME.colors.text.primary,
-																					fontSize: 12,
-																					fontWeight: "600",
-																					marginBottom: 6,
-																				}}
-																			>
-																				Autres horaires disponibles :
-																			</Text>
-																			{assistantResult.alternatives.map(
-																				(alt, idx) => (
-																					<TouchableOpacity
-																						key={idx}
-																						onPress={() => {
-																							setReservationTime(alt.time);
-																							setAssistantResult(null);
-																						}}
-																						style={{
-																							padding: 8,
-																							backgroundColor:
-																								THEME.colors.background.card,
-																							marginBottom: 4,
-																							borderRadius: 6,
-																							flexDirection: "row",
-																							justifyContent: "space-between",
-																						}}
-																					>
-																						<Text
-																							style={{
-																								color:
-																									THEME.colors.text.primary,
-																								fontSize: 13,
-																							}}
-																						>
-																							{alt.time}
-																						</Text>
-																						<Text
-																							style={{
-																								color:
-																									THEME.colors.text.secondary,
-																								fontSize: 12,
-																							}}
-																						>
-																							{alt.availableSeats} places
-																						</Text>
-																					</TouchableOpacity>
-																				)
-																			)}
-																		</View>
-																	)}
-															</View>
-														)}
 													</InputField>
 												</View>
 											</View>
@@ -768,19 +628,13 @@ const NewReservationModal = React.memo(
 												THEME={THEME}
 												modalStyles={modalStyles}
 											>
-												{loadingTables ? (
-													<Text style={{ color: THEME.colors.text.secondary, fontSize: 12 }}>
-														Chargement des disponibilités...
-													</Text>
-												) : (
-													<TableSelector
-														tables={tablesWithAvailability}
-														selectedId={selectedTableId}
-														onSelect={setSelectedTableId}
-														THEME={THEME}
-														modalStyles={modalStyles}
-													/>
-												)}
+												<TableSelector
+													tables={tables}
+													selectedId={selectedTableId}
+													onSelect={setSelectedTableId}
+													THEME={THEME}
+													modalStyles={modalStyles}
+												/>
 											</InputField>
 											{/* Notes additionnelles */}
 											<InputField
@@ -873,6 +727,14 @@ const NewReservationModal = React.memo(
 						</View>
 					</KeyboardAvoidingView>
 				</Modal>
+
+				{/* Assistant Modal */}
+			<ReservationAssistantModalSimple
+					onClose={() => setAssistantVisible(false)}
+					result={assistantResult}
+					loading={assistantLoading}
+					onSelectAlternative={handleSelectAlternative}
+				/>
 			</>
 		);
 	}
@@ -1078,16 +940,6 @@ const createStyles = (THEME) =>
 			justifyContent: "center",
 			borderWidth: 2,
 			borderColor: `${THEME.colors.primary.amber}40`,
-		},
-		infoButton: {
-			width: 44,
-			height: 44,
-			borderRadius: 22,
-			backgroundColor: `${THEME.colors.text.secondary}10`,
-			alignItems: "center",
-			justifyContent: "center",
-			borderWidth: 1,
-			borderColor: `${THEME.colors.text.secondary}30`,
 		},
 		tableGrid: {
 			flexDirection: "row",

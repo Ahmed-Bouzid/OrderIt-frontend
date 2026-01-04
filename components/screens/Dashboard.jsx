@@ -20,6 +20,7 @@ import DateNavigator from "../dashboard/DateNavigator";
 import SettingsModal from "../dashboard/SettingsModal";
 import NewReservationModal from "../dashboard/NewReservationModal";
 import AssignTableModal from "../dashboard/AssignTableModal";
+import AuditModal from "../dashboard/AuditModal"; // ⭐ NOUVEAU
 import LoadingSkeleton from "../dashboard/LoadingSkeleton";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { useDashboardActions } from "../../hooks/useDashboardActions";
@@ -39,6 +40,7 @@ export default function Dashboard() {
 	const [showSettingsModal, setShowSettingsModal] = useState(false);
 	const [showNewReservationModal, setShowNewReservationModal] = useState(false);
 	const [showAssignTableModal, setShowAssignTableModal] = useState(false);
+	const [showAuditModal, setShowAuditModal] = useState(false); // ⭐ NOUVEAU
 	const [selectedReservation, setSelectedReservation] = useState(null);
 	const [recreateData, setRecreateData] = useState(null); // ⭐ Données pour recréer une réservation
 	const [selectedDate, setSelectedDate] = useState(new Date()); // 📅 Date sélectionnée pour le filtrage
@@ -223,11 +225,26 @@ export default function Dashboard() {
 			const success = await createReservation(formData);
 			if (success) {
 				setShowNewReservationModal(false);
+				// ⭐ Changer la date sélectionnée vers la date de la réservation créée
+				if (formData.reservationDate) {
+					const newDate = new Date(formData.reservationDate);
+					setSelectedDate(newDate);
+				}
 			}
 			return success;
 		},
 		[createReservation]
 	);
+
+	// ⭐ Handler pour ouvrir l'audit
+	const handleOpenAudit = useCallback((reservation) => {
+		setSelectedReservation(reservation);
+		setShowAuditModal(true);
+	}, []);
+
+	const handleCloseAudit = useCallback(() => {
+		setShowAuditModal(false);
+	}, []);
 
 	// ─────────────── Render Item FlatList ───────────────
 	const renderReservationCard = useCallback(
@@ -238,6 +255,7 @@ export default function Dashboard() {
 				onAssignTablePress={handleOpenAssignTable}
 				onEditNbPersonnes={handleEditNbPersonnes}
 				onEditPhone={handleEditPhone}
+				onAuditPress={handleOpenAudit} // ⭐ NOUVEAU
 				theme={theme}
 			/>
 		),
@@ -246,6 +264,7 @@ export default function Dashboard() {
 			handleOpenAssignTable,
 			handleEditNbPersonnes,
 			handleEditPhone,
+			handleOpenAudit, // ⭐ NOUVEAU
 			theme,
 		]
 	);
@@ -408,6 +427,13 @@ export default function Dashboard() {
 				activeReservation={activeReservation}
 				onAssignTable={handleAssignTable}
 				theme={theme}
+			/>
+
+			{/* ⭐ Modal d'audit */}
+			<AuditModal
+				visible={showAuditModal}
+				onClose={handleCloseAudit}
+				reservation={selectedReservation}
 			/>
 		</View>
 	);

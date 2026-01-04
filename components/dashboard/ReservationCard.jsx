@@ -71,6 +71,7 @@ const ReservationCard = React.memo(
 		onAssignTablePress,
 		onEditNbPersonnes,
 		onEditPhone,
+		onAuditPress, // ⭐ NOUVEAU: callback pour ouvrir l'audit
 	}) => {
 		// Thème dynamique (avant tout)
 		const { themeMode } = useThemeStore();
@@ -362,6 +363,21 @@ const ReservationCard = React.memo(
 							</View>
 						</View>
 					</View>
+
+					{/* ⭐ Bouton Audit (i) en bas à droite */}
+					{onAuditPress && (
+						<TouchableOpacity
+							onPress={() => onAuditPress?.(reservation)}
+							style={styles.auditButton}
+							activeOpacity={0.7}
+						>
+							<Ionicons
+								name="information-circle-outline"
+								size={20}
+								color={THEME.colors.primary.indigo}
+							/>
+						</TouchableOpacity>
+					)}
 				</View>
 			</Animated.View>
 		);
@@ -467,6 +483,16 @@ const createStyles = (THEME) =>
 		settingsButton: {
 			padding: 4,
 			marginLeft: 8,
+		},
+		auditButton: {
+			position: "absolute",
+			bottom: 8,
+			right: 8,
+			padding: 6,
+			backgroundColor: `${THEME.colors.primary.indigo}15`,
+			borderRadius: 16,
+			borderWidth: 1,
+			borderColor: `${THEME.colors.primary.indigo}30`,
 		},
 		infoGrid: {
 			flexDirection: "row",

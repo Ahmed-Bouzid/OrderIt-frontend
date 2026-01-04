@@ -3,7 +3,7 @@
  * Interface de sélection de table avec design spatial et animations
  * Support Mode Clair/Sombre
  */
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import {
 	Modal,
 	View,
@@ -18,6 +18,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
+import { useAuthFetch } from "../../hooks/useAuthFetch";
 
 // ─────────────── Table Button Component ───────────────
 const TableButton = React.memo(
@@ -124,6 +125,58 @@ const AssignTableModal = React.memo(
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const modalStyles = useMemo(() => createModalStyles(THEME), [THEME]);
 		const tableStyles = useMemo(() => createTableStyles(THEME), [THEME]);
+		const authFetch = useAuthFetch();
+
+		// ⭐ Tables avec disponibilité calculée
+		const [tablesWithAvailability, setTablesWithAvailability] = useState(tables || []);
+		const [loadingTables, setLoadingTables] = useState(false);
+
+		// ⭐ Charger les tables avec disponibilité quand la modale s'ouvre
+		useEffect(() => {
+			const fetchTablesWithAvailability = async () => {
+				if (!visible || !activeReservation) return;
+
+				// Si pas de date/heure dans la réservation, utiliser les tables par défaut
+				if (!activeReservation.reservationDate || !activeReservation.reservationTime) {
+					setTablesWithAvailability(tables || []);
+					return;
+				}
+
+				setLoadingTables(true);
+				try {
+					const restaurantId = activeReservation.restaurantId;
+					if (!restaurantId) {
+						setTablesWithAvailability(tables || []);
+						return;
+					}
+
+					// Formater la date en ISO
+					const dateISO = new Date(activeReservation.reservationDate).toISOString().split('T')[0];
+					const time = activeReservation.reservationTime;
+					
+					console.log("🔄 [ASSIGN] Chargement disponibilité:", {
+						date: dateISO,
+						time,
+						restaurantId,
+						excludeReservationId: activeReservation._id
+					});
+
+					const enrichedTables = await authFetch(
+						`/tables/restaurant/${restaurantId}/available?date=${dateISO}&time=${time}&excludeReservationId=${activeReservation._id}`
+					);
+
+					console.log("✅ [ASSIGN] Tables avec disponibilité:", enrichedTables);
+					setTablesWithAvailability(enrichedTables || tables || []);
+				} catch (error) {
+					console.error("❌ [ASSIGN] Erreur chargement disponibilité:", error);
+					setTablesWithAvailability(tables || []);
+				} finally {
+					setLoadingTables(false);
+				}
+			};
+
+			fetchTablesWithAvailability();
+		}, [visible, activeReservation, tables, authFetch]);
 
 		useEffect(() => {
 			if (visible) {
@@ -150,7 +203,7 @@ const AssignTableModal = React.memo(
 		if (!activeReservation || !visible) return null;
 
 		const safeOnClose = onClose || (() => {});
-		const safeTables = Array.isArray(tables) ? tables : [];
+		const safeTables = Array.isArray(tablesWithAvailability) ? tablesWithAvailability : [];
 
 		// Séparer les tables par disponibilité
 		const availableTables = safeTables.filter(
@@ -287,6 +340,14 @@ const AssignTableModal = React.memo(
 															isAvailable={true}
 															THEME={THEME}
 															tableStyles={tableStyles}
+															onPress={() => {
+																if (onAssignTable && activeReservation?._id) {
+																	onAssignTable(
+																		activeReservation._id,
+																		table._id
+																	);
+																}
+															}}
 														/>
 													);
 												})}

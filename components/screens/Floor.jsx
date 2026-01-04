@@ -22,6 +22,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Dashboard from "./Dashboard";
 import ItemRow from "../floor/ItemRow";
+import FloorPlanModal from "../floor/FloorPlanModal";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../src/stores/useThemeStore";
@@ -186,6 +187,10 @@ export default function Floor({ onStart }) {
 
 	// 💰 Caisse - catégorie expandable
 	const [caisseExpanded, setCaisseExpanded] = useState(null); // "enCours" ou "payees"
+
+	// 🏗️ Floor Plan Modal
+	const [showFloorPlan, setShowFloorPlan] = useState(false);
+	const [activeRoom, setActiveRoom] = useState(1); // 1, 2 ou 3
 
 	useEffect(() => {
 		initTheme();
@@ -671,10 +676,10 @@ export default function Floor({ onStart }) {
 								</View>
 							)}
 						</GroupBox>
-						{/* Tables Section */}
+						{/* 🏢 Salles Section */}
 						<SectionHeader
 							icon="grid-outline"
-							label="Tables"
+							label="Salles"
 							gradientColors={[
 								"rgba(14, 165, 233, 0.15)",
 								"rgba(14, 165, 233, 0.05)",
@@ -684,24 +689,36 @@ export default function Floor({ onStart }) {
 						/>
 						<GroupBox floorStyles={floorStyles}>
 							<MenuItem
-								icon="ellipse-outline"
-								label="1ère rangée"
+								icon="restaurant-outline"
+								label="Salle 1"
 								count={0}
+								onPress={() => {
+									setActiveRoom(1);
+									setShowFloorPlan(true);
+								}}
 								floorStyles={floorStyles}
 								THEME={THEME}
 							/>
 							<MenuItem
-								icon="ellipse-outline"
-								label="2ème rangée"
+								icon="restaurant-outline"
+								label="Salle 2"
 								count={0}
+								onPress={() => {
+									setActiveRoom(2);
+									setShowFloorPlan(true);
+								}}
 								floorStyles={floorStyles}
 								THEME={THEME}
 							/>
 							<MenuItem
-								icon="ellipse-outline"
-								label="3ème rangée"
+								icon="restaurant-outline"
+								label="Salle 3"
 								count={0}
 								isLast
+								onPress={() => {
+									setActiveRoom(3);
+									setShowFloorPlan(true);
+								}}
 								floorStyles={floorStyles}
 								THEME={THEME}
 							/>
@@ -992,6 +1009,14 @@ export default function Floor({ onStart }) {
 					<Dashboard />
 				</View>
 			</View>
+
+			{/* 🏗️ Floor Plan Modal */}
+			<FloorPlanModal
+				visible={showFloorPlan}
+				onClose={() => setShowFloorPlan(false)}
+				restaurantId={restaurantId}
+				roomNumber={activeRoom}
+			/>
 		</View>
 	);
 }

@@ -50,46 +50,11 @@ export const useDashboardFilters = (
 
 		const selectedDay = normalizeDate(selectedDate);
 
-		console.log("📅 Filtrage par date:", {
-			selectedDate: selectedDate.toISOString(),
-			selectedDayTimestamp: selectedDay,
-			totalReservations: searchedReservations.length,
-		});
-
-		const filtered = searchedReservations.filter((r) => {
-			if (!r?.reservationDate) {
-				console.log("⚠️ Réservation sans date:", r?.clientName);
-				return false;
-			}
+		return searchedReservations.filter((r) => {
+			if (!r?.reservationDate) return false;
 			const reservationDay = normalizeDate(r.reservationDate);
-			const match = reservationDay === selectedDay;
-
-			if (!match) {
-				console.log("❌ Date ne correspond pas:", {
-					client: r.clientName,
-					reservationDate: new Date(r.reservationDate).toISOString(),
-					reservationDayTimestamp: reservationDay,
-					selectedDayTimestamp: selectedDay,
-				});
-			} else {
-				console.log("✅ Date correspond:", {
-					client: r.clientName,
-					reservationDate: new Date(r.reservationDate).toISOString(),
-				});
-			}
-
-			return match;
+			return reservationDay === selectedDay;
 		});
-
-		console.log("📊 Résultats filtrage date:", {
-			filtered: filtered.length,
-			reservations: filtered.map((r) => ({
-				client: r.clientName,
-				date: r.reservationDate,
-			})),
-		});
-
-		return filtered;
 	}, [searchedReservations, selectedDate]);
 
 	const filteredReservations = useMemo(() => {

@@ -1,6 +1,6 @@
 /**
  * 🏗️ FloorPlanModal - Plan de salle interactif
- * Modale indépendante avec grille 6x6, drag & drop, fusion, zoom
+ * Vue du ciel avec tables draggables librement
  */
 import React, {
 	useState,
@@ -15,61 +15,85 @@ import {
 	Modal,
 	StyleSheet,
 	TouchableOpacity,
-	ScrollView,
 	Platform,
-	Animated,
-	PanResponder,
 	Alert,
 	TextInput,
+	Animated,
+	PanResponder,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const GRID_SIZE = 6; // Grille 6x6
-const MIN_ZOOM = 0.7; // Zoom minimum (voir plus de tables)
-const MAX_ZOOM = 1.2; // Zoom maximum (détails)
-
-export default function FloorPlanModal({ visible, onClose }) {
+export default function FloorPlanModal({
+	visible,
+	onClose,
+	restaurantId,
+	roomNumber = 1,
+}) {
 	const THEME = useTheme();
 	const authFetch = useAuthFetch();
+	const styles = useMemo(() => createStyles(THEME), [THEME]);
+
+	// Mode simulation pour salles 2 et 3
+	const isSimulation = roomNumber > 1;
 
 	// États
 	const [tables, setTables] = useState([]);
-	const [restaurantId, setRestaurantId] = useState(null);
-	const [zoom, setZoom] = useState(1.0);
+	const [reservations, setReservations] = useState([]);
+	const [modifiedTableIds, setModifiedTableIds] = useState(new Set());
+	const [dragEnabled, setDragEnabled] = useState(false);
+	const [resizeEnabled, setResizeEnabled] = useState(false);
+	const [snapToGrid, setSnapToGrid] = useState(false);
+	const [history, setHistory] = useState([]);
+	const [historyIndex, setHistoryIndex] = useState(-1);
 
-	// États drag & drop
-	const [draggingTable, setDraggingTable] = useState(null);
+	// Refs pour les PanResponders (capturent les valeurs actuelles)
+	const dragEnabledRef = useRef(dragEnabled);
+	const resizeEnabledRef = useRef(resizeEnabled);
+	const snapToGridRef = useRef(snapToGrid);
 
-	// États fusion
-	const [highlightedCell, setHighlightedCell] = useState(null);
+	// Sync refs avec états
+	useEffect(() => {
+		dragEnabledRef.current = dragEnabled;
+	}, [dragEnabled]);
+
+	useEffect(() => {
+		resizeEnabledRef.current = resizeEnabled;
+	}, [resizeEnabled]);
+
+	useEffect(() => {
+		snapToGridRef.current = snapToGrid;
+	}, [snapToGrid]);
+
+	// Tables fictives pour simulation (Salles 2 et 3)
+	const mockTables = useMemo(() => {
+		if (!isSimulation) return [];
+		return Array.from({ length: 10 }, (_, i) => ({
+			_id: `mock-${roomNumber}-${i}`,
+			number: `S${roomNumber}-T${i + 1}`,
+			capacity: 4,
+			size: 1,
+			status:
+				i % 3 === 0 ? "occupied" : i % 2 === 0 ? "available" : "unavailable",
+			restaurantId: "mock",
+			isAvailable: i % 2 === 0,
+			guests: [],
+		}));
+	}, [isSimulation, roomNumber]);
+
+	// Choisir les tables à afficher : mock en simulation, vraies sinon
+	const displayTables = isSimulation ? mockTables : tables;
 
 	// États édition
 	const [editingTable, setEditingTable] = useState(null);
-	const [editNumber, setEditNumber] = useState("");
-
-	// Refs
-	const scrollViewRef = useRef(null);
-
-	// Charger restaurantId
-	useEffect(() => {
-		const loadRestaurantId = async () => {
-			try {
-				const id = await AsyncStorage.getItem("restaurantId");
-				console.log("🏢 RestaurantId chargé:", id);
-				if (id) setRestaurantId(id);
-			} catch (error) {
-				console.error("Erreur chargement restaurantId:", error);
-			}
-		};
-		loadRestaurantId();
-	}, []);
+	const [editMode, setEditMode] = useState(null); // "number" | "capacity"
+	const [editValue, setEditValue] = useState("");
 
 	// Charger les tables
 	const fetchTables = useCallback(async () => {
+		if (isSimulation) return; // Pas de fetch pour les salles simulées
 		if (!restaurantId) {
 			console.log("⚠️ Pas de restaurantId, skip fetchTables");
 			return;
@@ -77,133 +101,85 @@ export default function FloorPlanModal({ visible, onClose }) {
 
 		try {
 			console.log("🔄 Chargement tables pour restaurant:", restaurantId);
-			const response = await authFetch(`/tables/restaurant/${restaurantId}`, {
+			const data = await authFetch(`/tables/restaurant/${restaurantId}`, {
 				method: "GET",
 			});
 
-			if (response.ok) {
-				const data = await response.json();
-				console.log("📊 Tables chargées:", data.length);
+			console.log("📊 Tables chargées:", data?.length || 0);
+			if (Array.isArray(data)) {
 				setTables(data);
 			}
 		} catch (error) {
-			console.error("Erreur chargement tables:", error);
+			console.error("❌ Erreur chargement tables:", error);
 		}
-	}, [restaurantId, authFetch]);
+	}, [restaurantId, authFetch, isSimulation]);
+
+	// Charger les réservations
+	const fetchReservations = useCallback(async () => {
+		if (isSimulation) return; // Pas de fetch pour les salles simulées
+		if (!restaurantId) return;
+
+		try {
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			const data = await authFetch(
+				`/reservations?restaurantId=${restaurantId}&startDate=${today.toISOString()}`,
+				{ method: "GET" }
+			);
+
+			if (Array.isArray(data)) {
+				setReservations(data.filter((r) => r.status === "confirmed"));
+			}
+		} catch (error) {
+			console.error("❌ Erreur chargement réservations:", error);
+		}
+	}, [restaurantId, authFetch, isSimulation]);
 
 	useEffect(() => {
 		if (visible && restaurantId) {
 			fetchTables();
+			fetchReservations();
 		}
-	}, [visible, restaurantId, fetchTables]);
+	}, [visible, restaurantId, fetchTables, fetchReservations]);
 
-	// Créer une grille vide
-	const grid = useMemo(() => {
-		const emptyGrid = Array(GRID_SIZE)
-			.fill(null)
-			.map(() => Array(GRID_SIZE).fill(null));
-
-		// Placer les tables existantes
-		tables.forEach((table) => {
-			if (table.position?.x !== undefined && table.position?.y !== undefined) {
-				const { x, y } = table.position;
-				if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
-					emptyGrid[y][x] = table;
-				}
-			}
-		});
-
-		return emptyGrid;
-	}, [tables]);
-	
-	// Compter les tables avec et sans position
-	const tablesWithPosition = useMemo(() => {
-		return tables.filter(t => t.position?.x !== undefined && t.position?.y !== undefined).length;
-	}, [tables]);
-	
-	const tablesWithoutPosition = tables.length - tablesWithPosition;
-
-	// Gestion du zoom
-	const handleZoomIn = () => {
-		setZoom((prev) => Math.min(prev + 0.1, MAX_ZOOM));
-	};
-
-	const handleZoomOut = () => {
-		setZoom((prev) => Math.max(prev - 0.1, MIN_ZOOM));
-	};
-
-	const handleZoomReset = () => {
-		setZoom(1.0);
-	};
-
-	// 🔄 Mise à jour position d'une table
-	const updateTablePosition = async (tableId, newX, newY) => {
-		try {
-			const response = await authFetch(`/tables/${tableId}`, {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					position: { x: newX, y: newY },
-				}),
-			});
-
-			if (response.ok) {
-				const updatedTable = await response.json();
-				setTables((prev) =>
-					prev.map((t) => (t._id === tableId ? updatedTable : t))
-				);
-				return true;
-			} else {
-				Alert.alert("Erreur", "Position déjà occupée");
-				return false;
-			}
-		} catch (error) {
-			console.error("Erreur mise à jour position:", error);
-			Alert.alert("Erreur", "Impossible de déplacer la table");
-			return false;
-		}
-	};
-
-	// 🔗 Fusion de deux tables
-	const mergeTables = async (sourceId, targetId) => {
-		try {
-			const response = await authFetch("/tables/fusion", {
-				method: "PATCH",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ sourceId, targetId }),
-			});
-
-			if (response.ok) {
-				const result = await response.json();
-				// Recharger les tables après fusion
-				await fetchTables();
-				Alert.alert("✅ Fusion réussie", result.message || "Tables fusionnées");
-				return true;
-			} else {
-				Alert.alert("Erreur", "Impossible de fusionner");
-				return false;
-			}
-		} catch (error) {
-			console.error("Erreur fusion:", error);
-			Alert.alert("Erreur", "Impossible de fusionner les tables");
-			return false;
-		}
-	};
-
-	// ✏️ Édition du numéro de table
-	const handleEditTable = (table) => {
+	// 👆 Touch simple : Changer le numéro
+	const handleSimpleTouch = (table) => {
 		setEditingTable(table);
-		setEditNumber(String(table.number));
+		setEditMode("number");
+		setEditValue(String(table.number));
 	};
 
-	const handleSaveEdit = async () => {
-		if (!editingTable || !editNumber.trim()) return;
+	// 💪 Force touch : Changer la capacité
+	const handleForceTouch = (table) => {
+		setEditingTable(table);
+		setEditMode("capacity");
+		setEditValue(String(table.capacity));
+	};
+
+	// 💾 Sauvegarder les modifications
+	const handleSave = async () => {
+		if (isSimulation) {
+			// Mode simulation : pas de sauvegarde
+			setEditingTable(null);
+			setEditMode(null);
+			setEditValue("");
+			return;
+		}
+
+		if (!editingTable || !editValue.trim()) return;
 
 		try {
+			const updateData = {};
+			if (editMode === "number") {
+				updateData.number = editValue;
+			} else if (editMode === "capacity") {
+				updateData.capacity = parseInt(editValue);
+			}
+
 			const response = await authFetch(`/tables/${editingTable._id}`, {
-				method: "PATCH",
+				method: "PUT",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ number: parseInt(editNumber) }),
+				body: JSON.stringify(updateData),
 			});
 
 			if (response.ok) {
@@ -212,86 +188,123 @@ export default function FloorPlanModal({ visible, onClose }) {
 					prev.map((t) => (t._id === editingTable._id ? updatedTable : t))
 				);
 				setEditingTable(null);
-				setEditNumber("");
+				setEditMode(null);
+				setEditValue("");
 			} else {
-				Alert.alert("Erreur", "Numéro déjà utilisé");
+				Alert.alert("Erreur", "Modification impossible");
 			}
 		} catch (error) {
-			console.error("Erreur édition:", error);
-			Alert.alert("Erreur", "Impossible de modifier la table");
+			console.error("Erreur sauvegarde:", error);
+			Alert.alert("Erreur", "Impossible de sauvegarder");
 		}
 	};
 
-	// ➕ Création d'une nouvelle table
-	const handleCreateTable = async (x, y) => {
+	// ➕ Créer une nouvelle table (seulement salle 1)
+	const handleCreateTable = async () => {
+		if (isSimulation) return;
+
 		try {
-			// Trouver le prochain numéro disponible (number doit être string)
-			const maxNumber = tables.reduce(
-				(max, t) => Math.max(max, parseInt(t.number) || 0),
-				0
-			);
+			const newTable = {
+				restaurantId,
+				number: `T${tables.length + 1}`,
+				capacity: 4,
+				status: "available",
+			};
 
 			const response = await authFetch("/tables", {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({
-					restaurantId,
-					number: String(maxNumber + 1),
-					capacity: 4,
-					position: { x, y },
-				}),
+				body: JSON.stringify(newTable),
 			});
 
 			if (response.ok) {
-				const newTable = await response.json();
-				setTables((prev) => [...prev, newTable]);
-			} else {
-				Alert.alert("Erreur", "Impossible de créer la table");
+				const createdTable = await response.json();
+				setTables((prev) => [...prev, createdTable]);
 			}
 		} catch (error) {
-			console.error("Erreur création:", error);
+			console.error("Erreur création table:", error);
 			Alert.alert("Erreur", "Impossible de créer la table");
 		}
 	};
 
-	// ❌ Suppression d'une table
-	const handleDeleteTable = async (table) => {
-		if (table.status === "occupied") {
-			Alert.alert("Impossible", "Cette table est occupée");
-			return;
-		}
+	// ➖ Supprimer une table (seulement salle 1)
+	const handleDeleteTable = async (tableId) => {
+		if (isSimulation) return;
 
-		Alert.alert(
-			"Supprimer la table",
-			`Voulez-vous vraiment supprimer la table #${table.number} ?`,
-			[
-				{ text: "Annuler", style: "cancel" },
-				{
-					text: "Supprimer",
-					style: "destructive",
-					onPress: async () => {
-						try {
-							const response = await authFetch(`/tables/${table._id}`, {
-								method: "DELETE",
-							});
+		Alert.alert("Supprimer cette table ?", "Cette action est irréversible", [
+			{ text: "Annuler", style: "cancel" },
+			{
+				text: "Supprimer",
+				style: "destructive",
+				onPress: async () => {
+					try {
+						const response = await authFetch(`/tables/${tableId}`, {
+							method: "DELETE",
+						});
 
-							if (response.ok) {
-								setTables((prev) => prev.filter((t) => t._id !== table._id));
-							} else {
-								Alert.alert("Erreur", "Impossible de supprimer");
-							}
-						} catch (error) {
-							console.error("Erreur suppression:", error);
-							Alert.alert("Erreur", "Impossible de supprimer la table");
+						if (response.ok) {
+							setTables((prev) => prev.filter((t) => t._id !== tableId));
 						}
-					},
+					} catch (error) {
+						console.error("Erreur suppression:", error);
+						Alert.alert("Erreur", "Impossible de supprimer");
+					}
 				},
-			]
-		);
+			},
+		]);
 	};
 
-	// Styles dynamiques
-	const styles = useMemo(() => createStyles(THEME, zoom), [THEME, zoom]);
+	// � Mettre à jour la position d'une table
+	const handlePositionChange = useCallback((tableId, newPosition) => {
+		setTables((prev) =>
+			prev.map((t) => (t._id === tableId ? { ...t, position: newPosition } : t))
+		);
+		setModifiedTableIds((prev) => new Set(prev).add(tableId));
+	}, []);
+
+	// � Gérer le changement de taille
+	const handleSizeChange = useCallback((tableId, newSize) => {
+		setTables((prev) =>
+			prev.map((t) => (t._id === tableId ? { ...t, size: newSize } : t))
+		);
+		setModifiedTableIds((prev) => new Set(prev).add(tableId));
+	}, []);
+
+	// �💾 Sauvegarder le plan (positions)
+	const handleSavePlan = async () => {
+		if (isSimulation) return;
+
+		try {
+			const updates = displayTables
+				.filter((table) => table.position || table.size)
+				.map((table) => ({
+					id: table._id,
+					position: table.position,
+					size: table.size || 1,
+				}));
+
+			if (updates.length === 0) {
+				Alert.alert("Info", "Aucune position à sauvegarder");
+				return;
+			}
+
+			console.log("💾 Sauvegarde des positions:", updates);
+
+			// Appel API pour sauvegarder toutes les positions et tailles
+			for (const update of updates) {
+				await authFetch(`/tables/${update.id}`, {
+					method: "PUT",
+					body: { position: update.position, size: update.size },
+				});
+			}
+
+			Alert.alert("Succès", `${updates.length} position(s) sauvegardée(s)`);
+			setModifiedTableIds(new Set()); // Réinitialiser après sauvegarde
+		} catch (error) {
+			console.error("Erreur sauvegarde plan:", error);
+			Alert.alert("Erreur", "Impossible de sauvegarder le plan");
+		}
+	};
 
 	return (
 		<Modal
@@ -301,43 +314,119 @@ export default function FloorPlanModal({ visible, onClose }) {
 			onRequestClose={onClose}
 		>
 			<BlurView intensity={40} style={StyleSheet.absoluteFill}>
-				<View style={styles.overlay}>
-					<View style={styles.container}>
+				<TouchableOpacity
+					style={styles.overlay}
+					activeOpacity={1}
+					onPress={onClose}
+				>
+					<TouchableOpacity
+						activeOpacity={1}
+						style={styles.container}
+						onPress={(e) => e.stopPropagation()}
+					>
 						{/* Header */}
 						<View style={styles.header}>
-							<Text style={styles.title}>Plan de Salle</Text>
-
-							{/* Contrôles zoom */}
-							<View style={styles.zoomControls}>
+							<Text style={styles.title}>
+								Salle {roomNumber} {isSimulation && "- Simulation"}
+							</Text>
+							<Text style={styles.subtitle}>Vue du ciel</Text>
+							{/* Toggles Drag / Resize */}
+							<View style={styles.toggleContainer}>
 								<TouchableOpacity
-									onPress={handleZoomOut}
-									style={styles.zoomButton}
+									onPress={() => {
+										if (!dragEnabled) {
+											setDragEnabled(true);
+											setResizeEnabled(false);
+										} else {
+											setDragEnabled(false);
+										}
+									}}
+									style={[
+										styles.toggleButton,
+										dragEnabled && styles.toggleButtonActive,
+									]}
 								>
 									<Ionicons
-										name="remove"
+										name="move"
 										size={20}
-										color={THEME.colors.text.primary}
+										color={dragEnabled ? "#fff" : THEME.colors.text.muted}
 									/>
+									<Text
+										style={[
+											styles.toggleButtonText,
+											dragEnabled && styles.toggleButtonTextActive,
+										]}
+									>
+										Drag
+									</Text>
 								</TouchableOpacity>
 
 								<TouchableOpacity
-									onPress={handleZoomReset}
-									style={styles.zoomButton}
+									onPress={() => {
+										if (!resizeEnabled) {
+											setResizeEnabled(true);
+											setDragEnabled(false);
+										} else {
+											setResizeEnabled(false);
+										}
+									}}
+									style={[
+										styles.toggleButton,
+										resizeEnabled && styles.toggleButtonActive,
+									]}
 								>
-									<Text style={styles.zoomText}>{Math.round(zoom * 100)}%</Text>
+									<Ionicons
+										name="resize"
+										size={20}
+										color={resizeEnabled ? "#fff" : THEME.colors.text.muted}
+									/>
+									<Text
+										style={[
+											styles.toggleButtonText,
+											resizeEnabled && styles.toggleButtonTextActive,
+										]}
+									>
+										Resize
+									</Text>
 								</TouchableOpacity>
 
 								<TouchableOpacity
-									onPress={handleZoomIn}
-									style={styles.zoomButton}
+									onPress={() => setSnapToGrid(!snapToGrid)}
+									style={[
+										styles.toggleButton,
+										snapToGrid && styles.toggleButtonActive,
+									]}
 								>
 									<Ionicons
-										name="add"
+										name="grid"
 										size={20}
-										color={THEME.colors.text.primary}
+										color={snapToGrid ? "#fff" : THEME.colors.text.muted}
 									/>
+									<Text
+										style={[
+											styles.toggleButtonText,
+											snapToGrid && styles.toggleButtonTextActive,
+										]}
+									>
+										Grid
+									</Text>
 								</TouchableOpacity>
 							</View>
+							{/* Boutons + et - (seulement salle 1) */}
+							{!isSimulation && (
+								<View style={styles.headerActions}>
+									<TouchableOpacity
+										onPress={handleCreateTable}
+										style={styles.actionButton}
+									>
+										<Ionicons
+											name="add-circle"
+											size={28}
+											color={THEME.colors.primary.amber}
+										/>
+									</TouchableOpacity>
+								</View>
+							)}
 
 							<TouchableOpacity onPress={onClose} style={styles.closeButton}>
 								<Ionicons
@@ -348,226 +437,109 @@ export default function FloorPlanModal({ visible, onClose }) {
 							</TouchableOpacity>
 						</View>
 
-						{/* Grille */}
-						<ScrollView
-							ref={scrollViewRef}
-							style={styles.scrollContainer}
-							contentContainerStyle={styles.scrollContent}
-							showsVerticalScrollIndicator={true}
-							showsHorizontalScrollIndicator={true}
-							bounces={false}
-							scrollEnabled={!draggingTable}
-						>
-							{tables.length === 0 && (
+						{/* Zone de plan (toutes les tables visibles) */}
+						<View style={styles.planContainer}>
+							{tables.length === 0 ? (
 								<View style={styles.emptyState}>
 									<Ionicons
-										name="grid-outline"
+										name="restaurant-outline"
 										size={64}
 										color={THEME.colors.text.muted}
 									/>
 									<Text style={styles.emptyStateTitle}>Aucune table</Text>
 									<Text style={styles.emptyStateText}>
-										Cliquez sur une cellule vide pour créer votre première table
+										Créez vos tables depuis la section Tables
 									</Text>
 								</View>
+							) : (
+								<View style={styles.tablesContainer}>
+									{displayTables.map((table, index) => {
+										const nextReservation = reservations
+											.filter((r) => r.tableNumber === table.number)
+											.sort(
+												(a, b) =>
+													new Date(a.reservationDate) -
+													new Date(b.reservationDate)
+											)[0];
+
+										return (
+											<TableCard
+												key={table._id}
+												table={table}
+												theme={THEME}
+												index={index}
+												nextReservation={nextReservation}
+												onSimpleTouch={() => handleSimpleTouch(table)}
+												onForceTouch={() => handleForceTouch(table)}
+												onPositionChange={handlePositionChange}
+												onSizeChange={handleSizeChange}
+												isModified={modifiedTableIds.has(table._id)}
+												dragEnabled={dragEnabled}
+												resizeEnabled={resizeEnabled}
+												snapToGrid={snapToGrid}
+												onDelete={
+													!isSimulation
+														? () => handleDeleteTable(table._id)
+														: null
+												}
+											/>
+										);
+									})}
+								</View>
 							)}
-
-							<View style={styles.gridContainer}>
-								{grid.map((row, y) => (
-									<View key={`row-${y}`} style={styles.gridRow}>
-										{row.map((table, x) => (
-											<View
-												key={`cell-${y}-${x}`}
-												style={[
-													styles.gridCell,
-													highlightedCell?.x === x &&
-														highlightedCell?.y === y &&
-														styles.highlightedCell,
-												]}
-											>
-												{table ? (
-													<TableCard
-														table={table}
-														theme={THEME}
-														onLongPress={handleEditTable}
-														onDragStart={(draggedTable) => {
-															setDraggingTable(draggedTable);
-															setHighlightedCell(null);
-														}}
-														onDragMove={(dx, dy) => {
-															// Calculer la cellule sous le doigt
-															const cellSize = 80 * zoom;
-															const newX = Math.max(
-																0,
-																Math.min(
-																	GRID_SIZE - 1,
-																	Math.round(table.position.x + dx / cellSize)
-																)
-															);
-															const newY = Math.max(
-																0,
-																Math.min(
-																	GRID_SIZE - 1,
-																	Math.round(table.position.y + dy / cellSize)
-																)
-															);
-
-															// Vérifier si collision avec une autre table
-															if (
-																grid[newY][newX] &&
-																grid[newY][newX]._id !== table._id
-															) {
-																setHighlightedCell({ x: newX, y: newY });
-															} else {
-																setHighlightedCell(null);
-															}
-														}}
-														onDragEnd={async (dx, dy) => {
-															const cellSize = 80 * zoom;
-															const newX = Math.max(
-																0,
-																Math.min(
-																	GRID_SIZE - 1,
-																	Math.round(table.position.x + dx / cellSize)
-																)
-															);
-															const newY = Math.max(
-																0,
-																Math.min(
-																	GRID_SIZE - 1,
-																	Math.round(table.position.y + dy / cellSize)
-																)
-															);
-
-															// Vérifier si collision (fusion)
-															const targetTable = grid[newY][newX];
-															if (
-																targetTable &&
-																targetTable._id !== table._id
-															) {
-																Alert.alert(
-																	"Fusionner les tables",
-																	`Table #${table.number} (${
-																		table.capacity
-																	}p) + Table #${targetTable.number} (${
-																		targetTable.capacity
-																	}p) = ${
-																		table.capacity + targetTable.capacity
-																	}p`,
-																	[
-																		{ text: "Annuler", style: "cancel" },
-																		{
-																			text: "Fusionner",
-																			onPress: () =>
-																				mergeTables(table._id, targetTable._id),
-																		},
-																	]
-																);
-															} else if (
-																newX !== table.position.x ||
-																newY !== table.position.y
-															) {
-																// Déplacement simple
-																await updateTablePosition(
-																	table._id,
-																	newX,
-																	newY
-																);
-															}
-
-															setDraggingTable(null);
-															setHighlightedCell(null);
-														}}
-														isDragging={draggingTable?._id === table._id}
-														isHighlighted={
-															highlightedCell?.x === x &&
-															highlightedCell?.y === y
-														}
-													/>
-												) : (
-													<TouchableOpacity
-														style={styles.emptyCell}
-														onPress={() => handleCreateTable(x, y)}
-													>
-														<Ionicons
-															name="add"
-															size={24}
-															color={THEME.colors.border.subtle}
-														/>
-													</TouchableOpacity>
-												)}
-											</View>
-										))}
-									</View>
-								))}
-							</View>
-						</ScrollView>
-
-						{/* Info + Actions */}
-						<View style={styles.footer}>
-							<Text style={styles.footerText}>
-								{tablesWithPosition}/{tables.length} table{tables.length > 1 ? "s" : ""} sur la grille • 6×6
-							</Text>
-							{tablesWithoutPosition > 0 && (
-								<Text style={styles.footerWarning}>
-									⚠️ {tablesWithoutPosition} table{tablesWithoutPosition > 1 ? "s" : ""} sans position
-								</Text>
-							)}
-							<Text style={styles.footerHint}>
-								Glisser pour déplacer • Longue pression pour éditer
-							</Text>
 						</View>
-					</View>
+						{/* Footer */}
+						<View style={styles.footer}>
+							<View style={styles.footerInfo}>
+								<Text style={styles.footerText}>
+									{displayTables.length} table
+									{displayTables.length > 1 ? "s" : ""}
+									{isSimulation && " (simulation)"}
+								</Text>
+								<Text style={styles.footerHint}>
+									Touch : Changer n° • Force touch : Changer capacité
+									{!isSimulation && " • Appui long sur - pour supprimer"}
+								</Text>
+							</View>
+
+							{!isSimulation && (
+								<TouchableOpacity
+									style={styles.savePlanButton}
+									onPress={handleSavePlan}
+								>
+									<Ionicons name="save-outline" size={18} color="#fff" />
+									<Text style={styles.savePlanText}>Sauvegarder</Text>
+								</TouchableOpacity>
+							)}
+						</View>
+					</TouchableOpacity>
 
 					{/* Modale d'édition */}
 					{editingTable && (
 						<View style={styles.editModal}>
 							<View style={styles.editContainer}>
-								<Text style={styles.editTitle}>Modifier la table</Text>
+								<Text style={styles.editTitle}>
+									{editMode === "number" ? "Numéro de table" : "Capacité"}
+								</Text>
 
-								<View style={styles.editRow}>
-									<Text style={styles.editLabel}>Numéro :</Text>
-									<TextInput
-										style={styles.editInput}
-										value={editNumber}
-										onChangeText={setEditNumber}
-										keyboardType="number-pad"
-										autoFocus
-										selectTextOnFocus
-									/>
-								</View>
-
-								<View style={styles.editRow}>
-									<Text style={styles.editLabel}>Position :</Text>
-									<Text style={styles.editValue}>
-										({editingTable.position.x}, {editingTable.position.y})
-									</Text>
-								</View>
-
-								<View style={styles.editRow}>
-									<Text style={styles.editLabel}>Capacité :</Text>
-									<Text style={styles.editValue}>
-										{editingTable.capacity} pers.
-									</Text>
-								</View>
+								<TextInput
+									style={styles.editInput}
+									value={editValue}
+									onChangeText={setEditValue}
+									keyboardType="number-pad"
+									autoFocus
+									selectTextOnFocus
+									placeholder={editMode === "number" ? "Ex: 46" : "Ex: 8"}
+									placeholderTextColor={THEME.colors.text.muted}
+								/>
 
 								<View style={styles.editActions}>
-									<TouchableOpacity
-										style={[styles.editButton, styles.editButtonDelete]}
-										onPress={() => {
-											setEditingTable(null);
-											handleDeleteTable(editingTable);
-										}}
-									>
-										<Ionicons name="trash-outline" size={20} color="#fff" />
-										<Text style={styles.editButtonText}>Supprimer</Text>
-									</TouchableOpacity>
-
 									<TouchableOpacity
 										style={[styles.editButton, styles.editButtonCancel]}
 										onPress={() => {
 											setEditingTable(null);
-											setEditNumber("");
+											setEditMode(null);
+											setEditValue("");
 										}}
 									>
 										<Text style={styles.editButtonText}>Annuler</Text>
@@ -575,7 +547,7 @@ export default function FloorPlanModal({ visible, onClose }) {
 
 									<TouchableOpacity
 										style={[styles.editButton, styles.editButtonSave]}
-										onPress={handleSaveEdit}
+										onPress={handleSave}
 									>
 										<Ionicons name="checkmark" size={20} color="#fff" />
 										<Text style={styles.editButtonText}>Enregistrer</Text>
@@ -584,87 +556,209 @@ export default function FloorPlanModal({ visible, onClose }) {
 							</View>
 						</View>
 					)}
-				</View>
+				</TouchableOpacity>
 			</BlurView>
 		</Modal>
 	);
 }
 
-// 🎴 Composant TableCard draggable
+// 🎴 Composant TableCard (simple touch + force touch simulé par longPress)
 const TableCard = ({
 	table,
 	theme,
-	onLongPress,
-	onDragStart,
-	onDragMove,
-	onDragEnd,
-	isDragging,
-	isHighlighted,
+	index,
+	nextReservation,
+	onSimpleTouch,
+	onForceTouch,
+	onDelete,
+	onPositionChange,
+	onSizeChange,
+	isModified,
+	dragEnabled,
+	resizeEnabled,
+	snapToGrid,
 }) => {
-	const pan = useRef(new Animated.ValueXY()).current;
-	const scale = useRef(new Animated.Value(1)).current;
+	const tableSize = table.size || 1;
+	const baseSize = 100;
 
-	const panResponder = useMemo(
-		() =>
-			PanResponder.create({
-				onStartShouldSetPanResponder: () => false,
-				onMoveShouldSetPanResponder: (_, gestureState) => {
-					// Démarrer le drag si mouvement > 5px
-					return Math.abs(gestureState.dx) > 5 || Math.abs(gestureState.dy) > 5;
-				},
-				onPanResponderGrant: () => {
-					onDragStart && onDragStart(table);
-					// Animation scale up
-					Animated.spring(scale, {
-						toValue: 1.2,
-						useNativeDriver: true,
-					}).start();
-				},
-				onPanResponderMove: (_, gestureState) => {
-					pan.setValue({ x: gestureState.dx, y: gestureState.dy });
-					onDragMove && onDragMove(gestureState.dx, gestureState.dy);
-				},
-				onPanResponderRelease: (_, gestureState) => {
-					// Animation scale down
-					Animated.spring(scale, {
-						toValue: 1,
-						useNativeDriver: true,
-					}).start();
+	// Taille locale pour le resize en temps réel
+	const [currentSize, setCurrentSize] = useState(tableSize);
+	const actualSize = baseSize * currentSize;
 
-					// Reset position
-					Animated.spring(pan, {
-						toValue: { x: 0, y: 0 },
-						useNativeDriver: true,
-					}).start();
+	// Refs pour les modes drag et resize (pour que PanResponders aient les valeurs à jour)
+	const dragEnabledRef = useRef(dragEnabled);
+	const resizeEnabledRef = useRef(resizeEnabled);
+	const snapToGridRef = useRef(snapToGrid);
 
-					onDragEnd && onDragEnd(gestureState.dx, gestureState.dy);
-				},
+	useEffect(() => {
+		dragEnabledRef.current = dragEnabled;
+		resizeEnabledRef.current = resizeEnabled;
+		snapToGridRef.current = snapToGrid;
+	}, [dragEnabled, resizeEnabled, snapToGrid]);
+
+	// Synchroniser currentSize avec tableSize
+	useEffect(() => {
+		setCurrentSize(tableSize);
+	}, [tableSize]);
+
+	// Disposition espacée (4 colonnes au lieu de 3)
+	const columnIndex = index % 4;
+	const rowIndex = Math.floor(index / 4);
+	const initialX = table.position?.x ?? columnIndex * 140 + 30;
+	const initialY = table.position?.y ?? rowIndex * 160 + 30;
+
+	// Animation pour le drag
+	const pan = useRef(
+		new Animated.ValueXY({ x: initialX, y: initialY })
+	).current;
+	const [isDragging, setIsDragging] = useState(false);
+
+	// PanResponder pour le drag
+	const panResponder = useRef(
+		PanResponder.create({
+			onStartShouldSetPanResponder: (evt) => {
+				if (!dragEnabledRef.current) return false;
+				// Ne pas capturer si on touche le grip de resize
+				const touch = evt.nativeEvent;
+				const isInGrip =
+					touch.locationX > actualSize - 30 &&
+					touch.locationY > actualSize - 30;
+				return !isInGrip;
+			},
+			onMoveShouldSetPanResponder: (evt, gestureState) => {
+				if (!dragEnabledRef.current) return false;
+				// Ne pas capturer si on touche le grip de resize
+				const touch = evt.nativeEvent;
+				const isInGrip =
+					touch.locationX > actualSize - 30 &&
+					touch.locationY > actualSize - 30;
+				if (isInGrip) return false;
+				// Commence le drag si mouvement > 10px
+				return Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10;
+			},
+			onPanResponderGrant: () => {
+				setIsDragging(true);
+				pan.setOffset({
+					x: pan.x._value,
+					y: pan.y._value,
+				});
+				pan.setValue({ x: 0, y: 0 });
+			},
+			onPanResponderMove: Animated.event([null, { dx: pan.x, dy: pan.y }], {
+				useNativeDriver: false,
 			}),
-		[table, onDragStart, onDragMove, onDragEnd, pan, scale]
-	);
+			onPanResponderRelease: () => {
+				setIsDragging(false);
+				pan.flattenOffset();
+
+				// Snap to grid si activé (grille 20x20px)
+				const GRID_SIZE = 20;
+				let x = Math.round(pan.x._value);
+				let y = Math.round(pan.y._value);
+
+				if (snapToGridRef.current) {
+					x = Math.round(x / GRID_SIZE) * GRID_SIZE;
+					y = Math.round(y / GRID_SIZE) * GRID_SIZE;
+					// Mettre à jour l'animation pour refléter le snap
+					pan.setValue({ x, y });
+				}
+
+				const newPosition = { x, y };
+				console.log(
+					"🎯 Table déplacée:",
+					table.number,
+					"Position:",
+					newPosition
+				);
+				if (onPositionChange) {
+					onPositionChange(table._id, newPosition);
+				}
+			},
+		})
+	).current;
+
+	// PanResponder pour le resize depuis le grip
+	const startSize = useRef(tableSize);
+	const resizePanResponder = useRef(
+		PanResponder.create({
+			onStartShouldSetPanResponder: () => resizeEnabledRef.current,
+			onPanResponderGrant: () => {
+				startSize.current = currentSize;
+			},
+			onPanResponderMove: (_, gestureState) => {
+				// Calculer la nouvelle taille basée sur le déplacement diagonal
+				const delta = (gestureState.dx + gestureState.dy) / 2;
+				const sizeChange = delta / baseSize;
+				const newSize = Math.max(
+					0.5,
+					Math.min(2.5, startSize.current + sizeChange)
+				);
+				setCurrentSize(newSize);
+			},
+			onPanResponderRelease: () => {
+				// Sauvegarder la taille finale
+				if (onSizeChange) {
+					onSizeChange(table._id, currentSize);
+				}
+			},
+		})
+	).current;
+
+	// Couleur selon statut
+	const getStatusStyle = () => {
+		if (table.status === "occupied") return tableCardStyles(theme).occupied;
+		if (table.status === "unavailable")
+			return tableCardStyles(theme).unavailable;
+		return tableCardStyles(theme).available;
+	};
+
+	// Formater l'heure de réservation
+	const formatTime = (dateString) => {
+		const date = new Date(dateString);
+		return date.toLocaleTimeString("fr-FR", {
+			hour: "2-digit",
+			minute: "2-digit",
+		});
+	};
 
 	return (
 		<Animated.View
 			{...panResponder.panHandlers}
 			style={[
+				tableCardStyles(theme).card,
 				{
-					width: "100%",
-					height: "100%",
-					transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale }],
+					transform: [{ translateX: pan.x }, { translateY: pan.y }],
+					width: actualSize,
+					height: actualSize,
 				},
-				isDragging && { zIndex: 1000 },
+				isDragging && tableCardStyles(theme).dragging,
+				getStatusStyle(),
+				isModified && tableCardStyles(theme).modified,
 			]}
 		>
+			{/* Grip resize en bas à droite */}
+			<View
+				style={tableCardStyles(theme).resizeGripContainer}
+				{...resizePanResponder.panHandlers}
+			/>
+
+			{/* Bouton supprimer (seulement salle 1) */}
+			{onDelete && (
+				<TouchableOpacity
+					style={tableCardStyles(theme).deleteButton}
+					onPress={onDelete}
+				>
+					<Ionicons name="close-circle" size={20} color="#fff" />
+				</TouchableOpacity>
+			)}
+
 			<TouchableOpacity
-				onLongPress={() => onLongPress && onLongPress(table)}
+				onPress={isDragging ? null : onSimpleTouch}
+				onLongPress={isDragging ? null : onForceTouch}
 				delayLongPress={500}
-				style={[
-					tableCardStyles(theme).card,
-					table.status === "occupied" && tableCardStyles(theme).occupied,
-					isHighlighted && tableCardStyles(theme).highlighted,
-					isDragging && tableCardStyles(theme).dragging,
-				]}
+				style={tableCardStyles(theme).touchArea}
 				activeOpacity={0.8}
+				disabled={isDragging}
 			>
 				<View style={tableCardStyles(theme).numberContainer}>
 					<Text style={tableCardStyles(theme).number}>#{table.number}</Text>
@@ -672,10 +766,20 @@ const TableCard = ({
 				<Text style={tableCardStyles(theme).capacity}>{table.capacity}</Text>
 				<Ionicons
 					name="people-outline"
-					size={14}
+					size={16}
 					color={theme.colors.text.muted}
 					style={tableCardStyles(theme).icon}
 				/>
+
+				{/* Prochaine réservation */}
+				{nextReservation && (
+					<View style={tableCardStyles(theme).reservationBadge}>
+						<Ionicons name="time-outline" size={10} color="#fff" />
+						<Text style={tableCardStyles(theme).reservationText}>
+							{formatTime(nextReservation.reservationDate)}
+						</Text>
+					</View>
+				)}
 			</TouchableOpacity>
 		</Animated.View>
 	);
@@ -684,8 +788,9 @@ const TableCard = ({
 const tableCardStyles = (theme) =>
 	StyleSheet.create({
 		card: {
-			width: "100%",
-			height: "100%",
+			position: "absolute",
+			width: 110,
+			height: 120,
 			backgroundColor: theme.colors.background.card,
 			borderRadius: 12,
 			borderWidth: 2,
@@ -704,17 +809,9 @@ const tableCardStyles = (theme) =>
 				},
 			}),
 		},
-		occupied: {
-			borderColor: theme.colors.status.error,
-			backgroundColor: theme.colors.status.error + "20",
-		},
-		highlighted: {
-			borderColor: theme.colors.primary.sky,
-			borderWidth: 3,
-			backgroundColor: theme.colors.primary.sky + "30",
-		},
 		dragging: {
-			opacity: 0.8,
+			borderColor: theme.colors.primary.amber,
+			borderWidth: 3,
 			...Platform.select({
 				ios: {
 					shadowOpacity: 0.4,
@@ -724,6 +821,29 @@ const tableCardStyles = (theme) =>
 					elevation: 8,
 				},
 			}),
+		},
+		modified: {
+			borderWidth: 3,
+			borderColor: theme.colors.primary.amber,
+			borderStyle: "dashed",
+		},
+		touchArea: {
+			width: "100%",
+			height: "100%",
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		available: {
+			borderColor: "#4CAF50",
+			backgroundColor: "#4CAF50" + "15",
+		},
+		occupied: {
+			borderColor: theme.colors.status.error,
+			backgroundColor: theme.colors.status.error + "20",
+		},
+		unavailable: {
+			borderColor: "#9E9E9E",
+			backgroundColor: "#9E9E9E" + "15",
 		},
 		numberContainer: {
 			position: "absolute",
@@ -736,30 +856,79 @@ const tableCardStyles = (theme) =>
 			color: theme.colors.text.muted,
 		},
 		capacity: {
-			fontSize: theme.typography.sizes.xl,
+			fontSize: theme.typography.sizes.xxl || 28,
 			fontWeight: "700",
 			color: theme.colors.text.primary,
 		},
 		icon: {
-			marginTop: 2,
+			marginTop: 4,
+		},
+		reservationBadge: {
+			position: "absolute",
+			bottom: 4,
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: theme.colors.primary.amber,
+			paddingHorizontal: 6,
+			paddingVertical: 2,
+			borderRadius: 8,
+			gap: 3,
+		},
+		reservationText: {
+			fontSize: 9,
+			fontWeight: "700",
+			color: "#fff",
+		},
+		resizeGripContainer: {
+			position: "absolute",
+			bottom: 0,
+			right: 0,
+			width: 30,
+			height: 30,
+			zIndex: 20,
+		},
+		deleteButton: {
+			position: "absolute",
+			top: -8,
+			left: -8,
+			zIndex: 10,
+			backgroundColor: theme.colors.status.error,
+			borderRadius: 12,
+			width: 24,
+			height: 24,
+			alignItems: "center",
+			justifyContent: "center",
+			...Platform.select({
+				ios: {
+					shadowColor: "#000",
+					shadowOffset: { width: 0, height: 2 },
+					shadowOpacity: 0.3,
+					shadowRadius: 3,
+				},
+				android: {
+					elevation: 5,
+				},
+			}),
 		},
 	});
 
-const createStyles = (THEME, zoom) =>
+const createStyles = (THEME) =>
 	StyleSheet.create({
 		overlay: {
 			flex: 1,
-			backgroundColor: "rgba(0, 0, 0, 0.8)",
-			justifyContent: "center",
-			alignItems: "center",
-			padding: 20,
+			backgroundColor: "rgba(0, 0, 0, 0.5)",
+			justifyContent: "flex-start",
+			alignItems: "flex-start",
 		},
 		container: {
-			width: "95%",
-			maxWidth: 900,
-			height: "90%",
-			backgroundColor: THEME.colors.background.primary + "F8",
-			borderRadius: 20,
+			position: "absolute",
+			left: 381,
+			top: 120,
+			right: 0,
+			bottom: 0,
+			backgroundColor: THEME.colors.background.dark,
+			borderRadius: 0,
+			borderWidth: 0,
 			overflow: "hidden",
 			...Platform.select({
 				ios: {
@@ -787,23 +956,20 @@ const createStyles = (THEME, zoom) =>
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 		},
-		zoomControls: {
+		subtitle: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.muted,
+			marginLeft: -40,
+		},
+		headerActions: {
 			flexDirection: "row",
-			alignItems: "center",
 			gap: 8,
 		},
-		zoomButton: {
+		actionButton: {
 			width: 36,
 			height: 36,
-			borderRadius: 18,
-			backgroundColor: THEME.colors.background.card,
 			alignItems: "center",
 			justifyContent: "center",
-		},
-		zoomText: {
-			fontSize: THEME.typography.sizes.sm,
-			fontWeight: "600",
-			color: THEME.colors.text.primary,
 		},
 		closeButton: {
 			width: 36,
@@ -813,18 +979,44 @@ const createStyles = (THEME, zoom) =>
 			alignItems: "center",
 			justifyContent: "center",
 		},
-		scrollContainer: {
-			flex: 1,
+		toggleContainer: {
+			flexDirection: "row",
+			gap: 12,
+			marginLeft: "auto",
+			marginRight: 12,
 		},
-		scrollContent: {
-			padding: 20,
+		toggleButton: {
+			flexDirection: "row",
 			alignItems: "center",
+			gap: 6,
+			paddingHorizontal: 12,
+			paddingVertical: 8,
+			borderRadius: 8,
+			backgroundColor: THEME.colors.background.card,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+		},
+		toggleButtonActive: {
+			backgroundColor: THEME.colors.primary.amber,
+			borderColor: THEME.colors.primary.amber,
+		},
+		toggleButtonText: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "600",
+			color: THEME.colors.text.muted,
+		},
+		toggleButtonTextActive: {
+			color: "#fff",
+		},
+		planContainer: {
+			flex: 1,
+			position: "relative",
 		},
 		emptyState: {
+			flex: 1,
 			alignItems: "center",
 			justifyContent: "center",
-			paddingVertical: 60,
-			paddingHorizontal: 40,
+			paddingVertical: 100,
 		},
 		emptyStateTitle: {
 			fontSize: THEME.typography.sizes.xl,
@@ -837,55 +1029,47 @@ const createStyles = (THEME, zoom) =>
 			fontSize: THEME.typography.sizes.md,
 			color: THEME.colors.text.muted,
 			textAlign: "center",
-			lineHeight: 24,
 		},
-		gridContainer: {
-			transform: [{ scale: zoom }],
-		},
-		gridRow: {
-			flexDirection: "row",
-		},
-		gridCell: {
-			width: 80,
-			height: 80,
-			padding: 4,
-		},
-		highlightedCell: {
-			backgroundColor: THEME.colors.primary.sky + "20",
-			borderRadius: 8,
-		},
-		emptyCell: {
+		tablesContainer: {
+			position: "relative",
 			width: "100%",
 			height: "100%",
-			borderRadius: 8,
-			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle + "40",
-			borderStyle: "dashed",
-			alignItems: "center",
-			justifyContent: "center",
 		},
 		footer: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
 			paddingHorizontal: 20,
 			paddingVertical: 12,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.default,
-			alignItems: "center",
+		},
+		footerInfo: {
+			flex: 1,
 		},
 		footerText: {
 			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.muted,
 			fontWeight: "600",
 		},
-		footerWarning: {
-			fontSize: THEME.typography.sizes.xs,
-			color: THEME.colors.status.warning,
-			marginTop: 4,
-			fontWeight: "600",
-		},
 		footerHint: {
 			fontSize: THEME.typography.sizes.xs,
 			color: THEME.colors.text.muted,
 			marginTop: 4,
+		},
+		savePlanButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			paddingHorizontal: 16,
+			paddingVertical: 10,
+			backgroundColor: THEME.colors.primary.amber,
+			borderRadius: 10,
+		},
+		savePlanText: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "700",
+			color: "#fff",
 		},
 		// Modale d'édition
 		editModal: {
@@ -920,39 +1104,21 @@ const createStyles = (THEME, zoom) =>
 			marginBottom: 20,
 			textAlign: "center",
 		},
-		editRow: {
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "space-between",
-			marginBottom: 16,
-		},
-		editLabel: {
-			fontSize: THEME.typography.sizes.md,
-			fontWeight: "600",
-			color: THEME.colors.text.primary,
-		},
 		editInput: {
-			flex: 1,
-			marginLeft: 16,
-			paddingHorizontal: 16,
-			paddingVertical: 12,
+			paddingHorizontal: 20,
+			paddingVertical: 16,
 			backgroundColor: THEME.colors.background.card,
 			borderRadius: 12,
 			borderWidth: 2,
 			borderColor: THEME.colors.primary.amber,
-			fontSize: THEME.typography.sizes.lg,
+			fontSize: THEME.typography.sizes.xxl || 24,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 			textAlign: "center",
-		},
-		editValue: {
-			fontSize: THEME.typography.sizes.md,
-			color: THEME.colors.text.muted,
-			fontWeight: "500",
+			marginBottom: 24,
 		},
 		editActions: {
 			flexDirection: "row",
-			marginTop: 24,
 			gap: 12,
 		},
 		editButton: {
@@ -969,9 +1135,6 @@ const createStyles = (THEME, zoom) =>
 		},
 		editButtonCancel: {
 			backgroundColor: THEME.colors.text.muted + "40",
-		},
-		editButtonDelete: {
-			backgroundColor: THEME.colors.status.error,
 		},
 		editButtonText: {
 			fontSize: THEME.typography.sizes.md,
