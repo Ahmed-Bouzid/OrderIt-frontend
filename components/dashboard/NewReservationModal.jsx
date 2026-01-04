@@ -27,6 +27,8 @@ import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
+import { useAuthFetch } from "../../hooks/useAuthFetch";
+import ReservationAssistantModal from "../modals/ReservationAssistantModal";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -200,20 +202,24 @@ const NewReservationModal = React.memo(
 	({ visible, onClose, onCreate, tables, theme, initialData = null }) => {
 		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
+	const authFetch = useAuthFetch();
 
-		const [step, setStep] = useState(1);
-		const [clientName, setClientName] = useState("");
-		const [phone, setPhone] = useState("");
-		const [reservationTime, setReservationTime] = useState("");
-		const [reservationDate, setReservationDate] = useState("");
-		const [nbPersonnes, setNbPersonnes] = useState(2);
-		const [allergies, setAllergies] = useState("");
-		const [restrictions, setRestrictions] = useState("");
-		const [notes, setNotes] = useState("");
-		const [selectedTableId, setSelectedTableId] = useState(null);
-		const [errors, setErrors] = useState({});
+	const [step, setStep] = useState(1);
+	const [clientName, setClientName] = useState("");
+	const [phone, setPhone] = useState("");
+	const [reservationTime, setReservationTime] = useState("");
+	const [reservationDate, setReservationDate] = useState("");
+	const [nbPersonnes, setNbPersonnes] = useState(2);
+	const [allergies, setAllergies] = useState("");
+	const [restrictions, setRestrictions] = useState("");
+	const [notes, setNotes] = useState("");
+	const [selectedTableId, setSelectedTableId] = useState(null);
+	const [errors, setErrors] = useState({});
 
-		// ⭐ Pré-remplir les champs si initialData est fourni (recréation)
+	// ⭐ Assistant de réservations
+	const [assistantVisible, setAssistantVisible] = useState(false);
+	const [assistantResult, setAssistantResult] = useState(null);
+	const [assistantLoading, setAssistantLoading] = useState(false);
 		useEffect(() => {
 			if (visible && initialData) {
 				console.log("📋 Pré-remplissage avec données:", initialData.clientName);
@@ -281,7 +287,59 @@ const NewReservationModal = React.memo(
 			setErrors(newErrors);
 			return Object.keys(newErrors).length === 0;
 		}, [reservationDate, reservationTime]);
+	// ⭐ Vérifier la disponibilité avec l'assistant
+	const handleCheckAvailability = useCallback(async () => {
+		if (!reservationDate || !reservationTime) {
+			setErrors({
+				reservationDate: !reservationDate ? "Date requise" : null,
+				reservationTime: !reservationTime ? "Heure requise" : null,
+			});
+			return;
+		}
 
+		setAssistantLoading(true);
+		setAssistantVisible(true);
+		setAssistantResult(null);
+
+		try {
+			// Récupérer le restaurantId depuis les tables ou le contexte
+			const restaurantId =
+				tables[0]?.restaurantId || localStorage.getItem("restaurantId");
+
+			const response = await authFetch("/assistant/check-availability", {
+				method: "POST",
+				body: {
+					restaurantId,
+					date: reservationDate,
+					time: reservationTime,
+					people: nbPersonnes,
+				},
+			});
+
+			setAssistantResult(response);
+		} catch (error) {
+			console.error("❌ Erreur assistant:", error);
+			setAssistantResult({
+				status: "error",
+				reason: "Erreur lors de la vérification de disponibilité",
+				alternatives: [],
+			});
+		} finally {
+			setAssistantLoading(false);
+		}
+	}, [
+		reservationDate,
+		reservationTime,
+		nbPersonnes,
+		tables,
+		authFetch,
+	]);
+
+	// ⭐ Sélectionner une alternative proposée par l'assistant
+	const handleSelectAlternative = useCallback((time) => {
+		setReservationTime(time);
+		setErrors((prev) => ({ ...prev, reservationTime: null }));
+	}, []);
 		const handleCreate = useCallback(async () => {
 			if (!validateStep2()) return;
 
@@ -496,31 +554,44 @@ const NewReservationModal = React.memo(
 													THEME={THEME}
 													modalStyles={modalStyles}
 												>
-													<View style={modalStyles.datePickerWrapper}>
-														<DateTimePicker
-															mode="time"
-															value={
-																reservationTime
-																	? new Date(`1970-01-01T${reservationTime}:00`)
-																	: new Date()
-															}
-															is24Hour={true}
-															display="compact"
-															onChange={(event, selectedTime) => {
-																if (selectedTime) {
-																	let hh = selectedTime.getHours();
-																	let mm = selectedTime.getMinutes();
-																	mm = mm < 30 ? 0 : 30;
-																	setReservationTime(
-																		`${String(hh).padStart(2, "0")}:${String(
-																			mm
-																		).padStart(2, "0")}`
-																	);
+													<View style={modalStyles.timeAssistantRow}>
+														<View style={modalStyles.datePickerWrapper}>
+															<DateTimePicker
+																mode="time"
+																value={
+																	reservationTime
+																		? new Date(`1970-01-01T${reservationTime}:00`)
+																		: new Date()
 																}
-															}}
-															themeVariant="dark"
-															style={{ flex: 1 }}
-														/>
+																is24Hour={true}
+																display="compact"
+																onChange={(event, selectedTime) => {
+																	if (selectedTime) {
+																		let hh = selectedTime.getHours();
+																		let mm = selectedTime.getMinutes();
+																		mm = mm < 30 ? 0 : 30;
+																		setReservationTime(
+																			`${String(hh).padStart(2, "0")}:${String(
+																				mm
+																			).padStart(2, "0")}`
+																		);
+																	}
+																}}
+																themeVariant="dark"
+																style={{ flex: 1 }}
+															/>
+														</View>
+														{/* Bouton Assistant */}
+														<TouchableOpacity
+															style={modalStyles.assistantButton}
+															onPress={handleCheckAvailability}
+														>
+															<Ionicons
+																name="sparkles"
+																size={20}
+																color={THEME.colors.primary.amber}
+															/>
+														</TouchableOpacity>
 													</View>
 												</InputField>
 											</View>
@@ -625,8 +696,18 @@ const NewReservationModal = React.memo(
 					</View>
 				</KeyboardAvoidingView>
 			</Modal>
-		);
-	}
+
+			{/* Assistant Modal */}
+			<ReservationAssistantModal
+				visible={assistantVisible}
+				onClose={() => setAssistantVisible(false)}
+				result={assistantResult}
+				loading={assistantLoading}
+				onSelectAlternative={handleSelectAlternative}
+			/>
+		</>
+	);
+}
 );
 
 NewReservationModal.displayName = "NewReservationModal";
@@ -813,6 +894,22 @@ const createStyles = (THEME) =>
 			overflow: "hidden",
 			minHeight: 50,
 			justifyContent: "center",
+			flex: 1,
+		},
+		timeAssistantRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		assistantButton: {
+			width: 44,
+			height: 44,
+			borderRadius: 22,
+			backgroundColor: `${THEME.colors.primary.amber}20`,
+			alignItems: "center",
+			justifyContent: "center",
+			borderWidth: 2,
+			borderColor: `${THEME.colors.primary.amber}40`,
 		},
 		tableGrid: {
 			flexDirection: "row",
