@@ -21,6 +21,7 @@ import {
 	StyleSheet,
 	Animated,
 	Dimensions,
+	Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -202,24 +203,24 @@ const NewReservationModal = React.memo(
 	({ visible, onClose, onCreate, tables, theme, initialData = null }) => {
 		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
-	const authFetch = useAuthFetch();
+		const authFetch = useAuthFetch();
 
-	const [step, setStep] = useState(1);
-	const [clientName, setClientName] = useState("");
-	const [phone, setPhone] = useState("");
-	const [reservationTime, setReservationTime] = useState("");
-	const [reservationDate, setReservationDate] = useState("");
-	const [nbPersonnes, setNbPersonnes] = useState(2);
-	const [allergies, setAllergies] = useState("");
-	const [restrictions, setRestrictions] = useState("");
-	const [notes, setNotes] = useState("");
-	const [selectedTableId, setSelectedTableId] = useState(null);
-	const [errors, setErrors] = useState({});
+		const [step, setStep] = useState(1);
+		const [clientName, setClientName] = useState("");
+		const [phone, setPhone] = useState("");
+		const [reservationTime, setReservationTime] = useState("");
+		const [reservationDate, setReservationDate] = useState("");
+		const [nbPersonnes, setNbPersonnes] = useState(2);
+		const [allergies, setAllergies] = useState("");
+		const [restrictions, setRestrictions] = useState("");
+		const [notes, setNotes] = useState("");
+		const [selectedTableId, setSelectedTableId] = useState(null);
+		const [errors, setErrors] = useState({});
 
-	// ⭐ Assistant de réservations
-	const [assistantVisible, setAssistantVisible] = useState(false);
-	const [assistantResult, setAssistantResult] = useState(null);
-	const [assistantLoading, setAssistantLoading] = useState(false);
+		// ⭐ Assistant de réservations
+		const [assistantVisible, setAssistantVisible] = useState(false);
+		const [assistantResult, setAssistantResult] = useState(null);
+		const [assistantLoading, setAssistantLoading] = useState(false);
 		useEffect(() => {
 			if (visible && initialData) {
 				console.log("📋 Pré-remplissage avec données:", initialData.clientName);
@@ -287,59 +288,77 @@ const NewReservationModal = React.memo(
 			setErrors(newErrors);
 			return Object.keys(newErrors).length === 0;
 		}, [reservationDate, reservationTime]);
-	// ⭐ Vérifier la disponibilité avec l'assistant
-	const handleCheckAvailability = useCallback(async () => {
-		if (!reservationDate || !reservationTime) {
-			setErrors({
-				reservationDate: !reservationDate ? "Date requise" : null,
-				reservationTime: !reservationTime ? "Heure requise" : null,
-			});
-			return;
-		}
+		// ⭐ Vérifier la disponibilité avec l'assistant
+		const handleCheckAvailability = useCallback(async () => {
+			console.log("✨ [ASSISTANT] Début vérification disponibilité");
+			console.log("📅 Date:", reservationDate);
+			console.log("⏰ Heure:", reservationTime);
+			console.log("👥 Personnes:", nbPersonnes);
 
-		setAssistantLoading(true);
-		setAssistantVisible(true);
-		setAssistantResult(null);
+			if (!reservationDate || !reservationTime) {
+				Alert.alert(
+					"Informations manquantes",
+					"Veuillez renseigner une date et une heure avant de vérifier la disponibilité"
+				);
+				setErrors({
+					reservationDate: !reservationDate ? "Date requise" : null,
+					reservationTime: !reservationTime ? "Heure requise" : null,
+				});
+				return;
+			}
 
-		try {
-			// Récupérer le restaurantId depuis les tables ou le contexte
-			const restaurantId =
-				tables[0]?.restaurantId || localStorage.getItem("restaurantId");
+			setAssistantLoading(true);
+			setAssistantVisible(true);
+			setAssistantResult(null);
 
-			const response = await authFetch("/assistant/check-availability", {
-				method: "POST",
-				body: {
-					restaurantId,
-					date: reservationDate,
-					time: reservationTime,
-					people: nbPersonnes,
-				},
-			});
+			try {
+				// Récupérer le restaurantId depuis les tables ou le contexte
+				const restaurantId =
+					tables[0]?.restaurantId || localStorage.getItem("restaurantId");
 
-			setAssistantResult(response);
-		} catch (error) {
-			console.error("❌ Erreur assistant:", error);
-			setAssistantResult({
-				status: "error",
-				reason: "Erreur lors de la vérification de disponibilité",
-				alternatives: [],
-			});
-		} finally {
-			setAssistantLoading(false);
-		}
-	}, [
-		reservationDate,
-		reservationTime,
-		nbPersonnes,
-		tables,
-		authFetch,
-	]);
+				console.log("🏪 Restaurant ID:", restaurantId);
 
-	// ⭐ Sélectionner une alternative proposée par l'assistant
-	const handleSelectAlternative = useCallback((time) => {
-		setReservationTime(time);
-		setErrors((prev) => ({ ...prev, reservationTime: null }));
-	}, []);
+				if (!restaurantId) {
+					throw new Error("Restaurant ID manquant");
+				}
+
+				console.log("📡 Appel API /assistant/check-availability...");
+
+				const response = await authFetch("/assistant/check-availability", {
+					method: "POST",
+					body: {
+						restaurantId,
+						date: reservationDate,
+						time: reservationTime,
+						people: nbPersonnes,
+					},
+				});
+
+				console.log("✅ Réponse assistant:", response);
+				setAssistantResult(response);
+			} catch (error) {
+				console.error("❌ Erreur assistant:", error);
+				Alert.alert(
+					"Erreur",
+					error.message || "Erreur lors de la vérification de disponibilité"
+				);
+				setAssistantResult({
+					status: "error",
+					reason:
+						error.message || "Erreur lors de la vérification de disponibilité",
+					alternatives: [],
+				});
+			} finally {
+				setAssistantLoading(false);
+				console.log("✨ [ASSISTANT] Fin vérification");
+			}
+		}, [reservationDate, reservationTime, nbPersonnes, tables, authFetch]);
+
+		// ⭐ Sélectionner une alternative proposée par l'assistant
+		const handleSelectAlternative = useCallback((time) => {
+			setReservationTime(time);
+			setErrors((prev) => ({ ...prev, reservationTime: null }));
+		}, []);
 		const handleCreate = useCallback(async () => {
 			if (!validateStep2()) return;
 
@@ -386,329 +405,340 @@ const NewReservationModal = React.memo(
 		const prevStep = useCallback(() => setStep(1), []);
 
 		return (
-		<>
-			<Modal
-				visible={visible}
-				transparent
-				animationType="fade"
-				onRequestClose={handleClose}
-			>
-				<KeyboardAvoidingView
-					behavior={Platform.OS === "ios" ? "padding" : "height"}
-					style={{ flex: 1 }}
+			<>
+				<Modal
+					visible={visible}
+					transparent
+					animationType="fade"
+					onRequestClose={handleClose}
 				>
-					<View style={modalStyles.overlay}>
-						{/* Card principale */}
-						<View style={modalStyles.card}>
-							{/* Header */}
-							<View style={modalStyles.header}>
-								<View>
-									<Text style={modalStyles.title}>Nouvelle réservation</Text>
-									<Text style={modalStyles.subtitle}>
-										{step === 1 ? "Informations client" : "Date et table"}
-									</Text>
+					<KeyboardAvoidingView
+						behavior={Platform.OS === "ios" ? "padding" : "height"}
+						style={{ flex: 1 }}
+					>
+						<View style={modalStyles.overlay}>
+							{/* Card principale */}
+							<View style={modalStyles.card}>
+								{/* Header */}
+								<View style={modalStyles.header}>
+									<View>
+										<Text style={modalStyles.title}>Nouvelle réservation</Text>
+										<Text style={modalStyles.subtitle}>
+											{step === 1 ? "Informations client" : "Date et table"}
+										</Text>
+									</View>
+									<TouchableOpacity
+										style={modalStyles.closeButton}
+										onPress={handleClose}
+									>
+										<Ionicons
+											name="close"
+											size={22}
+											color={THEME.colors.text.secondary}
+										/>
+									</TouchableOpacity>
 								</View>
-								<TouchableOpacity
-									style={modalStyles.closeButton}
-									onPress={handleClose}
+
+								{/* Step Indicator */}
+								<StepIndicator
+									currentStep={step}
+									totalSteps={2}
+									modalStyles={modalStyles}
+								/>
+								{/* Divider */}
+								<LinearGradient
+									colors={[
+										"transparent",
+										THEME.colors.border.subtle,
+										"transparent",
+									]}
+									start={{ x: 0, y: 0 }}
+									end={{ x: 1, y: 0 }}
+									style={modalStyles.divider}
+								/>
+
+								{/* Content */}
+								<ScrollView
+									showsVerticalScrollIndicator={false}
+									contentContainerStyle={{ paddingBottom: THEME.spacing.xl }}
 								>
-									<Ionicons
-										name="close"
-										size={22}
-										color={THEME.colors.text.secondary}
-									/>
-								</TouchableOpacity>
-							</View>
-
-							{/* Step Indicator */}
-							<StepIndicator
-								currentStep={step}
-								totalSteps={2}
-								modalStyles={modalStyles}
-							/>
-							{/* Divider */}
-							<LinearGradient
-								colors={[
-									"transparent",
-									THEME.colors.border.subtle,
-									"transparent",
-								]}
-								start={{ x: 0, y: 0 }}
-								end={{ x: 1, y: 0 }}
-								style={modalStyles.divider}
-							/>
-
-							{/* Content */}
-							<ScrollView
-								showsVerticalScrollIndicator={false}
-								contentContainerStyle={{ paddingBottom: THEME.spacing.xl }}
-							>
-								{/* Step 1: Informations client */}
-								{step === 1 && (
-									<View style={modalStyles.stepContent}>
-										<InputField
-											label="Nom du client"
-											icon="person-outline"
-											required
-											error={errors.clientName}
-											THEME={THEME}
-											modalStyles={modalStyles}
-										>
-											<TextInput
-												placeholder="Ex: Jean Dupont"
-												value={clientName}
-												onChangeText={setClientName}
-												style={[
-													modalStyles.input,
-													errors.clientName && modalStyles.inputError,
-												]}
-												placeholderTextColor={THEME.colors.text.muted}
-											/>
-										</InputField>
-
-										<InputField
-											label="Téléphone"
-											icon="call-outline"
-											required
-											error={errors.phone}
-											THEME={THEME}
-											modalStyles={modalStyles}
-										>
-											<TextInput
-												placeholder="Ex: 06 12 34 56 78"
-												value={phone}
-												onChangeText={setPhone}
-												keyboardType="phone-pad"
-												style={[
-													modalStyles.input,
-													errors.phone && modalStyles.inputError,
-												]}
-												placeholderTextColor={THEME.colors.text.muted}
-											/>
-										</InputField>
-
-										<InputField
-											label="Nombre de personnes"
-											icon="people-outline"
-											required
-											THEME={THEME}
-											modalStyles={modalStyles}
-										>
-											<PersonSelector
-												value={nbPersonnes}
-												onChange={setNbPersonnes}
+									{/* Step 1: Informations client */}
+									{step === 1 && (
+										<View style={modalStyles.stepContent}>
+											<InputField
+												label="Nom du client"
+												icon="person-outline"
+												required
+												error={errors.clientName}
 												THEME={THEME}
 												modalStyles={modalStyles}
-											/>
-										</InputField>
-									</View>
-								)}
+											>
+												<TextInput
+													placeholder="Ex: Jean Dupont"
+													value={clientName}
+													onChangeText={setClientName}
+													style={[
+														modalStyles.input,
+														errors.clientName && modalStyles.inputError,
+													]}
+													placeholderTextColor={THEME.colors.text.muted}
+												/>
+											</InputField>
 
-								{/* Step 2: Date, heure et table */}
-								{step === 2 && (
-									<View style={modalStyles.stepContent}>
-										{/* Date et Heure côte à côte */}
-										<View style={modalStyles.dateTimeRow}>
-											<View style={{ flex: 1, marginRight: THEME.spacing.md }}>
-												<InputField
-													label="Date"
-													icon="calendar-outline"
-													required
-													error={errors.reservationDate}
+											<InputField
+												label="Téléphone"
+												icon="call-outline"
+												required
+												error={errors.phone}
+												THEME={THEME}
+												modalStyles={modalStyles}
+											>
+												<TextInput
+													placeholder="Ex: 06 12 34 56 78"
+													value={phone}
+													onChangeText={setPhone}
+													keyboardType="phone-pad"
+													style={[
+														modalStyles.input,
+														errors.phone && modalStyles.inputError,
+													]}
+													placeholderTextColor={THEME.colors.text.muted}
+												/>
+											</InputField>
+
+											<InputField
+												label="Nombre de personnes"
+												icon="people-outline"
+												required
+												THEME={THEME}
+												modalStyles={modalStyles}
+											>
+												<PersonSelector
+													value={nbPersonnes}
+													onChange={setNbPersonnes}
 													THEME={THEME}
 													modalStyles={modalStyles}
-												>
-													<View style={modalStyles.datePickerWrapper}>
-														<DateTimePicker
-															mode="date"
-															value={
-																reservationDate
-																	? new Date(reservationDate)
-																	: new Date()
-															}
-															minimumDate={new Date()}
-															onChange={(event, selectedDate) => {
-																if (selectedDate) {
-																	const yyyy = selectedDate.getFullYear();
-																	const mm = String(
-																		selectedDate.getMonth() + 1
-																	).padStart(2, "0");
-																	const dd = String(
-																		selectedDate.getDate()
-																	).padStart(2, "0");
-																	setReservationDate(`${yyyy}-${mm}-${dd}`);
-																}
-															}}
-															themeVariant="dark"
-															style={{ flex: 1 }}
-														/>
-													</View>
-												</InputField>
-											</View>
+												/>
+											</InputField>
+										</View>
+									)}
 
-											<View style={{ flex: 1 }}>
-												<InputField
-													label="Heure"
-													icon="time-outline"
-													required
-													error={errors.reservationTime}
-													THEME={THEME}
-													modalStyles={modalStyles}
+									{/* Step 2: Date, heure et table */}
+									{step === 2 && (
+										<View style={modalStyles.stepContent}>
+											{/* Date et Heure côte à côte */}
+											<View style={modalStyles.dateTimeRow}>
+												<View
+													style={{ flex: 1, marginRight: THEME.spacing.md }}
 												>
-													<View style={modalStyles.timeAssistantRow}>
+													<InputField
+														label="Date"
+														icon="calendar-outline"
+														required
+														error={errors.reservationDate}
+														THEME={THEME}
+														modalStyles={modalStyles}
+													>
 														<View style={modalStyles.datePickerWrapper}>
 															<DateTimePicker
-																mode="time"
+																mode="date"
 																value={
-																	reservationTime
-																		? new Date(`1970-01-01T${reservationTime}:00`)
+																	reservationDate
+																		? new Date(reservationDate)
 																		: new Date()
 																}
-																is24Hour={true}
-																display="compact"
-																onChange={(event, selectedTime) => {
-																	if (selectedTime) {
-																		let hh = selectedTime.getHours();
-																		let mm = selectedTime.getMinutes();
-																		mm = mm < 30 ? 0 : 30;
-																		setReservationTime(
-																			`${String(hh).padStart(2, "0")}:${String(
-																				mm
-																			).padStart(2, "0")}`
-																		);
+																minimumDate={new Date()}
+																onChange={(event, selectedDate) => {
+																	if (selectedDate) {
+																		const yyyy = selectedDate.getFullYear();
+																		const mm = String(
+																			selectedDate.getMonth() + 1
+																		).padStart(2, "0");
+																		const dd = String(
+																			selectedDate.getDate()
+																		).padStart(2, "0");
+																		setReservationDate(`${yyyy}-${mm}-${dd}`);
 																	}
 																}}
 																themeVariant="dark"
 																style={{ flex: 1 }}
 															/>
 														</View>
-														{/* Bouton Assistant */}
-														<TouchableOpacity
-															style={modalStyles.assistantButton}
-															onPress={handleCheckAvailability}
-														>
-															<Ionicons
-																name="sparkles"
-																size={20}
-																color={THEME.colors.primary.amber}
-															/>
-														</TouchableOpacity>
-													</View>
-												</InputField>
+													</InputField>
+												</View>
+
+												<View style={{ flex: 1 }}>
+													<InputField
+														label="Heure"
+														icon="time-outline"
+														required
+														error={errors.reservationTime}
+														THEME={THEME}
+														modalStyles={modalStyles}
+													>
+														<View style={modalStyles.timeAssistantRow}>
+															<View style={modalStyles.datePickerWrapper}>
+																<DateTimePicker
+																	mode="time"
+																	value={
+																		reservationTime
+																			? new Date(
+																					`1970-01-01T${reservationTime}:00`
+																			  )
+																			: new Date()
+																	}
+																	is24Hour={true}
+																	display="compact"
+																	onChange={(event, selectedTime) => {
+																		if (selectedTime) {
+																			let hh = selectedTime.getHours();
+																			let mm = selectedTime.getMinutes();
+																			mm = mm < 30 ? 0 : 30;
+																			setReservationTime(
+																				`${String(hh).padStart(
+																					2,
+																					"0"
+																				)}:${String(mm).padStart(2, "0")}`
+																			);
+																		}
+																	}}
+																	themeVariant="dark"
+																	style={{ flex: 1 }}
+																/>
+															</View>
+															{/* Bouton Assistant */}
+															<TouchableOpacity
+																style={modalStyles.assistantButton}
+																onPress={handleCheckAvailability}
+															>
+																<Ionicons
+																	name="sparkles"
+																	size={20}
+																	color={THEME.colors.primary.amber}
+																/>
+															</TouchableOpacity>
+														</View>
+													</InputField>
+												</View>
 											</View>
-										</View>
-										{/* Table */}
-										<InputField
-											label="Table (optionnel)"
-											icon="grid-outline"
-											THEME={THEME}
-											modalStyles={modalStyles}
-										>
-											<TableSelector
-												tables={tables}
-												selectedId={selectedTableId}
-												onSelect={setSelectedTableId}
+											{/* Table */}
+											<InputField
+												label="Table (optionnel)"
+												icon="grid-outline"
 												THEME={THEME}
 												modalStyles={modalStyles}
-											/>
-										</InputField>
-										{/* Notes additionnelles */}
-										<InputField
-											label="Allergies / Restrictions"
-											icon="warning-outline"
-											THEME={THEME}
-											modalStyles={modalStyles}
-										>
-											<TextInput
-												placeholder="Ex: Sans gluten, allergie aux fruits de mer..."
-												value={allergies}
-												onChangeText={setAllergies}
-												style={[modalStyles.input, modalStyles.inputMultiline]}
-												placeholderTextColor={THEME.colors.text.muted}
-												multiline
-												numberOfLines={2}
-											/>
-										</InputField>
-										<InputField
-											label="Notes supplémentaires"
-											icon="document-text-outline"
-											THEME={THEME}
-											modalStyles={modalStyles}
-										>
-											<TextInput
-												placeholder="Ex: Anniversaire, demande spéciale..."
-												value={notes}
-												onChangeText={setNotes}
-												style={[modalStyles.input, modalStyles.inputMultiline]}
-												placeholderTextColor={THEME.colors.text.muted}
-												multiline
-												numberOfLines={2}
-											/>
-										</InputField>
-									</View>
-								)}
-							</ScrollView>
+											>
+												<TableSelector
+													tables={tables}
+													selectedId={selectedTableId}
+													onSelect={setSelectedTableId}
+													THEME={THEME}
+													modalStyles={modalStyles}
+												/>
+											</InputField>
+											{/* Notes additionnelles */}
+											<InputField
+												label="Allergies / Restrictions"
+												icon="warning-outline"
+												THEME={THEME}
+												modalStyles={modalStyles}
+											>
+												<TextInput
+													placeholder="Ex: Sans gluten, allergie aux fruits de mer..."
+													value={allergies}
+													onChangeText={setAllergies}
+													style={[
+														modalStyles.input,
+														modalStyles.inputMultiline,
+													]}
+													placeholderTextColor={THEME.colors.text.muted}
+													multiline
+													numberOfLines={2}
+												/>
+											</InputField>
+											<InputField
+												label="Notes supplémentaires"
+												icon="document-text-outline"
+												THEME={THEME}
+												modalStyles={modalStyles}
+											>
+												<TextInput
+													placeholder="Ex: Anniversaire, demande spéciale..."
+													value={notes}
+													onChangeText={setNotes}
+													style={[
+														modalStyles.input,
+														modalStyles.inputMultiline,
+													]}
+													placeholderTextColor={THEME.colors.text.muted}
+													multiline
+													numberOfLines={2}
+												/>
+											</InputField>
+										</View>
+									)}
+								</ScrollView>
 
-							{/* Footer avec boutons */}
-							<View style={modalStyles.footer}>
-								<TouchableOpacity
-									style={modalStyles.cancelButton}
-									onPress={step === 1 ? handleClose : prevStep}
-								>
-									<Ionicons
-										name={step === 1 ? "close-outline" : "arrow-back-outline"}
-										size={18}
-										color={THEME.colors.text.secondary}
-									/>
-									<Text style={modalStyles.cancelButtonText}>
-										{step === 1 ? "Annuler" : "Retour"}
-									</Text>
-								</TouchableOpacity>
-
-								<TouchableOpacity
-									style={modalStyles.confirmButton}
-									onPress={step === 1 ? nextStep : handleCreate}
-								>
-									<LinearGradient
-										colors={[
-											THEME.colors.primary.amber,
-											THEME.colors.primary.amberDark,
-										]}
-										start={{ x: 0, y: 0 }}
-										end={{ x: 1, y: 0 }}
-										style={modalStyles.confirmGradient}
+								{/* Footer avec boutons */}
+								<View style={modalStyles.footer}>
+									<TouchableOpacity
+										style={modalStyles.cancelButton}
+										onPress={step === 1 ? handleClose : prevStep}
 									>
-										<Text style={modalStyles.confirmButtonText}>
-											{step === 1 ? "Suivant" : "Confirmer"}
-										</Text>
 										<Ionicons
-											name={
-												step === 1
-													? "arrow-forward-outline"
-													: "checkmark-outline"
-											}
+											name={step === 1 ? "close-outline" : "arrow-back-outline"}
 											size={18}
-											color="#FFF"
+											color={THEME.colors.text.secondary}
 										/>
-									</LinearGradient>
-								</TouchableOpacity>
+										<Text style={modalStyles.cancelButtonText}>
+											{step === 1 ? "Annuler" : "Retour"}
+										</Text>
+									</TouchableOpacity>
+
+									<TouchableOpacity
+										style={modalStyles.confirmButton}
+										onPress={step === 1 ? nextStep : handleCreate}
+									>
+										<LinearGradient
+											colors={[
+												THEME.colors.primary.amber,
+												THEME.colors.primary.amberDark,
+											]}
+											start={{ x: 0, y: 0 }}
+											end={{ x: 1, y: 0 }}
+											style={modalStyles.confirmGradient}
+										>
+											<Text style={modalStyles.confirmButtonText}>
+												{step === 1 ? "Suivant" : "Confirmer"}
+											</Text>
+											<Ionicons
+												name={
+													step === 1
+														? "arrow-forward-outline"
+														: "checkmark-outline"
+												}
+												size={18}
+												color="#FFF"
+											/>
+										</LinearGradient>
+									</TouchableOpacity>
+								</View>
 							</View>
 						</View>
-					</View>
-				</KeyboardAvoidingView>
-			</Modal>
+					</KeyboardAvoidingView>
+				</Modal>
 
-			{/* Assistant Modal */}
-			<ReservationAssistantModal
-				visible={assistantVisible}
-				onClose={() => setAssistantVisible(false)}
-				result={assistantResult}
-				loading={assistantLoading}
-				onSelectAlternative={handleSelectAlternative}
-			/>
-		</>
-	);
-}
+				{/* Assistant Modal */}
+				<ReservationAssistantModal
+					visible={assistantVisible}
+					onClose={() => setAssistantVisible(false)}
+					result={assistantResult}
+					loading={assistantLoading}
+					onSelectAlternative={handleSelectAlternative}
+				/>
+			</>
+		);
+	}
 );
 
 NewReservationModal.displayName = "NewReservationModal";
