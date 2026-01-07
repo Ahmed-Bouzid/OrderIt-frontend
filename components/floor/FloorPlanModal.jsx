@@ -166,24 +166,37 @@ export default function FloorPlanModal({
 			return;
 		}
 
-		if (!editingTable || !editValue.trim()) return;
+		if (!editingTable || !editValue.trim()) {
+			Alert.alert("Erreur", "Veuillez entrer une valeur");
+			return;
+		}
 
 		try {
 			const updateData = {};
 			if (editMode === "number") {
-				updateData.number = editValue;
+				updateData.number = editValue.trim();
 			} else if (editMode === "capacity") {
-				updateData.capacity = parseInt(editValue);
+				const capacity = parseInt(editValue.trim());
+				if (isNaN(capacity) || capacity < 1 || capacity > 50) {
+					Alert.alert("Erreur", "La capacité doit être entre 1 et 50");
+					return;
+				}
+				updateData.capacity = capacity;
 			}
 
-			const response = await authFetch(`/tables/${editingTable._id}`, {
-				method: "PUT",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(updateData),
+			console.log("💾 [FLOOR] Sauvegarde table:", {
+				tableId: editingTable._id,
+				editMode,
+				updateData,
 			});
 
-			if (response.ok) {
-				const updatedTable = await response.json();
+			const updatedTable = await authFetch(`/tables/${editingTable._id}`, {
+				method: "PUT",
+				body: updateData, // ✅ authFetch gère JSON.stringify automatiquement
+			});
+
+			if (updatedTable) {
+				console.log("✅ [FLOOR] Table mise à jour:", updatedTable);
 				setTables((prev) =>
 					prev.map((t) => (t._id === editingTable._id ? updatedTable : t))
 				);
@@ -191,10 +204,11 @@ export default function FloorPlanModal({
 				setEditMode(null);
 				setEditValue("");
 			} else {
+				console.error("❌ [FLOOR] Pas de réponse valide");
 				Alert.alert("Erreur", "Modification impossible");
 			}
 		} catch (error) {
-			console.error("Erreur sauvegarde:", error);
+			console.error("❌ [FLOOR] Erreur sauvegarde:", error);
 			Alert.alert("Erreur", "Impossible de sauvegarder");
 		}
 	};
@@ -275,27 +289,37 @@ export default function FloorPlanModal({
 		if (isSimulation) return;
 
 		try {
+			// ⭐ Ne sauvegarder QUE les tables modifiées
+			const modifiedIds = Array.from(modifiedTableIds);
+
+			if (modifiedIds.length === 0) {
+				Alert.alert("Info", "Aucune modification à sauvegarder");
+				return;
+			}
+
 			const updates = displayTables
-				.filter((table) => table.position || table.size)
+				.filter((table) => modifiedIds.includes(table._id))
 				.map((table) => ({
 					id: table._id,
 					position: table.position,
 					size: table.size || 1,
 				}));
 
-			if (updates.length === 0) {
-				Alert.alert("Info", "Aucune position à sauvegarder");
-				return;
-			}
-
 			console.log("💾 Sauvegarde des positions:", updates);
 
 			// Appel API pour sauvegarder toutes les positions et tailles
 			for (const update of updates) {
-				await authFetch(`/tables/${update.id}`, {
+				const updatedTable = await authFetch(`/tables/${update.id}`, {
 					method: "PUT",
 					body: { position: update.position, size: update.size },
 				});
+
+				// ⭐ Mettre à jour le state local avec la table sauvegardée
+				if (updatedTable) {
+					setTables((prev) =>
+						prev.map((t) => (t._id === update.id ? updatedTable : t))
+					);
+				}
 			}
 
 			Alert.alert("Succès", `${updates.length} position(s) sauvegardée(s)`);

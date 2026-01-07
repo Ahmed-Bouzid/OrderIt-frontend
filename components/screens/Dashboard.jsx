@@ -352,6 +352,7 @@ export default function Dashboard() {
 			<DateNavigator
 				selectedDate={selectedDate}
 				onDateChange={setSelectedDate}
+				onAssignmentComplete={() => fetchReservations(true)}
 			/>
 
 			{/* Liste des réservations avec FlatList */}

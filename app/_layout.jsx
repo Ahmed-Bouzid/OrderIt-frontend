@@ -10,16 +10,11 @@ import { SocketProvider } from "../src/stores/SocketContext";
 export default function RootLayout() {
 	return (
 		<SocketProvider>
-			<Stack>
-				<Stack.Screen name="index" options={{ headerShown: false }} />
-				<Stack.Screen
-					name="login"
-					options={{
-						headerShown: false,
-						animationEnabled: false,
-					}}
-				/>
-				<Stack.Screen name="tabs" options={{ headerShown: false }} />
+			<Stack screenOptions={{ headerShown: false, animation: "none" }}>
+				<Stack.Screen name="index" />
+				<Stack.Screen name="login" />
+				<Stack.Screen name="developer-selector" />
+				<Stack.Screen name="tabs" />
 			</Stack>
 		</SocketProvider>
 	);

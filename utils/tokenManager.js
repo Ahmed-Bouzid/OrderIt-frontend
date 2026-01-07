@@ -1,15 +1,9 @@
-import {
-	getSecureItem,
-	setSecureItem,
-	deleteSecureItems,
-	SECURE_KEYS,
-} from "./secureStorage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../src/config/apiConfig";
 
 /**
- * 🔐 Token Manager - Gestion automatique des tokens JWT avec stockage sécurisé
+ * 🔐 Token Manager - Gestion automatique des tokens JWT
  * Gère le refresh automatique des tokens expirés
- * Utilise expo-secure-store pour chiffrer les tokens
  */
 
 const API_URL = API_CONFIG.baseURL;
@@ -20,8 +14,8 @@ const API_URL = API_CONFIG.baseURL;
 export async function getValidToken() {
 	try {
 		// Récupération sécurisée des tokens
-		let token = await getSecureItem(SECURE_KEYS.ACCESS_TOKEN);
-		const refreshToken = await getSecureItem(SECURE_KEYS.REFRESH_TOKEN);
+		let token = await AsyncStorage.getItem("@access_token");
+		const refreshToken = await AsyncStorage.getItem("refreshToken");
 
 		if (!token || !refreshToken) {
 			throw new Error("Pas de token disponible");
@@ -50,19 +44,19 @@ export async function getValidToken() {
 
 		if (newTokens) {
 			// Sauvegarder de manière sécurisée
-			await setSecureItem(SECURE_KEYS.ACCESS_TOKEN, newTokens.accessToken);
-			await setSecureItem(SECURE_KEYS.REFRESH_TOKEN, newTokens.refreshToken);
+			await AsyncStorage.setItem("@access_token", newTokens.accessToken);
+			await AsyncStorage.setItem("refreshToken", newTokens.refreshToken);
 			console.log("✅ Token rafraîchi avec succès");
 			return newTokens.accessToken;
 		}
 
 		// ⚠️ Refresh échoué : nettoyer et signaler l'échec
 		console.error("❌ Refresh échoué - tokens invalides");
-		await deleteSecureItems([
-			SECURE_KEYS.ACCESS_TOKEN,
-			SECURE_KEYS.REFRESH_TOKEN,
-			SECURE_KEYS.RESTAURANT_ID,
-			SECURE_KEYS.USER_ROLE,
+		await Promise.all([
+			AsyncStorage.removeItem("@access_token"),
+			AsyncStorage.removeItem("refreshToken"),
+			AsyncStorage.removeItem("restaurantId"),
+			AsyncStorage.removeItem("userRole"),
 		]);
 		throw new Error("Session expirée - refresh échoué");
 	} catch (error) {
@@ -153,12 +147,12 @@ export async function fetchWithAuth(url, options = {}) {
 
 			console.log("🔄 401/403 détecté sur GET, tentative de refresh...");
 
-			const refreshToken = await getSecureItem(SECURE_KEYS.REFRESH_TOKEN);
+			const refreshToken = await AsyncStorage.getItem("refreshToken");
 			const newTokens = await refreshAccessToken(refreshToken);
 
 			if (newTokens) {
-				await setSecureItem(SECURE_KEYS.ACCESS_TOKEN, newTokens.accessToken);
-				await setSecureItem(SECURE_KEYS.REFRESH_TOKEN, newTokens.refreshToken);
+				await AsyncStorage.setItem("@access_token", newTokens.accessToken);
+				await AsyncStorage.setItem("refreshToken", newTokens.refreshToken);
 
 				// Réessayer avec le nouveau token (GET uniquement)
 				const retryHeaders = {

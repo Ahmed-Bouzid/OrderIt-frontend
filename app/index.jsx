@@ -2,11 +2,7 @@ import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { getValidToken } from "../utils/tokenManager";
-import {
-	getSecureItem,
-	deleteSecureItem,
-	SECURE_KEYS,
-} from "../utils/secureStorage";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 
 export default function Index() {
 	const router = useRouter();
@@ -16,11 +12,11 @@ export default function Index() {
 		let mounted = true;
 		(async () => {
 			try {
-				// ✅ Récupérer les données depuis SecureStore (chiffré)
+				// ✅ Récupérer les données depuis AsyncStorage
 				const [token, userRole, restaurantId] = await Promise.all([
-					getSecureItem(SECURE_KEYS.ACCESS_TOKEN),
-					getSecureItem(SECURE_KEYS.USER_ROLE),
-					getSecureItem(SECURE_KEYS.RESTAURANT_ID),
+					AsyncStorage.getItem("@access_token"),
+					AsyncStorage.getItem("userRole"),
+					AsyncStorage.getItem("restaurantId"),
 				]);
 
 				if (!mounted) return;
@@ -36,14 +32,14 @@ export default function Index() {
 							"❌ Token invalide, redirection login:",
 							error.message
 						);
-						// ✅ Nettoyer SecureStore au lieu d'AsyncStorage
+						// ✅ Nettoyer AsyncStorage
 						await Promise.all([
-							deleteSecureItem(SECURE_KEYS.ACCESS_TOKEN),
-							deleteSecureItem(SECURE_KEYS.REFRESH_TOKEN),
-							deleteSecureItem(SECURE_KEYS.RESTAURANT_ID),
-							deleteSecureItem(SECURE_KEYS.USER_ROLE),
-							deleteSecureItem(SECURE_KEYS.SERVER_ID),
-							deleteSecureItem(SECURE_KEYS.TABLE_ID),
+							AsyncStorage.removeItem("@access_token"),
+							AsyncStorage.removeItem("refreshToken"),
+							AsyncStorage.removeItem("restaurantId"),
+							AsyncStorage.removeItem("userRole"),
+							AsyncStorage.removeItem("serverId"),
+							AsyncStorage.removeItem("tableId"),
 						]);
 						router.replace("/login");
 						return;

@@ -128,7 +128,9 @@ const AssignTableModal = React.memo(
 		const authFetch = useAuthFetch();
 
 		// ⭐ Tables avec disponibilité calculée
-		const [tablesWithAvailability, setTablesWithAvailability] = useState(tables || []);
+		const [tablesWithAvailability, setTablesWithAvailability] = useState(
+			tables || []
+		);
 		const [loadingTables, setLoadingTables] = useState(false);
 
 		// ⭐ Charger les tables avec disponibilité quand la modale s'ouvre
@@ -137,7 +139,10 @@ const AssignTableModal = React.memo(
 				if (!visible || !activeReservation) return;
 
 				// Si pas de date/heure dans la réservation, utiliser les tables par défaut
-				if (!activeReservation.reservationDate || !activeReservation.reservationTime) {
+				if (
+					!activeReservation.reservationDate ||
+					!activeReservation.reservationTime
+				) {
 					setTablesWithAvailability(tables || []);
 					return;
 				}
@@ -151,14 +156,16 @@ const AssignTableModal = React.memo(
 					}
 
 					// Formater la date en ISO
-					const dateISO = new Date(activeReservation.reservationDate).toISOString().split('T')[0];
+					const dateISO = new Date(activeReservation.reservationDate)
+						.toISOString()
+						.split("T")[0];
 					const time = activeReservation.reservationTime;
-					
+
 					console.log("🔄 [ASSIGN] Chargement disponibilité:", {
 						date: dateISO,
 						time,
 						restaurantId,
-						excludeReservationId: activeReservation._id
+						excludeReservationId: activeReservation._id,
 					});
 
 					const enrichedTables = await authFetch(
@@ -203,7 +210,9 @@ const AssignTableModal = React.memo(
 		if (!activeReservation || !visible) return null;
 
 		const safeOnClose = onClose || (() => {});
-		const safeTables = Array.isArray(tablesWithAvailability) ? tablesWithAvailability : [];
+		const safeTables = Array.isArray(tablesWithAvailability)
+			? tablesWithAvailability
+			: [];
 
 		// Séparer les tables par disponibilité
 		const availableTables = safeTables.filter(

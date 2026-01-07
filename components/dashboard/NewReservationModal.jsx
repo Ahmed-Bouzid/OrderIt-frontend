@@ -217,7 +217,9 @@ const NewReservationModal = React.memo(
 		const [errors, setErrors] = useState({});
 
 		// ⭐ Tables avec disponibilité calculée dynamiquement
-		const [tablesWithAvailability, setTablesWithAvailability] = useState(tables || []);
+		const [tablesWithAvailability, setTablesWithAvailability] = useState(
+			tables || []
+		);
 		const [loadingTables, setLoadingTables] = useState(false);
 
 		// ⭐ Assistant de réservations
@@ -229,7 +231,7 @@ const NewReservationModal = React.memo(
 		useEffect(() => {
 			const fetchTablesWithAvailability = async () => {
 				if (!visible) return;
-				
+
 				// Si pas de date/heure, utiliser les tables par défaut
 				if (!reservationDate || !reservationTime) {
 					setTablesWithAvailability(tables || []);
@@ -245,12 +247,12 @@ const NewReservationModal = React.memo(
 					}
 
 					// Formater la date en ISO
-					const dateISO = new Date(reservationDate).toISOString().split('T')[0];
-					
+					const dateISO = new Date(reservationDate).toISOString().split("T")[0];
+
 					console.log("🔄 [TABLES] Chargement disponibilité:", {
 						date: dateISO,
 						time: reservationTime,
-						restaurantId
+						restaurantId,
 					});
 
 					const enrichedTables = await authFetch(
@@ -769,7 +771,12 @@ const NewReservationModal = React.memo(
 												modalStyles={modalStyles}
 											>
 												{loadingTables ? (
-													<Text style={{ color: THEME.colors.text.secondary, fontSize: 12 }}>
+													<Text
+														style={{
+															color: THEME.colors.text.secondary,
+															fontSize: 12,
+														}}
+													>
 														Chargement des disponibilités...
 													</Text>
 												) : (

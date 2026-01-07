@@ -22,6 +22,7 @@ import useThemeStore, {
 } from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
 import useUserStore from "../../src/stores/useUserStore";
+import useDeveloperStore from "../../src/stores/useDeveloperStore";
 import {
 	ServerManagement,
 	MenuManagement,
@@ -43,6 +44,7 @@ export default function Settings() {
 		init: initUser,
 		clear: logoutUser,
 	} = useUserStore();
+	const { isDeveloper, selectedRestaurant } = useDeveloperStore();
 
 	// État pour la section active du menu
 	const [activeSection, setActiveSection] = useState("account");
@@ -78,12 +80,17 @@ export default function Settings() {
 				text: "Déconnecter",
 				onPress: async () => {
 					try {
-						// ⭐ Supprimer les tokens et données
-						await AsyncStorage.removeItem("@access_token");
-						await AsyncStorage.removeItem("refreshToken");
-						await AsyncStorage.removeItem("restaurantId");
-						await AsyncStorage.removeItem("activeReservationId");
-
+					// ⭐ Supprimer les tokens et données
+					await Promise.all([
+						AsyncStorage.removeItem("@access_token"),
+						AsyncStorage.removeItem("refreshToken"),
+						AsyncStorage.removeItem("restaurantId"),
+						AsyncStorage.removeItem("userRole"),
+						AsyncStorage.removeItem("email"),
+						AsyncStorage.removeItem("serverId"),
+						AsyncStorage.removeItem("tableId"),
+						AsyncStorage.removeItem("activeReservationId"),
+					]);
 						// 🧹 Vider le store utilisateur
 						logoutUser();
 
@@ -404,7 +411,30 @@ export default function Settings() {
 			case "account":
 				return (
 					<>
-						<Text style={settingsStyles.sectionHeaderText}>Compte</Text>
+						{/* ⭐ Section développeur */}
+						{isDeveloper && (
+							<View style={settingsStyles.developerCard}>
+								<View style={settingsStyles.developerHeader}>
+									<Ionicons name="code-slash" size={24} color="#f59e0b" />
+									<Text style={settingsStyles.developerTitle}>
+										Mode Développeur
+									</Text>
+								</View>
+								<Text style={settingsStyles.developerSubtitle}>
+									Restaurant actuel :{" "}
+									{selectedRestaurant?.name || "Non sélectionné"}
+								</Text>
+								<TouchableOpacity
+									style={settingsStyles.developerButton}
+									onPress={() => router.push("/developer-selector")}
+								>
+									<Ionicons name="swap-horizontal" size={18} color="#fff" />
+									<Text style={settingsStyles.developerButtonText}>
+										Changer de restaurant
+									</Text>
+								</TouchableOpacity>
+							</View>
+						)}
 
 						{/* Infos utilisateur */}
 						<View style={settingsStyles.infoCard}>
@@ -862,5 +892,44 @@ const createStyles = (THEME) =>
 			borderWidth: 1,
 			borderColor: THEME.colors.primary.amber,
 			backgroundColor: `${THEME.colors.primary.amber}15`,
+		},
+		// ⭐ Styles développeur
+		developerCard: {
+			backgroundColor: "#0a0e1a",
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.lg,
+			marginBottom: THEME.spacing.lg,
+			borderWidth: 2,
+			borderColor: "#f59e0b",
+		},
+		developerHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.md,
+			marginBottom: THEME.spacing.sm,
+		},
+		developerTitle: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: "700",
+			color: "#f59e0b",
+		},
+		developerSubtitle: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.muted,
+			marginBottom: THEME.spacing.md,
+		},
+		developerButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: THEME.spacing.sm,
+			backgroundColor: "#f59e0b",
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+		},
+		developerButtonText: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "600",
+			color: "#fff",
 		},
 	});

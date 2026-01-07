@@ -43,6 +43,20 @@ export const SocketProvider = ({ children }) => {
 
 	const setupSocket = useCallback(async () => {
 		try {
+			// ⭐ Vérifier si un restaurantId existe (mode développeur sans sélection)
+			const AsyncStorage = (
+				await import("@react-native-async-storage/async-storage")
+			).default;
+			const restaurantId = await AsyncStorage.getItem("restaurantId");
+
+			if (!restaurantId) {
+				console.log(
+					"ℹ️ Pas de restaurant sélectionné, socket non initialisé (mode développeur)"
+				);
+				setConnected(false);
+				return;
+			}
+
 			const socketInstance = await socketHook.connect();
 
 			if (socketInstance) {

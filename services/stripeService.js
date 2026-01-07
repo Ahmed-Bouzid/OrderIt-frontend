@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getValidToken } from "../utils/tokenManager";
 import { API_URL } from "../src/config/apiConfig";
 
 /**
@@ -18,7 +18,7 @@ class StripeService {
 	 * Récupère le token d'authentification
 	 */
 	async getAuthHeaders() {
-		const token = await AsyncStorage.getItem("@access_token");
+		const token = await getValidToken();
 		if (!token) {
 			throw new Error("Non authentifié");
 		}
