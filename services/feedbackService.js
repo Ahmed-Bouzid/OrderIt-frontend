@@ -34,8 +34,8 @@ class FeedbackService {
 	 */
 	async enrichLogsWithContext(logs) {
 		try {
-			const userId = await AsyncStorage.getItem("@user_id");
-			const restaurantId = await AsyncStorage.getItem("@restaurant_id");
+			const userId = await AsyncStorage.getItem("userId");
+			const restaurantId = await AsyncStorage.getItem("restaurantId");
 
 			return {
 				...logs,
