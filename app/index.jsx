@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { getValidToken } from "../utils/tokenManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { clearAllUserData } from "../utils/storageHelper";
 
 export default function Index() {
 	const router = useRouter();
@@ -32,15 +33,8 @@ export default function Index() {
 							"❌ Token invalide, redirection login:",
 							error.message
 						);
-						// ✅ Nettoyer AsyncStorage
-						await Promise.all([
-							AsyncStorage.removeItem("@access_token"),
-							AsyncStorage.removeItem("refreshToken"),
-							AsyncStorage.removeItem("restaurantId"),
-							AsyncStorage.removeItem("userRole"),
-							AsyncStorage.removeItem("serverId"),
-							AsyncStorage.removeItem("tableId"),
-						]);
+						// 🧹 Nettoyer TOUTES les données (AsyncStorage + UserStore)
+						await clearAllUserData();
 						router.replace("/login");
 						return;
 					}
