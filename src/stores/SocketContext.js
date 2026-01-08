@@ -63,11 +63,12 @@ export const SocketProvider = ({ children }) => {
 				setConnected(true);
 				attachAllListeners(socketInstance);
 
-				// ⭐ Écouter les reconnexions et réattacher les listeners
+				// ✅ Écouter les reconnexions (listeners survivent à la reconnexion)
 				socketInstance.on("connect", () => {
 					setConnected(true);
-					console.log("📡 Socket reconnecté, réattachement des listeners...");
-					attachAllListeners(socketInstance);
+					console.log("📡 Socket reconnecté");
+					// ✅ NE PAS réattacher : les listeners persistent entre reconnexions
+					// Réattacher causerait des doublons → memory leak
 				});
 			} else {
 				setConnected(false);
