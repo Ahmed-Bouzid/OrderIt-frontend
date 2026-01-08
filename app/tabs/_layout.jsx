@@ -5,19 +5,16 @@
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
-import { useRouter } from "expo-router";
 import {
 	View,
 	Text,
 	TouchableOpacity,
 	StyleSheet,
-	ActivityIndicator,
 	Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import Activity from "../../components/screens/Activity";
 import FloorScreen from "../../components/screens/Floor";
 import Settings from "../../components/screens/Settings";
@@ -75,11 +72,7 @@ const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
 TabButton.displayName = "TabButton";
 
 export default function TabsLayout() {
-	const router = useRouter();
 	const [activeTab, setActiveTab] = useState("activity");
-	const [isLoading, setIsLoading] = useState(true);
-	const [userLoggedIn, setUserLoggedIn] = useState(false);
-	const [token, setToken] = useState(null);
 	const { connect } = useSocket();
 
 	// ═══════════════════════════════════════════════════════════════════════
@@ -126,39 +119,16 @@ export default function TabsLayout() {
 		}
 	}, [activeTab, tabLayouts, isSliderReady, sliderTranslateX, sliderWidth]);
 
+	// ✅ Connecter WebSocket au montage (index.jsx gère déjà l'auth)
 	useEffect(() => {
-		const checkToken = async () => {
-			const storedToken = await AsyncStorage.getItem("@access_token");
-			const refreshToken = await AsyncStorage.getItem("refreshToken");
-			if (storedToken && refreshToken) {
-				setUserLoggedIn(true);
-				setToken(storedToken);
-			} else {
-				setUserLoggedIn(false);
-				setToken(null);
-			}
-			setIsLoading(false);
-		};
-		checkToken();
-	}, []);
-
-	useEffect(() => {
-		if (!isLoading && !userLoggedIn) {
-			router.replace("/login");
-		}
-	}, [isLoading, userLoggedIn, router]);
-
-	useEffect(() => {
-		if (token) {
-			connect();
-		}
-	}, [token, connect]);
+		connect();
+	}, [connect]);
 
 	const handleTabPress = useCallback(
 		(tabName) => {
 			setActiveTab(tabName);
 		},
-		[activeTab]
+		[]
 	);
 
 	const handleStart = useCallback(() => {}, []);
@@ -175,21 +145,6 @@ export default function TabsLayout() {
 				return null;
 		}
 	}, [activeTab, handleStart]);
-
-	if (isLoading) {
-		return (
-			<View style={tabStyles.loadingContainer}>
-				<LinearGradient
-					colors={[THEME.colors.background.dark, THEME.colors.background.card]}
-					style={StyleSheet.absoluteFill}
-				/>
-				<ActivityIndicator size="large" color={THEME.colors.primary.amber} />
-				<Text style={tabStyles.loadingText}>Chargement...</Text>
-			</View>
-		);
-	}
-
-	if (!userLoggedIn) return null;
 
 	return (
 		<SafeAreaView style={tabStyles.container}>
