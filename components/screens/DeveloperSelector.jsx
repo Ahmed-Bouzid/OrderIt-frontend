@@ -26,6 +26,7 @@ import useReservationStore from "../../src/stores/useReservationStore";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
 import { fetchWithAuth } from "../../utils/tokenManager";
+import { clearAllUserData } from "../../utils/storageHelper";
 
 export default function DeveloperSelector() {
 	const router = useRouter();
@@ -285,6 +286,192 @@ export default function DeveloperSelector() {
 		}
 	};
 
+	// Fonctions de suppression pour mode développeur
+	const handleLogout = async () => {
+		Alert.alert("Déconnexion", "Voulez-vous vous déconnecter ?", [
+			{ text: "Annuler", style: "cancel" },
+			{
+				text: "Déconnecter",
+				style: "destructive",
+				onPress: async () => {
+					await clearAllUserData();
+					router.replace("/login");
+				},
+			},
+		]);
+	};
+
+	const handleDeleteTables = async (restaurant) => {
+		Alert.alert(
+			"⚠️ Supprimer les tables",
+			`Supprimer toutes les tables de ${restaurant.name} ?\n\n${restaurant.stats?.tables || 0} table(s) seront supprimée(s).`,
+			[
+				{ text: "Annuler", style: "cancel" },
+				{
+					text: "Supprimer",
+					style: "destructive",
+					onPress: async () => {
+						try {
+							const API_URL = process.env.EXPO_PUBLIC_API_URL;
+							const response = await fetchWithAuth(
+								`${API_URL}/developer/restaurants/${restaurant._id}/tables`,
+								{ method: "DELETE" }
+							);
+
+							const data = await response.json();
+
+							if (response.ok) {
+								Alert.alert("✅ Succès", data.message);
+								// Refresh la liste
+								const refreshResponse = await fetchWithAuth(
+									`${API_URL}/developer/restaurants`
+								);
+								const refreshData = await refreshResponse.json();
+								if (refreshResponse.ok) {
+									await initDeveloper(refreshData.restaurants);
+								}
+							} else {
+								Alert.alert("❌ Erreur", data.message);
+							}
+						} catch (error) {
+							console.error("❌ Erreur suppression tables:", error);
+							Alert.alert("Erreur", "Impossible de supprimer les tables");
+						}
+					},
+				},
+			]
+		);
+	};
+
+	const handleDeleteEmployees = async (restaurant) => {
+		Alert.alert(
+			"⚠️ Supprimer les employés",
+			`Supprimer tous les employés de ${restaurant.name} ?\n\n${restaurant.stats?.servers || 0} employé(s) seront supprimé(s).`,
+			[
+				{ text: "Annuler", style: "cancel" },
+				{
+					text: "Supprimer",
+					style: "destructive",
+					onPress: async () => {
+						try {
+							const API_URL = process.env.EXPO_PUBLIC_API_URL;
+							const response = await fetchWithAuth(
+								`${API_URL}/developer/restaurants/${restaurant._id}/employees`,
+								{ method: "DELETE" }
+							);
+
+							const data = await response.json();
+
+							if (response.ok) {
+								Alert.alert("✅ Succès", data.message);
+								// Refresh la liste
+								const refreshResponse = await fetchWithAuth(
+									`${API_URL}/developer/restaurants`
+								);
+								const refreshData = await refreshResponse.json();
+								if (refreshResponse.ok) {
+									await initDeveloper(refreshData.restaurants);
+								}
+							} else {
+								Alert.alert("❌ Erreur", data.message);
+							}
+						} catch (error) {
+							console.error("❌ Erreur suppression employés:", error);
+							Alert.alert("Erreur", "Impossible de supprimer les employés");
+						}
+					},
+				},
+			]
+		);
+	};
+
+	const handleDeleteProducts = async (restaurant) => {
+		Alert.alert(
+			"⚠️ Supprimer les produits",
+			`Supprimer tous les produits de ${restaurant.name} ?\n\n${restaurant.stats?.products || 0} produit(s) seront supprimé(s).`,
+			[
+				{ text: "Annuler", style: "cancel" },
+				{
+					text: "Supprimer",
+					style: "destructive",
+					onPress: async () => {
+						try {
+							const API_URL = process.env.EXPO_PUBLIC_API_URL;
+							const response = await fetchWithAuth(
+								`${API_URL}/developer/restaurants/${restaurant._id}/products`,
+								{ method: "DELETE" }
+							);
+
+							const data = await response.json();
+
+							if (response.ok) {
+								Alert.alert("✅ Succès", data.message);
+								// Refresh la liste
+								const refreshResponse = await fetchWithAuth(
+									`${API_URL}/developer/restaurants`
+								);
+								const refreshData = await refreshResponse.json();
+								if (refreshResponse.ok) {
+									await initDeveloper(refreshData.restaurants);
+								}
+							} else {
+								Alert.alert("❌ Erreur", data.message);
+							}
+						} catch (error) {
+							console.error("❌ Erreur suppression produits:", error);
+							Alert.alert("Erreur", "Impossible de supprimer les produits");
+						}
+					},
+				},
+			]
+		);
+	};
+
+	const handleDeleteRestaurant = async (restaurant) => {
+		Alert.alert(
+			"🚨 SUPPRIMER LE RESTAURANT",
+			`ATTENTION : Cette action supprimera définitivement ${restaurant.name} et TOUTES ses données :\n\n• ${restaurant.stats?.tables || 0} tables\n• ${restaurant.stats?.servers || 0} employés\n• ${restaurant.stats?.products || 0} produits\n• ${restaurant.stats?.reservations || 0} réservations\n\nCette action est IRRÉVERSIBLE !`,
+			[
+				{ text: "Annuler", style: "cancel" },
+				{
+					text: "SUPPRIMER",
+					style: "destructive",
+					onPress: async () => {
+						try {
+							const API_URL = process.env.EXPO_PUBLIC_API_URL;
+							const response = await fetchWithAuth(
+								`${API_URL}/developer/restaurants/${restaurant._id}`,
+								{ method: "DELETE" }
+							);
+
+							const data = await response.json();
+
+							if (response.ok) {
+								Alert.alert(
+									"✅ Restaurant supprimé",
+									`${data.message}\n\nSupprimé :\n• ${data.deleted.tables} tables\n• ${data.deleted.employees} employés\n• ${data.deleted.products} produits\n• ${data.deleted.reservations} réservations`
+								);
+								// Refresh la liste
+								const refreshResponse = await fetchWithAuth(
+									`${API_URL}/developer/restaurants`
+								);
+								const refreshData = await refreshResponse.json();
+								if (refreshResponse.ok) {
+									await initDeveloper(refreshData.restaurants);
+								}
+							} else {
+								Alert.alert("❌ Erreur", data.message);
+							}
+						} catch (error) {
+							console.error("❌ Erreur suppression restaurant:", error);
+							Alert.alert("Erreur", "Impossible de supprimer le restaurant");
+						}
+					},
+				},
+			]
+		);
+	};
+
 	const renderRestaurant = ({ item }) => (
 		<View
 			style={[
@@ -426,6 +613,63 @@ export default function DeveloperSelector() {
 				</View>
 			</TouchableOpacity>
 
+			{/* Boutons de suppression */}
+			<View style={styles.planAndActions}>
+				{/* Formule d'abonnement */}
+				{item.subscriptionPlan && (
+					<View
+						style={[
+							styles.planBadge,
+							{
+								backgroundColor:
+									item.subscriptionPlan === "free"
+										? "#94a3b8"
+										: item.subscriptionPlan === "starter"
+										? "#3b82f6"
+										: item.subscriptionPlan === "pro"
+										? "#f59e0b"
+										: "#8b5cf6",
+							},
+						]}
+					>
+						<Text style={styles.planText}>
+							{item.subscriptionPlan.toUpperCase()}
+						</Text>
+					</View>
+				)}
+
+				{/* Boutons d'action destructifs */}
+				<View style={styles.deleteIcons}>
+					<TouchableOpacity
+						style={styles.iconButton}
+						onPress={() => handleDeleteTables(item)}
+					>
+						<Ionicons name="grid-outline" size={18} color="#ef4444" />
+					</TouchableOpacity>
+
+					<TouchableOpacity
+						style={styles.iconButton}
+						onPress={() => handleDeleteEmployees(item)}
+					>
+						<Ionicons name="people-outline" size={18} color="#f97316" />
+					</TouchableOpacity>
+
+					<TouchableOpacity
+						style={styles.iconButton}
+						onPress={() => handleDeleteProducts(item)}
+					>
+						<Ionicons name="fast-food-outline" size={18} color="#ea580c" />
+					</TouchableOpacity>
+
+					<TouchableOpacity
+						style={styles.iconButton}
+						onPress={() => handleDeleteRestaurant(item)}
+					>
+						<Ionicons name="trash-outline" size={18} color="#dc2626" />
+					</TouchableOpacity>
+				</View>
+			</View>
+
 			{/* Toggle activation */}
 			<View style={styles.toggleContainer}>
 				<Text
@@ -486,6 +730,17 @@ export default function DeveloperSelector() {
 
 				{/* Boutons d'action */}
 				<View style={styles.actionButtons}>
+					<TouchableOpacity
+						style={[
+							styles.actionButton,
+							{ backgroundColor: theme === "dark" ? "#ef4444" : "#dc2626" },
+						]}
+						onPress={handleLogout}
+					>
+						<Ionicons name="log-out" size={20} color="#fff" />
+						<Text style={styles.actionButtonText}>Déconnexion</Text>
+					</TouchableOpacity>
+
 					<TouchableOpacity
 						style={[
 							styles.actionButton,
@@ -1123,12 +1378,33 @@ const styles = StyleSheet.create({
 		paddingVertical: 6,
 		borderRadius: 12,
 		alignSelf: "flex-start",
-		marginTop: 8,
 	},
 	planText: {
 		color: "#fff",
 		fontSize: 11,
 		fontWeight: "700",
 		letterSpacing: 0.5,
+	},
+	planAndActions: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		marginTop: 12,
+		paddingTop: 12,
+		borderTopWidth: 1,
+		borderTopColor: "rgba(100,116,139,0.15)",
+	},
+	deleteIcons: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+	},
+	iconButton: {
+		width: 36,
+		height: 36,
+		borderRadius: 8,
+		backgroundColor: "rgba(0,0,0,0.05)",
+		alignItems: "center",
+		justifyContent: "center",
 	},
 });
