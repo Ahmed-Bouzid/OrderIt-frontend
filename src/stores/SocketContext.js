@@ -10,6 +10,7 @@ import React, {
 	useState,
 	useCallback,
 } from "react";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import useSocket from "../../hooks/useSocket";
 import useReservationStore from "./useReservationStore";
 import useProductStore from "./useProductStore";
@@ -44,9 +45,6 @@ export const SocketProvider = ({ children }) => {
 	const setupSocket = useCallback(async () => {
 		try {
 			// ⭐ Vérifier si un restaurantId existe (mode développeur sans sélection)
-			const AsyncStorage = (
-				await import("@react-native-async-storage/async-storage")
-			).default;
 			const restaurantId = await AsyncStorage.getItem("restaurantId");
 
 			if (!restaurantId) {
