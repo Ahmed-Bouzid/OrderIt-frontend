@@ -95,16 +95,11 @@ export const useServerStore = create((set, get) => ({
 				},
 			});
 
-			// Token invalide - juste retourner une erreur
-			if (response.status === 401 || response.status === 403) {
-				console.log("🔒 Token expiré ou invalide");
-				await AsyncStorage.removeItem("@access_token"); // Nettoyer le token
-				return {
-					success: false,
-					error: "INVALID_TOKEN",
-					message: "Session expirée",
-				};
-			}
+                        // Token invalide - throw error
+                        if (response.status === 401 || response.status === 403) {
+                                console.log("🔒 Token expiré ou invalide");
+                                throw new Error("Session expirée");
+                        }
 
 			if (!response.ok) {
 				const text = await response.text();

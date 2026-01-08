@@ -23,6 +23,7 @@ import useThemeStore, {
 import { useTheme } from "../../hooks/useTheme";
 import useUserStore from "../../src/stores/useUserStore";
 import useDeveloperStore from "../../src/stores/useDeveloperStore";
+import { clearAllUserData } from "../../utils/storageHelper";
 import {
 	ServerManagement,
 	MenuManagement,
@@ -80,19 +81,8 @@ export default function Settings() {
 				text: "Déconnecter",
 				onPress: async () => {
 					try {
-					// ⭐ Supprimer les tokens et données
-					await Promise.all([
-						AsyncStorage.removeItem("@access_token"),
-						AsyncStorage.removeItem("refreshToken"),
-						AsyncStorage.removeItem("restaurantId"),
-						AsyncStorage.removeItem("userRole"),
-						AsyncStorage.removeItem("email"),
-						AsyncStorage.removeItem("serverId"),
-						AsyncStorage.removeItem("tableId"),
-						AsyncStorage.removeItem("activeReservationId"),
-					]);
-						// 🧹 Vider le store utilisateur
-						logoutUser();
+					// ⭐ Nettoyage centralisé
+					await clearAllUserData();
 
 						// 🧭 Redirection vers la connexion
 						router.replace("/login");

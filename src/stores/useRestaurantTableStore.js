@@ -93,11 +93,8 @@ const useTableStore = create((set, get) => ({
 			);
 
 			if (response.status === 401 || response.status === 403) {
-				console.log("🔒 Token expiré ou invalide — redirection vers Login");
-				await AsyncStorage.removeItem("@access_token");
-				set({ isLoading: false });
-				RootNavigation.navigate("Login");
-				return;
+				console.log("🔒 Token expiré ou invalide");
+				throw new Error("Session expirée");
 			}
 
 			if (!response.ok) {

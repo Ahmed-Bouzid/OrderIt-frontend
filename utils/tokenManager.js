@@ -52,12 +52,7 @@ export async function getValidToken() {
 
 		// ⚠️ Refresh échoué : nettoyer et signaler l'échec
 		console.error("❌ Refresh échoué - tokens invalides");
-		await Promise.all([
-			AsyncStorage.removeItem("@access_token"),
-			AsyncStorage.removeItem("refreshToken"),
-			AsyncStorage.removeItem("restaurantId"),
-			AsyncStorage.removeItem("userRole"),
-		]);
+		await clearAllUserData();
 		throw new Error("Session expirée - refresh échoué");
 	} catch (error) {
 		console.error("❌ Erreur getValidToken:", error);

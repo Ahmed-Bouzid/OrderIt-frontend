@@ -106,15 +106,10 @@ const useReservationStore = create((set, get) => ({
 				});
 
 				// 🔹 si le token est invalide ou expiré
-				if (response.status === 401 || response.status === 403) {
-					console.log("🔒 Token expiré ou invalide");
-					await AsyncStorage.removeItem("@access_token");
-					return {
-						success: false,
-						error: "INVALID_TOKEN",
-						message: "Session expirée",
-					};
-				}
+			if (response.status === 401 || response.status === 403) {
+				console.log("🔒 Token expiré ou invalide");
+				throw new Error("Session expirée");
+			}
 
 				if (!response.ok) {
 					const text = await response.text();
