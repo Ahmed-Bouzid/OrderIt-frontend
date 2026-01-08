@@ -155,13 +155,8 @@ export default function Login() {
 						"⚠️ restaurantId non trouvé dans la réponse du backend",
 						data
 					);
-				} else {
-					await AsyncStorage.setItem("restaurantId", restaurantId);
-					setRestaurantId(restaurantId); // 🔹 assignation immédiate dans le store
-				}
-
-				// ✅ Stocker serverId et tableId si présents (serveur uniquement)
-				if (data.serverId) {
+				// Nettoyer l'ancien restaurantId (important pour mode développeur)
+				await AsyncStorage.removeItem("restaurantId");
 					await AsyncStorage.setItem("serverId", data.serverId);
 					console.log("✅ serverId sauvegardé:", data.serverId);
 				}
