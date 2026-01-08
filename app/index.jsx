@@ -1,13 +1,13 @@
-import React, { useEffect } from "react";
+import React, { useEffect, useState } from "react";
 import { View, ActivityIndicator } from "react-native";
-import { useRouter } from "expo-router";
+import { Redirect } from "expo-router";
 import { getValidToken } from "../utils/tokenManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getItem as getSecureItem, migrateAllSecureKeys } from "../utils/secureStorage";
 import { clearAllUserData } from "../utils/storageHelper";
 
 export default function Index() {
-	const router = useRouter();
+	const [destination, setDestination] = useState(null);
 
 	useEffect(() => {
 		let mounted = true;
@@ -28,10 +28,10 @@ export default function Index() {
 
 				// ✅ Récupérer les données (tokens depuis SecureStore, autres depuis AsyncStorage)
 				const [token, userRole, restaurantId] = await Promise.all([
-					getSecureItem("@access_token"), // 🔐 SecureStore
-					AsyncStorage.getItem("userRole"), // 📦 AsyncStorage
-					AsyncStorage.getItem("restaurantId"), // 📦 AsyncStorage
-				]);
+getSecureItem("@access_token"), // 🔐 SecureStore
+AsyncStorage.getItem("userRole"), // 📦 AsyncStorage
+AsyncStorage.getItem("restaurantId"), // �� AsyncStorage
+]);
 
 				if (!mounted) return;
 
@@ -43,40 +43,45 @@ export default function Index() {
 					} catch (error) {
 						// Token invalide/expiré et refresh échoué → forcer login
 						console.error(
-							"❌ Token invalide, redirection login:",
-							error.message
-						);
+"❌ Token invalide, redirection login:",
+error.message
+);
 						// 🧹 Nettoyer TOUTES les données (AsyncStorage + UserStore)
 						await clearAllUserData();
-						router.replace("/login");
+						setDestination("/login");
 						return;
 					}
 
 					// ⭐ Si développeur sans restaurant sélectionné → developer-selector
 					if (userRole === "developer" && !restaurantId) {
-						router.replace("/developer-selector");
+						setDestination("/developer-selector");
 					} else {
 						// Redirige vers l'onglet Activité
-						router.replace("/tabs/activity");
-					}
-				} else {
-					router.replace("/login");
-				}
-			} catch (e) {
-				console.error("❌ Erreur index routing:", e);
-				router.replace("/login");
-			}
-		})();
+setDestination("/tabs/activity");
+}
+} else {
+setDestination("/login");
+}
+} catch (e) {
+console.error("❌ Erreur index routing:", e);
+setDestination("/login");
+}
+})();
 
-		return () => {
-			mounted = false;
-		};
-	}, [router]);
+return () => {
+mounted = false;
+};
+}, []);
 
-	// Toujours afficher le loader, jamais null (évite les problèmes de navigation)
-	return (
-		<View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0C0F17" }}>
-			<ActivityIndicator size="large" color="#F59E0B" />
-		</View>
-	);
+// Si destination déterminée, rediriger avec Redirect (vrai remplacement)
+if (destination) {
+return <Redirect href={destination} />;
+}
+
+// Sinon afficher le loader
+return (
+<View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0C0F17" }}>
+<ActivityIndicator size="large" color="#F59E0B" />
+</View>
+);
 }
