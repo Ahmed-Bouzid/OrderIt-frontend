@@ -207,8 +207,8 @@ export default function Login() {
 					category: data.category,
 				});
 
-				// 🧭 Redirection directe vers tabs (évite la boucle via index)
-				router.replace("/tabs/activity");
+			// 🧭 Redirection vers index qui gérera la vraie navigation
+			router.replace("/");
 			} else {
 				Alert.alert("Erreur", data.message || "Identifiants invalides");
 			}

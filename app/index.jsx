@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect } from "react";
 import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { getValidToken } from "../utils/tokenManager";
@@ -8,7 +8,6 @@ import { clearAllUserData } from "../utils/storageHelper";
 
 export default function Index() {
 	const router = useRouter();
-	const [checking, setChecking] = useState(true);
 
 	useEffect(() => {
 		let mounted = true;
@@ -66,8 +65,6 @@ export default function Index() {
 			} catch (e) {
 				console.error("❌ Erreur index routing:", e);
 				router.replace("/login");
-			} finally {
-				if (mounted) setChecking(false);
 			}
 		})();
 
@@ -76,13 +73,10 @@ export default function Index() {
 		};
 	}, [router]);
 
-	if (checking) {
-		return (
-			<View style={{ flex: 1, justifyContent: "center", alignItems: "center" }}>
-				<ActivityIndicator size="large" />
-			</View>
-		);
-	}
-
-	return null;
+	// Toujours afficher le loader, jamais null (évite les problèmes de navigation)
+	return (
+		<View style={{ flex: 1, justifyContent: "center", alignItems: "center", backgroundColor: "#0C0F17" }}>
+			<ActivityIndicator size="large" color="#F59E0B" />
+		</View>
+	);
 }
