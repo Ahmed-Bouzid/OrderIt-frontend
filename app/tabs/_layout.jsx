@@ -124,12 +124,9 @@ export default function TabsLayout() {
 		connect();
 	}, [connect]);
 
-	const handleTabPress = useCallback(
-		(tabName) => {
-			setActiveTab(tabName);
-		},
-		[]
-	);
+	const handleTabPress = useCallback((tabName) => {
+		setActiveTab(tabName);
+	}, []);
 
 	const handleStart = useCallback(() => {}, []);
 

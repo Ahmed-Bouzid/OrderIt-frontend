@@ -500,8 +500,8 @@ export default function DeveloperSelector() {
 										? "rgba(16,185,129,0.2)"
 										: "rgba(16,185,129,0.1)"
 									: theme === "dark"
-									? "rgba(239,68,68,0.2)"
-									: "rgba(239,68,68,0.1)",
+										? "rgba(239,68,68,0.2)"
+										: "rgba(239,68,68,0.1)",
 							},
 						]}
 					>
@@ -603,10 +603,10 @@ export default function DeveloperSelector() {
 									item.subscriptionPlan === "free"
 										? "#94a3b8"
 										: item.subscriptionPlan === "starter"
-										? "#3b82f6"
-										: item.subscriptionPlan === "pro"
-										? "#f59e0b"
-										: "#8b5cf6",
+											? "#3b82f6"
+											: item.subscriptionPlan === "pro"
+												? "#f59e0b"
+												: "#8b5cf6",
 							},
 						]}
 					>

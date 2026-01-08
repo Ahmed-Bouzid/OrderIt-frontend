@@ -95,11 +95,11 @@ export const useServerStore = create((set, get) => ({
 				},
 			});
 
-                        // Token invalide - throw error
-                        if (response.status === 401 || response.status === 403) {
-                                console.log("🔒 Token expiré ou invalide");
-                                throw new Error("Session expirée");
-                        }
+			// Token invalide - throw error
+			if (response.status === 401 || response.status === 403) {
+				console.log("🔒 Token expiré ou invalide");
+				throw new Error("Session expirée");
+			}
 
 			if (!response.ok) {
 				const text = await response.text();

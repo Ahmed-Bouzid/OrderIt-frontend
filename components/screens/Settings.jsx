@@ -81,8 +81,8 @@ export default function Settings() {
 				text: "Déconnecter",
 				onPress: async () => {
 					try {
-					// ⭐ Nettoyage centralisé
-					await clearAllUserData();
+						// ⭐ Nettoyage centralisé
+						await clearAllUserData();
 
 						// 🧭 Redirection vers la connexion
 						router.replace("/login");
