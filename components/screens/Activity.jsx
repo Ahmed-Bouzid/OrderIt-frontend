@@ -28,6 +28,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../src/stores/useThemeStore";
+import { reservationService } from "../../shared-api/services/reservationService";
 import useTableStore from "../../src/stores/useRestaurantTableStore";
 import useReservationStore from "../../src/stores/useReservationStore";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
@@ -633,8 +634,6 @@ export default function Activity() {
 				// ⭐ D'abord, marquer tous les items non finalisés comme "served"
 				await finalizeReservationItems(reservationId, "served");
 
-				const { reservationService } =
-					await import("../../shared-api/services/reservationService");
 				await reservationService.closeReservation(reservationId);
 
 				// ⭐ Fermer la modale principale en mettant activeId à null
