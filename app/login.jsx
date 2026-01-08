@@ -157,29 +157,41 @@ export default function Login() {
 					);
 				// Nettoyer l'ancien restaurantId (important pour mode développeur)
 				await AsyncStorage.removeItem("restaurantId");
-					await AsyncStorage.setItem("serverId", data.serverId);
-					console.log("✅ serverId sauvegardé:", data.serverId);
-				}
-				if (data.tableId) {
-					await AsyncStorage.setItem("tableId", data.tableId);
-					console.log("✅ tableId sauvegardé:", data.tableId);
-				}
+			} else {
+				await AsyncStorage.setItem("restaurantId", restaurantId);
+				setRestaurantId(restaurantId); // 🔹 assignation immédiate dans le store
+			}
 
-				// ✅ Stocker les infos utilisateur (role, userType)
-				await setUser({
-					userId: data.userId,
-					email: data.email,
-					role: data.role,
-					userType: data.userType,
-					restaurantId: restaurantId,
-				});
-				console.log("✅ User info stocké:", {
-					role: data.role,
-					userType: data.userType,
-				});
+			// ✅ Stocker serverId et tableId si présents (serveur uniquement)
+			if (data.serverId) {
+				await AsyncStorage.setItem("serverId", data.serverId);
+				console.log("✅ serverId sauvegardé:", data.serverId);
+			} else {
+				await AsyncStorage.removeItem("serverId");
+			}
+			
+			if (data.tableId) {
+				await AsyncStorage.setItem("tableId", data.tableId);
+				console.log("✅ tableId sauvegardé:", data.tableId);
+			} else {
+				await AsyncStorage.removeItem("tableId");
+			}
 
-				// 🧭 Redirection vers l'écran principal
-				router.replace("/tabs/activity");
+			// ✅ Stocker les infos utilisateur (role, userType)
+			await setUser({
+				userId: data.userId,
+				email: data.email,
+				role: data.role,
+				userType: data.userType,
+				restaurantId: restaurantId,
+			});
+			console.log("✅ User info stocké:", {
+				role: data.role,
+				userType: data.userType,
+			});
+
+			// 🧭 Redirection vers l'écran principal
+			router.replace("/");
 			} else {
 				Alert.alert("Erreur", data.message || "Identifiants invalides");
 			}
