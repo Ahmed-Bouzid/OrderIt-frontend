@@ -206,7 +206,14 @@ export default function Login() {
 					userType: data.userType,
 					category: data.category,
 				});
-
+			// ⏳ Attendre que TOUS les tokens soient bien écrits avant de naviguer
+			const verifyToken = await getSecureItem("@access_token");
+			if (!verifyToken) {
+				console.error("❌ CRITICAL: Token non sauvegardé après login !");
+				Alert.alert("Erreur", "Problème de sauvegarde des identifiants");
+				return;
+			}
+			console.log("✅ Token vérifié présent, navigation...");
 			// 🧭 Redirection vers index qui gérera la vraie navigation
 			router.replace("/");
 			} else {
