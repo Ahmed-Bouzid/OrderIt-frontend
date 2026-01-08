@@ -1,4 +1,4 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem, setItem } from "./secureStorage";
 import { API_CONFIG } from "../src/config/apiConfig";
 
 /**
@@ -13,9 +13,9 @@ const API_URL = API_CONFIG.baseURL;
  */
 export async function getValidToken() {
 	try {
-		// Récupération sécurisée des tokens
-		let token = await AsyncStorage.getItem("@access_token");
-		const refreshToken = await AsyncStorage.getItem("refreshToken");
+		// Récupération sécurisée des tokens (SecureStore)
+		let token = await getItem("@access_token");
+		const refreshToken = await getItem("refreshToken");
 
 		if (!token || !refreshToken) {
 			throw new Error("Pas de token disponible");
@@ -43,9 +43,9 @@ export async function getValidToken() {
 		const newTokens = await refreshAccessToken(refreshToken);
 
 		if (newTokens) {
-			// Sauvegarder de manière sécurisée
-			await AsyncStorage.setItem("@access_token", newTokens.accessToken);
-			await AsyncStorage.setItem("refreshToken", newTokens.refreshToken);
+			// Sauvegarder de manière sécurisée (SecureStore)
+			await setItem("@access_token", newTokens.accessToken);
+			await setItem("refreshToken", newTokens.refreshToken);
 			console.log("✅ Token rafraîchi avec succès");
 			return newTokens.accessToken;
 		}
@@ -184,12 +184,12 @@ export async function fetchWithAuth(url, options = {}) {
 
 			console.log("🔄 401/403 détecté sur GET, tentative de refresh...");
 
-			const refreshToken = await AsyncStorage.getItem("refreshToken");
+			const refreshToken = await getItem("refreshToken");
 			const newTokens = await refreshAccessToken(refreshToken);
 
 			if (newTokens) {
-				await AsyncStorage.setItem("@access_token", newTokens.accessToken);
-				await AsyncStorage.setItem("refreshToken", newTokens.refreshToken);
+				await setItem("@access_token", newTokens.accessToken);
+				await setItem("refreshToken", newTokens.refreshToken);
 
 				// Réessayer avec le nouveau token (GET uniquement)
 				const retryHeaders = {

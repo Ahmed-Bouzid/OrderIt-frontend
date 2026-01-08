@@ -14,6 +14,7 @@ import {
 	Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { setItem as setSecureItem, getItem as getSecureItem } from "../utils/secureStorage";
 import { useRouter } from "expo-router";
 import { create } from "zustand";
 import useUserStore from "../src/stores/useUserStore";
@@ -131,19 +132,18 @@ export default function Login() {
 			console.log("Réponse backend login :", data); // 🔹 debug
 
 			if (res.ok) {
-				// ✅ Stocker le token d'accès
-				await AsyncStorage.setItem("@access_token", data.accessToken);
-
-				// ✅ Stocker le refresh token (TRÈS IMPORTANT pour la continuité de session)
-				if (data.refreshToken) {
-					await AsyncStorage.setItem("refreshToken", data.refreshToken);
-					console.log("✅ RefreshToken sauvegardé en AsyncStorage");
+			// ✅ Stocker le token d'accès (SecureStore)
+			await setSecureItem("@access_token", data.accessToken);
+// ✅ Stocker le refresh token (SecureStore - TRÈS IMPORTANT pour la continuité de session)
+			if (data.refreshToken) {
+				await setSecureItem("refreshToken", data.refreshToken);
+				console.log("✅ RefreshToken sauvegardé en SecureStore");
 
 					// ⭐ Vérifier immédiatement que c'est bien sauvegardé
-					const saved = await AsyncStorage.getItem("refreshToken");
-					if (saved) {
-						console.log(
-							"✅✅ Vérification: RefreshToken présent en AsyncStorage"
+				const saved = await getSecureItem("refreshToken");
+				if (saved) {
+					console.log(
+						"✅✅ Vérification: RefreshToken présent en SecureStore"
 						);
 					} else {
 						console.error(

@@ -3,6 +3,7 @@ import { View, ActivityIndicator } from "react-native";
 import { useRouter } from "expo-router";
 import { getValidToken } from "../utils/tokenManager";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem, migrateAllSecureKeys } from "../utils/secureStorage";
 import { clearAllUserData } from "../utils/storageHelper";
 
 export default function Index() {
@@ -13,11 +14,24 @@ export default function Index() {
 		let mounted = true;
 		(async () => {
 			try {
-				// ✅ Récupérer les données depuis AsyncStorage
+				// 🔄 Migration automatique AsyncStorage → SecureStore (première fois uniquement)
+				try {
+					const alreadyMigrated = await AsyncStorage.getItem("secureStoreMigrated");
+					if (!alreadyMigrated) {
+						console.log("🔄 Première exécution, migration SecureStore...");
+						await migrateAllSecureKeys();
+						await AsyncStorage.setItem("secureStoreMigrated", "true");
+						console.log("✅ Migration SecureStore terminée");
+					}
+				} catch (migrationError) {
+					console.warn("⚠️ Erreur migration SecureStore (non-bloquant):", migrationError.message);
+				}
+
+				// ✅ Récupérer les données (tokens depuis SecureStore, autres depuis AsyncStorage)
 				const [token, userRole, restaurantId] = await Promise.all([
-					AsyncStorage.getItem("@access_token"),
-					AsyncStorage.getItem("userRole"),
-					AsyncStorage.getItem("restaurantId"),
+					getSecureItem("@access_token"), // 🔐 SecureStore
+					AsyncStorage.getItem("userRole"), // 📦 AsyncStorage
+					AsyncStorage.getItem("restaurantId"), // 📦 AsyncStorage
 				]);
 
 				if (!mounted) return;

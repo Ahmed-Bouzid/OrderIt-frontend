@@ -1,29 +1,30 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { multiRemove } from "./secureStorage";
 import useUserStore from "../src/stores/useUserStore";
 
 /**
  * 🧹 Nettoie TOUTES les données utilisateur (tokens + infos)
  * À utiliser lors de la déconnexion ou session expirée
+ * ✅ Utilise secureStorage qui route automatiquement SecureStore vs AsyncStorage
  */
 export async function clearAllUserData() {
 	const keys = [
-		"@access_token",
-		"refreshToken",
-		"restaurantId",
-		"userRole",
-		"userId",
-		"userEmail",
-		"userType",
-		"category",
-		"serverId",
-		"tableId",
-		"activeReservationId",
+		"@access_token", // 🔐 SecureStore
+		"refreshToken", // 🔐 SecureStore
+		"restaurantId", // 📦 AsyncStorage
+		"userRole", // 📦 AsyncStorage
+		"userId", // 📦 AsyncStorage
+		"userEmail", // 📦 AsyncStorage
+		"userType", // 📦 AsyncStorage
+		"category", // 📦 AsyncStorage
+		"serverId", // 📦 AsyncStorage
+		"tableId", // 📦 AsyncStorage
+		"activeReservationId", // 📦 AsyncStorage
 	];
 
 	try {
-		// Nettoyer AsyncStorage
-		await AsyncStorage.multiRemove(keys);
-		console.log("✅ AsyncStorage nettoyé");
+		// Nettoyer SecureStore + AsyncStorage via wrapper
+		await multiRemove(keys);
+		console.log("✅ SecureStore + AsyncStorage nettoyés");
 
 		// Vider le store Zustand
 		useUserStore.getState().clear();
