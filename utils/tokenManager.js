@@ -79,36 +79,78 @@ function isTokenExpired(token) {
 
 /**
  * Appelle l'API /refresh pour obtenir de nouveaux tokens
+ * Avec timeout et retry sur erreur réseau
  */
-async function refreshAccessToken(refreshToken) {
-	try {
-		const response = await fetch(`${API_URL}/auth/refresh`, {
-			method: "POST",
-			headers: {
-				"Content-Type": "application/json",
-			},
-			body: JSON.stringify({ refreshToken }),
-		});
+async function refreshAccessToken(refreshToken, retries = 2) {
+	for (let attempt = 0; attempt <= retries; attempt++) {
+		try {
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 10000); // ✅ 10s timeout
 
-		if (!response.ok) {
-			console.error("❌ Refresh failed:", response.status);
+			const response = await fetch(`${API_URL}/auth/refresh`, {
+				method: "POST",
+				headers: {
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ refreshToken }),
+				signal: controller.signal,
+			});
+
+			clearTimeout(timeoutId);
+
+			// ❌ Si 401/403 → token invalide (pas de retry)
+			if (response.status === 401 || response.status === 403) {
+				console.error("❌ Refresh token invalide (pas de retry)");
+				return null;
+			}
+
+			// ❌ Si 500/502/503 → erreur serveur (retry possible)
+			if (!response.ok) {
+				if (attempt < retries) {
+					const delay = Math.pow(2, attempt) * 1000; // Backoff: 1s, 2s
+					console.warn(
+						`⚠️ Refresh échec (tentative ${attempt + 1}/${
+							retries + 1
+						}), retry dans ${delay}ms`
+					);
+					await new Promise((resolve) => setTimeout(resolve, delay));
+					continue;
+				}
+				console.error("❌ Refresh échoué après", retries, "tentatives");
+				return null;
+			}
+
+			const data = await response.json();
+
+			if (data.accessToken && data.refreshToken) {
+				return {
+					accessToken: data.accessToken,
+					refreshToken: data.refreshToken,
+				};
+			}
+
+			return null;
+		} catch (error) {
+			if (error.name === "AbortError") {
+				console.warn(
+					`⚠️ Refresh timeout (tentative ${attempt + 1}/${retries + 1})`
+				);
+				if (attempt < retries) {
+					await new Promise((resolve) => setTimeout(resolve, 1000));
+					continue;
+				}
+			}
+
+			console.error(
+				"❌ Erreur refresh après",
+				retries,
+				"tentatives:",
+				error.message
+			);
 			return null;
 		}
-
-		const data = await response.json();
-
-		if (data.accessToken && data.refreshToken) {
-			return {
-				accessToken: data.accessToken,
-				refreshToken: data.refreshToken,
-			};
-		}
-
-		return null;
-	} catch (error) {
-		console.error("❌ Erreur refresh token:", error);
-		return null;
 	}
+	return null;
 }
 
 /**
