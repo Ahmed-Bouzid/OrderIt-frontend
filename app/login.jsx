@@ -197,8 +197,8 @@ export default function Login() {
 					userType: data.userType,
 				});
 
-				// 🧭 Redirection vers l'écran principal
-				router.replace("/");
+				// 🧭 Redirection directe vers tabs (évite la boucle via index)
+				router.replace("/tabs/activity");
 			} else {
 				Alert.alert("Erreur", data.message || "Identifiants invalides");
 			}

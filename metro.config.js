@@ -3,11 +3,12 @@ const path = require("path");
 
 const config = getDefaultConfig(__dirname);
 
-config.watchFolders = [...config.watchFolders, "../shared-api"];
+// Ne pas ajouter shared-api dans watchFolders pour éviter les erreurs Watchman
+// config.watchFolders = [...config.watchFolders, "./shared-api"];
 
 config.resolver.extraNodeModules = {
 	...config.resolver.extraNodeModules,
-	"shared-api": path.resolve(__dirname, "../shared-api"),
+	"shared-api": path.resolve(__dirname, "./shared-api"),
 };
 
 module.exports = config;
