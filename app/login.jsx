@@ -184,6 +184,14 @@ export default function Login() {
 					await AsyncStorage.removeItem("tableId");
 				}
 
+				// 🍔 Stocker la catégorie du restaurant (foodtruck, restaurant, etc.)
+				if (data.category) {
+					await AsyncStorage.setItem("category", data.category);
+					console.log("✅ category sauvegardée:", data.category);
+				} else {
+					await AsyncStorage.removeItem("category");
+				}
+
 				// ✅ Stocker les infos utilisateur (role, userType)
 				await setUser({
 					userId: data.userId,
@@ -191,10 +199,12 @@ export default function Login() {
 					role: data.role,
 					userType: data.userType,
 					restaurantId: restaurantId,
+					category: data.category || "restaurant",
 				});
 				console.log("✅ User info stocké:", {
 					role: data.role,
 					userType: data.userType,
+					category: data.category,
 				});
 
 				// 🧭 Redirection directe vers tabs (évite la boucle via index)

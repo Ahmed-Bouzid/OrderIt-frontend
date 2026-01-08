@@ -13,6 +13,7 @@ const useUserStore = create((set, get) => ({
 	role: null, // 'admin' ou 'server'
 	userType: null, // 'admin' ou 'server'
 	restaurantId: null,
+	category: null, // 🍔 'restaurant', 'foodtruck', 'snack', etc.
 	isManager: false, // Raccourci pour vérifier si admin/manager
 
 	/**
@@ -20,12 +21,13 @@ const useUserStore = create((set, get) => ({
 	 */
 	init: async () => {
 		try {
-			const [userId, email, role, userType, restaurantId] = await Promise.all([
+			const [userId, email, role, userType, restaurantId, category] = await Promise.all([
 				AsyncStorage.getItem("userId"),
 				AsyncStorage.getItem("userEmail"),
 				AsyncStorage.getItem("userRole"),
 				AsyncStorage.getItem("userType"),
 				AsyncStorage.getItem("restaurantId"),
+				AsyncStorage.getItem("category"),
 			]);
 
 			const isManager = role === "admin" || userType === "admin";
@@ -36,11 +38,12 @@ const useUserStore = create((set, get) => ({
 				role,
 				userType,
 				restaurantId,
+				category,
 				isManager,
 			});
 
-			console.log("✅ UserStore initialisé:", { role, userType, isManager });
-			return { role, userType, isManager };
+			console.log("✅ UserStore initialisé:", { role, userType, category, isManager });
+			return { role, userType, category, isManager };
 		} catch (error) {
 			console.error("❌ Erreur init UserStore:", error);
 			return null;
