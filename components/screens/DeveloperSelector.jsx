@@ -587,28 +587,6 @@ export default function DeveloperSelector() {
 								</View>
 							</View>
 						)}
-						{/* Formule d'abonnement */}
-						{item.subscriptionPlan && (
-							<View
-								style={[
-									styles.planBadge,
-									{
-										backgroundColor:
-											item.subscriptionPlan === "free"
-												? "#94a3b8"
-												: item.subscriptionPlan === "starter"
-												? "#3b82f6"
-												: item.subscriptionPlan === "pro"
-												? "#f59e0b"
-												: "#8b5cf6",
-									},
-								]}
-							>
-								<Text style={styles.planText}>
-									{item.subscriptionPlan.toUpperCase()}
-								</Text>
-							</View>
-						)}
 					</View>
 				</View>
 			</TouchableOpacity>
