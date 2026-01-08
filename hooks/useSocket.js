@@ -180,11 +180,8 @@ const useSocket = () => {
 
 	const connect = useCallback(async () => {
 		try {
-			// Récupérer les tokens (compatibilité avec les deux clés)
-			let token = await AsyncStorage.getItem("token");
-			if (!token) {
-				token = await AsyncStorage.getItem("@access_token");
-			}
+			// Récupérer les tokens
+			const token = await AsyncStorage.getItem("@access_token");
 			const refreshToken = await AsyncStorage.getItem("refreshToken");
 
 			if (!token || !refreshToken) {
