@@ -87,12 +87,19 @@ export default function Login() {
 
 	const handleLogin = async () => {
 		setLoading(true);
+
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 15000); // ✅ 15s timeout
+
 		try {
 			const res = await fetch(`${API_CONFIG.baseURL}/auth/login`, {
 				method: "POST",
 				headers: { "Content-Type": "application/json" },
 				body: JSON.stringify({ email, password }),
+				signal: controller.signal,
 			});
+
+			clearTimeout(timeoutId);
 
 			// ⭐ Vérifier le content-type avant de parser JSON
 			const contentType = res.headers.get("content-type");
@@ -155,62 +162,69 @@ export default function Login() {
 						"⚠️ restaurantId non trouvé dans la réponse du backend",
 						data
 					);
-				// Nettoyer l'ancien restaurantId (important pour mode développeur)
-				await AsyncStorage.removeItem("restaurantId");
-			} else {
-				await AsyncStorage.setItem("restaurantId", restaurantId);
-				setRestaurantId(restaurantId); // 🔹 assignation immédiate dans le store
-			}
+					// Nettoyer l'ancien restaurantId (important pour mode développeur)
+					await AsyncStorage.removeItem("restaurantId");
+				} else {
+					await AsyncStorage.setItem("restaurantId", restaurantId);
+					setRestaurantId(restaurantId); // 🔹 assignation immédiate dans le store
+				}
 
-			// ✅ Stocker serverId et tableId si présents (serveur uniquement)
-			if (data.serverId) {
-				await AsyncStorage.setItem("serverId", data.serverId);
-				console.log("✅ serverId sauvegardé:", data.serverId);
-			} else {
-				await AsyncStorage.removeItem("serverId");
-			}
-			
-			if (data.tableId) {
-				await AsyncStorage.setItem("tableId", data.tableId);
-				console.log("✅ tableId sauvegardé:", data.tableId);
-			} else {
-				await AsyncStorage.removeItem("tableId");
-			}
+				// ✅ Stocker serverId et tableId si présents (serveur uniquement)
+				if (data.serverId) {
+					await AsyncStorage.setItem("serverId", data.serverId);
+					console.log("✅ serverId sauvegardé:", data.serverId);
+				} else {
+					await AsyncStorage.removeItem("serverId");
+				}
 
-			// ✅ Stocker les infos utilisateur (role, userType)
-			await setUser({
-				userId: data.userId,
-				email: data.email,
-				role: data.role,
-				userType: data.userType,
-				restaurantId: restaurantId,
-			});
-			console.log("✅ User info stocké:", {
-				role: data.role,
-				userType: data.userType,
-			});
+				if (data.tableId) {
+					await AsyncStorage.setItem("tableId", data.tableId);
+					console.log("✅ tableId sauvegardé:", data.tableId);
+				} else {
+					await AsyncStorage.removeItem("tableId");
+				}
 
-			// 🧭 Redirection vers l'écran principal
-			router.replace("/");
+				// ✅ Stocker les infos utilisateur (role, userType)
+				await setUser({
+					userId: data.userId,
+					email: data.email,
+					role: data.role,
+					userType: data.userType,
+					restaurantId: restaurantId,
+				});
+				console.log("✅ User info stocké:", {
+					role: data.role,
+					userType: data.userType,
+				});
+
+				// 🧭 Redirection vers l'écran principal
+				router.replace("/");
 			} else {
 				Alert.alert("Erreur", data.message || "Identifiants invalides");
 			}
 		} catch (err) {
-			console.error(err);
-			Alert.alert("Erreur", "Impossible de contacter le server");
-		} finally {
-			setLoading(false);
+		clearTimeout(timeoutId);
+
+		if (err.name === "AbortError") {
+			Alert.alert(
+				"Erreur",
+				"Le serveur ne répond pas (timeout). Réessayez."
+			);
+		} else {
+			Alert.alert("Erreur", "Impossible de contacter le serveur");
 		}
-	};
+		console.error(err);
+	} finally {
+		setLoading(false);
+	}
+};
 
-	const glowInterpolation = glowAnim.interpolate({
-		inputRange: [0, 1],
-		outputRange: ["rgba(255,120,0,0.3)", "rgba(255,200,0,0.7)"],
-	});
+const glowInterpolation = glowAnim.interpolate({	inputRange: [0, 1],
+	outputRange: ["rgba(255,120,0,0.3)", "rgba(255,200,0,0.7)"],
+});
 
-	return (
-		<KeyboardAvoidingView
-			style={styles.container}
+return (
+	<KeyboardAvoidingView			style={styles.container}
 			behavior={Platform.OS === "ios" ? "padding" : undefined}
 		>
 			<View style={styles.card}>
