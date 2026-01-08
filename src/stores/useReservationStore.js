@@ -3,8 +3,7 @@ import { create } from "zustand";
 import { API_CONFIG } from "../config/apiConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-let fetchPromise = null; // ⭐ Stockage de la promise pour éviter les appels parallèles
-let isFetching = false; // ⭐ Flag global pour bloquer complètement les appels parallèles
+let fetchPromise = null; // ✅ Stockage de la promise pour éviter les appels parallèles
 
 const useReservationStore = create((set, get) => ({
 	reservations: [],
@@ -73,22 +72,14 @@ const useReservationStore = create((set, get) => ({
 			console.log("📦 Réservations déjà en cache, pas de fetch");
 			return { success: true, data: state.reservations };
 		}
-		// Si force=true, on ne retourne jamais le cache, on continue le fetch
 
-		// ⭐ BLOQUER COMPLÈTEMENT les appels parallèles
-		if (isFetching || fetchPromise) {
+		// ✅ Si fetch déjà en cours, attendre la promise existante
+		if (fetchPromise) {
 			console.log("⏳ Requête réservations déjà en cours, attente...");
-			if (fetchPromise) return fetchPromise;
-			// Attendre que isFetching passe à false
-			while (isFetching) {
-				await new Promise((resolve) => setTimeout(resolve, 50));
-			}
-			// Réessayer une fois le flag déverrouillé
-			return useReservationStore.getState().fetchReservations(force);
+			return fetchPromise;
 		}
 
 		fetchPromise = (async () => {
-			isFetching = true; // ⭐ Marquer comme en cours
 			try {
 				const token = await AsyncStorage.getItem("@access_token");
 				const restaurantId = await AsyncStorage.getItem("restaurantId");
@@ -106,10 +97,10 @@ const useReservationStore = create((set, get) => ({
 				});
 
 				// 🔹 si le token est invalide ou expiré
-			if (response.status === 401 || response.status === 403) {
-				console.log("🔒 Token expiré ou invalide");
-				throw new Error("Session expirée");
-			}
+				if (response.status === 401 || response.status === 403) {
+					console.log("🔒 Token expiré ou invalide");
+					throw new Error("Session expirée");
+				}
 
 				if (!response.ok) {
 					const text = await response.text();
@@ -153,7 +144,6 @@ const useReservationStore = create((set, get) => ({
 				const refreshedReservations = mergedReservations.map((r) => ({ ...r }));
 				set({ reservations: refreshedReservations });
 				return { success: true, data: refreshedReservations };
-				return { success: true, data: mergedReservations };
 			} catch (err) {
 				console.error("🚨 Erreur récupération réservations :", err);
 				return {
@@ -162,8 +152,7 @@ const useReservationStore = create((set, get) => ({
 					message: "Erreur de connexion",
 				};
 			} finally {
-				isFetching = false; // ⭐ Déverrouiller le flag
-				fetchPromise = null; // ⭐ Réinitialiser la promise après succès/erreur
+				fetchPromise = null; // ✅ Libérer la promise après succès/erreur
 			}
 		})();
 
