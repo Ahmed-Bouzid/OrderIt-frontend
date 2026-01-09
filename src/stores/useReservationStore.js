@@ -2,6 +2,7 @@ import { create } from "zustand";
 
 import { API_CONFIG } from "../config/apiConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../../utils/secureStorage";
 
 let fetchPromise = null; // ✅ Stockage de la promise pour éviter les appels parallèles
 
@@ -81,7 +82,7 @@ const useReservationStore = create((set, get) => ({
 
 		fetchPromise = (async () => {
 			try {
-				const token = await AsyncStorage.getItem("@access_token");
+				const token = await getSecureItem("@access_token");
 				const restaurantId = await AsyncStorage.getItem("restaurantId");
 				if (!token || !restaurantId) {
 					return {

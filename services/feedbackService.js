@@ -1,6 +1,7 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_URL } from "../src/config/apiConfig";
 import { Platform } from "react-native";
+import { getItem as getSecureItem } from "../utils/secureStorage";
 
 /**
  * Service Feedback - Gestion des feedbacks utilisateurs
@@ -19,7 +20,7 @@ class FeedbackService {
 	 * Récupère le token d'authentification
 	 */
 	async getAuthHeaders() {
-		const token = await AsyncStorage.getItem("@access_token");
+		const token = await getSecureItem("@access_token");
 		if (!token) {
 			throw new Error("Non authentifié");
 		}

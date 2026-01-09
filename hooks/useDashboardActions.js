@@ -4,6 +4,7 @@ import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthFetch } from "./useAuthFetch";
 import usePresentStore from "../src/stores/usePresentStore";
+import { getItem as getSecureItem } from "../utils/secureStorage";
 
 export const useDashboardActions = (fetchReservations) => {
 	const authFetch = useAuthFetch();
@@ -262,7 +263,7 @@ export const useDashboardActions = (fetchReservations) => {
 				}
 
 				// Récupérer l'ID du serveur depuis le token JWT
-				const token = await AsyncStorage.getItem("@access_token");
+				const token = await getSecureItem("@access_token");
 				let serverId = null;
 				if (token) {
 					try {

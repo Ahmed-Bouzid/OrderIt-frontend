@@ -21,6 +21,7 @@ import {
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../../../utils/secureStorage";
 import useThemeStore from "../../../src/stores/useThemeStore";
 import { useTheme } from "../../../hooks/useTheme";
 
@@ -137,7 +138,7 @@ export const ClientAllergenModal = React.memo(
 			console.log("🔄 Chargement des allergènes...");
 			setLoading(true);
 			try {
-				const token = await AsyncStorage.getItem("@access_token");
+				const token = await getSecureItem("@access_token");
 				const baseUrl =
 					process.env.EXPO_PUBLIC_API_URL ||
 					"https://orderit-backend-6y1m.onrender.com";

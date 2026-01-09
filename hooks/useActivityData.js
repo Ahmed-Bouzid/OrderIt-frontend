@@ -5,6 +5,7 @@ import { useAuthFetch, redirectToLogin } from "./useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../src/config/apiConfig";
 import useReservationStore from "../src/stores/useReservationStore";
+import { getItem as getSecureItem } from "../utils/secureStorage";
 
 /**
  * Hook custom pour gérer le chargement initial des données
@@ -40,7 +41,7 @@ export const useActivityData = () => {
 			setProductsError(null);
 			try {
 				const [tokenValue, ridValue, tidValue, sidValue] = await Promise.all([
-					AsyncStorage.getItem("@access_token"),
+				getSecureItem("@access_token"),
 					AsyncStorage.getItem("restaurantId"),
 					AsyncStorage.getItem("tableId"),
 					AsyncStorage.getItem("serverId"),

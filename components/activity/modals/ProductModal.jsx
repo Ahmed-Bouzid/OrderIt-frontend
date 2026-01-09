@@ -13,6 +13,7 @@ import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../../../utils/secureStorage";
 import { API_CONFIG } from "../../../src/config/apiConfig";
 
 const API_BASE_URL = API_CONFIG.baseURL;
@@ -32,7 +33,7 @@ export const ProductModal = ({ visible, onClose, product, theme }) => {
 			if (!product?._id) return;
 			setLoadingAllergens(true);
 			try {
-				const token = await AsyncStorage.getItem("@access_token");
+				const token = await getSecureItem("@access_token");
 				const response = await fetch(
 					`${API_BASE_URL}/products/${product._id}/allergens`,
 					{

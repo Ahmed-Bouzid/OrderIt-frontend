@@ -14,6 +14,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { BlurView } from "expo-blur";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../../../utils/secureStorage";
 import { API_CONFIG } from "../../../src/config/apiConfig";
 
 // Audio conditionnel (import statique)
@@ -489,7 +490,7 @@ export const PremiumTPEModal = ({
 	// ═══════════════════════════════════════════════════════════════════════
 	const getToken = async () => {
 		try {
-			return await AsyncStorage.getItem("@access_token");
+			return await getSecureItem("@access_token");
 		} catch {
 			return null;
 		}

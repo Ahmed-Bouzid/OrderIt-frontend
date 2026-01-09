@@ -1,11 +1,11 @@
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "./secureStorage";
 
 // utils/token.js (ou dans le même fichier si tu préfères)
 export const getToken = async () => {
 	try {
-		const token = await AsyncStorage.getItem("@access_token");
+		const token = await getSecureItem("@access_token");
 		if (!token) {
-			console.warn("⚠️ Pas de token trouvé dans AsyncStorage");
+			console.warn("⚠️ Pas de token trouvé dans SecureStore");
 			return null;
 		}
 		return token;

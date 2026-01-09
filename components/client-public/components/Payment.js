@@ -8,6 +8,7 @@ import {
 	ActivityIndicator,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../../../utils/secureStorage";
 
 /**
  * Composant Payment avec simulateur "Tap to Pay"
@@ -107,7 +108,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 			setPaymentState("processing");
 
 			// 1. Créer PaymentIntent via backend
-			const token = await AsyncStorage.getItem("@access_token");
+			const token = await getSecureItem("@access_token");
 			const baseUrl =
 				process.env.EXPO_PUBLIC_API_URL ||
 				"https://orderit-backend-6y1m.onrender.com";

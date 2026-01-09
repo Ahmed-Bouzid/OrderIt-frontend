@@ -1,6 +1,7 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import * as RootNavigation from "../../utils/RootNavigation";
+import { getItem as getSecureItem } from "../../utils/secureStorage";
 
 let socketListenerAttached = false; // ⭐ Flag pour éviter les doublons
 
@@ -78,7 +79,7 @@ const useTableStore = create((set, get) => ({
 		try {
 			set({ isLoading: true });
 
-			const token = await AsyncStorage.getItem("@access_token");
+			const token = await getSecureItem("@access_token");
 			if (!token) {
 				console.log("⚠️ Aucun token trouvé — redirection vers Login");
 				set({ isLoading: false });

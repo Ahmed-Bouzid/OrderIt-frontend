@@ -1,5 +1,6 @@
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../../utils/secureStorage";
 
 let socketListenerAttached = false; // ⭐ Flag pour éviter les doublons
 
@@ -80,7 +81,7 @@ export const useServerStore = create((set, get) => ({
 				return { success: false, error: "NO_RESTAURANT_ID" };
 			}
 
-			const token = await AsyncStorage.getItem("@access_token");
+			const token = await getSecureItem("@access_token");
 			if (!token) {
 				console.log("⚠️ Aucun token trouvé");
 				return { success: false, error: "NO_TOKEN" };

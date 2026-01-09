@@ -13,6 +13,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../../../utils/secureStorage";
 import useThemeStore from "../../../src/stores/useThemeStore";
 import { getTheme } from "../../../utils/themeUtils";
 import { useServerStore } from "../../../src/stores/useRestaurantStaffStore";
@@ -63,7 +64,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 
 		try {
 			setLoading(true);
-			const token = await AsyncStorage.getItem("@access_token");
+			const token = await getSecureItem("@access_token");
 			console.log(
 				"🔑 Token récupéré:",
 				token ? `${token.substring(0, 20)}...` : "NULL"

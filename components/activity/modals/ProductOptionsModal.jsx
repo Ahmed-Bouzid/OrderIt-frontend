@@ -11,6 +11,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../../../utils/secureStorage";
 
 // Design tokens harmonisés avec le thème principal
 const MODAL_THEME = {
@@ -43,8 +44,10 @@ export const ProductOptionsModal = ({
 	useEffect(() => {
 		if (visible && product?._id) {
 			setLoading(true);
-			AsyncStorage.getItem("@access_token").then((token) => {
-				fetch(
+			(async () => {
+				try {
+					const token = await getSecureItem("@access_token");
+					const response = await fetch(
 					`${
 						process.env.EXPO_PUBLIC_API_URL ||
 						"https://orderit-backend-6y1m.onrender.com"
@@ -55,12 +58,15 @@ export const ProductOptionsModal = ({
 							Authorization: `Bearer ${token}`,
 						},
 					}
-				)
-					.then((res) => res.json())
-					.then((data) => setOptions(Array.isArray(data) ? data : []))
-					.catch(() => setOptions([]))
-					.finally(() => setLoading(false));
-			});
+				);
+					const data = await response.json();
+					setOptions(Array.isArray(data) ? data : []);
+				} catch (error) {
+					setOptions([]);
+				} finally {
+					setLoading(false);
+				}
+			})();
 		} else {
 			setOptions([]);
 			setSelectedOptions([]);

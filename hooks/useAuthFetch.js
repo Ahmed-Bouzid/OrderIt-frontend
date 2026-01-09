@@ -23,7 +23,7 @@ export function useAuthFetch() {
 	// ⭐ Fonction pour rafraîchir le token
 	const refreshAccessToken = useCallback(async () => {
 		try {
-			const refreshToken = await AsyncStorage.getItem("refreshToken");
+			const refreshToken = await getSecureItem("refreshToken");
 
 			if (!refreshToken) {
 				console.log("⚠️ ATTENTION: Pas de refresh token en AsyncStorage");
@@ -52,11 +52,11 @@ export function useAuthFetch() {
 
 			if (data.accessToken) {
 				// ⭐ Stocker le nouveau token
-				await AsyncStorage.setItem("@access_token", data.accessToken);
+				await setSecureItem("@access_token", data.accessToken);
 
 				// ⭐ Mettre à jour le refresh token s'il a changé
 				if (data.refreshToken) {
-					await AsyncStorage.setItem("refreshToken", data.refreshToken);
+					await setSecureItem("refreshToken", data.refreshToken);
 				}
 
 				console.log("✅ Token rafraîchi avec succès (anticipé)");
@@ -86,8 +86,8 @@ export function useAuthFetch() {
 		// Mettre en place un nouvel interval qui rafraîchit le token tous les 110 minutes (1h50)
 		globalRefreshInterval = setInterval(async () => {
 			try {
-				const token = await AsyncStorage.getItem("@access_token");
-				const refreshToken = await AsyncStorage.getItem("refreshToken");
+				const token = await getSecureItem("@access_token");
+				const refreshToken = await getSecureItem("refreshToken");
 
 				console.log(
 					"🔍 Vérification auto-refresh: token=",
@@ -106,10 +106,10 @@ export function useAuthFetch() {
 					console.warn("⚠️ Impossible de rafraîchir: tokens manquants");
 					if (!refreshToken) {
 						console.error(
-							"❌ PROBLÈME CRITQUE: refreshToken disparu d'AsyncStorage!"
+							"❌ PROBLÈME CRITQUE: refreshToken disparu de SecureStore!"
 						);
 						// Force logout si refresh token est perdu
-						await AsyncStorage.removeItem("@access_token");
+						await setSecureItem("@access_token", "");
 						await AsyncStorage.removeItem("restaurantId");
 						redirectToLogin(router, isRedirectingRef);
 					}
@@ -126,8 +126,8 @@ export function useAuthFetch() {
 	useEffect(() => {
 		// Vérifier si on a déjà un token, si oui, démarrer le refresh automatique
 		const initAutoRefresh = async () => {
-			const token = await AsyncStorage.getItem("@access_token");
-			const refreshToken = await AsyncStorage.getItem("refreshToken");
+			const token = await getSecureItem("@access_token");
+			const refreshToken = await getSecureItem("refreshToken");
 
 			if (token && refreshToken && !isRefreshSetup) {
 				setupAutoRefresh();
@@ -201,8 +201,8 @@ export function useAuthFetch() {
 						}
 					} catch (refreshError) {
 						console.error("❌ Refresh échoué:", refreshError);
-						await AsyncStorage.removeItem("@access_token");
-						await AsyncStorage.removeItem("refreshToken");
+					await setSecureItem("@access_token", "");
+					await setSecureItem("refreshToken", "");
 						redirectToLogin(router, isRedirectingRef);
 						return []; // ⭐ Retourne tableau vide = airbag
 					}
@@ -249,8 +249,8 @@ export function useAuthFetch() {
 // ⭐ Fonction exportée pour initialiser le refresh automatique après le login
 export async function startTokenRefresh() {
 	try {
-		const token = await AsyncStorage.getItem("@access_token");
-		const refreshToken = await AsyncStorage.getItem("refreshToken");
+		const token = await getSecureItem("@access_token");
+		const refreshToken = await getSecureItem("refreshToken");
 
 		if (token && refreshToken) {
 			console.log("🚀 Démarrage forcé du refresh automatique après login");

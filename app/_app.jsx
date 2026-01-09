@@ -7,7 +7,7 @@ import {
 	ActivityIndicator,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
-import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem } from "../utils/secureStorage";
 
 import Activite from "../components/screens/Activity";
 import Floor from "../components/screens/Floor";
@@ -25,8 +25,8 @@ export default function App() {
 
 	useEffect(() => {
 		const checkToken = async () => {
-			const storedToken = await AsyncStorage.getItem("@access_token");
-			const refreshToken = await AsyncStorage.getItem("refreshToken");
+			const storedToken = await getSecureItem("@access_token");
+			const refreshToken = await getSecureItem("refreshToken");
 			if (storedToken && refreshToken) {
 				setUserLoggedIn(true);
 				setToken(storedToken);

@@ -4,6 +4,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useRouter } from "expo-router";
 import { redirectToLogin } from "./useAuthFetch";
 import { SOCKET_CONFIG } from "../src/config/apiConfig";
+import { getItem as getSecureItem } from "../utils/secureStorage";
 
 // ============ SINGLETON & ÉTAT GLOBAL ============
 let socketInstance = null;
@@ -181,8 +182,8 @@ const useSocket = () => {
 	const connect = useCallback(async () => {
 		try {
 			// Récupérer les tokens
-			const token = await AsyncStorage.getItem("@access_token");
-			const refreshToken = await AsyncStorage.getItem("refreshToken");
+			const token = await getSecureItem("@access_token");
+			const refreshToken = await getSecureItem("refreshToken");
 
 			if (!token || !refreshToken) {
 				console.log("ℹ️ Socket: En attente de connexion utilisateur");
