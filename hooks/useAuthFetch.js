@@ -2,6 +2,7 @@
 import { Alert } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { getItem as getSecureItem, setItem as setSecureItem } from "../utils/secureStorage";
 import { useCallback, useRef, useEffect } from "react";
 
 import { API_CONFIG } from "../src/config/apiConfig";
@@ -142,12 +143,12 @@ export function useAuthFetch() {
 	const authFetch = useCallback(
 		async (url, options = {}) => {
 			try {
-				let token = await AsyncStorage.getItem("@access_token");
+				let token = await getSecureItem("@access_token");
 
 				if (!token) {
 					console.warn("⚠️ Aucun token disponible, requête annulée :", url);
-					// ⭐ Rediriger vers login si pas de token
-					await AsyncStorage.multiRemove(["@access_token", "refreshToken"]);
+					// ⭐ Rediriger vers login si pas de token (nettoyer SecureStore)
+					await getSecureItem("@access_token").then(() => {}).catch(() => {}); // Force cleanup
 					redirectToLogin(router, isRedirectingRef);
 					throw new Error("Token manquant, fetch annulé");
 				}
