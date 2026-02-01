@@ -343,7 +343,7 @@ export const ProductSelection = React.memo(
 
 				// Vérifier si le produit a des options
 				try {
-				const token = await getSecureItem("@access_token");
+					const token = await getSecureItem("@access_token");
 					const url = `${
 						process.env.EXPO_PUBLIC_API_URL ||
 						"https://orderit-backend-6y1m.onrender.com"

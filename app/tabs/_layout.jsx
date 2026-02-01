@@ -19,10 +19,13 @@ import Activity from "../../components/screens/Activity";
 import FloorScreen from "../../components/screens/Floor";
 import Settings from "../../components/screens/Settings";
 import useSocket from "../../hooks/useSocket";
+
+import useUserStore from "../../src/stores/useUserStore";
+
 import ClientMessageNotification from "../../components/ui/ClientMessageNotification";
 
-// Configuration des tabs
-const TABS = [
+// Tabs de base
+const ALL_TABS = [
 	{ name: "activity", label: "Activité", icon: "calendar-outline" },
 	{ name: "floor", label: "Floor", icon: "map-outline" },
 	{ name: "reglage", label: "Réglages", icon: "settings-outline" },
@@ -72,7 +75,18 @@ const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
 TabButton.displayName = "TabButton";
 
 export default function TabsLayout() {
-	const [activeTab, setActiveTab] = useState("activity");
+	const category = useUserStore((state) => state.category);
+	// Charger la catégorie dès le montage
+	useEffect(() => {
+		useUserStore.getState().init();
+	}, []);
+	// Filtrage dynamique des tabs selon la catégorie
+	const TABS =
+		category === "foodtruck"
+			? ALL_TABS.filter((tab) => tab.name !== "activity")
+			: ALL_TABS;
+	// Initialiser le tab actif dynamiquement
+	const [activeTab, setActiveTab] = useState(TABS[0]?.name || "activity");
 	const { connect } = useSocket();
 
 	// ═══════════════════════════════════════════════════════════════════════
@@ -82,6 +96,12 @@ export default function TabsLayout() {
 	const [isSliderReady, setIsSliderReady] = useState(false);
 	const sliderTranslateX = useRef(new Animated.Value(0)).current;
 	const sliderWidth = useRef(new Animated.Value(100)).current;
+
+	// Reset du slider si TABS change (ex: foodtruck)
+	useEffect(() => {
+		setTabLayouts({});
+		setIsSliderReady(false);
+	}, [TABS.length]);
 
 	const handleTabLayout = (tabName, event) => {
 		const { x, width: w } = event.nativeEvent.layout;
@@ -118,6 +138,13 @@ export default function TabsLayout() {
 			]).start();
 		}
 	}, [activeTab, tabLayouts, isSliderReady, sliderTranslateX, sliderWidth]);
+
+	// Si la catégorie change (ex: login), s'assurer que le tab actif existe
+	useEffect(() => {
+		if (!TABS.find((t) => t.name === activeTab)) {
+			setActiveTab(TABS[0]?.name);
+		}
+	}, [TABS, activeTab]);
 
 	// ✅ Connecter WebSocket au montage (index.jsx gère déjà l'auth)
 	useEffect(() => {

@@ -62,7 +62,7 @@ export default function DeveloperSelector() {
 			try {
 				const API_URL = process.env.EXPO_PUBLIC_API_URL;
 				const response = await fetchWithAuth(
-					`${API_URL}/developer/restaurants`
+					`${API_URL}/developer/restaurants`,
 				);
 
 				if (response.ok) {
@@ -101,7 +101,7 @@ export default function DeveloperSelector() {
 									});
 								},
 							},
-						]
+						],
 					);
 				}
 			}
@@ -118,7 +118,7 @@ export default function DeveloperSelector() {
 			(r) =>
 				r.name?.toLowerCase().includes(query) ||
 				r.email?.toLowerCase().includes(query) ||
-				r.address?.toLowerCase().includes(query)
+				r.address?.toLowerCase().includes(query),
 		);
 	}, [restaurants, search]);
 
@@ -126,7 +126,7 @@ export default function DeveloperSelector() {
 		if (!restaurant.active) {
 			Alert.alert(
 				"Restaurant désactivé",
-				"Ce restaurant est actuellement désactivé. Activez-le d'abord pour y accéder."
+				"Ce restaurant est actuellement désactivé. Activez-le d'abord pour y accéder.",
 			);
 			return;
 		}
@@ -137,7 +137,7 @@ export default function DeveloperSelector() {
 			if (success) {
 				resetReservations();
 				setTimeout(() => {
-					router.replace("/(tabs)/dashboard");
+					router.push("/(tabs)/dashboard"); // Correction du routage pour rediriger vers le Dashboard
 				}, 500);
 			} else {
 				Alert.alert("Erreur", "Impossible de sélectionner ce restaurant");
@@ -159,7 +159,7 @@ export default function DeveloperSelector() {
 
 			// 🎯 Update optimiste : mettre à jour localement d'abord
 			const updatedRestaurants = restaurants.map((r) =>
-				r._id === restaurant._id ? { ...r, active: !r.active } : r
+				r._id === restaurant._id ? { ...r, active: !r.active } : r,
 			);
 			await initDeveloper(updatedRestaurants);
 
@@ -167,7 +167,7 @@ export default function DeveloperSelector() {
 				`${API_URL}/developer/toggle-restaurant/${restaurant._id}`,
 				{
 					method: "PATCH",
-				}
+				},
 			);
 
 			const data = await response.json();
@@ -175,7 +175,7 @@ export default function DeveloperSelector() {
 			if (response.ok && data.status === "success") {
 				// Refresh la liste des restaurants (confirmation serveur)
 				const refreshResponse = await fetchWithAuth(
-					`${API_URL}/developer/restaurants`
+					`${API_URL}/developer/restaurants`,
 				);
 
 				const refreshData = await refreshResponse.json();
@@ -185,7 +185,7 @@ export default function DeveloperSelector() {
 
 				Alert.alert(
 					"✅ Succès",
-					`Restaurant ${data.restaurant.active ? "activé" : "désactivé"}`
+					`Restaurant ${data.restaurant.active ? "activé" : "désactivé"}`,
 				);
 			} else {
 				// ⚠️ Rollback : restaurer l'état ORIGINAL
@@ -238,7 +238,7 @@ export default function DeveloperSelector() {
 						address: newRestaurant.address,
 						turnoverTime: parseInt(newRestaurant.turnoverTime) || 120,
 					}),
-				}
+				},
 			);
 
 			const data = await response.json();
@@ -246,12 +246,12 @@ export default function DeveloperSelector() {
 			if (response.ok && data.status === "success") {
 				Alert.alert(
 					"✅ Succès",
-					`Restaurant "${data.restaurant.name}" créé avec succès !\n\nAdmin créé: ${data.admin.email}`
+					`Restaurant "${data.restaurant.name}" créé avec succès !\n\nAdmin créé: ${data.admin.email}`,
 				);
 
 				// Refresh la liste
 				const refreshResponse = await fetchWithAuth(
-					`${API_URL}/developer/restaurants`
+					`${API_URL}/developer/restaurants`,
 				);
 
 				const refreshData = await refreshResponse.json();
@@ -315,7 +315,7 @@ export default function DeveloperSelector() {
 							const API_URL = process.env.EXPO_PUBLIC_API_URL;
 							const response = await fetchWithAuth(
 								`${API_URL}/developer/restaurants/${restaurant._id}/tables`,
-								{ method: "DELETE" }
+								{ method: "DELETE" },
 							);
 
 							const data = await response.json();
@@ -324,7 +324,7 @@ export default function DeveloperSelector() {
 								Alert.alert("✅ Succès", data.message);
 								// Refresh la liste
 								const refreshResponse = await fetchWithAuth(
-									`${API_URL}/developer/restaurants`
+									`${API_URL}/developer/restaurants`,
 								);
 								const refreshData = await refreshResponse.json();
 								if (refreshResponse.ok) {
@@ -339,7 +339,7 @@ export default function DeveloperSelector() {
 						}
 					},
 				},
-			]
+			],
 		);
 	};
 
@@ -357,7 +357,7 @@ export default function DeveloperSelector() {
 							const API_URL = process.env.EXPO_PUBLIC_API_URL;
 							const response = await fetchWithAuth(
 								`${API_URL}/developer/restaurants/${restaurant._id}/employees`,
-								{ method: "DELETE" }
+								{ method: "DELETE" },
 							);
 
 							const data = await response.json();
@@ -366,7 +366,7 @@ export default function DeveloperSelector() {
 								Alert.alert("✅ Succès", data.message);
 								// Refresh la liste
 								const refreshResponse = await fetchWithAuth(
-									`${API_URL}/developer/restaurants`
+									`${API_URL}/developer/restaurants`,
 								);
 								const refreshData = await refreshResponse.json();
 								if (refreshResponse.ok) {
@@ -381,7 +381,7 @@ export default function DeveloperSelector() {
 						}
 					},
 				},
-			]
+			],
 		);
 	};
 
@@ -399,7 +399,7 @@ export default function DeveloperSelector() {
 							const API_URL = process.env.EXPO_PUBLIC_API_URL;
 							const response = await fetchWithAuth(
 								`${API_URL}/developer/restaurants/${restaurant._id}/products`,
-								{ method: "DELETE" }
+								{ method: "DELETE" },
 							);
 
 							const data = await response.json();
@@ -408,7 +408,7 @@ export default function DeveloperSelector() {
 								Alert.alert("✅ Succès", data.message);
 								// Refresh la liste
 								const refreshResponse = await fetchWithAuth(
-									`${API_URL}/developer/restaurants`
+									`${API_URL}/developer/restaurants`,
 								);
 								const refreshData = await refreshResponse.json();
 								if (refreshResponse.ok) {
@@ -423,7 +423,7 @@ export default function DeveloperSelector() {
 						}
 					},
 				},
-			]
+			],
 		);
 	};
 
@@ -441,7 +441,7 @@ export default function DeveloperSelector() {
 							const API_URL = process.env.EXPO_PUBLIC_API_URL;
 							const response = await fetchWithAuth(
 								`${API_URL}/developer/restaurants/${restaurant._id}`,
-								{ method: "DELETE" }
+								{ method: "DELETE" },
 							);
 
 							const data = await response.json();
@@ -449,11 +449,11 @@ export default function DeveloperSelector() {
 							if (response.ok) {
 								Alert.alert(
 									"✅ Restaurant supprimé",
-									`${data.message}\n\nSupprimé :\n• ${data.deleted.tables} tables\n• ${data.deleted.employees} employés\n• ${data.deleted.products} produits\n• ${data.deleted.reservations} réservations`
+									`${data.message}\n\nSupprimé :\n• ${data.deleted.tables} tables\n• ${data.deleted.employees} employés\n• ${data.deleted.products} produits\n• ${data.deleted.reservations} réservations`,
 								);
 								// Refresh la liste
 								const refreshResponse = await fetchWithAuth(
-									`${API_URL}/developer/restaurants`
+									`${API_URL}/developer/restaurants`,
 								);
 								const refreshData = await refreshResponse.json();
 								if (refreshResponse.ok) {
@@ -468,7 +468,7 @@ export default function DeveloperSelector() {
 						}
 					},
 				},
-			]
+			],
 		);
 	};
 
@@ -728,6 +728,18 @@ export default function DeveloperSelector() {
 					>
 						<Ionicons name="add-circle" size={20} color="#fff" />
 						<Text style={styles.actionButtonText}>Créer Restaurant</Text>
+					</TouchableOpacity>
+
+					{/* ✨ NOUVEAU : Bouton Appliquer Style */}
+					<TouchableOpacity
+						style={[
+							styles.actionButton,
+							{ backgroundColor: theme === "dark" ? "#f59e0b" : "#d97706" },
+						]}
+						onPress={() => router.push("/developer-style-selector")}
+					>
+						<Ionicons name="color-palette" size={20} color="#fff" />
+						<Text style={styles.actionButtonText}>Appliquer Style</Text>
 					</TouchableOpacity>
 
 					<TouchableOpacity

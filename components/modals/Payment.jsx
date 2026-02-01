@@ -41,7 +41,7 @@ export default function Payment({
 			(order.items || []).map((item) => ({
 				...item,
 				orderId: order._id, // Garder trace de la commande d'origine
-			}))
+			})),
 		);
 
 		console.log("🔍 Items aplatis:", flattenedItems.length);
@@ -118,7 +118,7 @@ export default function Payment({
 	useEffect(() => {
 		if (allOrders && allOrders.length > 0) {
 			const nonPaidItems = allOrders.filter(
-				(item) => !paidItems.has(getItemId(item))
+				(item) => !paidItems.has(getItemId(item)),
 			);
 			const nonPaidIds = new Set(nonPaidItems.map((item) => getItemId(item)));
 			setSelectedItems(nonPaidIds);
@@ -131,16 +131,16 @@ export default function Payment({
 	const allSelected =
 		selectedItems.size === availableItems.length && availableItems.length > 0;
 	const selectedOrders = availableItems.filter((item) =>
-		selectedItems.has(getItemId(item))
+		selectedItems.has(getItemId(item)),
 	);
 	const total = selectedOrders.reduce(
 		(sum, item) => sum + (item?.price || 0) * (item?.quantity || 1),
-		0
+		0,
 	);
 	// ✅ Compter le nombre total d'articles avec quantités
 	const totalSelectedQuantity = selectedOrders.reduce(
 		(sum, item) => sum + (item?.quantity || 1),
-		0
+		0,
 	);
 	const totalPaidQuantity = Array.from(paidItems).reduce((sum, itemId) => {
 		const item = allOrders.find((order) => getItemId(order) === itemId);
@@ -148,14 +148,14 @@ export default function Payment({
 	}, 0);
 	const totalAllQuantity = allOrders.reduce(
 		(sum, item) => sum + (item?.quantity || 1),
-		0
+		0,
 	);
 
 	// 🐛 DEBUG: Log des items disponibles
 	useEffect(() => {
 		console.log(
 			"📊 Articles disponibles pour paiement:",
-			availableItems.length
+			availableItems.length,
 		);
 		console.log("💳 Articles déjà payés:", paidItems.size);
 	}, [availableItems.length, paidItems.size]);
@@ -191,7 +191,7 @@ export default function Payment({
 		if (selectedItems.size === 0) {
 			Alert.alert(
 				"Erreur",
-				"Veuillez sélectionner au moins un article à payer"
+				"Veuillez sélectionner au moins un article à payer",
 			);
 			return;
 		}
@@ -201,13 +201,13 @@ export default function Payment({
 		try {
 			// 1. Filtrer les articles sélectionnés
 			const selectedOrders = allOrders.filter((item) =>
-				selectedItems.has(getItemId(item))
+				selectedItems.has(getItemId(item)),
 			);
 
 			// 2. Calculer le montant payé
 			const amountPaid = selectedOrders.reduce(
 				(sum, item) => sum + (item?.price || 0) * (item?.quantity || 1),
-				0
+				0,
 			);
 
 			// 3. Ajouter les articles aux paidItems
@@ -219,14 +219,14 @@ export default function Payment({
 
 			// 4. Vérifier si paiement complet
 			const remainingItems = allOrders.filter(
-				(item) => !newPaidItems.has(getItemId(item))
+				(item) => !newPaidItems.has(getItemId(item)),
 			);
 			const isFullPayment = remainingItems.length === 0;
 
 			// 5. Calculer le reste à payer
 			const remainingAmount = remainingItems.reduce(
 				(sum, item) => sum + (item?.price || 0) * (item?.quantity || 1),
-				0
+				0,
 			);
 
 			// 6. Marquer les commandes comme payées (CRITIQUE pour éviter les doublons)
@@ -247,7 +247,7 @@ export default function Payment({
 							`${API_CONFIG.baseURL}/orders/${orderId}/mark-as-paid`,
 							{
 								method: "POST",
-							}
+							},
 						);
 						console.log(`✅ Commande ${orderId} marquée comme payée`);
 					} catch (error) {
@@ -273,7 +273,7 @@ export default function Payment({
 							remainingAmount: remainingAmount,
 							paymentMethod: "Carte",
 						},
-					}
+					},
 				);
 				console.log("✅ Réservation mise à jour avec paiement");
 
@@ -431,7 +431,7 @@ export default function Payment({
 	// ⭐ Safe clientName formatting
 	const clientNameDisplay = reservation?.clientName
 		? reservation.clientName.charAt(0).toUpperCase() +
-		  reservation.clientName.slice(1).toLowerCase()
+			reservation.clientName.slice(1).toLowerCase()
 		: "Client";
 
 	return (
@@ -577,6 +577,18 @@ export default function Payment({
 						)}
 					</TouchableOpacity>
 				) : null}
+
+				{/* 🖨️ Bouton réimprimer ticket (visible après paiement) */}
+				{receiptData && (
+					<TouchableOpacity
+						style={styles.reprintButton}
+						onPress={reprintLastReceipt}
+						disabled={loading}
+					>
+						<MaterialIcons name="receipt" size={20} color="#4A90E2" />
+						<Text style={styles.reprintButtonText}>Réimprimer le ticket</Text>
+					</TouchableOpacity>
+				)}
 
 				<TouchableOpacity
 					style={styles.backButton}
@@ -796,6 +808,22 @@ const styles = StyleSheet.create({
 		paddingVertical: 18,
 		borderRadius: 12,
 		alignItems: "center",
+	},
+	reprintButton: {
+		backgroundColor: "#fff",
+		paddingVertical: 16,
+		borderRadius: 12,
+		alignItems: "center",
+		flexDirection: "row",
+		justifyContent: "center",
+		gap: 8,
+		borderWidth: 2,
+		borderColor: "#4A90E2",
+	},
+	reprintButtonText: {
+		color: "#4A90E2",
+		fontWeight: "600",
+		fontSize: 16,
 	},
 	buttonText: {
 		color: "#fff",

@@ -11,6 +11,7 @@ import {
 	Alert,
 	StyleSheet,
 	ScrollView,
+	Switch,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -53,6 +54,11 @@ export default function Settings() {
 	// État pour la modale feedback
 	const [showFeedbackModal, setShowFeedbackModal] = useState(false);
 
+	// ⭐ État messagerie
+	const [isMessagingEnabled, setIsMessagingEnabled] = useState(true);
+	const [loadingMessaging, setLoadingMessaging] = useState(false);
+	const { restaurantId } = useUserStore();
+
 	// ⭐ Utiliser useTheme() pour avoir le thème complet avec typography scalée
 	const THEME = useTheme();
 
@@ -69,6 +75,60 @@ export default function Settings() {
 		initTheme();
 		initUser();
 	}, [initTheme, initUser]);
+
+	// 💬 Charger statut messagerie
+	useEffect(() => {
+		if (restaurantId) {
+			loadMessagingStatus();
+		}
+	}, [restaurantId]);
+
+	const loadMessagingStatus = async () => {
+		try {
+			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/messaging-status/${restaurantId}`;
+			const response = await fetch(url);
+			if (response.ok) {
+				const data = await response.json();
+				setIsMessagingEnabled(data.isMessagingEnabled);
+			}
+		} catch (error) {
+			console.error("❌ Erreur chargement statut messagerie:", error);
+		}
+	};
+
+	const toggleMessaging = async (value) => {
+		setLoadingMessaging(true);
+		try {
+			const token = await useUserStore.getState().getToken();
+			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/toggle-messaging/${restaurantId}`;
+
+			const response = await fetch(url, {
+				method: "PUT",
+				headers: {
+					Authorization: `Bearer ${token}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ isEnabled: value }),
+			});
+
+			if (response.ok) {
+				setIsMessagingEnabled(value);
+				console.log(`✅ Messagerie ${value ? "activée" : "désactivée"}`);
+			} else {
+				throw new Error(`Erreur ${response.status}`);
+			}
+		} catch (error) {
+			console.error("❌ Erreur toggle messagerie:", error);
+			Alert.alert(
+				"Erreur",
+				"Impossible de modifier les paramètres de messagerie",
+			);
+			// Reset
+			setIsMessagingEnabled(!value);
+		} finally {
+			setLoadingMessaging(false);
+		}
+	};
 
 	const handleLogout = async () => {
 		Alert.alert("Déconnexion", "Es-tu sûr de vouloir te déconnecter ?", [
@@ -102,14 +162,14 @@ export default function Settings() {
 			Alert.alert(
 				"Merci !",
 				"Votre feedback a bien été envoyé à l'équipe OrderIt.",
-				[{ text: "OK" }]
+				[{ text: "OK" }],
 			);
 		} catch (error) {
 			console.error("[Settings] Erreur envoi feedback:", error);
 			Alert.alert(
 				"Erreur",
 				"Impossible d'envoyer le feedback. Réessayez plus tard.",
-				[{ text: "OK" }]
+				[{ text: "OK" }],
 			);
 		}
 	};
@@ -483,6 +543,144 @@ export default function Settings() {
 			case "security":
 				return <SecuritySettings />;
 
+			case "messaging":
+				return (
+					<>
+						<Text style={settingsStyles.sectionHeaderText}>
+							💬 Messagerie Client
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="information-circle"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Messagerie bidirectionnelle
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Permet aux clients d&apos;envoyer des messages aux serveurs
+										(demandes, questions) et aux serveurs de répondre avec des
+										messages prédéfinis en temps réel.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Toggle activation */}
+						<View style={settingsStyles.themeSection}>
+							<View
+								style={[
+									settingsStyles.themeLabelRow,
+									{
+										justifyContent: "space-between",
+										alignItems: "center",
+									},
+								]}
+							>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										flex: 1,
+									}}
+								>
+									<Ionicons
+										name="chatbubbles"
+										size={24}
+										color={THEME.colors.primary.amber}
+									/>
+									<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+										<Text style={settingsStyles.settingLabel}>
+											Activer la messagerie
+										</Text>
+										<Text style={settingsStyles.settingDescription}>
+											{isMessagingEnabled
+												? "Les clients peuvent envoyer des messages"
+												: "Messagerie désactivée pour ce restaurant"}
+										</Text>
+									</View>
+								</View>
+
+								<Switch
+									value={isMessagingEnabled}
+									onValueChange={toggleMessaging}
+									disabled={loadingMessaging}
+									trackColor={{
+										false: "#767577",
+										true: THEME.colors.primary.amber,
+									}}
+									thumbColor={isMessagingEnabled ? "#fff" : "#f4f3f4"}
+								/>
+							</View>
+						</View>
+
+						{/* Statistiques */}
+						<View style={settingsStyles.infoCard}>
+							<Text style={[settingsStyles.settingLabel, { marginBottom: 16 }]}>
+								📊 Fonctionnalités
+							</Text>
+
+							<View style={{ gap: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Messages prédéfinis clients
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Réponses rapides serveurs
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Notifications temps réel (WebSocket)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Conversation bidirectionnelle
+									</Text>
+								</View>
+							</View>
+						</View>
+					</>
+				);
+
 			default:
 				return null;
 		}
@@ -588,15 +786,19 @@ export default function Settings() {
 									label="Sécurité"
 									section="security"
 								/>
+								<MenuItem
+									icon="chatbubbles-outline"
+									label="Messagerie"
+									section="messaging"
+								/>
+								<MenuItem
+									icon="color-palette-outline"
+									label="Thème"
+									section="appearance"
+								/>
 							</>
 						)}
 
-						{/* Thème en dernier - moins prioritaire */}
-						<MenuItem
-							icon="color-palette-outline"
-							label="Thème"
-							section="appearance"
-						/>
 						{/* Feedback */}
 						<TouchableOpacity
 							style={settingsStyles.menuItem}
@@ -627,7 +829,9 @@ export default function Settings() {
 				{/* Colonne principale - Contenu */}
 				<View style={settingsStyles.mainContent}>
 					{/* Scroll uniquement pour les sections sans FlatList */}
-					{["appearance", "account", "security"].includes(activeSection) ? (
+					{["appearance", "account", "security", "messaging"].includes(
+						activeSection,
+					) ? (
 						<ScrollView
 							showsVerticalScrollIndicator={false}
 							contentContainerStyle={{ paddingBottom: 40 }}

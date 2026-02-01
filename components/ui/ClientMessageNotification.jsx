@@ -18,6 +18,8 @@ import {
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import useSocket from "../../hooks/useSocket";
+import ServerResponseModal from "../modals/ServerResponseModal";
+import useUserStore from "../../src/stores/useUserStore";
 
 // 🎨 Design cohérent avec l'app
 const COLORS = {
@@ -40,7 +42,10 @@ const CATEGORY_CONFIG = {
 const ClientMessageNotification = ({ onMessagePress }) => {
 	const [notifications, setNotifications] = useState([]);
 	const [currentNotification, setCurrentNotification] = useState(null);
+	const [showResponseModal, setShowResponseModal] = useState(false);
+	const [selectedMessage, setSelectedMessage] = useState(null);
 	const { socket, isConnected } = useSocket();
+	const { restaurantId } = useUserStore();
 
 	// Animations
 	const translateY = useRef(new Animated.Value(-150)).current;
@@ -116,12 +121,28 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 			}
 		};
 
+		const handleServerResponse = (event) => {
+			console.log("📨 Réponse serveur reçue:", event);
+			// Retirer la notification correspondante
+			if (event.data?.clientMessageId) {
+				setNotifications((prev) =>
+					prev.filter((n) => n.id !== event.data.clientMessageId),
+				);
+				// Si c'est la notification actuelle, la masquer
+				if (currentNotification?.id === event.data.clientMessageId) {
+					hideNotification();
+				}
+			}
+		};
+
 		socket.on("client-message", handleClientMessage);
+		socket.on("server-response", handleServerResponse);
 
 		return () => {
 			socket.off("client-message", handleClientMessage);
+			socket.off("server-response", handleServerResponse);
 		};
-	}, [socket, isConnected]);
+	}, [socket, isConnected, currentNotification, hideNotification]);
 
 	// Afficher les notifications une par une
 	useEffect(() => {
@@ -133,13 +154,29 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 		}
 	}, [notifications, currentNotification, showNotification]);
 
-	// Clic sur la notification
+	// Clic sur la notification → Ouvrir modal réponse
 	const handlePress = useCallback(() => {
-		if (currentNotification && onMessagePress) {
-			onMessagePress(currentNotification);
+		if (currentNotification) {
+			setSelectedMessage(currentNotification);
+			setShowResponseModal(true);
+			hideNotification();
 		}
-		hideNotification();
-	}, [currentNotification, onMessagePress, hideNotification]);
+	}, [currentNotification, hideNotification]);
+
+	// Callback après envoi réponse
+	const handleResponseSent = useCallback((message) => {
+		console.log("✅ Réponse envoyée pour message:", message.id);
+		// Retirer de la file d'attente
+		setNotifications((prev) => prev.filter((n) => n.id !== message.id));
+		setShowResponseModal(false);
+		setSelectedMessage(null);
+	}, []);
+
+	// Fermer modal
+	const handleCloseModal = useCallback(() => {
+		setShowResponseModal(false);
+		setSelectedMessage(null);
+	}, []);
 
 	// Fermer la notification
 	const handleDismiss = useCallback(() => {
@@ -152,82 +189,93 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 		CATEGORY_CONFIG[currentNotification.category] || CATEGORY_CONFIG.autre;
 
 	return (
-		<Animated.View
-			style={[
-				styles.container,
-				{
-					transform: [{ translateY }],
-					opacity,
-				},
-			]}
-		>
-			<TouchableOpacity
-				activeOpacity={0.95}
-				onPress={handlePress}
-				style={styles.touchable}
+		<>
+			<Animated.View
+				style={[
+					styles.container,
+					{
+						transform: [{ translateY }],
+						opacity,
+					},
+				]}
 			>
-				<BlurView intensity={90} tint="dark" style={styles.blur}>
-					<View style={styles.content}>
-						{/* Icône catégorie */}
-						<View
-							style={[
-								styles.iconContainer,
-								{ backgroundColor: `${categoryConfig.color}20` },
-							]}
-						>
-							<Ionicons
-								name={currentNotification.icon || categoryConfig.icon}
-								size={24}
-								color={categoryConfig.color}
-							/>
-						</View>
+				<TouchableOpacity
+					activeOpacity={0.95}
+					onPress={handlePress}
+					style={styles.touchable}
+				>
+					<BlurView intensity={90} tint="dark" style={styles.blur}>
+						<View style={styles.content}>
+							{/* Icône catégorie */}
+							<View
+								style={[
+									styles.iconContainer,
+									{ backgroundColor: `${categoryConfig.color}20` },
+								]}
+							>
+								<Ionicons
+									name={currentNotification.icon || categoryConfig.icon}
+									size={24}
+									color={categoryConfig.color}
+								/>
+							</View>
 
-						{/* Contenu */}
-						<View style={styles.textContainer}>
-							<View style={styles.headerRow}>
-								<Text style={styles.tableText}>
-									Table {currentNotification.tableNumber}
-								</Text>
-								<Text style={styles.clientName}>
-									{currentNotification.clientName}
+							{/* Contenu */}
+							<View style={styles.textContainer}>
+								<View style={styles.headerRow}>
+									<Text style={styles.tableText}>
+										Table {currentNotification.tableNumber}
+									</Text>
+									<Text style={styles.clientName}>
+										{currentNotification.clientName}
+									</Text>
+								</View>
+								<Text style={styles.messageText} numberOfLines={2}>
+									{currentNotification.text}
 								</Text>
 							</View>
-							<Text style={styles.messageText} numberOfLines={2}>
-								{currentNotification.text}
-							</Text>
+
+							{/* Bouton fermer */}
+							<TouchableOpacity
+								onPress={handleDismiss}
+								style={styles.closeButton}
+								hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+							>
+								<Ionicons name="close" size={20} color={COLORS.textMuted} />
+							</TouchableOpacity>
 						</View>
 
-						{/* Bouton fermer */}
-						<TouchableOpacity
-							onPress={handleDismiss}
-							style={styles.closeButton}
-							hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+						{/* Badge de catégorie */}
+						<View
+							style={[
+								styles.categoryBadge,
+								{ backgroundColor: categoryConfig.color },
+							]}
 						>
-							<Ionicons name="close" size={20} color={COLORS.textMuted} />
-						</TouchableOpacity>
-					</View>
+							<Text style={styles.categoryText}>
+								{currentNotification.category.toUpperCase()}
+							</Text>
+						</View>
+					</BlurView>
+				</TouchableOpacity>
 
-					{/* Badge de catégorie */}
-					<View
-						style={[
-							styles.categoryBadge,
-							{ backgroundColor: categoryConfig.color },
-						]}
-					>
-						<Text style={styles.categoryText}>
-							{currentNotification.category.toUpperCase()}
-						</Text>
+				{/* Indicateur de notifications en attente */}
+				{notifications.length > 0 && (
+					<View style={styles.queueBadge}>
+						<Text style={styles.queueText}>+{notifications.length}</Text>
 					</View>
-				</BlurView>
-			</TouchableOpacity>
+				)}
+			</Animated.View>
 
-			{/* Indicateur de notifications en attente */}
-			{notifications.length > 0 && (
-				<View style={styles.queueBadge}>
-					<Text style={styles.queueText}>+{notifications.length}</Text>
-				</View>
-			)}
-		</Animated.View>
+			{/* 💬 Modal réponse serveur */}
+			<ServerResponseModal
+				visible={showResponseModal}
+				clientMessage={selectedMessage}
+				onClose={handleCloseModal}
+				onResponseSent={handleResponseSent}
+				restaurantId={restaurantId}
+			/>
+		</>
 	);
 };
 

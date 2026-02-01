@@ -21,6 +21,7 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Dashboard from "./Dashboard";
+import useUserStore from "../../src/stores/useUserStore";
 import ItemRow from "../floor/ItemRow";
 import FloorPlanModal from "../floor/FloorPlanModal";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
@@ -131,6 +132,7 @@ const GroupBox = React.memo(({ children, floorStyles }) => (
 GroupBox.displayName = "GroupBox";
 
 export default function Floor({ onStart }) {
+	const category = useUserStore((state) => state.category);
 	const { themeMode, initTheme } = useThemeStore();
 	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 	const floorStyles = useMemo(() => createFloorStyles(THEME), [THEME]);
@@ -280,7 +282,7 @@ export default function Floor({ onStart }) {
 										? { ...item, itemStatus: newStatus }
 										: item
 								),
-						  }
+							}
 						: order
 				)
 			);
@@ -420,7 +422,7 @@ export default function Floor({ onStart }) {
 										? { ...item, itemStatus: newStatus }
 										: item
 								),
-						  }
+							}
 						: order
 				)
 			);
@@ -454,549 +456,560 @@ export default function Floor({ onStart }) {
 
 			{/* Container principal */}
 			<View style={floorStyles.mainContainer}>
-				{/* Sidebar Premium */}
-				<View style={floorStyles.sidebar}>
-					{/* Header Sidebar */}
-					<View style={floorStyles.sidebarHeader}>
-						<LinearGradient
-							colors={["rgba(245, 158, 11, 0.15)", "rgba(245, 158, 11, 0.05)"]}
-							style={floorStyles.headerIconBg}
+				{/* Sidebar Premium : masquer si foodtruck */}
+				{category !== "foodtruck" && (
+					<View style={floorStyles.sidebar}>
+						{/* Header Sidebar */}
+						<View style={floorStyles.sidebarHeader}>
+							<LinearGradient
+								colors={[
+									"rgba(245, 158, 11, 0.15)",
+									"rgba(245, 158, 11, 0.05)",
+								]}
+								style={floorStyles.headerIconBg}
+							>
+								<Ionicons
+									name="restaurant-outline"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+							</LinearGradient>
+							<Text style={floorStyles.headerTitle}>Plan de salle</Text>
+						</View>
+
+						<ScrollView
+							showsVerticalScrollIndicator={false}
+							contentContainerStyle={floorStyles.sidebarContent}
 						>
-							<Ionicons
-								name="restaurant-outline"
-								size={24}
-								color={THEME.colors.primary.amber}
+							{/* Cuisine Section */}
+							<SectionHeader
+								icon="flame-outline"
+								label="Cuisine"
+								gradientColors={[
+									"rgba(239, 68, 68, 0.15)",
+									"rgba(239, 68, 68, 0.05)",
+								]}
+								floorStyles={floorStyles}
+								THEME={THEME}
 							/>
-						</LinearGradient>
-						<Text style={floorStyles.headerTitle}>Plan de salle</Text>
+							<GroupBox floorStyles={floorStyles}>
+								{/* Boissons */}
+								<MenuItem
+									icon="wine-outline"
+									label="Boissons"
+									count={getCategoryCount("boisson")}
+									isActive={activeCategory === "boisson"}
+									onPress={() => handleCategoryPress("boisson")}
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+								{activeCategory === "boisson" && (
+									<View style={floorStyles.itemsSection}>
+										{loading ? (
+											<View style={floorStyles.loadingContainer}>
+												<ActivityIndicator
+													size="small"
+													color={THEME.colors.primary.amber}
+												/>
+											</View>
+										) : filteredItems.length === 0 ? (
+											<View style={floorStyles.emptyContainer}>
+												<Ionicons
+													name="checkmark-circle-outline"
+													size={24}
+													color={THEME.colors.text.muted}
+												/>
+												<Text style={floorStyles.emptyText}>
+													Aucune boisson en cours
+												</Text>
+											</View>
+										) : (
+											filteredItems.map((item, index) => (
+												<View
+													key={`${item.orderId}-${item._id || index}`}
+													style={floorStyles.itemWrapper}
+												>
+													<ItemRow
+														item={item}
+														onUpdateStatus={handleUpdateItemStatus}
+														THEME={THEME}
+													/>
+												</View>
+											))
+										)}
+									</View>
+								)}
+
+								{/* Entrées */}
+								<MenuItem
+									icon="nutrition-outline"
+									label="Entrées"
+									count={getCategoryCount("entree")}
+									isActive={activeCategory === "entree"}
+									onPress={() => handleCategoryPress("entree")}
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+								{activeCategory === "entree" && (
+									<View style={floorStyles.itemsSection}>
+										{loading ? (
+											<View style={floorStyles.loadingContainer}>
+												<ActivityIndicator
+													size="small"
+													color={THEME.colors.primary.amber}
+												/>
+											</View>
+										) : filteredItems.length === 0 ? (
+											<View style={floorStyles.emptyContainer}>
+												<Ionicons
+													name="checkmark-circle-outline"
+													size={24}
+													color={THEME.colors.text.muted}
+												/>
+												<Text style={floorStyles.emptyText}>
+													Aucune entrée en cours
+												</Text>
+											</View>
+										) : (
+											filteredItems.map((item, index) => (
+												<View
+													key={`${item.orderId}-${item._id || index}`}
+													style={floorStyles.itemWrapper}
+												>
+													<ItemRow
+														item={item}
+														onUpdateStatus={handleUpdateItemStatus}
+														THEME={THEME}
+													/>
+												</View>
+											))
+										)}
+									</View>
+								)}
+
+								{/* Plats */}
+								<MenuItem
+									icon="restaurant-outline"
+									label="Plats"
+									count={getCategoryCount("plat")}
+									isActive={activeCategory === "plat"}
+									onPress={() => handleCategoryPress("plat")}
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+								{activeCategory === "plat" && (
+									<View style={floorStyles.itemsSection}>
+										{loading ? (
+											<View style={floorStyles.loadingContainer}>
+												<ActivityIndicator
+													size="small"
+													color={THEME.colors.primary.amber}
+												/>
+											</View>
+										) : filteredItems.length === 0 ? (
+											<View style={floorStyles.emptyContainer}>
+												<Ionicons
+													name="checkmark-circle-outline"
+													size={24}
+													color={THEME.colors.text.muted}
+												/>
+												<Text style={floorStyles.emptyText}>
+													Aucun plat en cours
+												</Text>
+											</View>
+										) : (
+											filteredItems.map((item, index) => (
+												<View
+													key={`${item.orderId}-${item._id || index}`}
+													style={floorStyles.itemWrapper}
+												>
+													<ItemRow
+														item={item}
+														onUpdateStatus={handleUpdateItemStatus}
+														THEME={THEME}
+													/>
+												</View>
+											))
+										)}
+									</View>
+								)}
+
+								{/* Desserts */}
+								<MenuItem
+									icon="ice-cream-outline"
+									label="Desserts"
+									count={getCategoryCount("dessert")}
+									isActive={activeCategory === "dessert"}
+									onPress={() => handleCategoryPress("dessert")}
+									isLast
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+								{activeCategory === "dessert" && (
+									<View style={floorStyles.itemsSection}>
+										{loading ? (
+											<View style={floorStyles.loadingContainer}>
+												<ActivityIndicator
+													size="small"
+													color={THEME.colors.primary.amber}
+												/>
+											</View>
+										) : filteredItems.length === 0 ? (
+											<View style={floorStyles.emptyContainer}>
+												<Ionicons
+													name="checkmark-circle-outline"
+													size={24}
+													color={THEME.colors.text.muted}
+												/>
+												<Text style={floorStyles.emptyText}>
+													Aucun dessert en cours
+												</Text>
+											</View>
+										) : (
+											filteredItems.map((item, index) => (
+												<View
+													key={`${item.orderId}-${item._id || index}`}
+													style={floorStyles.itemWrapper}
+												>
+													<ItemRow
+														item={item}
+														onUpdateStatus={handleUpdateItemStatus}
+														THEME={THEME}
+													/>
+												</View>
+											))
+										)}
+									</View>
+								)}
+							</GroupBox>
+							{/* 🏢 Salles Section */}
+							<SectionHeader
+								icon="grid-outline"
+								label="Salles"
+								gradientColors={[
+									"rgba(14, 165, 233, 0.15)",
+									"rgba(14, 165, 233, 0.05)",
+								]}
+								floorStyles={floorStyles}
+								THEME={THEME}
+							/>
+							<GroupBox floorStyles={floorStyles}>
+								<MenuItem
+									icon="restaurant-outline"
+									label="Salle 1"
+									count={0}
+									onPress={() => {
+										setActiveRoom(1);
+										setShowFloorPlan(true);
+									}}
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+								<MenuItem
+									icon="restaurant-outline"
+									label="Salle 2"
+									count={0}
+									onPress={() => {
+										setActiveRoom(2);
+										setShowFloorPlan(true);
+									}}
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+								<MenuItem
+									icon="restaurant-outline"
+									label="Salle 3"
+									count={0}
+									isLast
+									onPress={() => {
+										setActiveRoom(3);
+										setShowFloorPlan(true);
+									}}
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+							</GroupBox>
+
+							{/* 📦 Stock Section */}
+							<SectionHeader
+								icon="cube-outline"
+								label="Stock"
+								gradientColors={[
+									"rgba(239, 68, 68, 0.15)",
+									"rgba(239, 68, 68, 0.05)",
+								]}
+								floorStyles={floorStyles}
+								THEME={THEME}
+							/>
+							<GroupBox floorStyles={floorStyles}>
+								{totalLowStock === 0 ? (
+									<View style={floorStyles.emptyStockContainer}>
+										<Ionicons
+											name="checkmark-circle-outline"
+											size={20}
+											color={THEME.colors.status.success}
+										/>
+										<Text style={floorStyles.emptyStockText}>Stocks OK</Text>
+									</View>
+								) : (
+									<>
+										{/* Boissons en stock bas */}
+										<MenuItem
+											icon="wine-outline"
+											label="Boissons"
+											count={getLowStockCount("boisson")}
+											isActive={stockExpanded === "boisson"}
+											onPress={() => handleStockCategoryPress("boisson")}
+											floorStyles={floorStyles}
+											THEME={THEME}
+										/>
+										{stockExpanded === "boisson" && (
+											<View style={floorStyles.stockItemsSection}>
+												{stockLoading ? (
+													<ActivityIndicator
+														size="small"
+														color={THEME.colors.primary.amber}
+													/>
+												) : (lowStockProducts.boisson || []).length === 0 ? (
+													<Text style={floorStyles.stockOkText}>
+														✓ Stock OK
+													</Text>
+												) : (
+													(lowStockProducts.boisson || []).map((product) => (
+														<View
+															key={product._id}
+															style={[
+																floorStyles.stockItem,
+																product.quantity === 0 &&
+																	floorStyles.stockItemOutOfStock,
+															]}
+														>
+															<Text style={floorStyles.stockItemName}>
+																{product.name}
+															</Text>
+															<View
+																style={[
+																	floorStyles.stockBadge,
+																	product.quantity === 0
+																		? floorStyles.stockBadgeOut
+																		: floorStyles.stockBadgeLow,
+																]}
+															>
+																<Text style={floorStyles.stockBadgeText}>
+																	{product.quantity === 0
+																		? "Épuisé"
+																		: product.quantity}
+																</Text>
+															</View>
+														</View>
+													))
+												)}
+											</View>
+										)}
+
+										{/* Plats en stock bas */}
+										<MenuItem
+											icon="restaurant-outline"
+											label="Plats"
+											count={getLowStockCount("plat")}
+											isActive={stockExpanded === "plat"}
+											onPress={() => handleStockCategoryPress("plat")}
+											floorStyles={floorStyles}
+											THEME={THEME}
+										/>
+										{stockExpanded === "plat" && (
+											<View style={floorStyles.stockItemsSection}>
+												{stockLoading ? (
+													<ActivityIndicator
+														size="small"
+														color={THEME.colors.primary.amber}
+													/>
+												) : (lowStockProducts.plat || []).length === 0 ? (
+													<Text style={floorStyles.stockOkText}>
+														✓ Stock OK
+													</Text>
+												) : (
+													(lowStockProducts.plat || []).map((product) => (
+														<View
+															key={product._id}
+															style={[
+																floorStyles.stockItem,
+																product.quantity === 0 &&
+																	floorStyles.stockItemOutOfStock,
+															]}
+														>
+															<Text style={floorStyles.stockItemName}>
+																{product.name}
+															</Text>
+															<View
+																style={[
+																	floorStyles.stockBadge,
+																	product.quantity === 0
+																		? floorStyles.stockBadgeOut
+																		: floorStyles.stockBadgeLow,
+																]}
+															>
+																<Text style={floorStyles.stockBadgeText}>
+																	{product.quantity === 0
+																		? "Épuisé"
+																		: product.quantity}
+																</Text>
+															</View>
+														</View>
+													))
+												)}
+											</View>
+										)}
+
+										{/* Desserts en stock bas */}
+										<MenuItem
+											icon="ice-cream-outline"
+											label="Desserts"
+											count={getLowStockCount("dessert")}
+											isActive={stockExpanded === "dessert"}
+											onPress={() => handleStockCategoryPress("dessert")}
+											isLast
+											floorStyles={floorStyles}
+											THEME={THEME}
+										/>
+										{stockExpanded === "dessert" && (
+											<View style={floorStyles.stockItemsSection}>
+												{stockLoading ? (
+													<ActivityIndicator
+														size="small"
+														color={THEME.colors.primary.amber}
+													/>
+												) : (lowStockProducts.dessert || []).length === 0 ? (
+													<Text style={floorStyles.stockOkText}>
+														✓ Stock OK
+													</Text>
+												) : (
+													(lowStockProducts.dessert || []).map((product) => (
+														<View
+															key={product._id}
+															style={[
+																floorStyles.stockItem,
+																product.quantity === 0 &&
+																	floorStyles.stockItemOutOfStock,
+															]}
+														>
+															<Text style={floorStyles.stockItemName}>
+																{product.name}
+															</Text>
+															<View
+																style={[
+																	floorStyles.stockBadge,
+																	product.quantity === 0
+																		? floorStyles.stockBadgeOut
+																		: floorStyles.stockBadgeLow,
+																]}
+															>
+																<Text style={floorStyles.stockBadgeText}>
+																	{product.quantity === 0
+																		? "Épuisé"
+																		: product.quantity}
+																</Text>
+															</View>
+														</View>
+													))
+												)}
+											</View>
+										)}
+									</>
+								)}
+							</GroupBox>
+
+							{/* Caisse Section */}
+							<SectionHeader
+								icon="card-outline"
+								label="Caisse"
+								gradientColors={[
+									"rgba(16, 185, 129, 0.15)",
+									"rgba(16, 185, 129, 0.05)",
+								]}
+								floorStyles={floorStyles}
+								THEME={THEME}
+							/>
+							<GroupBox floorStyles={floorStyles}>
+								<MenuItem
+									icon="time-outline"
+									label="En cours"
+									count={caisseStats.enCoursCount}
+									value={caisseStats.enCoursMontant}
+									isActive={caisseExpanded === "enCours"}
+									onPress={() =>
+										setCaisseExpanded(
+											caisseExpanded === "enCours" ? null : "enCours"
+										)
+									}
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+								{caisseExpanded === "enCours" && (
+									<View style={floorStyles.caisseDetailSection}>
+										{caisseStats.enCoursList.length === 0 ? (
+											<Text style={floorStyles.caisseDetailEmpty}>
+												Aucune réservation en cours
+											</Text>
+										) : (
+											caisseStats.enCoursList.map((r) => (
+												<View key={r._id} style={floorStyles.caisseDetailItem}>
+													<Text style={floorStyles.caisseDetailName}>
+														{r.clientName || "Client"}
+													</Text>
+													<Text style={floorStyles.caisseDetailAmount}>
+														{(r.totalAmount || 0).toFixed(2)}€
+													</Text>
+													<Text style={floorStyles.caisseDetailPers}>
+														{r.nbPersonnes || 1} pers
+													</Text>
+												</View>
+											))
+										)}
+									</View>
+								)}
+								<MenuItem
+									icon="checkmark-circle-outline"
+									label="Payée"
+									count={caisseStats.payeesCount}
+									value={caisseStats.payeesMontant}
+									isActive={caisseExpanded === "payees"}
+									onPress={() =>
+										setCaisseExpanded(
+											caisseExpanded === "payees" ? null : "payees"
+										)
+									}
+									isLast={caisseExpanded !== "payees"}
+									floorStyles={floorStyles}
+									THEME={THEME}
+								/>
+								{caisseExpanded === "payees" && (
+									<View style={floorStyles.caisseDetailSection}>
+										{caisseStats.payeesList.length === 0 ? (
+											<Text style={floorStyles.caisseDetailEmpty}>
+												Aucune réservation payée
+											</Text>
+										) : (
+											caisseStats.payeesList.map((r) => (
+												<View key={r._id} style={floorStyles.caisseDetailItem}>
+													<Text style={floorStyles.caisseDetailName}>
+														{r.clientName || "Client"}
+													</Text>
+													<Text style={floorStyles.caisseDetailAmount}>
+														{(r.totalAmount || 0).toFixed(2)}€
+													</Text>
+													<Text style={floorStyles.caisseDetailPers}>
+														{r.nbPersonnes || 1} pers
+													</Text>
+												</View>
+											))
+										)}
+									</View>
+								)}
+							</GroupBox>
+						</ScrollView>
 					</View>
-
-					<ScrollView
-						showsVerticalScrollIndicator={false}
-						contentContainerStyle={floorStyles.sidebarContent}
-					>
-						{/* Cuisine Section */}
-						<SectionHeader
-							icon="flame-outline"
-							label="Cuisine"
-							gradientColors={[
-								"rgba(239, 68, 68, 0.15)",
-								"rgba(239, 68, 68, 0.05)",
-							]}
-							floorStyles={floorStyles}
-							THEME={THEME}
-						/>
-						<GroupBox floorStyles={floorStyles}>
-							{/* Boissons */}
-							<MenuItem
-								icon="wine-outline"
-								label="Boissons"
-								count={getCategoryCount("boisson")}
-								isActive={activeCategory === "boisson"}
-								onPress={() => handleCategoryPress("boisson")}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							{activeCategory === "boisson" && (
-								<View style={floorStyles.itemsSection}>
-									{loading ? (
-										<View style={floorStyles.loadingContainer}>
-											<ActivityIndicator
-												size="small"
-												color={THEME.colors.primary.amber}
-											/>
-										</View>
-									) : filteredItems.length === 0 ? (
-										<View style={floorStyles.emptyContainer}>
-											<Ionicons
-												name="checkmark-circle-outline"
-												size={24}
-												color={THEME.colors.text.muted}
-											/>
-											<Text style={floorStyles.emptyText}>
-												Aucune boisson en cours
-											</Text>
-										</View>
-									) : (
-										filteredItems.map((item, index) => (
-											<View
-												key={`${item.orderId}-${item._id || index}`}
-												style={floorStyles.itemWrapper}
-											>
-												<ItemRow
-													item={item}
-													onUpdateStatus={handleUpdateItemStatus}
-													THEME={THEME}
-												/>
-											</View>
-										))
-									)}
-								</View>
-							)}
-
-							{/* Entrées */}
-							<MenuItem
-								icon="nutrition-outline"
-								label="Entrées"
-								count={getCategoryCount("entree")}
-								isActive={activeCategory === "entree"}
-								onPress={() => handleCategoryPress("entree")}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							{activeCategory === "entree" && (
-								<View style={floorStyles.itemsSection}>
-									{loading ? (
-										<View style={floorStyles.loadingContainer}>
-											<ActivityIndicator
-												size="small"
-												color={THEME.colors.primary.amber}
-											/>
-										</View>
-									) : filteredItems.length === 0 ? (
-										<View style={floorStyles.emptyContainer}>
-											<Ionicons
-												name="checkmark-circle-outline"
-												size={24}
-												color={THEME.colors.text.muted}
-											/>
-											<Text style={floorStyles.emptyText}>
-												Aucune entrée en cours
-											</Text>
-										</View>
-									) : (
-										filteredItems.map((item, index) => (
-											<View
-												key={`${item.orderId}-${item._id || index}`}
-												style={floorStyles.itemWrapper}
-											>
-												<ItemRow
-													item={item}
-													onUpdateStatus={handleUpdateItemStatus}
-													THEME={THEME}
-												/>
-											</View>
-										))
-									)}
-								</View>
-							)}
-
-							{/* Plats */}
-							<MenuItem
-								icon="restaurant-outline"
-								label="Plats"
-								count={getCategoryCount("plat")}
-								isActive={activeCategory === "plat"}
-								onPress={() => handleCategoryPress("plat")}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							{activeCategory === "plat" && (
-								<View style={floorStyles.itemsSection}>
-									{loading ? (
-										<View style={floorStyles.loadingContainer}>
-											<ActivityIndicator
-												size="small"
-												color={THEME.colors.primary.amber}
-											/>
-										</View>
-									) : filteredItems.length === 0 ? (
-										<View style={floorStyles.emptyContainer}>
-											<Ionicons
-												name="checkmark-circle-outline"
-												size={24}
-												color={THEME.colors.text.muted}
-											/>
-											<Text style={floorStyles.emptyText}>
-												Aucun plat en cours
-											</Text>
-										</View>
-									) : (
-										filteredItems.map((item, index) => (
-											<View
-												key={`${item.orderId}-${item._id || index}`}
-												style={floorStyles.itemWrapper}
-											>
-												<ItemRow
-													item={item}
-													onUpdateStatus={handleUpdateItemStatus}
-													THEME={THEME}
-												/>
-											</View>
-										))
-									)}
-								</View>
-							)}
-
-							{/* Desserts */}
-							<MenuItem
-								icon="ice-cream-outline"
-								label="Desserts"
-								count={getCategoryCount("dessert")}
-								isActive={activeCategory === "dessert"}
-								onPress={() => handleCategoryPress("dessert")}
-								isLast
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							{activeCategory === "dessert" && (
-								<View style={floorStyles.itemsSection}>
-									{loading ? (
-										<View style={floorStyles.loadingContainer}>
-											<ActivityIndicator
-												size="small"
-												color={THEME.colors.primary.amber}
-											/>
-										</View>
-									) : filteredItems.length === 0 ? (
-										<View style={floorStyles.emptyContainer}>
-											<Ionicons
-												name="checkmark-circle-outline"
-												size={24}
-												color={THEME.colors.text.muted}
-											/>
-											<Text style={floorStyles.emptyText}>
-												Aucun dessert en cours
-											</Text>
-										</View>
-									) : (
-										filteredItems.map((item, index) => (
-											<View
-												key={`${item.orderId}-${item._id || index}`}
-												style={floorStyles.itemWrapper}
-											>
-												<ItemRow
-													item={item}
-													onUpdateStatus={handleUpdateItemStatus}
-													THEME={THEME}
-												/>
-											</View>
-										))
-									)}
-								</View>
-							)}
-						</GroupBox>
-						{/* 🏢 Salles Section */}
-						<SectionHeader
-							icon="grid-outline"
-							label="Salles"
-							gradientColors={[
-								"rgba(14, 165, 233, 0.15)",
-								"rgba(14, 165, 233, 0.05)",
-							]}
-							floorStyles={floorStyles}
-							THEME={THEME}
-						/>
-						<GroupBox floorStyles={floorStyles}>
-							<MenuItem
-								icon="restaurant-outline"
-								label="Salle 1"
-								count={0}
-								onPress={() => {
-									setActiveRoom(1);
-									setShowFloorPlan(true);
-								}}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							<MenuItem
-								icon="restaurant-outline"
-								label="Salle 2"
-								count={0}
-								onPress={() => {
-									setActiveRoom(2);
-									setShowFloorPlan(true);
-								}}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							<MenuItem
-								icon="restaurant-outline"
-								label="Salle 3"
-								count={0}
-								isLast
-								onPress={() => {
-									setActiveRoom(3);
-									setShowFloorPlan(true);
-								}}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-						</GroupBox>
-
-						{/* 📦 Stock Section */}
-						<SectionHeader
-							icon="cube-outline"
-							label="Stock"
-							gradientColors={[
-								"rgba(239, 68, 68, 0.15)",
-								"rgba(239, 68, 68, 0.05)",
-							]}
-							floorStyles={floorStyles}
-							THEME={THEME}
-						/>
-						<GroupBox floorStyles={floorStyles}>
-							{totalLowStock === 0 ? (
-								<View style={floorStyles.emptyStockContainer}>
-									<Ionicons
-										name="checkmark-circle-outline"
-										size={20}
-										color={THEME.colors.status.success}
-									/>
-									<Text style={floorStyles.emptyStockText}>Stocks OK</Text>
-								</View>
-							) : (
-								<>
-									{/* Boissons en stock bas */}
-									<MenuItem
-										icon="wine-outline"
-										label="Boissons"
-										count={getLowStockCount("boisson")}
-										isActive={stockExpanded === "boisson"}
-										onPress={() => handleStockCategoryPress("boisson")}
-										floorStyles={floorStyles}
-										THEME={THEME}
-									/>
-									{stockExpanded === "boisson" && (
-										<View style={floorStyles.stockItemsSection}>
-											{stockLoading ? (
-												<ActivityIndicator
-													size="small"
-													color={THEME.colors.primary.amber}
-												/>
-											) : (lowStockProducts.boisson || []).length === 0 ? (
-												<Text style={floorStyles.stockOkText}>✓ Stock OK</Text>
-											) : (
-												(lowStockProducts.boisson || []).map((product) => (
-													<View
-														key={product._id}
-														style={[
-															floorStyles.stockItem,
-															product.quantity === 0 &&
-																floorStyles.stockItemOutOfStock,
-														]}
-													>
-														<Text style={floorStyles.stockItemName}>
-															{product.name}
-														</Text>
-														<View
-															style={[
-																floorStyles.stockBadge,
-																product.quantity === 0
-																	? floorStyles.stockBadgeOut
-																	: floorStyles.stockBadgeLow,
-															]}
-														>
-															<Text style={floorStyles.stockBadgeText}>
-																{product.quantity === 0
-																	? "Épuisé"
-																	: product.quantity}
-															</Text>
-														</View>
-													</View>
-												))
-											)}
-										</View>
-									)}
-
-									{/* Plats en stock bas */}
-									<MenuItem
-										icon="restaurant-outline"
-										label="Plats"
-										count={getLowStockCount("plat")}
-										isActive={stockExpanded === "plat"}
-										onPress={() => handleStockCategoryPress("plat")}
-										floorStyles={floorStyles}
-										THEME={THEME}
-									/>
-									{stockExpanded === "plat" && (
-										<View style={floorStyles.stockItemsSection}>
-											{stockLoading ? (
-												<ActivityIndicator
-													size="small"
-													color={THEME.colors.primary.amber}
-												/>
-											) : (lowStockProducts.plat || []).length === 0 ? (
-												<Text style={floorStyles.stockOkText}>✓ Stock OK</Text>
-											) : (
-												(lowStockProducts.plat || []).map((product) => (
-													<View
-														key={product._id}
-														style={[
-															floorStyles.stockItem,
-															product.quantity === 0 &&
-																floorStyles.stockItemOutOfStock,
-														]}
-													>
-														<Text style={floorStyles.stockItemName}>
-															{product.name}
-														</Text>
-														<View
-															style={[
-																floorStyles.stockBadge,
-																product.quantity === 0
-																	? floorStyles.stockBadgeOut
-																	: floorStyles.stockBadgeLow,
-															]}
-														>
-															<Text style={floorStyles.stockBadgeText}>
-																{product.quantity === 0
-																	? "Épuisé"
-																	: product.quantity}
-															</Text>
-														</View>
-													</View>
-												))
-											)}
-										</View>
-									)}
-
-									{/* Desserts en stock bas */}
-									<MenuItem
-										icon="ice-cream-outline"
-										label="Desserts"
-										count={getLowStockCount("dessert")}
-										isActive={stockExpanded === "dessert"}
-										onPress={() => handleStockCategoryPress("dessert")}
-										isLast
-										floorStyles={floorStyles}
-										THEME={THEME}
-									/>
-									{stockExpanded === "dessert" && (
-										<View style={floorStyles.stockItemsSection}>
-											{stockLoading ? (
-												<ActivityIndicator
-													size="small"
-													color={THEME.colors.primary.amber}
-												/>
-											) : (lowStockProducts.dessert || []).length === 0 ? (
-												<Text style={floorStyles.stockOkText}>✓ Stock OK</Text>
-											) : (
-												(lowStockProducts.dessert || []).map((product) => (
-													<View
-														key={product._id}
-														style={[
-															floorStyles.stockItem,
-															product.quantity === 0 &&
-																floorStyles.stockItemOutOfStock,
-														]}
-													>
-														<Text style={floorStyles.stockItemName}>
-															{product.name}
-														</Text>
-														<View
-															style={[
-																floorStyles.stockBadge,
-																product.quantity === 0
-																	? floorStyles.stockBadgeOut
-																	: floorStyles.stockBadgeLow,
-															]}
-														>
-															<Text style={floorStyles.stockBadgeText}>
-																{product.quantity === 0
-																	? "Épuisé"
-																	: product.quantity}
-															</Text>
-														</View>
-													</View>
-												))
-											)}
-										</View>
-									)}
-								</>
-							)}
-						</GroupBox>
-
-						{/* Caisse Section */}
-						<SectionHeader
-							icon="card-outline"
-							label="Caisse"
-							gradientColors={[
-								"rgba(16, 185, 129, 0.15)",
-								"rgba(16, 185, 129, 0.05)",
-							]}
-							floorStyles={floorStyles}
-							THEME={THEME}
-						/>
-						<GroupBox floorStyles={floorStyles}>
-							<MenuItem
-								icon="time-outline"
-								label="En cours"
-								count={caisseStats.enCoursCount}
-								value={caisseStats.enCoursMontant}
-								isActive={caisseExpanded === "enCours"}
-								onPress={() =>
-									setCaisseExpanded(
-										caisseExpanded === "enCours" ? null : "enCours"
-									)
-								}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							{caisseExpanded === "enCours" && (
-								<View style={floorStyles.caisseDetailSection}>
-									{caisseStats.enCoursList.length === 0 ? (
-										<Text style={floorStyles.caisseDetailEmpty}>
-											Aucune réservation en cours
-										</Text>
-									) : (
-										caisseStats.enCoursList.map((r) => (
-											<View key={r._id} style={floorStyles.caisseDetailItem}>
-												<Text style={floorStyles.caisseDetailName}>
-													{r.clientName || "Client"}
-												</Text>
-												<Text style={floorStyles.caisseDetailAmount}>
-													{(r.totalAmount || 0).toFixed(2)}€
-												</Text>
-												<Text style={floorStyles.caisseDetailPers}>
-													{r.nbPersonnes || 1} pers
-												</Text>
-											</View>
-										))
-									)}
-								</View>
-							)}
-							<MenuItem
-								icon="checkmark-circle-outline"
-								label="Payée"
-								count={caisseStats.payeesCount}
-								value={caisseStats.payeesMontant}
-								isActive={caisseExpanded === "payees"}
-								onPress={() =>
-									setCaisseExpanded(
-										caisseExpanded === "payees" ? null : "payees"
-									)
-								}
-								isLast={caisseExpanded !== "payees"}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							{caisseExpanded === "payees" && (
-								<View style={floorStyles.caisseDetailSection}>
-									{caisseStats.payeesList.length === 0 ? (
-										<Text style={floorStyles.caisseDetailEmpty}>
-											Aucune réservation payée
-										</Text>
-									) : (
-										caisseStats.payeesList.map((r) => (
-											<View key={r._id} style={floorStyles.caisseDetailItem}>
-												<Text style={floorStyles.caisseDetailName}>
-													{r.clientName || "Client"}
-												</Text>
-												<Text style={floorStyles.caisseDetailAmount}>
-													{(r.totalAmount || 0).toFixed(2)}€
-												</Text>
-												<Text style={floorStyles.caisseDetailPers}>
-													{r.nbPersonnes || 1} pers
-												</Text>
-											</View>
-										))
-									)}
-								</View>
-							)}
-						</GroupBox>
-					</ScrollView>
-				</View>
+				)}
 
 				{/* Séparateur Premium */}
 				<LinearGradient

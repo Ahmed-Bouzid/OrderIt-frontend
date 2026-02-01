@@ -2,7 +2,10 @@
 import { Alert } from "react-native";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getItem as getSecureItem, setItem as setSecureItem } from "../utils/secureStorage";
+import {
+	getItem as getSecureItem,
+	setItem as setSecureItem,
+} from "../utils/secureStorage";
 import { useCallback, useRef, useEffect } from "react";
 
 import { API_CONFIG } from "../src/config/apiConfig";
@@ -148,7 +151,9 @@ export function useAuthFetch() {
 				if (!token) {
 					console.warn("⚠️ Aucun token disponible, requête annulée :", url);
 					// ⭐ Rediriger vers login si pas de token (nettoyer SecureStore)
-					await getSecureItem("@access_token").then(() => {}).catch(() => {}); // Force cleanup
+					await getSecureItem("@access_token")
+						.then(() => {})
+						.catch(() => {}); // Force cleanup
 					redirectToLogin(router, isRedirectingRef);
 					throw new Error("Token manquant, fetch annulé");
 				}
@@ -201,8 +206,8 @@ export function useAuthFetch() {
 						}
 					} catch (refreshError) {
 						console.error("❌ Refresh échoué:", refreshError);
-					await setSecureItem("@access_token", "");
-					await setSecureItem("refreshToken", "");
+						await setSecureItem("@access_token", "");
+						await setSecureItem("refreshToken", "");
 						redirectToLogin(router, isRedirectingRef);
 						return []; // ⭐ Retourne tableau vide = airbag
 					}

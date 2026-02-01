@@ -48,17 +48,17 @@ export const ProductOptionsModal = ({
 				try {
 					const token = await getSecureItem("@access_token");
 					const response = await fetch(
-					`${
-						process.env.EXPO_PUBLIC_API_URL ||
-						"https://orderit-backend-6y1m.onrender.com"
-					}/products/${product._id}/options`,
-					{
-						headers: {
-							"Content-Type": "application/json",
-							Authorization: `Bearer ${token}`,
-						},
-					}
-				);
+						`${
+							process.env.EXPO_PUBLIC_API_URL ||
+							"https://orderit-backend-6y1m.onrender.com"
+						}/products/${product._id}/options`,
+						{
+							headers: {
+								"Content-Type": "application/json",
+								Authorization: `Bearer ${token}`,
+							},
+						}
+					);
 					const data = await response.json();
 					setOptions(Array.isArray(data) ? data : []);
 				} catch (error) {

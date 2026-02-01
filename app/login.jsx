@@ -14,7 +14,10 @@ import {
 	Platform,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { setItem as setSecureItem, getItem as getSecureItem } from "../utils/secureStorage";
+import {
+	setItem as setSecureItem,
+	getItem as getSecureItem,
+} from "../utils/secureStorage";
 import { useRouter } from "expo-router";
 import { create } from "zustand";
 import useUserStore from "../src/stores/useUserStore";
@@ -132,18 +135,18 @@ export default function Login() {
 			console.log("Réponse backend login :", data); // 🔹 debug
 
 			if (res.ok) {
-			// ✅ Stocker le token d'accès (SecureStore)
-			await setSecureItem("@access_token", data.accessToken);
-// ✅ Stocker le refresh token (SecureStore - TRÈS IMPORTANT pour la continuité de session)
-			if (data.refreshToken) {
-				await setSecureItem("refreshToken", data.refreshToken);
-				console.log("✅ RefreshToken sauvegardé en SecureStore");
+				// ✅ Stocker le token d'accès (SecureStore)
+				await setSecureItem("@access_token", data.accessToken);
+				// ✅ Stocker le refresh token (SecureStore - TRÈS IMPORTANT pour la continuité de session)
+				if (data.refreshToken) {
+					await setSecureItem("refreshToken", data.refreshToken);
+					console.log("✅ RefreshToken sauvegardé en SecureStore");
 
 					// ⭐ Vérifier immédiatement que c'est bien sauvegardé
-				const saved = await getSecureItem("refreshToken");
-				if (saved) {
-					console.log(
-						"✅✅ Vérification: RefreshToken présent en SecureStore"
+					const saved = await getSecureItem("refreshToken");
+					if (saved) {
+						console.log(
+							"✅✅ Vérification: RefreshToken présent en SecureStore"
 						);
 					} else {
 						console.error(
@@ -206,42 +209,41 @@ export default function Login() {
 					userType: data.userType,
 					category: data.category,
 				});
-			// ⏳ Attendre que TOUS les tokens soient bien écrits avant de naviguer
-			const verifyToken = await getSecureItem("@access_token");
-			if (!verifyToken) {
-				console.error("❌ CRITICAL: Token non sauvegardé après login !");
-				Alert.alert("Erreur", "Problème de sauvegarde des identifiants");
-				return;
-			}
-			console.log("✅ Token vérifié présent, navigation...");
-			// 🧭 Redirection vers index qui gérera la vraie navigation
-			router.replace("/");
+				// ⏳ Attendre que TOUS les tokens soient bien écrits avant de naviguer
+				const verifyToken = await getSecureItem("@access_token");
+				if (!verifyToken) {
+					console.error("❌ CRITICAL: Token non sauvegardé après login !");
+					Alert.alert("Erreur", "Problème de sauvegarde des identifiants");
+					return;
+				}
+				console.log("✅ Token vérifié présent, navigation...");
+				// 🧭 Redirection vers index qui gérera la vraie navigation
+				router.replace("/");
 			} else {
 				Alert.alert("Erreur", data.message || "Identifiants invalides");
 			}
 		} catch (err) {
-		clearTimeout(timeoutId);
+			clearTimeout(timeoutId);
 
-		if (err.name === "AbortError") {
-			Alert.alert(
-				"Erreur",
-				"Le serveur ne répond pas (timeout). Réessayez."
-			);
-		} else {
-			Alert.alert("Erreur", "Impossible de contacter le serveur");
+			if (err.name === "AbortError") {
+				Alert.alert("Erreur", "Le serveur ne répond pas (timeout). Réessayez.");
+			} else {
+				Alert.alert("Erreur", "Impossible de contacter le serveur");
+			}
+			console.error(err);
+		} finally {
+			setLoading(false);
 		}
-		console.error(err);
-	} finally {
-		setLoading(false);
-	}
-};
+	};
 
-const glowInterpolation = glowAnim.interpolate({	inputRange: [0, 1],
-	outputRange: ["rgba(255,120,0,0.3)", "rgba(255,200,0,0.7)"],
-});
+	const glowInterpolation = glowAnim.interpolate({
+		inputRange: [0, 1],
+		outputRange: ["rgba(255,120,0,0.3)", "rgba(255,200,0,0.7)"],
+	});
 
-return (
-	<KeyboardAvoidingView			style={styles.container}
+	return (
+		<KeyboardAvoidingView
+			style={styles.container}
 			behavior={Platform.OS === "ios" ? "padding" : undefined}
 		>
 			<View style={styles.card}>

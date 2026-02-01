@@ -2,7 +2,14 @@
  * 🎨 Dashboard - Écran principal des réservations
  * Design spatial avec gradients et animations fluides
  */
-import React, { useState, useCallback, useRef, useMemo } from "react";
+import React, {
+	useState,
+	useCallback,
+	useRef,
+	useMemo,
+	useEffect,
+} from "react";
+import useUserStore from "../../src/stores/useUserStore";
 import {
 	View,
 	FlatList,
@@ -29,6 +36,7 @@ import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
 
 export default function Dashboard() {
+	const category = useUserStore((state) => state.category);
 	const { themeMode } = useThemeStore();
 	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 
@@ -44,6 +52,14 @@ export default function Dashboard() {
 	const [selectedReservation, setSelectedReservation] = useState(null);
 	const [recreateData, setRecreateData] = useState(null); // ⭐ Données pour recréer une réservation
 	const [selectedDate, setSelectedDate] = useState(new Date()); // 📅 Date sélectionnée pour le filtrage
+
+	// Si foodtruck, forcer la date à aujourd'hui
+	useEffect(() => {
+		if (category === "foodtruck") {
+			const today = new Date();
+			setSelectedDate(today);
+		}
+	}, [category]);
 
 	// ─────────────── Hooks Custom ───────────────
 	const { reservations, tables, theme, loading, fetchReservations } =
@@ -349,11 +365,14 @@ export default function Dashboard() {
 			/>
 
 			{/* 📅 Navigateur de date */}
-			<DateNavigator
-				selectedDate={selectedDate}
-				onDateChange={setSelectedDate}
-				onAssignmentComplete={() => fetchReservations(true)}
-			/>
+			{/* Afficher le DateNavigator seulement si ce n'est pas un foodtruck */}
+			{category !== "foodtruck" && (
+				<DateNavigator
+					selectedDate={selectedDate}
+					onDateChange={setSelectedDate}
+					onAssignmentComplete={() => fetchReservations(true)}
+				/>
+			)}
 
 			{/* Liste des réservations avec FlatList */}
 			{loading ? (

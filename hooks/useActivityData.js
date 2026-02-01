@@ -41,7 +41,7 @@ export const useActivityData = () => {
 			setProductsError(null);
 			try {
 				const [tokenValue, ridValue, tidValue, sidValue] = await Promise.all([
-				getSecureItem("@access_token"),
+					getSecureItem("@access_token"),
 					AsyncStorage.getItem("restaurantId"),
 					AsyncStorage.getItem("tableId"),
 					AsyncStorage.getItem("serverId"),

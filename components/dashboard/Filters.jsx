@@ -12,6 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
+import useUserStore from "../../src/stores/useUserStore";
 
 // Enable LayoutAnimation on Android
 if (
@@ -21,7 +22,7 @@ if (
 	UIManager.setLayoutAnimationEnabledExperimental(true);
 }
 
-const FILTERS = [
+const ALL_FILTERS = [
 	{
 		key: "actives",
 		label: "En attente",
@@ -56,6 +57,14 @@ const FILTERS = [
 
 const Filters = React.memo(
 	({ activeFilter, onFilterChange, searchQuery, onSearchChange }) => {
+		const category = useUserStore((state) => state.category);
+		// Filtrage dynamique des statuts pour foodtruck
+		const FILTERS =
+			category === "foodtruck"
+				? ALL_FILTERS.filter((f) =>
+						["ouverte", "terminée", "annulée"].includes(f.key)
+					)
+				: ALL_FILTERS;
 		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const filterStyles = useMemo(() => createFilterStyles(THEME), [THEME]);

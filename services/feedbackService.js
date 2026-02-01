@@ -96,7 +96,7 @@ class FeedbackService {
 
 			console.log(
 				"[FeedbackService] Feedback envoyé avec succès:",
-				data.feedbackId
+				data.feedbackId,
 			);
 			return data;
 		} catch (error) {
@@ -135,7 +135,7 @@ class FeedbackService {
 
 			if (!response.ok) {
 				throw new Error(
-					data.message || "Erreur lors de la récupération des feedbacks"
+					data.message || "Erreur lors de la récupération des feedbacks",
 				);
 			}
 
@@ -166,7 +166,7 @@ class FeedbackService {
 
 			if (!response.ok) {
 				throw new Error(
-					data.message || "Erreur lors de la mise à jour du feedback"
+					data.message || "Erreur lors de la mise à jour du feedback",
 				);
 			}
 
@@ -196,7 +196,7 @@ class FeedbackService {
 
 			if (!response.ok) {
 				throw new Error(
-					data.message || "Erreur lors de la suppression du feedback"
+					data.message || "Erreur lors de la suppression du feedback",
 				);
 			}
 
