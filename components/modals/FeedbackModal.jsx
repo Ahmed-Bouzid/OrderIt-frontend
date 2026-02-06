@@ -237,7 +237,7 @@ export default function FeedbackModal({
 									{ color: THEME.colors.text.secondary },
 								]}
 							>
-								Aidez-nous à améliorer OrderIt en partageant votre expérience ou
+								Aidez-nous à améliorer SunnyGo en partageant votre expérience ou
 								un problème rencontré.
 							</Text>
 

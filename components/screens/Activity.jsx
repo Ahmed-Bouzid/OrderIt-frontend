@@ -49,6 +49,9 @@ import {
 	LoadingSkeleton,
 } from "../activity/components";
 
+// 🔔 Notifications
+import Toast from "../ui/Toast";
+
 export default function Activity() {
 	// Rafraîchissement global pour le temps écoulé (mini popups dynamiques)
 	const [now, setNow] = useState(Date.now());
@@ -79,7 +82,7 @@ export default function Activity() {
 
 	// ⭐ Utiliser fetchReservations du store Zustand (synchro avec WebSocket)
 	const fetchReservationsFromStore = useReservationStore(
-		(state) => state.fetchReservations
+		(state) => state.fetchReservations,
 	);
 
 	// On ne force plus le fetch ici, on laisse la logique du hook gérer le chargement via isReservationsLoaded
@@ -113,11 +116,11 @@ export default function Activity() {
 			console.error(
 				"❌ restaurantId manquant dans Activity.jsx : fetchServers ne sera pas appelé ! (valeur:",
 				restaurantId,
-				")"
+				")",
 			);
 			Alert.alert(
 				"Erreur configuration",
-				"Aucun restaurantId trouvé. Veuillez vérifier la configuration ou relancer l'application."
+				"Aucun restaurantId trouvé. Veuillez vérifier la configuration ou relancer l'application.",
 			);
 		}
 	}, [restaurantId, isLoading]);
@@ -138,6 +141,8 @@ export default function Activity() {
 		isReservationsLoaded,
 		clearCachedActiveId, // ⭐ Pour nettoyer le cache lors de la fermeture
 	} = useReservationManager(reservations, fetchReservations);
+
+	// 🔔 Notifications
 
 	// États locaux UI
 	const [showRestrictionsOptions, setShowRestrictionsOptions] = useState(false);
@@ -203,7 +208,7 @@ export default function Activity() {
 
 			// Sauvegarder la réservation sortante pour l'afficher pendant l'animation
 			const exitingResa = openedReservations.find(
-				(r) => r._id === previousActiveId.current
+				(r) => r._id === previousActiveId.current,
 			);
 			if (exitingResa) {
 				setExitingReservation(exitingResa);
@@ -306,7 +311,7 @@ export default function Activity() {
 	useEffect(() => {
 		if (!activeId && started) {
 			console.log(
-				"🔄 Réinitialisation: activeId null, reset de started et orders"
+				"🔄 Réinitialisation: activeId null, reset de started et orders",
 			);
 			setStarted(false);
 			setOrders([]); // ⭐ Nettoyer les commandes aussi
@@ -385,7 +390,7 @@ export default function Activity() {
 
 			editField(
 				"orderItems",
-				activeReservation.orderItems.map((i) => ({ ...i, quantity: 0 }))
+				activeReservation.orderItems.map((i) => ({ ...i, quantity: 0 })),
 			);
 
 			setStep(3);
@@ -414,7 +419,7 @@ export default function Activity() {
 			try {
 				await authFetch(
 					`${API_CONFIG.baseURL}/reservations/${reservationId}/togglePresent`,
-					{ method: "PUT" }
+					{ method: "PUT" },
 				);
 				await fetchReservations();
 				return true;
@@ -424,7 +429,7 @@ export default function Activity() {
 				return false;
 			}
 		},
-		[authFetch, fetchReservations]
+		[authFetch, fetchReservations],
 	);
 
 	const handleUpdateStatus = useCallback(
@@ -435,7 +440,7 @@ export default function Activity() {
 					{
 						method: "PUT",
 						body: { status: newStatus },
-					}
+					},
 				);
 				await fetchReservations();
 				return true;
@@ -445,7 +450,7 @@ export default function Activity() {
 				return false;
 			}
 		},
-		[authFetch, fetchReservations]
+		[authFetch, fetchReservations],
 	);
 
 	// ⭐ Helper pour finaliser les items d'une réservation
@@ -457,14 +462,16 @@ export default function Activity() {
 					{
 						method: "PUT",
 						body: JSON.stringify({ status }),
-					}
+					},
 				);
-				console.log(`✅ Items de la réservation ${reservationId} mis en "${status}"`);
+				console.log(
+					`✅ Items de la réservation ${reservationId} mis en "${status}"`,
+				);
 			} catch (error) {
 				console.warn(`⚠️ Impossible de finaliser les items:`, error.message);
 			}
 		},
-		[authFetch]
+		[authFetch],
 	);
 
 	// ⭐ Vérifier si une réservation a des commandes non finalisées
@@ -472,13 +479,16 @@ export default function Activity() {
 		async (reservationId) => {
 			try {
 				const ordersData = await authFetch(
-					`${API_CONFIG.baseURL}/orders/reservation/${reservationId}`
+					`${API_CONFIG.baseURL}/orders/reservation/${reservationId}`,
 				);
 				const orders = ordersData.orders || ordersData || [];
-				
+
 				for (const order of orders) {
 					for (const item of order.items || []) {
-						if (item.itemStatus !== "served" && item.itemStatus !== "cancelled") {
+						if (
+							item.itemStatus !== "served" &&
+							item.itemStatus !== "cancelled"
+						) {
 							return true;
 						}
 					}
@@ -489,23 +499,26 @@ export default function Activity() {
 				return false;
 			}
 		},
-		[authFetch]
+		[authFetch],
 	);
 
 	const handleCancelReservation = useCallback(
 		async (reservationId) => {
 			// ⭐ Vérifier s'il y a des commandes non finalisées
 			const hasUnfinalized = await hasUnfinalizedOrders(reservationId);
-			
+
 			const performCancel = async () => {
 				try {
 					// ⭐ D'abord, mettre tous les items non finalisés en "cancelled"
 					await finalizeReservationItems(reservationId, "cancelled");
-					
+
 					// Puis supprimer la réservation
-					await authFetch(`${API_CONFIG.baseURL}/reservations/${reservationId}`, {
-						method: "DELETE",
-					});
+					await authFetch(
+						`${API_CONFIG.baseURL}/reservations/${reservationId}`,
+						{
+							method: "DELETE",
+						},
+					);
 					await fetchReservations();
 					if (activeId === reservationId) {
 						clearCachedActiveId();
@@ -540,14 +553,22 @@ export default function Activity() {
 									resolve(result);
 								},
 							},
-						]
+						],
 					);
 				});
 			}
 
 			return performCancel();
 		},
-		[authFetch, fetchReservations, activeId, setActiveId, clearCachedActiveId, finalizeReservationItems, hasUnfinalizedOrders]
+		[
+			authFetch,
+			fetchReservations,
+			activeId,
+			setActiveId,
+			clearCachedActiveId,
+			finalizeReservationItems,
+			hasUnfinalizedOrders,
+		],
 	);
 
 	const handleFinishReservation = useCallback(
@@ -555,7 +576,7 @@ export default function Activity() {
 			try {
 				// ⭐ Récupérer les données fraîches via API directement
 				const freshResa = await authFetch(
-					`${API_CONFIG.baseURL}/reservations/${reservationId}`
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`,
 				);
 
 				// ⭐ Vérifier si la réservation est payée
@@ -567,9 +588,9 @@ export default function Activity() {
 					Alert.alert(
 						"Paiement requis",
 						`Cette réservation a un montant de ${totalAmount.toFixed(
-							2
+							2,
 						)}€. Veuillez procéder au paiement avant de terminer.`,
-						[{ text: "OK" }]
+						[{ text: "OK" }],
 					);
 					return;
 				}
@@ -588,7 +609,7 @@ export default function Activity() {
 
 					// ⭐ IMPORTANT: Retirer immédiatement la réservation terminée de openedReservations
 					setOpenedReservations((prev) =>
-						prev.filter((r) => r._id !== reservationId)
+						prev.filter((r) => r._id !== reservationId),
 					);
 
 					setActiveId(null);
@@ -597,14 +618,14 @@ export default function Activity() {
 				} else {
 					Alert.alert(
 						"Erreur",
-						"Impossible de terminer la réservation. Statut non mis à jour."
+						"Impossible de terminer la réservation. Statut non mis à jour.",
 					);
 				}
 			} catch (error) {
 				console.error("❌ Erreur terminaison:", error);
 				Alert.alert(
 					"Erreur",
-					"Erreur lors de la terminaison: " + error.message
+					"Erreur lors de la terminaison: " + error.message,
 				);
 			}
 		},
@@ -615,7 +636,7 @@ export default function Activity() {
 			setOpenedReservations,
 			authFetch,
 			clearCachedActiveId,
-		]
+		],
 	);
 
 	// ⭐ Helpers pour ouvrir/fermer le paiement
@@ -648,7 +669,8 @@ export default function Activity() {
 			} catch (error) {
 				Alert.alert(
 					"Erreur",
-					"Impossible de fermer la réservation après paiement: " + error.message
+					"Impossible de fermer la réservation après paiement: " +
+						error.message,
 				);
 			}
 		},
@@ -659,7 +681,7 @@ export default function Activity() {
 			setActiveId,
 			fetchReservations,
 			finalizeReservationItems,
-		]
+		],
 	);
 
 	// Render miniatures Premium avec FlatList
@@ -668,7 +690,7 @@ export default function Activity() {
 			const allTables = useTableStore.getState().tables || [];
 			const table = allTables.find(
 				(t) =>
-					t._id === (typeof r.tableId === "object" ? r.tableId._id : r.tableId)
+					t._id === (typeof r.tableId === "object" ? r.tableId._id : r.tableId),
 			);
 			let tableNumber = "N/A";
 			if (table && table.number) {
@@ -726,12 +748,12 @@ export default function Activity() {
 				</TouchableOpacity>
 			);
 		},
-		[setActiveId, now, tableId, fetchOrders]
+		[setActiveId, now, tableId, fetchOrders],
 	);
 
 	const filteredReservations = useMemo(
 		() => openedReservations.filter((r) => r._id !== activeId),
-		[openedReservations, activeId]
+		[openedReservations, activeId],
 	);
 
 	// Render step 2 (validation)
@@ -995,9 +1017,9 @@ export default function Activity() {
 											size={14}
 											color={THEME.colors.text.muted}
 										/>
-										{activeReservation.reservationTime || "N/A"} 
+										{activeReservation.reservationTime || "N/A"}
 										{new Date(
-											activeReservation.reservationDate
+											activeReservation.reservationDate,
 										).toLocaleDateString("fr-FR")}
 									</Text>
 									<Text style={activityStyles.headerInfoText}>
@@ -1010,17 +1032,19 @@ export default function Activity() {
 									</Text>
 								</View>
 
-								{/* Bouton Settings */}
-								<TouchableOpacity
-									style={activityStyles.settingsButton}
-									onPress={() => setShowSettings(true)}
-								>
-									<Ionicons
-										name="settings-outline"
-										size={22}
-										color={THEME.colors.text.secondary}
-									/>
-								</TouchableOpacity>
+								{/* Header Actions */}
+								<View style={activityStyles.headerActions}>
+									<TouchableOpacity
+										style={activityStyles.settingsButton}
+										onPress={() => setShowSettings(true)}
+									>
+										<Ionicons
+											name="settings-outline"
+											size={22}
+											color={THEME.colors.text.secondary}
+										/>
+									</TouchableOpacity>
+								</View>
 							</LinearGradient>
 
 							{/* Conteneur colonnes */}
@@ -1118,7 +1142,7 @@ export default function Activity() {
 												?.filter((i) => i.quantity > 0)
 												.map((i, index) => {
 													const product = products.find(
-														(p) => p._id === i.productId
+														(p) => p._id === i.productId,
 													);
 													const displayName = i.name || product?.name;
 													return (
@@ -1135,17 +1159,21 @@ export default function Activity() {
 																</Text>
 															</View>
 															<View style={activityStyles.validationItemRight}>
-																<Text style={activityStyles.validationItemPrice}>
+																<Text
+																	style={activityStyles.validationItemPrice}
+																>
 																	{product?.price}€
 																</Text>
 																<TouchableOpacity
 																	onPress={() => {
 																		// Retirer ce produit des orderItems
-																		const updatedItems = activeReservation.orderItems.map(item => 
-																			item.productId === i.productId 
-																				? { ...item, quantity: 0 } 
-																				: item
-																		);
+																		const updatedItems =
+																			activeReservation.orderItems.map(
+																				(item) =>
+																					item.productId === i.productId
+																						? { ...item, quantity: 0 }
+																						: item,
+																			);
 																		editField("orderItems", updatedItems);
 																	}}
 																	style={activityStyles.validationItemDelete}
@@ -1217,7 +1245,7 @@ export default function Activity() {
 														.filter(
 															(order) =>
 																Array.isArray(order.items) &&
-																order.items.length > 0
+																order.items.length > 0,
 														)
 														.map((order, orderIndex, array) => {
 															const isLatest = orderIndex === array.length - 1;
@@ -1247,7 +1275,7 @@ export default function Activity() {
 																		>
 																			{isLatest ? "✨ " : ""}
 																			{new Date(
-																				order.createdAt
+																				order.createdAt,
 																			).toLocaleTimeString([], {
 																				hour: "2-digit",
 																				minute: "2-digit",
@@ -1308,7 +1336,7 @@ export default function Activity() {
 																				.reduce(
 																					(sum, i) =>
 																						sum + i.price * i.quantity,
-																					0
+																					0,
 																				)
 																				.toFixed(2)}
 																			€
@@ -1324,7 +1352,7 @@ export default function Activity() {
 													</Text>
 													<Text style={activityStyles.recapGrandTotalValue}>
 														{Number(
-															activeReservation?.totalAmount || 0
+															activeReservation?.totalAmount || 0,
 														).toFixed(2)}
 														€
 													</Text>
@@ -1339,7 +1367,7 @@ export default function Activity() {
 															products.map((p) => ({
 																productId: p._id,
 																quantity: 0,
-															}))
+															})),
 														);
 													}}
 													style={activityStyles.recapNewOrderBtn}
@@ -1373,7 +1401,7 @@ export default function Activity() {
 															products.map((p) => ({
 																productId: p._id,
 																quantity: 0,
-															}))
+															})),
 														);
 													}}
 													style={activityStyles.recapNewOrderBtn}
@@ -1472,6 +1500,9 @@ export default function Activity() {
 				onSuccess={handlePaymentSuccess}
 				theme={theme}
 			/>
+
+			{/* 🔔 Notifications */}
+			<Toast />
 		</>
 	);
 }
@@ -1590,6 +1621,41 @@ const createStyles = (THEME) =>
 			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.secondary,
 			marginBottom: 2,
+		},
+		headerActions: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.sm,
+		},
+		notificationButton: {
+			width: 44,
+			height: 44,
+			borderRadius: THEME.radius.md,
+			backgroundColor: THEME.colors.background.elevated,
+			alignItems: "center",
+			justifyContent: "center",
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			position: "relative",
+		},
+		notificationBadge: {
+			position: "absolute",
+			top: -4,
+			right: -4,
+			minWidth: 20,
+			height: 20,
+			borderRadius: 10,
+			backgroundColor: "#ef4444",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingHorizontal: 6,
+			borderWidth: 2,
+			borderColor: THEME.colors.background.dark,
+		},
+		notificationBadgeText: {
+			fontSize: 10,
+			fontWeight: "700",
+			color: "#fff",
 		},
 		settingsButton: {
 			width: 44,

@@ -3,7 +3,7 @@
  * Design spatial cohérent avec le reste de l'application
  * Support Mode Clair / Mode Sombre / Mode Ocean
  */
-import React, { useEffect, useState, useMemo } from "react";
+import React, { useEffect, useState, useMemo, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -16,7 +16,6 @@ import {
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore, {
 	THEME_MODES,
 	FONT_SIZES,
@@ -33,19 +32,13 @@ import {
 } from "./manager";
 import FeedbackModal from "../modals/FeedbackModal";
 import feedbackService from "../../services/feedbackService";
+import AccountingScreen from "./AccountingScreen";
 
 export default function Settings() {
 	const router = useRouter();
 	const { themeMode, initTheme, setThemeMode, fontSize, setFontSize } =
 		useThemeStore();
-	const {
-		isManager,
-		email,
-		role,
-		userType,
-		init: initUser,
-		clear: logoutUser,
-	} = useUserStore();
+	const { isManager, email, role, userType, init: initUser } = useUserStore();
 	const { isDeveloper, selectedRestaurant } = useDeveloperStore();
 
 	// État pour la section active du menu
@@ -53,6 +46,9 @@ export default function Settings() {
 
 	// État pour la modale feedback
 	const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+	// ⭐ État comptabilité
+	const [showAccountingScreen, setShowAccountingScreen] = useState(false);
 
 	// ⭐ État messagerie
 	const [isMessagingEnabled, setIsMessagingEnabled] = useState(true);
@@ -68,7 +64,20 @@ export default function Settings() {
 	// Vérifier si l'utilisateur est manager ou admin
 	// isManager est un booléen calculé dans le store (role === 'admin' || userType === 'admin')
 	const canAccessManagerPortal =
-		isManager || role === "admin" || userType === "admin";
+		isManager ||
+		role === "admin" ||
+		userType === "admin" ||
+		role === "developer" ||
+		isDeveloper;
+
+	// DEBUG: Log temporaire pour comprendre pourquoi l'admin n'a pas accès
+	console.log("🔐 [Settings] Debug accès comptabilité:", {
+		isManager,
+		role,
+		userType,
+		isDeveloper,
+		canAccessManagerPortal,
+	});
 
 	// Initialiser le thème et l'utilisateur au montage
 	useEffect(() => {
@@ -81,9 +90,9 @@ export default function Settings() {
 		if (restaurantId) {
 			loadMessagingStatus();
 		}
-	}, [restaurantId]);
+	}, [restaurantId, loadMessagingStatus]);
 
-	const loadMessagingStatus = async () => {
+	const loadMessagingStatus = useCallback(async () => {
 		try {
 			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/messaging-status/${restaurantId}`;
 			const response = await fetch(url);
@@ -94,7 +103,7 @@ export default function Settings() {
 		} catch (error) {
 			console.error("❌ Erreur chargement statut messagerie:", error);
 		}
-	};
+	}, [restaurantId]);
 
 	const toggleMessaging = async (value) => {
 		setLoadingMessaging(true);
@@ -161,7 +170,7 @@ export default function Settings() {
 			await feedbackService.sendFeedback(feedbackData);
 			Alert.alert(
 				"Merci !",
-				"Votre feedback a bien été envoyé à l'équipe OrderIt.",
+				"Votre feedback a bien été envoyé à l'équipe SunnyGo.",
 				[{ text: "OK" }],
 			);
 		} catch (error) {
@@ -681,6 +690,136 @@ export default function Settings() {
 					</>
 				);
 
+			case "accounting":
+				return (
+					<>
+						{/* Titre principal */}
+						<Text style={settingsStyles.sectionHeaderText}>
+							📊 Comptabilité & Finances
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="analytics"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Gestion financière complète
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Accédez aux données comptables du restaurant : revenus,
+										analyses par produit, export Excel/PDF, métriques de
+										performance et rapports financiers détaillés.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Lancement de l'interface comptabilité */}
+						<TouchableOpacity
+							style={[
+								settingsStyles.themeLabelRow,
+								{
+									backgroundColor: THEME.colors.background.elevated,
+									borderRadius: THEME.radius.lg,
+									padding: THEME.spacing.lg,
+									borderLeftWidth: 4,
+									borderLeftColor: THEME.colors.primary.amber,
+									shadowColor: THEME.colors.primary.amber,
+									shadowOffset: { width: 0, height: 2 },
+									shadowOpacity: 0.1,
+									shadowRadius: 8,
+									elevation: 3,
+								},
+							]}
+							onPress={() => setShowAccountingScreen(true)}
+							activeOpacity={0.8}
+						>
+							<Ionicons
+								name="trending-up"
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+								<Text style={settingsStyles.settingLabel}>
+									Ouvrir le module comptabilité
+								</Text>
+								<Text style={settingsStyles.settingDescription}>
+									Dashboard financier, rapports et exports
+								</Text>
+							</View>
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
+
+						{/* Fonctionnalités disponibles */}
+						<View style={settingsStyles.themeSection}>
+							<Text style={settingsStyles.settingLabel}>
+								Fonctionnalités disponibles
+							</Text>
+							<View style={{ gap: 12, marginTop: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Revenus totaux et par période
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Analyse par produit et catégorie
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Graphiques de tendances (LineChart)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Export CSV/Excel des données
+									</Text>
+								</View>
+							</View>
+						</View>
+					</>
+				);
+
 			default:
 				return null;
 		}
@@ -748,8 +887,18 @@ export default function Settings() {
 					</View>
 
 					<ScrollView showsVerticalScrollIndicator={false}>
-						{/* Menu items de base */}
+						{/* Menu items de base - accessible à tous */}
 						<MenuItem icon="person-outline" label="Compte" section="account" />
+						<MenuItem
+							icon="color-palette-outline"
+							label="Thème"
+							section="appearance"
+						/>
+						<MenuItem
+							icon="lock-closed-outline"
+							label="Sécurité"
+							section="security"
+						/>
 
 						{/* Section Manager - visible uniquement pour managers/admins */}
 						{canAccessManagerPortal && (
@@ -782,24 +931,19 @@ export default function Settings() {
 									section="menu"
 								/>
 								<MenuItem
-									icon="lock-closed-outline"
-									label="Sécurité"
-									section="security"
+									icon="analytics-outline"
+									label="Comptabilité"
+									section="accounting"
 								/>
 								<MenuItem
 									icon="chatbubbles-outline"
 									label="Messagerie"
 									section="messaging"
 								/>
-								<MenuItem
-									icon="color-palette-outline"
-									label="Thème"
-									section="appearance"
-								/>
 							</>
 						)}
 
-						{/* Feedback */}
+						{/* Feedback - accessible à tous */}
 						<TouchableOpacity
 							style={settingsStyles.menuItem}
 							onPress={() => setShowFeedbackModal(true)}
@@ -829,9 +973,13 @@ export default function Settings() {
 				{/* Colonne principale - Contenu */}
 				<View style={settingsStyles.mainContent}>
 					{/* Scroll uniquement pour les sections sans FlatList */}
-					{["appearance", "account", "security", "messaging"].includes(
-						activeSection,
-					) ? (
+					{[
+						"appearance",
+						"account",
+						"security",
+						"messaging",
+						"accounting",
+					].includes(activeSection) ? (
 						<ScrollView
 							showsVerticalScrollIndicator={false}
 							contentContainerStyle={{ paddingBottom: 40 }}
@@ -844,10 +992,15 @@ export default function Settings() {
 
 					{/* Version app */}
 					{(activeSection === "appearance" || activeSection === "account") && (
-						<Text style={settingsStyles.versionText}>OrderIt v1.0.0</Text>
+						<Text style={settingsStyles.versionText}>SunnyGo v1.0.0</Text>
 					)}
 				</View>
 			</View>
+
+			{/* AccountingScreen Modal */}
+			{showAccountingScreen && (
+				<AccountingScreen onClose={() => setShowAccountingScreen(false)} />
+			)}
 
 			{/* Modale Feedback */}
 			<FeedbackModal

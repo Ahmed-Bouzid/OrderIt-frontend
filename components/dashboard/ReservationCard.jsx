@@ -14,8 +14,10 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
+import useUserStore from "../../src/stores/useUserStore";
 import { useTheme } from "../../hooks/useTheme";
 import { getThemeGradients } from "../../utils/themeUtils";
+import { isFastService } from "../../utils/categoryUtils";
 
 // Configuration des statuts (les couleurs restent les mêmes pour clarté visuelle)
 const getStatusConfig = (status, gradients) => {
@@ -75,9 +77,13 @@ const ReservationCard = React.memo(
 	}) => {
 		// Thème dynamique (avant tout)
 		const { themeMode } = useThemeStore();
+		const category = useUserStore((state) => state.category);
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const gradients = useMemo(() => getThemeGradients(themeMode), [themeMode]);
 		const styles = useMemo(() => createStyles(THEME), [THEME]);
+
+		// 🍔 Mode snack: UI simplifiée
+		const isSnackMode = useMemo(() => isFastService(category), [category]);
 
 		// Animation refs
 		const scaleAnim = useRef(new Animated.Value(1)).current;
@@ -121,7 +127,7 @@ const ReservationCard = React.memo(
 				const hours = Math.floor(diffMs / 3600000);
 				const mins = Math.floor((diffMs % 3600000) / 60000);
 				setElapsedTime(
-					`${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`
+					`${String(hours).padStart(2, "0")}:${String(mins).padStart(2, "0")}`,
 				);
 			};
 			calcElapsed();
@@ -144,7 +150,7 @@ const ReservationCard = React.memo(
 							duration: 2000,
 							useNativeDriver: true,
 						}),
-					])
+					]),
 				).start();
 			}
 		}, [isActive, glowAnim, reservation]);
@@ -261,7 +267,7 @@ const ReservationCard = React.memo(
 
 						{/* Info grid - 3 colonnes */}
 						<View style={styles.infoGrid}>
-							{/* Colonne 1: Personnes, Téléphone, Table */}
+							{/* Colonne 1: Personnes (+ Téléphone, Table sauf mode snack) */}
 							<View style={styles.infoCol}>
 								<TouchableOpacity
 									onPress={() => isEditable && onEditNbPersonnes?.(reservation)}
@@ -275,32 +281,38 @@ const ReservationCard = React.memo(
 										THEME={THEME}
 									/>
 								</TouchableOpacity>
-								<TouchableOpacity
-									onPress={() => isEditable && onEditPhone?.(reservation)}
-									disabled={!isEditable}
-								>
-									<InfoRow
-										icon="call"
-										value={reservation.phone || "-"}
-										highlight={isEditable}
-										styles={styles}
-										THEME={THEME}
-									/>
-								</TouchableOpacity>
-								<TouchableOpacity
-									onPress={() =>
-										isEditable && onAssignTablePress?.(reservation)
-									}
-									disabled={!isEditable}
-								>
-									<InfoRow
-										icon="restaurant"
-										value={`Table ${reservation.tableId?.number || "-"}`}
-										highlight={isEditable}
-										styles={styles}
-										THEME={THEME}
-									/>
-								</TouchableOpacity>
+								{/* 🍔 Téléphone masqué en mode snack */}
+								{!isSnackMode && (
+									<TouchableOpacity
+										onPress={() => isEditable && onEditPhone?.(reservation)}
+										disabled={!isEditable}
+									>
+										<InfoRow
+											icon="call"
+											value={reservation.phone || "-"}
+											highlight={isEditable}
+											styles={styles}
+											THEME={THEME}
+										/>
+									</TouchableOpacity>
+								)}
+								{/* 🍔 Table masquée en mode snack */}
+								{!isSnackMode && (
+									<TouchableOpacity
+										onPress={() =>
+											isEditable && onAssignTablePress?.(reservation)
+										}
+										disabled={!isEditable}
+									>
+										<InfoRow
+											icon="restaurant"
+											value={`Table ${reservation.tableId?.number || "-"}`}
+											highlight={isEditable}
+											styles={styles}
+											THEME={THEME}
+										/>
+									</TouchableOpacity>
+								)}
 							</View>
 
 							{/* Colonne 2: Heure, Date, Montant */}
@@ -353,8 +365,8 @@ const ReservationCard = React.memo(
 										reservation.paymentMethod === "Carte"
 											? "card"
 											: reservation.paymentMethod === "Espèces"
-											? "cash"
-											: "help-circle"
+												? "cash"
+												: "help-circle"
 									}
 									value={reservation.paymentMethod || "-"}
 									styles={styles}
@@ -381,7 +393,7 @@ const ReservationCard = React.memo(
 				</View>
 			</Animated.View>
 		);
-	}
+	},
 );
 
 // Info row component

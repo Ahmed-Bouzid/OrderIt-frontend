@@ -1,5 +1,5 @@
 /**
- * 🎨 OrderIt Frontend - Global Styles
+ * 🎨 SunnyGo Frontend - Global Styles
  * Design System moderne inspiré par 21st.dev
  * Animations spatiales, effets de profondeur, ambiance premium
  */

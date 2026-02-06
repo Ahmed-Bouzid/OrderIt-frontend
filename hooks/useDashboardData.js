@@ -35,7 +35,7 @@ export const useDashboardData = () => {
 				if (storedRestaurantId) {
 					// Charger tables
 					const tablesData = await authFetch(
-						`${API_CONFIG.baseURL}/tables/restaurant/${storedRestaurantId}`
+						`${API_CONFIG.baseURL}/tables/restaurant/${storedRestaurantId}`,
 					);
 					if (Array.isArray(tablesData)) {
 						setTables(tablesData);
@@ -54,24 +54,39 @@ export const useDashboardData = () => {
 		};
 
 		loadData();
-	}, [authFetch, fetchReservations]);
+	}, []); // ✅ Exécuté une seule fois au montage
 
 	// Rafraîchir les tables périodiquement
 	useEffect(() => {
-		const interval = setInterval(async () => {
-			const storedRestaurantId = await AsyncStorage.getItem("restaurantId");
-			if (storedRestaurantId) {
+		let interval;
+
+		const refreshTables = async () => {
+			try {
+				const storedRestaurantId = await AsyncStorage.getItem("restaurantId");
+				if (!storedRestaurantId) return;
+
 				const tablesData = await authFetch(
-					`${API_CONFIG.baseURL}/tables/restaurant/${storedRestaurantId}`
+					`${API_CONFIG.baseURL}/tables/restaurant/${storedRestaurantId}`,
 				);
 				if (tablesData && !Array.isArray(tablesData)) {
 					setTables(tablesData.tables || []);
+				} else if (Array.isArray(tablesData)) {
+					setTables(tablesData);
 				}
+			} catch (error) {
+				// Silencieux pour éviter spam logs
 			}
-		}, 5000);
+		};
 
-		return () => clearInterval(interval);
-	}, [authFetch]);
+		// Démarrer l'interval seulement après le chargement initial
+		if (!loading) {
+			interval = setInterval(refreshTables, 30000); // 30s au lieu de 5s
+		}
+
+		return () => {
+			if (interval) clearInterval(interval);
+		};
+	}, [loading]); // ✅ Dépend uniquement de loading
 
 	// ⭐ Écouter les mises à jour de réservations via WebSocket
 	useEffect(() => {
@@ -84,7 +99,7 @@ export const useDashboardData = () => {
 				// Mettre à jour la réservation dans le store
 				updateReservation(event.data);
 				console.log(
-					`✅ Réservation ${event.data._id} mise à jour avec totalAmount: ${event.data.totalAmount}€`
+					`✅ Réservation ${event.data._id} mise à jour avec totalAmount: ${event.data.totalAmount}€`,
 				);
 			}
 		};

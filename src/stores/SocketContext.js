@@ -16,6 +16,7 @@ import useReservationStore from "./useReservationStore";
 import useProductStore from "./useProductStore";
 import { useServerStore } from "./useRestaurantStaffStore";
 import useTableStore from "./useRestaurantTableStore";
+import useNotificationStore from "./useNotificationStore";
 
 export const SocketContext = createContext(null);
 
@@ -34,12 +35,17 @@ export const SocketProvider = ({ children }) => {
 		const attachServerListener = useServerStore.getState().attachSocketListener;
 		const attachTableListener = useTableStore.getState().attachSocketListener;
 
+		// 🔔 Attacher le listener des notifications
+		const attachNotificationListeners =
+			useNotificationStore.getState().attachSocketListeners;
+
 		attachReservationListener(socketInstance);
 		attachProductListener(socketInstance);
 		attachServerListener(socketInstance);
 		attachTableListener(socketInstance);
+		attachNotificationListeners(socketInstance);
 
-		console.log("✅ Listeners attachés");
+		console.log("✅ Listeners attachés (incluant notifications)");
 	}, []);
 
 	const setupSocket = useCallback(async () => {
@@ -49,7 +55,7 @@ export const SocketProvider = ({ children }) => {
 
 			if (!restaurantId) {
 				console.log(
-					"ℹ️ Pas de restaurant sélectionné, socket non initialisé (mode développeur)"
+					"ℹ️ Pas de restaurant sélectionné, socket non initialisé (mode développeur)",
 				);
 				setConnected(false);
 				return;

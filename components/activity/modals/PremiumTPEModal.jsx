@@ -497,7 +497,7 @@ export const PremiumTPEModal = ({
 	};
 
 	const getApiUrl = () => {
-		return API_CONFIG?.baseURL || "https://orderit-backend-6y1m.onrender.com";
+		return API_CONFIG?.baseURL || "https://sunnygo-backend-6y1m.onrender.com";
 	};
 
 	// ═══════════════════════════════════════════════════════════════════════
@@ -562,7 +562,7 @@ export const PremiumTPEModal = ({
 						>
 							{/* Header */}
 							<View style={styles.screenHeader}>
-								<Text style={styles.brandText}>OrderIt Pay</Text>
+								<Text style={styles.brandText}>SunnyGo Pay</Text>
 								<View style={styles.testBadge}>
 									<Text style={styles.testBadgeText}>TEST</Text>
 								</View>

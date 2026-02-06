@@ -1,4 +1,4 @@
-# Sons pour l'application OrderIt
+# Sons pour l'application SunnyGo
 
 ## Fichier requis
 

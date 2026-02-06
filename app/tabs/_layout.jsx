@@ -2,6 +2,7 @@
 /**
  * Navigation par onglets avec design spatial premium
  * Thème sombre cohérent avec le reste de l'application
+ * 🎯 Adaptation dynamique selon le Feature Level (complet/intermediaire/minimum)
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -13,6 +14,7 @@ import {
 	Animated,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Activity from "../../components/screens/Activity";
@@ -21,10 +23,11 @@ import Settings from "../../components/screens/Settings";
 import useSocket from "../../hooks/useSocket";
 
 import useUserStore from "../../src/stores/useUserStore";
+import { useFeatureLevelStore } from "../../src/stores/useFeatureLevelStore";
 
-import ClientMessageNotification from "../../components/ui/ClientMessageNotification";
+import ClientMessagesPanel from "../../components/ui/ClientMessagesPanel";
 
-// Tabs de base
+// Tabs de base - affichés selon le niveau fonctionnel
 const ALL_TABS = [
 	{ name: "activity", label: "Activité", icon: "calendar-outline" },
 	{ name: "floor", label: "Floor", icon: "map-outline" },
@@ -75,19 +78,77 @@ const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
 TabButton.displayName = "TabButton";
 
 export default function TabsLayout() {
-	const category = useUserStore((state) => state.category);
-	// Charger la catégorie dès le montage
+	// 🎯 Récupérer les tabs disponibles depuis le Feature Level Store
+	const availableTabs = useFeatureLevelStore((state) => state.tabs);
+	const isFeatureLevelReady = useFeatureLevelStore(
+		(state) => state.isInitialized,
+	);
+
+	// Filtrer ALL_TABS selon les tabs disponibles dans le niveau actuel
+	const TABS = ALL_TABS.filter((tab) => availableTabs.includes(tab.name));
+
+	// Charger la catégorie dès le montage (initialise automatiquement le FeatureLevelStore)
 	useEffect(() => {
 		useUserStore.getState().init();
 	}, []);
-	// Filtrage dynamique des tabs selon la catégorie
-	const TABS =
-		category === "foodtruck"
-			? ALL_TABS.filter((tab) => tab.name !== "activity")
-			: ALL_TABS;
-	// Initialiser le tab actif dynamiquement
-	const [activeTab, setActiveTab] = useState(TABS[0]?.name || "activity");
-	const { connect } = useSocket();
+
+	// Initialiser le tab actif dynamiquement une fois que le Feature Level est prêt
+	const [activeTab, setActiveTab] = useState("");
+	const [showMessagesPanel, setShowMessagesPanel] = useState(false);
+	const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+
+	// Debug : surveiller le changement de showMessagesPanel
+	useEffect(() => {
+		console.log("🔍 showMessagesPanel a changé:", showMessagesPanel);
+	}, [showMessagesPanel]);
+
+	useEffect(() => {
+		if (isFeatureLevelReady && TABS.length > 0 && !activeTab) {
+			const firstTab = TABS[0]?.name || "floor";
+			console.log("🎯 [TabsLayout] Premier tab disponible:", firstTab);
+			setActiveTab(firstTab);
+		}
+	}, [isFeatureLevelReady, TABS, activeTab]);
+
+	const { connect, socket, isConnected } = useSocket();
+
+	// Écouter les nouveaux messages pour le badge
+	useEffect(() => {
+		if (!socket || !isConnected) return;
+
+		const handleNewMessage = (event) => {
+			if (event.type === "new-message") {
+				setUnreadMessagesCount((prev) => prev + 1);
+			}
+		};
+
+		socket.on("client-message", handleNewMessage);
+		return () => socket.off("client-message", handleNewMessage);
+	}, [socket, isConnected]);
+
+	// Charger le compteur initial au montage
+	useEffect(() => {
+		const loadUnreadCount = async () => {
+			try {
+				const restaurantId = await AsyncStorage.getItem("restaurantId");
+				const token = await AsyncStorage.getItem("token");
+				if (!restaurantId || !token) return;
+
+				const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/restaurant/${restaurantId}?status=sent`;
+				const response = await fetch(url, {
+					headers: { Authorization: `Bearer ${token}` },
+				});
+
+				if (response.ok) {
+					const data = await response.json();
+					setUnreadMessagesCount(data.messages?.length || 0);
+				}
+			} catch (error) {
+				console.error("❌ Erreur chargement compteur messages:", error);
+			}
+		};
+		loadUnreadCount();
+	}, []);
 
 	// ═══════════════════════════════════════════════════════════════════════
 	// 🎯 Sliding effect pour les TABs (comme Filters.jsx)
@@ -177,15 +238,6 @@ export default function TabsLayout() {
 				style={StyleSheet.absoluteFill}
 			/>
 
-			{/* 🔔 Notification des messages clients */}
-			<ClientMessageNotification
-				onMessagePress={(message) => {
-					console.log("📨 Message cliqué:", message);
-					// TODO: Naviguer vers la table ou ouvrir un détail
-					setActiveTab("activity");
-				}}
-			/>
-
 			<View style={{ flex: 1 }}>
 				{/* Premium Navbar */}
 				<View style={tabStyles.navbar}>
@@ -197,14 +249,42 @@ export default function TabsLayout() {
 							]}
 							style={tabStyles.brandIconBg}
 						>
-							<Ionicons
-								name="restaurant"
-								size={18}
-								color={THEME.colors.primary.amber}
-							/>
+							<Ionicons name="sunny" size={40} color="#FFD600" />
 						</LinearGradient>
-						<Text style={tabStyles.brandText}>OrderIt</Text>
+						<Text
+							style={tabStyles.brandText}
+							numberOfLines={1}
+							ellipsizeMode="clip"
+						>
+							SunnyGo
+						</Text>
 					</View>
+
+					{/* Bouton Messages avec badge */}
+					{/* <TouchableOpacity
+						onPress={() => {
+							console.log("🔔 Bouton Messages cliqué");
+							console.log("showMessagesPanel avant:", showMessagesPanel);
+							setShowMessagesPanel(true);
+							setUnreadMessagesCount(0);
+							console.log("showMessagesPanel après:", true);
+						}}
+						style={tabStyles.messagesButton}
+						activeOpacity={0.7}
+					>
+						<Ionicons
+							name="chatbubbles"
+							size={22}
+							color={THEME.colors.text.secondary}
+						/>
+						{unreadMessagesCount > 0 && (
+							<View style={tabStyles.badge}>
+								<Text style={tabStyles.badgeText}>
+									{unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
+								</Text>
+							</View>
+						)}
+					</TouchableOpacity> */}
 
 					<View style={tabStyles.tabsContainer}>
 						{/* Slider animé (comme Filters.jsx) */}
@@ -243,6 +323,36 @@ export default function TabsLayout() {
 
 				<View style={{ flex: 1 }}>{renderContent()}</View>
 			</View>
+
+			{/* Panel des messages clients */}
+			<ClientMessagesPanel
+				visible={showMessagesPanel}
+				onClose={() => setShowMessagesPanel(false)}
+				onOpen={() => setShowMessagesPanel(true)}
+			/>
+
+			{/* Bouton flottant de messagerie (côté droit) */}
+			<View style={tabStyles.floatingButtonWrapper}>
+				<TouchableOpacity
+					style={tabStyles.floatingMessageButton}
+					onPress={() => setShowMessagesPanel(true)}
+					activeOpacity={0.8}
+				>
+					<LinearGradient
+						colors={["#667eea", "#764ba2"]}
+						style={tabStyles.floatingButtonGradient}
+					>
+						<Ionicons name="chatbubbles" size={24} color="#fff" />
+					</LinearGradient>
+				</TouchableOpacity>
+				{unreadMessagesCount > 0 && (
+					<View style={tabStyles.floatingBadge}>
+						<Text style={tabStyles.floatingBadgeText}>
+							{unreadMessagesCount > 99 ? "99+" : unreadMessagesCount}
+						</Text>
+					</View>
+				)}
+			</View>
 		</SafeAreaView>
 	);
 }
@@ -277,19 +387,23 @@ const tabStyles = StyleSheet.create({
 	brandContainer: {
 		flexDirection: "row",
 		alignItems: "center",
-		width: 100,
+		minWidth: 180,
+		maxWidth: 280,
+		width: "auto",
 	},
 	brandIconBg: {
-		width: 38,
-		height: 38,
+		width: 50,
+		height: 50,
 		borderRadius: THEME.radius.md,
 		justifyContent: "center",
 		alignItems: "center",
 		marginRight: THEME.spacing.sm,
 	},
 	brandText: {
-		fontSize: 22,
-		fontWeight: "800",
+		fontSize: 32,
+		fontWeight: "700",
+		flexShrink: 1,
+		alignSelf: "center",
 		color: THEME.colors.text.primary,
 		letterSpacing: 0.8,
 	},
@@ -341,5 +455,75 @@ const tabStyles = StyleSheet.create({
 	tabTextActive: {
 		color: THEME.colors.primary.amber,
 		fontWeight: "600",
+	},
+	messagesButton: {
+		position: "relative",
+		paddingHorizontal: 12,
+		paddingVertical: 8,
+		borderRadius: 12,
+		backgroundColor: "rgba(148, 163, 184, 0.1)",
+		marginRight: THEME.spacing.md,
+	},
+	badge: {
+		position: "absolute",
+		top: -4,
+		right: -4,
+		backgroundColor: "#ef4444",
+		borderRadius: 10,
+		minWidth: 20,
+		height: 20,
+		justifyContent: "center",
+		alignItems: "center",
+		paddingHorizontal: 4,
+		borderWidth: 2,
+		borderColor: THEME.colors.background.dark,
+	},
+	badgeText: {
+		fontSize: 11,
+		fontWeight: "700",
+		color: "#fff",
+	},
+	// Bouton flottant de messagerie (côté droit)
+	floatingButtonWrapper: {
+		position: "absolute",
+		right: 16,
+		top: "50%",
+		zIndex: 999,
+	},
+	floatingMessageButton: {
+		width: 56,
+		height: 56,
+		borderRadius: 28,
+		shadowColor: "#667eea",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.3,
+		shadowRadius: 8,
+		elevation: 8,
+	},
+	floatingButtonGradient: {
+		width: 56,
+		height: 56,
+		borderRadius: 28,
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	floatingBadge: {
+		position: "absolute",
+		top: -4,
+		right: -4,
+		backgroundColor: "#ef4444",
+		borderRadius: 12,
+		minWidth: 24,
+		height: 24,
+		justifyContent: "center",
+		alignItems: "center",
+		paddingHorizontal: 6,
+		borderWidth: 2,
+		borderColor: THEME.colors.background.dark,
+	},
+	floatingBadgeText: {
+		fontSize: 11,
+		fontWeight: "700",
+		color: "#fff",
 	},
 });

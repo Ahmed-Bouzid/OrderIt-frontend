@@ -1,11 +1,11 @@
 import AsyncStorage from "@react-native-async-storage/async-storage";
 
-const ERROR_STORAGE_KEY = "@orderit_error_logs";
+const ERROR_STORAGE_KEY = "@sunnygo_error_logs";
 const MAX_ERRORS_STORED = 10;
 const ERROR_EXPIRY_MS = 5 * 60 * 1000; // 5 minutes
 
 /**
- * Gestionnaire d'erreurs centralisé pour OrderIt
+ * Gestionnaire d'erreurs centralisé pour SunnyGo
  * Capture et stocke les erreurs avec contexte technique
  */
 class ErrorLogger {

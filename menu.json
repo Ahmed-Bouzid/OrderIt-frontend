@@ -1,0 +1,559 @@
+{
+	"products": [
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Mab'morning",
+			"description": "Jus d’orange pressée maison OU Boisson chaude (chocolat ou café ou thé classique), 1 oeuf brouillé ou au plat + salade, Mini pancakes x3 (coulis fruits rouges ou sirop d’érable ou nutella)",
+			"price": 6.9,
+			"category": "Offres du moment",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Goûter hour",
+			"description": "Jus d’orange pressée ou boisson chaude (chocolat ou café ou thé classique) + gourmandise du jour",
+			"price": 5.9,
+			"category": "Offres du moment",
+			"available": true,
+			"archived": false,
+			"note": "De 16h30 à 18h, uniquement en semaine"
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Sandwich Matlouh",
+			"description": "Pain au semoule, fine tranche de rumsteak, cheddar, mayonnaise fumée, pickles de concombre maison, oignons caramélisés",
+			"price": 15.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Maburger",
+			"description": "Steak 120 g, poulet pané maison, garni de salade, tomate, oignon rouge, cornichons, bacon et cheddar. Servi avec salade, vinaigrette balsamique maison et frites",
+			"price": 15.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["bestseller"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Waffle Chicken",
+			"description": "Gaufre salée avec poulet pané maison, cheddar fondant, guacamole, œuf au plat, tomates, sauce smokey baconnaise et oignons rouge. Option sirop d’érable +1,5€",
+			"price": 15.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["bestseller"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Brioche Effilochée",
+			"description": "Brioche au beurre garnie d’effiloché de bœuf fondant, crème cheesee à l’aneth, pickles de choux rouge croquant, œuf poché, sauce cheddar maison et piment d’Espelette",
+			"price": 14.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["bestseller"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Croissant Smashé à la Truffe",
+			"description": "Croissant croustillant smashé au beurre garni crème cheesee à l’aneth, oeuf brouillé à la truffe et champignon persillé",
+			"price": 14.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Turkish Eggs",
+			"description": "Pain pide, saumon ou bacon labneh crème à l’ail, œuf poché, tomates séchées, beurre noisette au paprika et herbes fraîches",
+			"price": 14.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Benedicte original",
+			"description": "Pain rolls moelleux, saumon gravlax ou bacon ou boeuf effiloché, oeuf, cheddar, sauce hollandaise maison relevée au piment d'Espelette",
+			"price": 13.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "César Poulet & Parmigiano",
+			"description": "Salade croquante, poulet pané maison, œuf dur, parmesan, tomates, oignons rouge, croutons maison et sauce César",
+			"price": 13.5,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Avocado Toast",
+			"description": "Pain toasté, saumon gravlax, guacamole maison, œuf poché, radis croquants, fêta graines de sésame noir et blanc, noix",
+			"price": 15.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Le Caprice du Mab",
+			"description": "Pommes de terre grenuelles, rosette, jambon supérieur, Caprice des Dieux pané au panko",
+			"price": 15.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Assiette d'oeuf",
+			"description": "Œuf brouillé au cheddar (extra : à la truffe), omelette ou œuf au plat, et salade, pain au levain de saisons",
+			"price": 9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Menu enfant (11 ans)",
+			"description": "Poulet, steak ou omelette, accompagné de salade, frites et mini pancakes nutella et fruits au choix",
+			"price": 10,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false,
+			"note": "Option pain burger + 2€"
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Arabic omelette",
+			"description": "Omelette persillée, labneh, julienne de poivrons et oignons, roquette, harissa",
+			"price": 12.9,
+			"category": "Nos salés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Brioche Poire Intense",
+			"description": "Ganache vanille intense, poire pochée à la cannelle et spéculos",
+			"price": 13.9,
+			"category": "Nos sucrés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Gaufre Pomme Caramel",
+			"description": "Marmelade de pommes, coulis de caramel beurre salé maison, noix de pécan, boule de glace vanille",
+			"price": 13.9,
+			"category": "Nos sucrés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Pancakes Mont Blanc",
+			"description": "Ganache crème de marron, coulis caramel beurre salé, éclats de noisettes",
+			"price": 13.9,
+			"category": "Nos sucrés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Croissant bueno",
+			"description": "Croissant feuilleté garni d’une crème onctueuse Bueno, banane, éclats de Kinder, servi avec une boule de glace vanille",
+			"price": 12.9,
+			"category": "Nos sucrés – Signature",
+			"available": true,
+			"archived": false,
+			"tags": ["bestseller"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Pancakes pistache framboise",
+			"description": "Pancakes moelleux nappés d’une ganache pistache onctueuse, accompagnés de framboises fraîches, coulis de fruits rouges - pistache et éclats de pistaches croquantes",
+			"price": 14.9,
+			"category": "Nos sucrés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Granola bowl",
+			"description": "Fromage blanc, Granola aux 4 noix : amandes, noisettes, noix du brésil et noix de pécan avec fruits de saison, noix de coco, raisins sec. Nappage : miel, coulis de fruits rouges ou sirop d’érable",
+			"price": 11,
+			"category": "Nos sucrés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Gourmandises",
+			"description": "Les gourmandises du jour sont faites maison et disponible en vitrine",
+			"price": 5.9,
+			"category": "Nos sucrés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Assiette fruits de saison",
+			"description": "Fruits de saison",
+			"price": 7.5,
+			"category": "Nos sucrés – Signature",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Mab Mojito",
+			"description": "Limonade citron, glace pilée, menthe. Au choix : fraise, fruits de la passion ou classique",
+			"price": 9.5,
+			"category": "Mocktails",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Bora Bora",
+			"description": "Jus d’ananas, jus de fruit de la passion, jus de citron, sirop de grenadine",
+			"price": 9.5,
+			"category": "Mocktails",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Mab Coco",
+			"description": "Lait de coco, jus de citron vert, jus d’ananas",
+			"price": 9.5,
+			"category": "Mocktails",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "MABasilic fraise",
+			"description": "Purée fraise, feuille de basilic, citron & limonade citron vert",
+			"price": 9.5,
+			"category": "Mocktails",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "MAB Cloud",
+			"description": "Lait de coco, sirop de vanille, jus de citron",
+			"price": 9.5,
+			"category": "Mocktails",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "MABtail",
+			"description": "Purée de litchi, limonade, jus de citron et sirop d’hibiscus",
+			"price": 9.5,
+			"category": "Mocktails",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Green Mab",
+			"description": "Feuille de menthe, jus d’ananas & citron pressé",
+			"price": 9.5,
+			"category": "Mocktails",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Matcha Tiramisu",
+			"description": "Feuille de thé vert finement moulue et du lait mousseux (+1€ lait végétal) avec un gâteau tiramisu sur la boisson",
+			"price": 10,
+			"category": "Nouveautés Tiramisu",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Ube Tiramisu",
+			"description": "Boisson végétale violette à base d’ube, igname asiatique douce et nutritive, avec un surmontée d’un mini tiramisu saupoudré de cacao",
+			"price": 10,
+			"category": "Nouveautés Tiramisu",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Latte' Tiramisu",
+			"description": "Café latte mousseux avec son gâteau tiramisu sur la boisson sépoulidé de cacao. se boit froid",
+			"price": 9.5,
+			"category": "Nouveautés Tiramisu",
+			"available": true,
+			"archived": false,
+			"tags": ["new"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "One shot - Red booster",
+			"description": "Gingembre, piment de cayenne, citron& miel",
+			"price": 3,
+			"category": "One shot / Milkshakes",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "One shot - Sun booster",
+			"description": "Gingembre, curcuma, citron & miel",
+			"price": 3,
+			"category": "One shot / Milkshakes",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Milkshake Classique",
+			"description": "Vanille, fraise ou fraise/banane",
+			"price": 7.5,
+			"category": "One shot / Milkshakes",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Milkshake Spécial",
+			"description": "Kinder Bueno, Nutella, Cookie, Oréo, Spéculos",
+			"price": 8.5,
+			"category": "One shot / Milkshakes",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Milkshake Pistache-framboise",
+			"description": "",
+			"price": 9,
+			"category": "One shot / Milkshakes",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Smoothie fruits rouges",
+			"description": "",
+			"price": 7.5,
+			"category": "Smoothies",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Smoothie exotique",
+			"description": "",
+			"price": 7.5,
+			"category": "Smoothies",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Banane avocat lait d'amande",
+			"description": "",
+			"price": 8.5,
+			"category": "Smoothies",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Eau 50cl",
+			"description": "San pellegrino - Vittel",
+			"price": 4,
+			"category": "Eaux / Jus / Softs",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Jus pressé",
+			"description": "Jus d’orange pressé - Jus de pomme - Jus Multifruit - Citron pressé (25 cl)",
+			"price": 5,
+			"category": "Eaux / Jus / Softs",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Soft 33cl",
+			"description": "Coca- Coca zéro - Coca Cherry - Orangina - Fuze Tea - Limonade",
+			"price": 4,
+			"category": "Eaux / Jus / Softs",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "MAB Matcha",
+			"description": "Matcha, Lait au choix, Coulis au choix*",
+			"price": 8.5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Frappuccino",
+			"description": "Chantilly, Lait au choix mixé avec des glaçons, Saveur au choix, Avec ou sans café",
+			"price": 7,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Ice Coffee Latte",
+			"description": "Lait au choix, Glacons, Saveur au choix, Café",
+			"price": 7,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false,
+			"tags": ["bestseller"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Ice Brown sugar Shaken",
+			"description": "Café shake avec du sucre brun et finition au lait d’avoine",
+			"price": 7,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Coffee Latte Pistache",
+			"description": "Lait au choix (végétal +1€), Topping à la pistache avec sa crème de pistache et café. chaud ou froid",
+			"price": 7,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Milky Creamy",
+			"description": "Lait au choix (végétal +1€), Sirop au choix*, Chantilly, Topping au choix. se boit chaud",
+			"price": 5.5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Le maté",
+			"description": "Le maté est une infusion sud américaine à base de Yerba maté, riche en caféine et antioxydant",
+			"price": 5.5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false,
+			"tags": ["bestseller"]
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Caramel Machiatto",
+			"description": "Un sirop ainsi qu’un coulis caramel avec son lait chaud et du café chantilly",
+			"price": 5.5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Thé vert à la menthe",
+			"description": "",
+			"price": 5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Piccolo",
+			"description": "citron crémeux",
+			"price": 5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Secret du dragon",
+			"description": "thé blanc, litchi",
+			"price": 5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Envol celeste",
+			"description": "thé noir, caramel, fleur d’oranger, violette",
+			"price": 5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Bangkok express",
+			"description": "thé noir, orange, épice",
+			"price": 5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Hibiscus",
+			"description": "pomme, fraise framboise",
+			"price": 5,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Thé orientale fait maison",
+			"description": "",
+			"price": 6,
+			"category": "Café & Thé – Boissons à composer",
+			"available": true,
+			"archived": false
+		},
+		{
+			"restaurantId": "6983310d35c06895f98d7549",
+			"name": "Thé au gingembre",
+			"description": "",
+			"price": 6,
+			"category": "Café & Thé – Boissons à compos"
+		}
+	]
+}

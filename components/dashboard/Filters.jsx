@@ -58,11 +58,14 @@ const ALL_FILTERS = [
 const Filters = React.memo(
 	({ activeFilter, onFilterChange, searchQuery, onSearchChange }) => {
 		const category = useUserStore((state) => state.category);
-		// Filtrage dynamique des statuts pour foodtruck
+		// Filtrage dynamique des statuts pour foodtruck, snack, fastfood
 		const FILTERS =
-			category === "foodtruck"
+			category === "foodtruck" ||
+			category === "snack" ||
+			category === "fastfood" ||
+			category === "fast-food"
 				? ALL_FILTERS.filter((f) =>
-						["ouverte", "terminée", "annulée"].includes(f.key)
+						["ouverte", "terminée", "annulée"].includes(f.key),
 					)
 				: ALL_FILTERS;
 		const { themeMode } = useThemeStore();
@@ -221,7 +224,7 @@ const Filters = React.memo(
 				</View>
 			</View>
 		);
-	}
+	},
 );
 
 Filters.displayName = "Filters";

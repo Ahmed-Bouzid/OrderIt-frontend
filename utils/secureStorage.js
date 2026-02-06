@@ -2,6 +2,8 @@
  * Wrapper unifié pour le stockage sécurisé
  * Route automatiquement les clés sensibles vers SecureStore (Keychain/EncryptedSharedPreferences)
  * et les autres vers AsyncStorage
+ *
+ * ⭐ OPTIMISATION: Cache mémoire pour éviter les lectures répétées
  */
 
 import * as SecureStore from "expo-secure-store";
@@ -19,6 +21,35 @@ const SECURE_KEYS = new Set([
 const KEY_MIGRATION_MAP = {
 	"@access_token": "access_token", // AsyncStorage → SecureStore
 };
+
+// ⭐ CACHE MÉMOIRE pour éviter les lectures répétées
+const memoryCache = new Map();
+const CACHE_TTL = 30000; // 30 secondes de cache (le token ne change pas souvent)
+
+/**
+ * Récupère une valeur du cache mémoire si valide
+ */
+function getCached(key) {
+	const cached = memoryCache.get(key);
+	if (cached && Date.now() - cached.timestamp < CACHE_TTL) {
+		return cached.value;
+	}
+	return undefined; // undefined = pas en cache, null = valeur null stockée
+}
+
+/**
+ * Stocke une valeur dans le cache mémoire
+ */
+function setCache(key, value) {
+	memoryCache.set(key, { value, timestamp: Date.now() });
+}
+
+/**
+ * Invalide le cache pour une clé
+ */
+function invalidateCache(key) {
+	memoryCache.delete(key);
+}
 
 /**
  * Détermine si une clé doit utiliser SecureStore
@@ -38,30 +69,57 @@ function normalizeKey(key) {
 
 /**
  * Récupère une valeur (SecureStore ou AsyncStorage selon la clé)
+ * ⭐ Utilise le cache mémoire pour éviter les lectures répétées
  * @param {string} key - Clé de la valeur à récupérer
  * @returns {Promise<string|null>} Valeur ou null si inexistante
  */
 export async function getItem(key) {
+	const cacheKey = normalizeKey(key);
+
+	// ⭐ Vérifier le cache d'abord
+	const cached = getCached(cacheKey);
+	if (cached !== undefined) {
+		// Pas de log pour les accès cache (évite le spam)
+		return cached;
+	}
+
 	try {
+		let value;
 		if (isSecureKey(key)) {
 			const secureKey = normalizeKey(key);
-			const value = await SecureStore.getItemAsync(secureKey);
-			console.log(`🔐 SecureStore.getItem("${secureKey}"):`, value ? "✅ exists" : "❌ null");
-			return value;
+			value = await SecureStore.getItemAsync(secureKey);
+			// Log uniquement lors de la vraie lecture (pas du cache)
+			console.log(
+				`🔐 SecureStore.getItem("${secureKey}"):`,
+				value ? "✅ exists" : "❌ null",
+			);
 		} else {
-			const value = await AsyncStorage.getItem(key);
-			console.log(`📦 AsyncStorage.getItem("${key}"):`, value ? "✅ exists" : "❌ null");
-			return value;
+			value = await AsyncStorage.getItem(key);
+			console.log(
+				`📦 AsyncStorage.getItem("${key}"):`,
+				value ? "✅ exists" : "❌ null",
+			);
 		}
+
+		// ⭐ Mettre en cache
+		setCache(cacheKey, value);
+		return value;
 	} catch (error) {
 		console.error(`❌ Error getItem("${key}"):`, error.message);
 		// Fallback vers AsyncStorage si SecureStore échoue
 		if (isSecureKey(key)) {
-			console.warn(`⚠️ SecureStore failed for "${key}", fallback to AsyncStorage`);
+			console.warn(
+				`⚠️ SecureStore failed for "${key}", fallback to AsyncStorage`,
+			);
 			try {
-				return await AsyncStorage.getItem(key);
+				const value = await AsyncStorage.getItem(key);
+				setCache(cacheKey, value);
+				return value;
 			} catch (fallbackError) {
-				console.error(`❌ Fallback AsyncStorage.getItem("${key}") failed:`, fallbackError.message);
+				console.error(
+					`❌ Fallback AsyncStorage.getItem("${key}") failed:`,
+					fallbackError.message,
+				);
 				return null;
 			}
 		}
@@ -71,11 +129,14 @@ export async function getItem(key) {
 
 /**
  * Stocke une valeur (SecureStore ou AsyncStorage selon la clé)
+ * ⭐ Met à jour le cache mémoire
  * @param {string} key - Clé de la valeur
  * @param {string} value - Valeur à stocker
  * @returns {Promise<void>}
  */
 export async function setItem(key, value) {
+	const cacheKey = normalizeKey(key);
+
 	try {
 		if (isSecureKey(key)) {
 			const secureKey = normalizeKey(key);
@@ -85,15 +146,23 @@ export async function setItem(key, value) {
 			await AsyncStorage.setItem(key, value);
 			console.log(`📦 AsyncStorage.setItem("${key}"): ✅`);
 		}
+		// ⭐ Mettre à jour le cache après écriture réussie
+		setCache(cacheKey, value);
 	} catch (error) {
 		console.error(`❌ Error setItem("${key}"):`, error.message);
 		// Fallback vers AsyncStorage si SecureStore échoue
 		if (isSecureKey(key)) {
-			console.warn(`⚠️ SecureStore failed for "${key}", fallback to AsyncStorage`);
+			console.warn(
+				`⚠️ SecureStore failed for "${key}", fallback to AsyncStorage`,
+			);
 			try {
 				await AsyncStorage.setItem(key, value);
+				setCache(cacheKey, value);
 			} catch (fallbackError) {
-				console.error(`❌ Fallback AsyncStorage.setItem("${key}") failed:`, fallbackError.message);
+				console.error(
+					`❌ Fallback AsyncStorage.setItem("${key}") failed:`,
+					fallbackError.message,
+				);
 				throw fallbackError;
 			}
 		} else {
@@ -104,10 +173,16 @@ export async function setItem(key, value) {
 
 /**
  * Supprime une valeur (SecureStore ou AsyncStorage selon la clé)
+ * ⭐ Invalide le cache mémoire
  * @param {string} key - Clé à supprimer
  * @returns {Promise<void>}
  */
 export async function removeItem(key) {
+	const cacheKey = normalizeKey(key);
+
+	// ⭐ Invalider le cache immédiatement
+	invalidateCache(cacheKey);
+
 	try {
 		if (isSecureKey(key)) {
 			const secureKey = normalizeKey(key);
@@ -121,11 +196,16 @@ export async function removeItem(key) {
 		console.error(`❌ Error removeItem("${key}"):`, error.message);
 		// Fallback vers AsyncStorage si SecureStore échoue
 		if (isSecureKey(key)) {
-			console.warn(`⚠️ SecureStore failed for "${key}", fallback to AsyncStorage`);
+			console.warn(
+				`⚠️ SecureStore failed for "${key}", fallback to AsyncStorage`,
+			);
 			try {
 				await AsyncStorage.removeItem(key);
 			} catch (fallbackError) {
-				console.error(`❌ Fallback AsyncStorage.removeItem("${key}") failed:`, fallbackError.message);
+				console.error(
+					`❌ Fallback AsyncStorage.removeItem("${key}") failed:`,
+					fallbackError.message,
+				);
 			}
 		}
 	}
@@ -144,10 +224,17 @@ export async function multiRemove(keys) {
 
 		// Supprimer en parallèle (SecureStore + AsyncStorage)
 		await Promise.all([
-			...secureKeys.map((key) => SecureStore.deleteItemAsync(key).catch((err) => {
-				console.error(`❌ SecureStore.deleteItemAsync("${key}") failed:`, err.message);
-			})),
-			asyncKeys.length > 0 ? AsyncStorage.multiRemove(asyncKeys) : Promise.resolve(),
+			...secureKeys.map((key) =>
+				SecureStore.deleteItemAsync(key).catch((err) => {
+					console.error(
+						`❌ SecureStore.deleteItemAsync("${key}") failed:`,
+						err.message,
+					);
+				}),
+			),
+			asyncKeys.length > 0
+				? AsyncStorage.multiRemove(asyncKeys)
+				: Promise.resolve(),
 		]);
 
 		console.log(`🗑️ multiRemove([${keys.join(", ")}]): ✅`);
@@ -175,7 +262,9 @@ export async function hasItem(key) {
 export async function getAllKeys() {
 	try {
 		const keys = await AsyncStorage.getAllKeys();
-		console.log(`📦 AsyncStorage.getAllKeys(): ${keys.length} keys (SecureStore keys not listed)`);
+		console.log(
+			`📦 AsyncStorage.getAllKeys(): ${keys.length} keys (SecureStore keys not listed)`,
+		);
 		return keys;
 	} catch (error) {
 		console.error(`❌ Error getAllKeys:`, error.message);
@@ -206,7 +295,9 @@ export async function migrateToSecureStore(key) {
 		// 2. Écrire dans SecureStore (nouvelle clé sans @)
 		const secureKey = normalizeKey(key);
 		await SecureStore.setItemAsync(secureKey, value);
-		console.log(`🔐 Migration "${key}" → "${secureKey}": AsyncStorage → SecureStore ✅`);
+		console.log(
+			`🔐 Migration "${key}" → "${secureKey}": AsyncStorage → SecureStore ✅`,
+		);
 
 		// 3. Supprimer d'AsyncStorage
 		await AsyncStorage.removeItem(key);
@@ -240,7 +331,9 @@ export async function migrateAllSecureKeys() {
 		}
 	}
 
-	console.log(`✅ Migration terminée: ${migrated.length} migrées, ${failed.length} échecs`);
+	console.log(
+		`✅ Migration terminée: ${migrated.length} migrées, ${failed.length} échecs`,
+	);
 	if (migrated.length > 0) {
 		console.log("✅ Migrées:", migrated.join(", "));
 	}
@@ -248,6 +341,14 @@ export async function migrateAllSecureKeys() {
 		console.warn("⚠️ Échecs:", failed.join(", "));
 	}
 	return { migrated, failed };
+}
+
+/**
+ * ⭐ Vide le cache mémoire (utile lors du logout)
+ */
+export function clearCache() {
+	memoryCache.clear();
+	console.log("🧹 Cache mémoire vidé");
 }
 
 // Export par défaut pour compatibilité
@@ -260,4 +361,5 @@ export default {
 	getAllKeys,
 	migrateToSecureStore,
 	migrateAllSecureKeys,
+	clearCache,
 };

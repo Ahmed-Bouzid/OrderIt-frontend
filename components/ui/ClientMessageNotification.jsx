@@ -1,8 +1,8 @@
 /**
- * 🔔 ClientMessageNotification - Notification des messages clients pour les serveurs
+ * 🔔 ClientMessageNotification - Alert moderne pour messages clients
  *
- * Affiche une notification en haut de l'écran quand un client envoie un message
- * Intégré via WebSocket pour des mises à jour en temps réel
+ * Style inspiration : 21st.dev notification-alert-dialog
+ * Affiche une alerte élégante avec actions rapides
  */
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
@@ -14,12 +14,16 @@ import {
 	Animated,
 	Vibration,
 	Platform,
+	Dimensions,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import useSocket from "../../hooks/useSocket";
 import ServerResponseModal from "../modals/ServerResponseModal";
 import useUserStore from "../../src/stores/useUserStore";
+
+const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
 // 🎨 Design cohérent avec l'app
 const COLORS = {
@@ -51,52 +55,68 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 	const translateY = useRef(new Animated.Value(-150)).current;
 	const opacity = useRef(new Animated.Value(0)).current;
 
+	// Animations scale + opacity pour effet modern
+	const scale = useRef(new Animated.Value(0.8)).current;
+
 	// Animation de masquage
 	const hideNotification = useCallback(() => {
 		Animated.parallel([
 			Animated.timing(translateY, {
 				toValue: -150,
-				duration: 300,
+				duration: 250,
 				useNativeDriver: true,
 			}),
 			Animated.timing(opacity, {
 				toValue: 0,
+				duration: 200,
+				useNativeDriver: true,
+			}),
+			Animated.timing(scale, {
+				toValue: 0.8,
 				duration: 200,
 				useNativeDriver: true,
 			}),
 		]).start(() => {
 			setCurrentNotification(null);
 		});
-	}, [translateY, opacity]);
+	}, [translateY, opacity, scale]);
 
 	// Animation d'affichage
 	const showNotification = useCallback(() => {
 		Animated.parallel([
 			Animated.spring(translateY, {
 				toValue: 0,
+				friction: 9,
+				tension: 100,
+				useNativeDriver: true,
+			}),
+			Animated.spring(scale, {
+				toValue: 1,
 				friction: 8,
 				tension: 80,
 				useNativeDriver: true,
 			}),
 			Animated.timing(opacity, {
 				toValue: 1,
-				duration: 200,
+				duration: 300,
 				useNativeDriver: true,
 			}),
 		]).start();
 
-		// Auto-hide après 5 secondes
+		// Auto-hide après 7 secondes (plus de temps pour lire)
 		setTimeout(() => {
 			hideNotification();
-		}, 5000);
-	}, [translateY, opacity, hideNotification]);
+		}, 7000);
+	}, [translateY, opacity, scale, hideNotification]);
 
 	// Écouter les messages WebSocket
 	useEffect(() => {
+		console.log("🔌 ClientMessageNotification - Socket connecté:", isConnected);
+
 		if (!socket || !isConnected) return;
 
 		const handleClientMessage = (event) => {
-			console.log("📨 Message client reçu:", event);
+			console.log("📨 [ClientMessageNotification] Message client reçu:", event);
 
 			if (event.type === "new-message") {
 				const notification = {
@@ -194,77 +214,118 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 				style={[
 					styles.container,
 					{
-						transform: [{ translateY }],
+						transform: [{ translateY }, { scale }],
 						opacity,
 					},
 				]}
 			>
+				{/* Glow effect */}
+				<View style={styles.glowContainer}>
+					<LinearGradient
+						colors={[
+							`${categoryConfig.color}40`,
+							`${categoryConfig.color}10`,
+							"transparent",
+						]}
+						style={styles.glow}
+					/>
+				</View>
+
 				<TouchableOpacity
-					activeOpacity={0.95}
+					activeOpacity={0.92}
 					onPress={handlePress}
 					style={styles.touchable}
 				>
-					<BlurView intensity={90} tint="dark" style={styles.blur}>
-						<View style={styles.content}>
-							{/* Icône catégorie */}
-							<View
-								style={[
-									styles.iconContainer,
-									{ backgroundColor: `${categoryConfig.color}20` },
-								]}
-							>
-								<Ionicons
-									name={currentNotification.icon || categoryConfig.icon}
-									size={24}
-									color={categoryConfig.color}
-								/>
-							</View>
-
-							{/* Contenu */}
-							<View style={styles.textContainer}>
-								<View style={styles.headerRow}>
-									<Text style={styles.tableText}>
-										Table {currentNotification.tableNumber}
-									</Text>
-									<Text style={styles.clientName}>
-										{currentNotification.clientName}
-									</Text>
+					<BlurView intensity={95} tint="dark" style={styles.blur}>
+						<LinearGradient
+							colors={["rgba(15, 23, 42, 0.95)", "rgba(30, 41, 59, 0.92)"]}
+							style={styles.gradientOverlay}
+						>
+							<View style={styles.content}>
+								{/* Header avec icône pulsante */}
+								<View style={styles.header}>
+									<View style={styles.headerLeft}>
+										<View
+											style={[
+												styles.iconContainer,
+												{ backgroundColor: `${categoryConfig.color}25` },
+											]}
+										>
+											<Ionicons
+												name={currentNotification.icon || categoryConfig.icon}
+												size={22}
+												color={categoryConfig.color}
+											/>
+										</View>
+										<View>
+											<Text style={styles.title}>Nouveau message</Text>
+											<View style={styles.subtitleRow}>
+												<Text style={styles.tableText}>
+													Table {currentNotification.tableNumber}
+												</Text>
+												<Text style={styles.separator}>•</Text>
+												<Text style={styles.clientName}>
+													{currentNotification.clientName}
+												</Text>
+											</View>
+										</View>
+									</View>
+									<TouchableOpacity
+										onPress={handleDismiss}
+										style={styles.closeButton}
+										hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+									>
+										<Ionicons name="close" size={18} color={COLORS.textMuted} />
+									</TouchableOpacity>
 								</View>
+
+								{/* Message */}
 								<Text style={styles.messageText} numberOfLines={2}>
 									{currentNotification.text}
 								</Text>
+
+								{/* Actions rapides */}
+								<View style={styles.actions}>
+									<TouchableOpacity
+										style={[styles.actionButton, styles.actionSecondary]}
+										onPress={handleDismiss}
+									>
+										<Text style={styles.actionTextSecondary}>Plus tard</Text>
+									</TouchableOpacity>
+									<TouchableOpacity
+										style={[
+											styles.actionButton,
+											styles.actionPrimary,
+											{ backgroundColor: categoryConfig.color },
+										]}
+										onPress={handlePress}
+									>
+										<Ionicons
+											name="chatbubble-outline"
+											size={14}
+											color="#fff"
+										/>
+										<Text style={styles.actionTextPrimary}>Répondre</Text>
+									</TouchableOpacity>
+								</View>
+
+								{/* Badge compteur */}
+								{notifications.length > 0 && (
+									<View
+										style={[
+											styles.badge,
+											{ backgroundColor: categoryConfig.color },
+										]}
+									>
+										<Text style={styles.badgeText}>
+											+{notifications.length}
+										</Text>
+									</View>
+								)}
 							</View>
-
-							{/* Bouton fermer */}
-							<TouchableOpacity
-								onPress={handleDismiss}
-								style={styles.closeButton}
-								hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
-							>
-								<Ionicons name="close" size={20} color={COLORS.textMuted} />
-							</TouchableOpacity>
-						</View>
-
-						{/* Badge de catégorie */}
-						<View
-							style={[
-								styles.categoryBadge,
-								{ backgroundColor: categoryConfig.color },
-							]}
-						>
-							<Text style={styles.categoryText}>
-								{currentNotification.category.toUpperCase()}
-							</Text>
-						</View>
+						</LinearGradient>
 					</BlurView>
 				</TouchableOpacity>
-
-				{/* Indicateur de notifications en attente */}
-				{notifications.length > 0 && (
-					<View style={styles.queueBadge}>
-						<Text style={styles.queueText}>+{notifications.length}</Text>
-					</View>
-				)}
 			</Animated.View>
 
 			{/* 💬 Modal réponse serveur */}
@@ -282,89 +343,152 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 const styles = StyleSheet.create({
 	container: {
 		position: "absolute",
-		top: 50,
+		top: 60,
 		left: 16,
 		right: 16,
 		zIndex: 9999,
 	},
+	glowContainer: {
+		position: "absolute",
+		top: -20,
+		left: -20,
+		right: -20,
+		bottom: -20,
+		borderRadius: 24,
+		overflow: "hidden",
+	},
+	glow: {
+		flex: 1,
+		opacity: 0.3,
+	},
 	touchable: {
-		borderRadius: 16,
+		borderRadius: 18,
 		overflow: "hidden",
 		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.3,
-		shadowRadius: 12,
-		elevation: 8,
+		shadowOffset: { width: 0, height: 12 },
+		shadowOpacity: 0.4,
+		shadowRadius: 24,
+		elevation: 16,
 	},
 	blur: {
-		backgroundColor: COLORS.glass,
-		borderRadius: 16,
+		borderRadius: 18,
 		overflow: "hidden",
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.1)",
+	},
+	gradientOverlay: {
+		borderRadius: 18,
 	},
 	content: {
-		flexDirection: "row",
-		alignItems: "center",
-		padding: 16,
+		padding: 18,
 		gap: 14,
 	},
-	iconContainer: {
-		width: 48,
-		height: 48,
-		borderRadius: 12,
-		justifyContent: "center",
-		alignItems: "center",
-	},
-	textContainer: {
-		flex: 1,
-	},
-	headerRow: {
+	header: {
 		flexDirection: "row",
 		alignItems: "center",
-		gap: 8,
-		marginBottom: 4,
+		justifyContent: "space-between",
+	},
+	headerLeft: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 12,
+		flex: 1,
+	},
+	iconContainer: {
+		width: 44,
+		height: 44,
+		borderRadius: 14,
+		justifyContent: "center",
+		alignItems: "center",
+		borderWidth: 2,
+		borderColor: "rgba(255,255,255,0.1)",
+	},
+	title: {
+		fontSize: 15,
+		fontWeight: "700",
+		color: COLORS.text,
+		marginBottom: 3,
+		letterSpacing: 0.3,
+	},
+	subtitleRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 6,
 	},
 	tableText: {
-		fontSize: 14,
-		fontWeight: "700",
+		fontSize: 12,
+		fontWeight: "600",
 		color: COLORS.accent,
+	},
+	separator: {
+		fontSize: 10,
+		color: COLORS.textMuted,
 	},
 	clientName: {
 		fontSize: 12,
 		color: COLORS.textMuted,
 	},
 	messageText: {
-		fontSize: 15,
+		fontSize: 14,
 		color: COLORS.text,
 		lineHeight: 20,
+		opacity: 0.95,
 	},
 	closeButton: {
-		padding: 4,
+		padding: 6,
+		borderRadius: 8,
+		backgroundColor: "rgba(255,255,255,0.05)",
 	},
-	categoryBadge: {
-		position: "absolute",
-		top: 0,
-		right: 16,
-		paddingHorizontal: 10,
-		paddingVertical: 4,
-		borderBottomLeftRadius: 8,
-		borderBottomRightRadius: 8,
+	actions: {
+		flexDirection: "row",
+		gap: 10,
+		marginTop: 4,
 	},
-	categoryText: {
-		fontSize: 9,
-		fontWeight: "700",
-		color: "#fff",
-		letterSpacing: 0.5,
-	},
-	queueBadge: {
-		position: "absolute",
-		bottom: -8,
-		right: 16,
-		backgroundColor: "#ef4444",
-		paddingHorizontal: 8,
-		paddingVertical: 2,
+	actionButton: {
+		flex: 1,
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 6,
+		paddingVertical: 10,
 		borderRadius: 10,
 	},
-	queueText: {
+	actionSecondary: {
+		backgroundColor: "rgba(148, 163, 184, 0.15)",
+		borderWidth: 1,
+		borderColor: "rgba(148, 163, 184, 0.2)",
+	},
+	actionPrimary: {
+		backgroundColor: COLORS.accent,
+		shadowColor: "#667eea",
+		shadowOffset: { width: 0, height: 4 },
+		shadowOpacity: 0.3,
+		shadowRadius: 8,
+		elevation: 4,
+	},
+	actionTextSecondary: {
+		fontSize: 13,
+		fontWeight: "600",
+		color: COLORS.textMuted,
+	},
+	actionTextPrimary: {
+		fontSize: 13,
+		fontWeight: "700",
+		color: "#fff",
+		letterSpacing: 0.3,
+	},
+	badge: {
+		position: "absolute",
+		top: 14,
+		right: 14,
+		backgroundColor: "#ef4444",
+		paddingHorizontal: 8,
+		paddingVertical: 3,
+		borderRadius: 12,
+		borderWidth: 2,
+		borderColor: "rgba(15, 23, 42, 0.95)",
+	},
+	badgeText: {
 		fontSize: 11,
 		fontWeight: "700",
 		color: "#fff",

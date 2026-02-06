@@ -13,7 +13,7 @@ export const ReceiptTicket = React.forwardRef(
 			amount,
 			date,
 			items = [],
-			restaurantName = "OrderIt Restaurant",
+			restaurantName = "SunnyGo Restaurant",
 			tableNumber,
 			paymentMethod = "Card",
 			last4Digits,
@@ -219,7 +219,7 @@ export const ReceiptTicket = React.forwardRef(
 							Merci de votre visite !
 						</Text>
 						<Text style={[styles.footerText, { color: "#999" }]}>
-							www.orderit.fr
+							www.sunnygo.fr
 						</Text>
 					</View>
 				</View>

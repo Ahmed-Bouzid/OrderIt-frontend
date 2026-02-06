@@ -1,5 +1,5 @@
 /**
- * 🎨 OrderIt Frontend - Design System
+ * 🎨 SunnyGo Frontend - Design System
  * Système de design moderne inspiré par 21st.dev
  * Identité visuelle distincte de ClientEnd
  *

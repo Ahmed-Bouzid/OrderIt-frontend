@@ -287,7 +287,7 @@ export const ProductSelection = React.memo(
 			);
 		}, [safeProducts, searchQuery, selectedCategory]);
 
-		const safeOrderItems = useMemo(
+		const safeSunnyGoems = useMemo(
 			() =>
 				Array.isArray(activeReservation?.orderItems)
 					? activeReservation.orderItems
@@ -346,7 +346,7 @@ export const ProductSelection = React.memo(
 					const token = await getSecureItem("@access_token");
 					const url = `${
 						process.env.EXPO_PUBLIC_API_URL ||
-						"https://orderit-backend-6y1m.onrender.com"
+						"https://sunnygo-backend-6y1m.onrender.com"
 					}/products/${productId}/options`;
 					console.log(
 						"🔍 Vérification options pour:",
@@ -462,7 +462,7 @@ export const ProductSelection = React.memo(
 				if (!product?._id) return null;
 
 				// Compter TOUTES les entrées avec ce productId (y compris celles avec options)
-				const quantity = safeOrderItems
+				const quantity = safeSunnyGoems
 					.filter((i) => i?.productId === product._id)
 					.reduce((sum, i) => sum + (i.quantity || 0), 0);
 
@@ -524,7 +524,7 @@ export const ProductSelection = React.memo(
 				);
 			},
 			[
-				safeOrderItems,
+				safeSunnyGoems,
 				handleProductPress,
 				handleDecrement,
 				handleIncrement,
@@ -533,8 +533,8 @@ export const ProductSelection = React.memo(
 		);
 
 		const hasSelectedItems = useMemo(
-			() => safeOrderItems.some((i) => (i?.quantity || 0) > 0),
-			[safeOrderItems]
+			() => safeSunnyGoems.some((i) => (i?.quantity || 0) > 0),
+			[safeSunnyGoems]
 		);
 
 		const handleNext = useCallback(() => {

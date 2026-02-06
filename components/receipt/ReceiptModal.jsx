@@ -112,7 +112,7 @@ export const ReceiptModal = ({
 	const ticketId = reservation?._id?.slice(-10).toUpperCase() || "XXXXXXXXXXXX";
 	const tableNumber = reservation?.tableId?.number || reservation?.tableNumber;
 	const restaurantName =
-		reservation?.restaurantId?.name || "OrderIt Restaurant";
+		reservation?.restaurantId?.name || "SunnyGo Restaurant";
 
 	const handleExport = async () => {
 		const id = ticketId || `${Date.now()}`;

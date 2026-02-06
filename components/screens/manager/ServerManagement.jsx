@@ -21,7 +21,7 @@ import { useServerStore } from "../../../src/stores/useRestaurantStaffStore";
 // API Base URL
 const API_URL =
 	process.env.EXPO_PUBLIC_API_URL ||
-	"https://orderit-backend-6y1m.onrender.com";
+	"https://sunnygo-backend-6y1m.onrender.com";
 
 export default function ServerManagement({ theme: parentTheme }) {
 	// États

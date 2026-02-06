@@ -27,8 +27,10 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
 import useThemeStore from "../../src/stores/useThemeStore";
+import useUserStore from "../../src/stores/useUserStore";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
+import { isFastService } from "../../utils/categoryUtils";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -48,7 +50,7 @@ const InputField = React.memo(
 			{children}
 			{error && <Text style={modalStyles.errorText}>{error}</Text>}
 		</View>
-	)
+	),
 );
 
 // ─────────────── StepIndicator Component ───────────────
@@ -194,7 +196,7 @@ const TableSelector = React.memo(
 				);
 			})}
 		</View>
-	)
+	),
 );
 
 // ─────────────── Main Component ───────────────
@@ -203,6 +205,10 @@ const NewReservationModal = React.memo(
 		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const authFetch = useAuthFetch();
+
+		// 🍔 Mode snack: formulaire simplifié
+		const category = useUserStore((state) => state.category);
+		const isSnackMode = isFastService(category);
 
 		const [step, setStep] = useState(1);
 		const [clientName, setClientName] = useState("");
@@ -218,7 +224,7 @@ const NewReservationModal = React.memo(
 
 		// ⭐ Tables avec disponibilité calculée dynamiquement
 		const [tablesWithAvailability, setTablesWithAvailability] = useState(
-			tables || []
+			tables || [],
 		);
 		const [loadingTables, setLoadingTables] = useState(false);
 
@@ -256,7 +262,7 @@ const NewReservationModal = React.memo(
 					});
 
 					const enrichedTables = await authFetch(
-						`/tables/restaurant/${restaurantId}/available?date=${dateISO}&time=${reservationTime}`
+						`/tables/restaurant/${restaurantId}/available?date=${dateISO}&time=${reservationTime}`,
 					);
 
 					console.log("✅ [TABLES] Tables avec disponibilité:", enrichedTables);
@@ -285,7 +291,7 @@ const NewReservationModal = React.memo(
 				setReservationTime("");
 				setReservationDate("");
 				setSelectedTableId(
-					initialData.tableId?._id || initialData.tableId || null
+					initialData.tableId?._id || initialData.tableId || null,
 				);
 				setStep(1);
 			}
@@ -323,22 +329,26 @@ const NewReservationModal = React.memo(
 			onClose?.();
 		}, [resetForm, onClose]);
 
+		// 🍔 Mode snack: validation simplifiée (juste nom + nb personnes)
 		const validateStep1 = useCallback(() => {
 			const newErrors = {};
 			if (!clientName.trim()) newErrors.clientName = "Nom requis";
-			if (!phone.trim()) newErrors.phone = "Téléphone requis";
+			// En mode snack, pas besoin de téléphone
+			if (!isSnackMode && !phone.trim()) newErrors.phone = "Téléphone requis";
 			if (nbPersonnes < 1) newErrors.nbPersonnes = "Minimum 1 personne";
 			setErrors(newErrors);
 			return Object.keys(newErrors).length === 0;
-		}, [clientName, phone, nbPersonnes]);
+		}, [clientName, phone, nbPersonnes, isSnackMode]);
 
+		// 🍔 Mode snack: pas de validation date/heure (utilise maintenant)
 		const validateStep2 = useCallback(() => {
+			if (isSnackMode) return true; // Pas de step 2 en mode snack
 			const newErrors = {};
 			if (!reservationDate) newErrors.reservationDate = "Date requise";
 			if (!reservationTime) newErrors.reservationTime = "Heure requise";
 			setErrors(newErrors);
 			return Object.keys(newErrors).length === 0;
-		}, [reservationDate, reservationTime]);
+		}, [reservationDate, reservationTime, isSnackMode]);
 		// ⭐ Vérifier la disponibilité avec l'assistant
 		const handleCheckAvailability = useCallback(async () => {
 			console.log("✨ [ASSISTANT] Début vérification disponibilité");
@@ -349,7 +359,7 @@ const NewReservationModal = React.memo(
 			if (!reservationDate || !reservationTime) {
 				Alert.alert(
 					"Informations manquantes",
-					"Veuillez renseigner une date et une heure avant de vérifier la disponibilité"
+					"Veuillez renseigner une date et une heure avant de vérifier la disponibilité",
 				);
 				setErrors({
 					reservationDate: !reservationDate ? "Date requise" : null,
@@ -391,7 +401,7 @@ const NewReservationModal = React.memo(
 				console.error("❌ Erreur assistant:", error);
 				Alert.alert(
 					"Erreur",
-					error.message || "Erreur lors de la vérification de disponibilité"
+					error.message || "Erreur lors de la vérification de disponibilité",
 				);
 				setAssistantResult({
 					status: "error",
@@ -410,20 +420,32 @@ const NewReservationModal = React.memo(
 			setReservationTime(time);
 			setErrors((prev) => ({ ...prev, reservationTime: null }));
 		}, []);
+
+		// 🍔 Création de commande/réservation
 		const handleCreate = useCallback(async () => {
-			if (!validateStep2()) return;
+			// En mode snack, valider step1 directement
+			if (isSnackMode) {
+				if (!validateStep1()) return;
+			} else {
+				if (!validateStep2()) return;
+			}
 
 			try {
+				// 🍔 Mode snack: date/heure = maintenant, pas de table
+				const now = new Date();
+				const snackDate = now.toISOString().split("T")[0];
+				const snackTime = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`;
+
 				const success = await onCreate({
 					clientName: clientName.trim(),
-					phone: phone.trim(),
-					reservationTime,
-					reservationDate,
+					phone: isSnackMode ? "" : phone.trim(), // Pas de tel en snack
+					reservationTime: isSnackMode ? snackTime : reservationTime,
+					reservationDate: isSnackMode ? snackDate : reservationDate,
 					nbPersonnes,
 					allergies: allergies.trim(),
 					restrictions: restrictions.trim(),
 					notes: notes.trim(),
-					tableId: selectedTableId,
+					tableId: isSnackMode ? null : selectedTableId, // Pas de table en snack
 				});
 
 				if (success) {
@@ -446,7 +468,9 @@ const NewReservationModal = React.memo(
 			onCreate,
 			resetForm,
 			onClose,
+			validateStep1,
 			validateStep2,
+			isSnackMode,
 		]);
 
 		const nextStep = useCallback(() => {
@@ -473,9 +497,17 @@ const NewReservationModal = React.memo(
 								{/* Header */}
 								<View style={modalStyles.header}>
 									<View>
-										<Text style={modalStyles.title}>Nouvelle réservation</Text>
+										<Text style={modalStyles.title}>
+											{isSnackMode
+												? "Nouvelle commande"
+												: "Nouvelle réservation"}
+										</Text>
 										<Text style={modalStyles.subtitle}>
-											{step === 1 ? "Informations client" : "Date et table"}
+											{isSnackMode
+												? "Informations commande"
+												: step === 1
+													? "Informations client"
+													: "Date et table"}
 										</Text>
 									</View>
 									<TouchableOpacity
@@ -490,12 +522,14 @@ const NewReservationModal = React.memo(
 									</TouchableOpacity>
 								</View>
 
-								{/* Step Indicator */}
-								<StepIndicator
-									currentStep={step}
-									totalSteps={2}
-									modalStyles={modalStyles}
-								/>
+								{/* Step Indicator - masqué en mode snack */}
+								{!isSnackMode && (
+									<StepIndicator
+										currentStep={step}
+										totalSteps={2}
+										modalStyles={modalStyles}
+									/>
+								)}
 								{/* Divider */}
 								<LinearGradient
 									colors={[
@@ -513,8 +547,8 @@ const NewReservationModal = React.memo(
 									showsVerticalScrollIndicator={false}
 									contentContainerStyle={{ paddingBottom: THEME.spacing.xl }}
 								>
-									{/* Step 1: Informations client */}
-									{step === 1 && (
+									{/* 🍔 Mode Snack: formulaire simplifié (nom + nb personnes) */}
+									{isSnackMode ? (
 										<View style={modalStyles.stepContent}>
 											<InputField
 												label="Nom du client"
@@ -525,33 +559,12 @@ const NewReservationModal = React.memo(
 												modalStyles={modalStyles}
 											>
 												<TextInput
-													placeholder="Ex: Jean Dupont"
+													placeholder="Ex: Jean"
 													value={clientName}
 													onChangeText={setClientName}
 													style={[
 														modalStyles.input,
 														errors.clientName && modalStyles.inputError,
-													]}
-													placeholderTextColor={THEME.colors.text.muted}
-												/>
-											</InputField>
-
-											<InputField
-												label="Téléphone"
-												icon="call-outline"
-												required
-												error={errors.phone}
-												THEME={THEME}
-												modalStyles={modalStyles}
-											>
-												<TextInput
-													placeholder="Ex: 06 12 34 56 78"
-													value={phone}
-													onChangeText={setPhone}
-													keyboardType="phone-pad"
-													style={[
-														modalStyles.input,
-														errors.phone && modalStyles.inputError,
 													]}
 													placeholderTextColor={THEME.colors.text.muted}
 												/>
@@ -571,310 +584,444 @@ const NewReservationModal = React.memo(
 													modalStyles={modalStyles}
 												/>
 											</InputField>
-										</View>
-									)}
 
-									{/* Step 2: Date, heure et table */}
-									{step === 2 && (
-										<View style={modalStyles.stepContent}>
-											{/* Date et Heure côte à côte */}
-											<View style={modalStyles.dateTimeRow}>
-												<View
-													style={{ flex: 1, marginRight: THEME.spacing.md }}
-												>
-													<InputField
-														label="Date"
-														icon="calendar-outline"
-														required
-														error={errors.reservationDate}
-														THEME={THEME}
-														modalStyles={modalStyles}
-													>
-														<View style={modalStyles.datePickerWrapper}>
-															<DateTimePicker
-																mode="date"
-																value={
-																	reservationDate
-																		? new Date(reservationDate)
-																		: new Date()
-																}
-																minimumDate={new Date()}
-																onChange={(event, selectedDate) => {
-																	if (selectedDate) {
-																		const yyyy = selectedDate.getFullYear();
-																		const mm = String(
-																			selectedDate.getMonth() + 1
-																		).padStart(2, "0");
-																		const dd = String(
-																			selectedDate.getDate()
-																		).padStart(2, "0");
-																		setReservationDate(`${yyyy}-${mm}-${dd}`);
-																	}
-																}}
-																themeVariant="dark"
-																style={{ flex: 1 }}
-															/>
-														</View>
-													</InputField>
-												</View>
-
-												<View style={{ flex: 1 }}>
-													<InputField
-														label="Heure"
-														icon="time-outline"
-														required
-														error={errors.reservationTime}
-														THEME={THEME}
-														modalStyles={modalStyles}
-													>
-														<View style={modalStyles.timeAssistantRow}>
-															<View style={modalStyles.datePickerWrapper}>
-																<DateTimePicker
-																	mode="time"
-																	value={
-																		reservationTime
-																			? new Date(
-																					`1970-01-01T${reservationTime}:00`
-																			  )
-																			: new Date()
-																	}
-																	is24Hour={true}
-																	display="compact"
-																	onChange={(event, selectedTime) => {
-																		if (selectedTime) {
-																			let hh = selectedTime.getHours();
-																			let mm = selectedTime.getMinutes();
-																			mm = mm < 30 ? 0 : 30;
-																			setReservationTime(
-																				`${String(hh).padStart(
-																					2,
-																					"0"
-																				)}:${String(mm).padStart(2, "0")}`
-																			);
-																		}
-																	}}
-																	themeVariant="dark"
-																	style={{ flex: 1 }}
-																/>
-															</View>
-															{/* Bouton Info Assistant */}
-															<TouchableOpacity
-																style={modalStyles.infoButton}
-																onPress={handleCheckAvailability}
-															>
-																<Ionicons
-																	name="information-circle-outline"
-																	size={24}
-																	color={THEME.colors.text.secondary}
-																/>
-															</TouchableOpacity>
-														</View>
-														{/* Résultats Assistant inline */}
-														{assistantResult && (
-															<View
-																style={{
-																	marginTop: 10,
-																	padding: 12,
-																	backgroundColor:
-																		THEME.colors.background.elevated,
-																	borderRadius: 8,
-																}}
-															>
-																<Text
-																	style={{
-																		color: THEME.colors.text.primary,
-																		fontSize: 14,
-																		fontWeight: "600",
-																		marginBottom: 8,
-																	}}
-																>
-																	{assistantResult.status === "ok" &&
-																		"✅ Créneau disponible"}
-																	{assistantResult.status === "warning" &&
-																		"⚠️ Créneau risqué"}
-																	{assistantResult.status === "refused" &&
-																		"❌ Pas de disponibilité"}
-																</Text>
-																<Text
-																	style={{
-																		color: THEME.colors.text.secondary,
-																		fontSize: 12,
-																		marginBottom: 8,
-																	}}
-																>
-																	{assistantResult.reason}
-																</Text>
-																{assistantResult.alternatives &&
-																	assistantResult.alternatives.length > 0 && (
-																		<View>
-																			<Text
-																				style={{
-																					color: THEME.colors.text.primary,
-																					fontSize: 12,
-																					fontWeight: "600",
-																					marginBottom: 6,
-																				}}
-																			>
-																				Autres horaires disponibles :
-																			</Text>
-																			{assistantResult.alternatives.map(
-																				(alt, idx) => (
-																					<TouchableOpacity
-																						key={idx}
-																						onPress={() => {
-																							setReservationTime(alt.time);
-																							setAssistantResult(null);
-																						}}
-																						style={{
-																							padding: 8,
-																							backgroundColor:
-																								THEME.colors.background.card,
-																							marginBottom: 4,
-																							borderRadius: 6,
-																							flexDirection: "row",
-																							justifyContent: "space-between",
-																						}}
-																					>
-																						<Text
-																							style={{
-																								color:
-																									THEME.colors.text.primary,
-																								fontSize: 13,
-																							}}
-																						>
-																							{alt.time}
-																						</Text>
-																						<Text
-																							style={{
-																								color:
-																									THEME.colors.text.secondary,
-																								fontSize: 12,
-																							}}
-																						>
-																							{alt.availableSeats} places
-																						</Text>
-																					</TouchableOpacity>
-																				)
-																			)}
-																		</View>
-																	)}
-															</View>
-														)}
-													</InputField>
-												</View>
-											</View>
-											{/* Table */}
+											{/* Notes optionnelles */}
 											<InputField
-												label="Table (optionnel)"
-												icon="grid-outline"
-												THEME={THEME}
-												modalStyles={modalStyles}
-											>
-												{loadingTables ? (
-													<Text
-														style={{
-															color: THEME.colors.text.secondary,
-															fontSize: 12,
-														}}
-													>
-														Chargement des disponibilités...
-													</Text>
-												) : (
-													<TableSelector
-														tables={tablesWithAvailability}
-														selectedId={selectedTableId}
-														onSelect={setSelectedTableId}
-														THEME={THEME}
-														modalStyles={modalStyles}
-													/>
-												)}
-											</InputField>
-											{/* Notes additionnelles */}
-											<InputField
-												label="Allergies / Restrictions"
-												icon="warning-outline"
+												label="Notes (optionnel)"
+												icon="chatbubble-outline"
 												THEME={THEME}
 												modalStyles={modalStyles}
 											>
 												<TextInput
-													placeholder="Ex: Sans gluten, allergie aux fruits de mer..."
-													value={allergies}
-													onChangeText={setAllergies}
-													style={[
-														modalStyles.input,
-														modalStyles.inputMultiline,
-													]}
-													placeholderTextColor={THEME.colors.text.muted}
-													multiline
-													numberOfLines={2}
-												/>
-											</InputField>
-											<InputField
-												label="Notes supplémentaires"
-												icon="document-text-outline"
-												THEME={THEME}
-												modalStyles={modalStyles}
-											>
-												<TextInput
-													placeholder="Ex: Anniversaire, demande spéciale..."
+													placeholder="Ex: Sans oignon, bien cuit..."
 													value={notes}
 													onChangeText={setNotes}
-													style={[
-														modalStyles.input,
-														modalStyles.inputMultiline,
-													]}
-													placeholderTextColor={THEME.colors.text.muted}
 													multiline
 													numberOfLines={2}
+													style={[modalStyles.input, { minHeight: 60 }]}
+													placeholderTextColor={THEME.colors.text.muted}
 												/>
 											</InputField>
 										</View>
+									) : (
+										<>
+											{/* Step 1: Informations client (mode restaurant) */}
+											{step === 1 && (
+												<View style={modalStyles.stepContent}>
+													<InputField
+														label="Nom du client"
+														icon="person-outline"
+														required
+														error={errors.clientName}
+														THEME={THEME}
+														modalStyles={modalStyles}
+													>
+														<TextInput
+															placeholder="Ex: Jean Dupont"
+															value={clientName}
+															onChangeText={setClientName}
+															style={[
+																modalStyles.input,
+																errors.clientName && modalStyles.inputError,
+															]}
+															placeholderTextColor={THEME.colors.text.muted}
+														/>
+													</InputField>
+
+													<InputField
+														label="Téléphone"
+														icon="call-outline"
+														required
+														error={errors.phone}
+														THEME={THEME}
+														modalStyles={modalStyles}
+													>
+														<TextInput
+															placeholder="Ex: 06 12 34 56 78"
+															value={phone}
+															onChangeText={setPhone}
+															keyboardType="phone-pad"
+															style={[
+																modalStyles.input,
+																errors.phone && modalStyles.inputError,
+															]}
+															placeholderTextColor={THEME.colors.text.muted}
+														/>
+													</InputField>
+
+													<InputField
+														label="Nombre de personnes"
+														icon="people-outline"
+														required
+														THEME={THEME}
+														modalStyles={modalStyles}
+													>
+														<PersonSelector
+															value={nbPersonnes}
+															onChange={setNbPersonnes}
+															THEME={THEME}
+															modalStyles={modalStyles}
+														/>
+													</InputField>
+												</View>
+											)}
+
+											{/* Step 2: Date, heure et table */}
+											{step === 2 && (
+												<View style={modalStyles.stepContent}>
+													{/* Date et Heure côte à côte */}
+													<View style={modalStyles.dateTimeRow}>
+														<View
+															style={{ flex: 1, marginRight: THEME.spacing.md }}
+														>
+															<InputField
+																label="Date"
+																icon="calendar-outline"
+																required
+																error={errors.reservationDate}
+																THEME={THEME}
+																modalStyles={modalStyles}
+															>
+																<View style={modalStyles.datePickerWrapper}>
+																	<DateTimePicker
+																		mode="date"
+																		value={
+																			reservationDate
+																				? new Date(reservationDate)
+																				: new Date()
+																		}
+																		minimumDate={new Date()}
+																		onChange={(event, selectedDate) => {
+																			if (selectedDate) {
+																				const yyyy = selectedDate.getFullYear();
+																				const mm = String(
+																					selectedDate.getMonth() + 1,
+																				).padStart(2, "0");
+																				const dd = String(
+																					selectedDate.getDate(),
+																				).padStart(2, "0");
+																				setReservationDate(
+																					`${yyyy}-${mm}-${dd}`,
+																				);
+																			}
+																		}}
+																		themeVariant="dark"
+																		style={{ flex: 1 }}
+																	/>
+																</View>
+															</InputField>
+														</View>
+
+														<View style={{ flex: 1 }}>
+															<InputField
+																label="Heure"
+																icon="time-outline"
+																required
+																error={errors.reservationTime}
+																THEME={THEME}
+																modalStyles={modalStyles}
+															>
+																<View style={modalStyles.timeAssistantRow}>
+																	<View style={modalStyles.datePickerWrapper}>
+																		<DateTimePicker
+																			mode="time"
+																			value={
+																				reservationTime
+																					? new Date(
+																							`1970-01-01T${reservationTime}:00`,
+																						)
+																					: new Date()
+																			}
+																			is24Hour={true}
+																			display="compact"
+																			onChange={(event, selectedTime) => {
+																				if (selectedTime) {
+																					let hh = selectedTime.getHours();
+																					let mm = selectedTime.getMinutes();
+																					mm = mm < 30 ? 0 : 30;
+																					setReservationTime(
+																						`${String(hh).padStart(
+																							2,
+																							"0",
+																						)}:${String(mm).padStart(2, "0")}`,
+																					);
+																				}
+																			}}
+																			themeVariant="dark"
+																			style={{ flex: 1 }}
+																		/>
+																	</View>
+																	{/* Bouton Info Assistant */}
+																	<TouchableOpacity
+																		style={modalStyles.infoButton}
+																		onPress={handleCheckAvailability}
+																	>
+																		<Ionicons
+																			name="information-circle-outline"
+																			size={24}
+																			color={THEME.colors.text.secondary}
+																		/>
+																	</TouchableOpacity>
+																</View>
+																{/* Résultats Assistant inline */}
+																{assistantResult && (
+																	<View
+																		style={{
+																			marginTop: 10,
+																			padding: 12,
+																			backgroundColor:
+																				THEME.colors.background.elevated,
+																			borderRadius: 8,
+																		}}
+																	>
+																		<Text
+																			style={{
+																				color: THEME.colors.text.primary,
+																				fontSize: 14,
+																				fontWeight: "600",
+																				marginBottom: 8,
+																			}}
+																		>
+																			{assistantResult.status === "ok" &&
+																				"✅ Créneau disponible"}
+																			{assistantResult.status === "warning" &&
+																				"⚠️ Créneau risqué"}
+																			{assistantResult.status === "refused" &&
+																				"❌ Pas de disponibilité"}
+																		</Text>
+																		<Text
+																			style={{
+																				color: THEME.colors.text.secondary,
+																				fontSize: 12,
+																				marginBottom: 8,
+																			}}
+																		>
+																			{assistantResult.reason}
+																		</Text>
+																		{assistantResult.alternatives &&
+																			assistantResult.alternatives.length >
+																				0 && (
+																				<View>
+																					<Text
+																						style={{
+																							color: THEME.colors.text.primary,
+																							fontSize: 12,
+																							fontWeight: "600",
+																							marginBottom: 6,
+																						}}
+																					>
+																						Autres horaires disponibles :
+																					</Text>
+																					{assistantResult.alternatives.map(
+																						(alt, idx) => (
+																							<TouchableOpacity
+																								key={idx}
+																								onPress={() => {
+																									setReservationTime(alt.time);
+																									setAssistantResult(null);
+																								}}
+																								style={{
+																									padding: 8,
+																									backgroundColor:
+																										THEME.colors.background
+																											.card,
+																									marginBottom: 4,
+																									borderRadius: 6,
+																									flexDirection: "row",
+																									justifyContent:
+																										"space-between",
+																								}}
+																							>
+																								<Text
+																									style={{
+																										color:
+																											THEME.colors.text.primary,
+																										fontSize: 13,
+																									}}
+																								>
+																									{alt.time}
+																								</Text>
+																								<Text
+																									style={{
+																										color:
+																											THEME.colors.text
+																												.secondary,
+																										fontSize: 12,
+																									}}
+																								>
+																									{alt.availableSeats} places
+																								</Text>
+																							</TouchableOpacity>
+																						),
+																					)}
+																				</View>
+																			)}
+																	</View>
+																)}
+															</InputField>
+														</View>
+													</View>
+													{/* Table */}
+													<InputField
+														label="Table (optionnel)"
+														icon="grid-outline"
+														THEME={THEME}
+														modalStyles={modalStyles}
+													>
+														{loadingTables ? (
+															<Text
+																style={{
+																	color: THEME.colors.text.secondary,
+																	fontSize: 12,
+																}}
+															>
+																Chargement des disponibilités...
+															</Text>
+														) : (
+															<TableSelector
+																tables={tablesWithAvailability}
+																selectedId={selectedTableId}
+																onSelect={setSelectedTableId}
+																THEME={THEME}
+																modalStyles={modalStyles}
+															/>
+														)}
+													</InputField>
+													{/* Notes additionnelles */}
+													<InputField
+														label="Allergies / Restrictions"
+														icon="warning-outline"
+														THEME={THEME}
+														modalStyles={modalStyles}
+													>
+														<TextInput
+															placeholder="Ex: Sans gluten, allergie aux fruits de mer..."
+															value={allergies}
+															onChangeText={setAllergies}
+															style={[
+																modalStyles.input,
+																modalStyles.inputMultiline,
+															]}
+															placeholderTextColor={THEME.colors.text.muted}
+															multiline
+															numberOfLines={2}
+														/>
+													</InputField>
+													<InputField
+														label="Notes supplémentaires"
+														icon="document-text-outline"
+														THEME={THEME}
+														modalStyles={modalStyles}
+													>
+														<TextInput
+															placeholder="Ex: Anniversaire, demande spéciale..."
+															value={notes}
+															onChangeText={setNotes}
+															style={[
+																modalStyles.input,
+																modalStyles.inputMultiline,
+															]}
+															placeholderTextColor={THEME.colors.text.muted}
+															multiline
+															numberOfLines={2}
+														/>
+													</InputField>
+												</View>
+											)}
+										</>
 									)}
 								</ScrollView>
 
 								{/* Footer avec boutons */}
 								<View style={modalStyles.footer}>
-									<TouchableOpacity
-										style={modalStyles.cancelButton}
-										onPress={step === 1 ? handleClose : prevStep}
-									>
-										<Ionicons
-											name={step === 1 ? "close-outline" : "arrow-back-outline"}
-											size={18}
-											color={THEME.colors.text.secondary}
-										/>
-										<Text style={modalStyles.cancelButtonText}>
-											{step === 1 ? "Annuler" : "Retour"}
-										</Text>
-									</TouchableOpacity>
+									{/* 🍔 Mode snack: boutons simplifiés */}
+									{isSnackMode ? (
+										<>
+											<TouchableOpacity
+												style={modalStyles.cancelButton}
+												onPress={handleClose}
+											>
+												<Ionicons
+													name="close-outline"
+													size={18}
+													color={THEME.colors.text.secondary}
+												/>
+												<Text style={modalStyles.cancelButtonText}>
+													Annuler
+												</Text>
+											</TouchableOpacity>
 
-									<TouchableOpacity
-										style={modalStyles.confirmButton}
-										onPress={step === 1 ? nextStep : handleCreate}
-									>
-										<LinearGradient
-											colors={[
-												THEME.colors.primary.amber,
-												THEME.colors.primary.amberDark,
-											]}
-											start={{ x: 0, y: 0 }}
-											end={{ x: 1, y: 0 }}
-											style={modalStyles.confirmGradient}
-										>
-											<Text style={modalStyles.confirmButtonText}>
-												{step === 1 ? "Suivant" : "Confirmer"}
-											</Text>
-											<Ionicons
-												name={
-													step === 1
-														? "arrow-forward-outline"
-														: "checkmark-outline"
-												}
-												size={18}
-												color="#FFF"
-											/>
-										</LinearGradient>
-									</TouchableOpacity>
+											<TouchableOpacity
+												style={modalStyles.confirmButton}
+												onPress={handleCreate}
+											>
+												<LinearGradient
+													colors={[
+														THEME.colors.primary.amber,
+														THEME.colors.primary.amberDark,
+													]}
+													start={{ x: 0, y: 0 }}
+													end={{ x: 1, y: 0 }}
+													style={modalStyles.confirmGradient}
+												>
+													<Text style={modalStyles.confirmButtonText}>
+														Créer
+													</Text>
+													<Ionicons
+														name="checkmark-outline"
+														size={18}
+														color="#FFF"
+													/>
+												</LinearGradient>
+											</TouchableOpacity>
+										</>
+									) : (
+										<>
+											<TouchableOpacity
+												style={modalStyles.cancelButton}
+												onPress={step === 1 ? handleClose : prevStep}
+											>
+												<Ionicons
+													name={
+														step === 1 ? "close-outline" : "arrow-back-outline"
+													}
+													size={18}
+													color={THEME.colors.text.secondary}
+												/>
+												<Text style={modalStyles.cancelButtonText}>
+													{step === 1 ? "Annuler" : "Retour"}
+												</Text>
+											</TouchableOpacity>
+
+											<TouchableOpacity
+												style={modalStyles.confirmButton}
+												onPress={step === 1 ? nextStep : handleCreate}
+											>
+												<LinearGradient
+													colors={[
+														THEME.colors.primary.amber,
+														THEME.colors.primary.amberDark,
+													]}
+													start={{ x: 0, y: 0 }}
+													end={{ x: 1, y: 0 }}
+													style={modalStyles.confirmGradient}
+												>
+													<Text style={modalStyles.confirmButtonText}>
+														{step === 1 ? "Suivant" : "Confirmer"}
+													</Text>
+													<Ionicons
+														name={
+															step === 1
+																? "arrow-forward-outline"
+																: "checkmark-outline"
+														}
+														size={18}
+														color="#FFF"
+													/>
+												</LinearGradient>
+											</TouchableOpacity>
+										</>
+									)}
 								</View>
 							</View>
 						</View>
@@ -882,7 +1029,7 @@ const NewReservationModal = React.memo(
 				</Modal>
 			</>
 		);
-	}
+	},
 );
 
 NewReservationModal.displayName = "NewReservationModal";

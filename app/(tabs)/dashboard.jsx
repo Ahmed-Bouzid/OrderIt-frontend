@@ -12,7 +12,7 @@ import {
 import { useRouter } from "expo-router";
 import useDeveloperStore from "../../src/stores/useDeveloperStore";
 import { fetchWithAuth } from "../../utils/tokenManager";
-import * as SecureStore from "expo-secure-store";
+import { getItem as getSecureItem } from "../../utils/secureStorage";
 
 export default function Dashboard() {
 	const router = useRouter();
@@ -112,8 +112,8 @@ export default function Dashboard() {
 
 								const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-								// Log du token utilisé
-								const token = await SecureStore.getItemAsync("access_token");
+								// Log du token utilisé (via cache)
+								const token = await getSecureItem("access_token");
 								console.log("Token utilisé :", token);
 								console.log(
 									"🔑 Token actuel au moment de la création des tables :",

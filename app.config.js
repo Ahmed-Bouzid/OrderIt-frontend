@@ -1,18 +1,23 @@
 export default {
 	expo: {
-		name: "OrderIt",
-		slug: "orderit",
+		name: "SunnyGo",
+		slug: "sunnygo",
 		version: "1.0.0",
-		scheme: "orderit", // Ajout pour corriger le warning Expo Linking
+		scheme: "sunnygo", // Ajout pour corriger le warning Expo Linking
+		plugins: ["expo-web-browser"],
+		updates: {
+			url: "https://u.expo.dev/dea632ab-80a0-4526-ab61-8a6022535377",
+		},
+		runtimeVersion: "1.0.0",
 		ios: {
-			bundleIdentifier: "com.anonymous.orderit",
+			bundleIdentifier: "com.sunnygo.dev",
 		},
 		android: {
-			package: "com.anonymous.orderit",
+			package: "com.sunnygo.dev",
 		},
 		extra: {
 			eas: {
-				projectId: "7f4da96b-0521-4dd5-a79c-03ca45d626c8",
+				projectId: "dea632ab-80a0-4526-ab61-8a6022535377",
 			},
 			apiUrl: "https://orderit-backend-6y1m.onrender.com",
 			socketUrl: "https://orderit-backend-6y1m.onrender.com",

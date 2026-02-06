@@ -1,6 +1,7 @@
 // stores/useUserStore.js
 import { create } from "zustand";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useFeatureLevelStore } from "./useFeatureLevelStore.js";
 
 /**
  * Store pour gérer les informations de l'utilisateur connecté
@@ -42,6 +43,11 @@ const useUserStore = create((set, get) => ({
 				category,
 				isManager,
 			});
+
+			// 🎯 Initialiser automatiquement le Feature Level Store
+			if (category) {
+				await useFeatureLevelStore.getState().init(category);
+			}
 
 			console.log("✅ UserStore initialisé:", {
 				role,

@@ -1,6 +1,7 @@
 /**
  * Floor.jsx - Écran Plan de Salle Premium
  * Design spatial avec sidebar glassmorphism et gestion des items cuisine
+ * 🎯 Adaptation dynamique selon le Feature Level (plan salle, stocks, etc.)
  */
 import React, {
 	useEffect,
@@ -22,6 +23,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Dashboard from "./Dashboard";
 import useUserStore from "../../src/stores/useUserStore";
+import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 import ItemRow from "../floor/ItemRow";
 import FloorPlanModal from "../floor/FloorPlanModal";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
@@ -102,7 +104,7 @@ const MenuItem = React.memo(
 				</TouchableOpacity>
 			</Animated.View>
 		);
-	}
+	},
 );
 
 MenuItem.displayName = "MenuItem";
@@ -119,7 +121,7 @@ const SectionHeader = React.memo(
 			<Ionicons name={icon} size={20} color={THEME.colors.text.primary} />
 			<Text style={floorStyles.sectionTitle}>{label}</Text>
 		</LinearGradient>
-	)
+	),
 );
 
 SectionHeader.displayName = "SectionHeader";
@@ -133,6 +135,10 @@ GroupBox.displayName = "GroupBox";
 
 export default function Floor({ onStart }) {
 	const category = useUserStore((state) => state.category);
+
+	// 🎯 Feature Levels : Récupérer les fonctionnalités disponibles
+	const { hasGestionStocks, hasPlanSalle, isMinimum } = useFeatureLevel();
+
 	const { themeMode, initTheme } = useThemeStore();
 	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 	const floorStyles = useMemo(() => createFloorStyles(THEME), [THEME]);
@@ -271,7 +277,7 @@ export default function Floor({ onStart }) {
 			}
 		};
 
-		const handleOrderItemStatusUpdated = ({ orderId, itemId, newStatus }) => {
+		const handleSunnyGoemStatusUpdated = ({ orderId, itemId, newStatus }) => {
 			setOrders((prev) =>
 				prev.map((order) =>
 					order._id === orderId
@@ -280,22 +286,22 @@ export default function Floor({ onStart }) {
 								items: order.items.map((item) =>
 									item._id === itemId
 										? { ...item, itemStatus: newStatus }
-										: item
+										: item,
 								),
 							}
-						: order
-				)
+						: order,
+				),
 			);
 		};
 
 		on("order:created", handleOrderCreated);
 		on("order:updated", handleOrderUpdated);
-		on("order:item:status:updated", handleOrderItemStatusUpdated);
+		on("order:item:status:updated", handleSunnyGoemStatusUpdated);
 
 		return () => {
 			off("order:created", handleOrderCreated);
 			off("order:updated", handleOrderUpdated);
-			off("order:item:status:updated", handleOrderItemStatusUpdated);
+			off("order:item:status:updated", handleSunnyGoemStatusUpdated);
 		};
 	}, [restaurantId, socketReady, on, off]);
 
@@ -313,7 +319,7 @@ export default function Floor({ onStart }) {
 				"📦 [STOCK] WebSocket product:updated - ",
 				data.name,
 				"quantifiable:",
-				data.quantifiable
+				data.quantifiable,
 			);
 			if (data.quantifiable) {
 				fetchLowStock();
@@ -351,7 +357,7 @@ export default function Floor({ onStart }) {
 					serverName:
 						order.serverId?.name ||
 						(order.origin === "client" ? "Client" : "Non assigné"),
-				}))
+				})),
 			)
 			.filter((item) => item.category && item.category !== "autre");
 		return items;
@@ -364,10 +370,10 @@ export default function Floor({ onStart }) {
 				(item) =>
 					item.category === category &&
 					item.itemStatus !== "served" &&
-					item.itemStatus !== "cancelled"
+					item.itemStatus !== "cancelled",
 			).length;
 		},
-		[allItems]
+		[allItems],
 	);
 
 	// 📦 Compter produits à stock bas par catégorie
@@ -375,14 +381,14 @@ export default function Floor({ onStart }) {
 		(category) => {
 			return (lowStockProducts[category] || []).length;
 		},
-		[lowStockProducts]
+		[lowStockProducts],
 	);
 
 	// 📦 Total produits à stock bas
 	const totalLowStock = useMemo(() => {
 		return Object.values(lowStockProducts).reduce(
 			(sum, arr) => sum + arr.length,
-			0
+			0,
 		);
 	}, [lowStockProducts]);
 
@@ -399,7 +405,7 @@ export default function Floor({ onStart }) {
 			.sort(
 				(a, b) =>
 					new Date(a.startTime || a.createdAt) -
-					new Date(b.startTime || b.createdAt)
+					new Date(b.startTime || b.createdAt),
 			);
 	}, [allItems, activeCategory]);
 
@@ -420,11 +426,11 @@ export default function Floor({ onStart }) {
 								items: order.items.map((item) =>
 									item._id === itemId
 										? { ...item, itemStatus: newStatus }
-										: item
+										: item,
 								),
 							}
-						: order
-				)
+						: order,
+				),
 			);
 
 			try {
@@ -437,7 +443,7 @@ export default function Floor({ onStart }) {
 				await fetchOrders();
 			}
 		},
-		[authFetch, fetchOrders]
+		[authFetch, fetchOrders],
 	);
 
 	return (
@@ -466,15 +472,15 @@ export default function Floor({ onStart }) {
 									"rgba(245, 158, 11, 0.15)",
 									"rgba(245, 158, 11, 0.05)",
 								]}
-								style={floorStyles.headerIconBg}
+								style={[floorStyles.headerIconBg, { width: 38, height: 38 }]}
 							>
 								<Ionicons
 									name="restaurant-outline"
-									size={24}
+									size={18}
 									color={THEME.colors.primary.amber}
 								/>
 							</LinearGradient>
-							<Text style={floorStyles.headerTitle}>Plan de salle</Text>
+							<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
 						</View>
 
 						<ScrollView
@@ -682,242 +688,259 @@ export default function Floor({ onStart }) {
 									</View>
 								)}
 							</GroupBox>
-							{/* 🏢 Salles Section */}
-							<SectionHeader
-								icon="grid-outline"
-								label="Salles"
-								gradientColors={[
-									"rgba(14, 165, 233, 0.15)",
-									"rgba(14, 165, 233, 0.05)",
-								]}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							<GroupBox floorStyles={floorStyles}>
-								<MenuItem
-									icon="restaurant-outline"
-									label="Salle 1"
-									count={0}
-									onPress={() => {
-										setActiveRoom(1);
-										setShowFloorPlan(true);
-									}}
-									floorStyles={floorStyles}
-									THEME={THEME}
-								/>
-								<MenuItem
-									icon="restaurant-outline"
-									label="Salle 2"
-									count={0}
-									onPress={() => {
-										setActiveRoom(2);
-										setShowFloorPlan(true);
-									}}
-									floorStyles={floorStyles}
-									THEME={THEME}
-								/>
-								<MenuItem
-									icon="restaurant-outline"
-									label="Salle 3"
-									count={0}
-									isLast
-									onPress={() => {
-										setActiveRoom(3);
-										setShowFloorPlan(true);
-									}}
-									floorStyles={floorStyles}
-									THEME={THEME}
-								/>
-							</GroupBox>
 
-							{/* 📦 Stock Section */}
-							<SectionHeader
-								icon="cube-outline"
-								label="Stock"
-								gradientColors={[
-									"rgba(239, 68, 68, 0.15)",
-									"rgba(239, 68, 68, 0.05)",
-								]}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							<GroupBox floorStyles={floorStyles}>
-								{totalLowStock === 0 ? (
-									<View style={floorStyles.emptyStockContainer}>
-										<Ionicons
-											name="checkmark-circle-outline"
-											size={20}
-											color={THEME.colors.status.success}
-										/>
-										<Text style={floorStyles.emptyStockText}>Stocks OK</Text>
-									</View>
-								) : (
-									<>
-										{/* Boissons en stock bas */}
-										<MenuItem
-											icon="wine-outline"
-											label="Boissons"
-											count={getLowStockCount("boisson")}
-											isActive={stockExpanded === "boisson"}
-											onPress={() => handleStockCategoryPress("boisson")}
-											floorStyles={floorStyles}
-											THEME={THEME}
-										/>
-										{stockExpanded === "boisson" && (
-											<View style={floorStyles.stockItemsSection}>
-												{stockLoading ? (
-													<ActivityIndicator
-														size="small"
-														color={THEME.colors.primary.amber}
-													/>
-												) : (lowStockProducts.boisson || []).length === 0 ? (
-													<Text style={floorStyles.stockOkText}>
-														✓ Stock OK
-													</Text>
-												) : (
-													(lowStockProducts.boisson || []).map((product) => (
-														<View
-															key={product._id}
-															style={[
-																floorStyles.stockItem,
-																product.quantity === 0 &&
-																	floorStyles.stockItemOutOfStock,
-															]}
-														>
-															<Text style={floorStyles.stockItemName}>
-																{product.name}
-															</Text>
-															<View
-																style={[
-																	floorStyles.stockBadge,
-																	product.quantity === 0
-																		? floorStyles.stockBadgeOut
-																		: floorStyles.stockBadgeLow,
-																]}
-															>
-																<Text style={floorStyles.stockBadgeText}>
-																	{product.quantity === 0
-																		? "Épuisé"
-																		: product.quantity}
-																</Text>
-															</View>
-														</View>
-													))
-												)}
-											</View>
-										)}
-
-										{/* Plats en stock bas */}
+							{/* 🏢 Salles Section - Affiché seulement si Plan de Salle disponible */}
+							{hasPlanSalle && (
+								<>
+									<SectionHeader
+										icon="grid-outline"
+										label="Salles"
+										gradientColors={[
+											"rgba(14, 165, 233, 0.15)",
+											"rgba(14, 165, 233, 0.05)",
+										]}
+										floorStyles={floorStyles}
+										THEME={THEME}
+									/>
+									<GroupBox floorStyles={floorStyles}>
 										<MenuItem
 											icon="restaurant-outline"
-											label="Plats"
-											count={getLowStockCount("plat")}
-											isActive={stockExpanded === "plat"}
-											onPress={() => handleStockCategoryPress("plat")}
+											label="Salle 1"
+											count={0}
+											onPress={() => {
+												setActiveRoom(1);
+												setShowFloorPlan(true);
+											}}
 											floorStyles={floorStyles}
 											THEME={THEME}
 										/>
-										{stockExpanded === "plat" && (
-											<View style={floorStyles.stockItemsSection}>
-												{stockLoading ? (
-													<ActivityIndicator
-														size="small"
-														color={THEME.colors.primary.amber}
-													/>
-												) : (lowStockProducts.plat || []).length === 0 ? (
-													<Text style={floorStyles.stockOkText}>
-														✓ Stock OK
-													</Text>
-												) : (
-													(lowStockProducts.plat || []).map((product) => (
-														<View
-															key={product._id}
-															style={[
-																floorStyles.stockItem,
-																product.quantity === 0 &&
-																	floorStyles.stockItemOutOfStock,
-															]}
-														>
-															<Text style={floorStyles.stockItemName}>
-																{product.name}
-															</Text>
-															<View
-																style={[
-																	floorStyles.stockBadge,
-																	product.quantity === 0
-																		? floorStyles.stockBadgeOut
-																		: floorStyles.stockBadgeLow,
-																]}
-															>
-																<Text style={floorStyles.stockBadgeText}>
-																	{product.quantity === 0
-																		? "Épuisé"
-																		: product.quantity}
-																</Text>
-															</View>
-														</View>
-													))
-												)}
-											</View>
-										)}
-
-										{/* Desserts en stock bas */}
 										<MenuItem
-											icon="ice-cream-outline"
-											label="Desserts"
-											count={getLowStockCount("dessert")}
-											isActive={stockExpanded === "dessert"}
-											onPress={() => handleStockCategoryPress("dessert")}
-											isLast
+											icon="restaurant-outline"
+											label="Salle 2"
+											count={0}
+											onPress={() => {
+												setActiveRoom(2);
+												setShowFloorPlan(true);
+											}}
 											floorStyles={floorStyles}
 											THEME={THEME}
 										/>
-										{stockExpanded === "dessert" && (
-											<View style={floorStyles.stockItemsSection}>
-												{stockLoading ? (
-													<ActivityIndicator
-														size="small"
-														color={THEME.colors.primary.amber}
-													/>
-												) : (lowStockProducts.dessert || []).length === 0 ? (
-													<Text style={floorStyles.stockOkText}>
-														✓ Stock OK
-													</Text>
-												) : (
-													(lowStockProducts.dessert || []).map((product) => (
-														<View
-															key={product._id}
-															style={[
-																floorStyles.stockItem,
-																product.quantity === 0 &&
-																	floorStyles.stockItemOutOfStock,
-															]}
-														>
-															<Text style={floorStyles.stockItemName}>
-																{product.name}
-															</Text>
-															<View
-																style={[
-																	floorStyles.stockBadge,
-																	product.quantity === 0
-																		? floorStyles.stockBadgeOut
-																		: floorStyles.stockBadgeLow,
-																]}
-															>
-																<Text style={floorStyles.stockBadgeText}>
-																	{product.quantity === 0
-																		? "Épuisé"
-																		: product.quantity}
-																</Text>
-															</View>
-														</View>
-													))
-												)}
+										<MenuItem
+											icon="restaurant-outline"
+											label="Salle 3"
+											count={0}
+											isLast
+											onPress={() => {
+												setActiveRoom(3);
+												setShowFloorPlan(true);
+											}}
+											floorStyles={floorStyles}
+											THEME={THEME}
+										/>
+									</GroupBox>
+								</>
+							)}
+
+							{/* 📦 Stock Section - Affiché seulement si Gestion Stocks disponible */}
+							{hasGestionStocks && (
+								<>
+									<SectionHeader
+										icon="cube-outline"
+										label="Stock"
+										gradientColors={[
+											"rgba(239, 68, 68, 0.15)",
+											"rgba(239, 68, 68, 0.05)",
+										]}
+										floorStyles={floorStyles}
+										THEME={THEME}
+									/>
+									<GroupBox floorStyles={floorStyles}>
+										{totalLowStock === 0 ? (
+											<View style={floorStyles.emptyStockContainer}>
+												<Ionicons
+													name="checkmark-circle-outline"
+													size={20}
+													color={THEME.colors.status.success}
+												/>
+												<Text style={floorStyles.emptyStockText}>
+													Stocks OK
+												</Text>
 											</View>
+										) : (
+											<>
+												{/* Boissons en stock bas */}
+												<MenuItem
+													icon="wine-outline"
+													label="Boissons"
+													count={getLowStockCount("boisson")}
+													isActive={stockExpanded === "boisson"}
+													onPress={() => handleStockCategoryPress("boisson")}
+													floorStyles={floorStyles}
+													THEME={THEME}
+												/>
+												{stockExpanded === "boisson" && (
+													<View style={floorStyles.stockItemsSection}>
+														{stockLoading ? (
+															<ActivityIndicator
+																size="small"
+																color={THEME.colors.primary.amber}
+															/>
+														) : (lowStockProducts.boisson || []).length ===
+														  0 ? (
+															<Text style={floorStyles.stockOkText}>
+																✓ Stock OK
+															</Text>
+														) : (
+															(lowStockProducts.boisson || []).map(
+																(product) => (
+																	<View
+																		key={product._id}
+																		style={[
+																			floorStyles.stockItem,
+																			product.quantity === 0 &&
+																				floorStyles.stockItemOutOfStock,
+																		]}
+																	>
+																		<Text style={floorStyles.stockItemName}>
+																			{product.name}
+																		</Text>
+																		<View
+																			style={[
+																				floorStyles.stockBadge,
+																				product.quantity === 0
+																					? floorStyles.stockBadgeOut
+																					: floorStyles.stockBadgeLow,
+																			]}
+																		>
+																			<Text style={floorStyles.stockBadgeText}>
+																				{product.quantity === 0
+																					? "Épuisé"
+																					: product.quantity}
+																			</Text>
+																		</View>
+																	</View>
+																),
+															)
+														)}
+													</View>
+												)}
+
+												{/* Plats en stock bas */}
+												<MenuItem
+													icon="restaurant-outline"
+													label="Plats"
+													count={getLowStockCount("plat")}
+													isActive={stockExpanded === "plat"}
+													onPress={() => handleStockCategoryPress("plat")}
+													floorStyles={floorStyles}
+													THEME={THEME}
+												/>
+												{stockExpanded === "plat" && (
+													<View style={floorStyles.stockItemsSection}>
+														{stockLoading ? (
+															<ActivityIndicator
+																size="small"
+																color={THEME.colors.primary.amber}
+															/>
+														) : (lowStockProducts.plat || []).length === 0 ? (
+															<Text style={floorStyles.stockOkText}>
+																✓ Stock OK
+															</Text>
+														) : (
+															(lowStockProducts.plat || []).map((product) => (
+																<View
+																	key={product._id}
+																	style={[
+																		floorStyles.stockItem,
+																		product.quantity === 0 &&
+																			floorStyles.stockItemOutOfStock,
+																	]}
+																>
+																	<Text style={floorStyles.stockItemName}>
+																		{product.name}
+																	</Text>
+																	<View
+																		style={[
+																			floorStyles.stockBadge,
+																			product.quantity === 0
+																				? floorStyles.stockBadgeOut
+																				: floorStyles.stockBadgeLow,
+																		]}
+																	>
+																		<Text style={floorStyles.stockBadgeText}>
+																			{product.quantity === 0
+																				? "Épuisé"
+																				: product.quantity}
+																		</Text>
+																	</View>
+																</View>
+															))
+														)}
+													</View>
+												)}
+
+												{/* Desserts en stock bas */}
+												<MenuItem
+													icon="ice-cream-outline"
+													label="Desserts"
+													count={getLowStockCount("dessert")}
+													isActive={stockExpanded === "dessert"}
+													onPress={() => handleStockCategoryPress("dessert")}
+													isLast
+													floorStyles={floorStyles}
+													THEME={THEME}
+												/>
+												{stockExpanded === "dessert" && (
+													<View style={floorStyles.stockItemsSection}>
+														{stockLoading ? (
+															<ActivityIndicator
+																size="small"
+																color={THEME.colors.primary.amber}
+															/>
+														) : (lowStockProducts.dessert || []).length ===
+														  0 ? (
+															<Text style={floorStyles.stockOkText}>
+																✓ Stock OK
+															</Text>
+														) : (
+															(lowStockProducts.dessert || []).map(
+																(product) => (
+																	<View
+																		key={product._id}
+																		style={[
+																			floorStyles.stockItem,
+																			product.quantity === 0 &&
+																				floorStyles.stockItemOutOfStock,
+																		]}
+																	>
+																		<Text style={floorStyles.stockItemName}>
+																			{product.name}
+																		</Text>
+																		<View
+																			style={[
+																				floorStyles.stockBadge,
+																				product.quantity === 0
+																					? floorStyles.stockBadgeOut
+																					: floorStyles.stockBadgeLow,
+																			]}
+																		>
+																			<Text style={floorStyles.stockBadgeText}>
+																				{product.quantity === 0
+																					? "Épuisé"
+																					: product.quantity}
+																			</Text>
+																		</View>
+																	</View>
+																),
+															)
+														)}
+													</View>
+												)}
+											</>
 										)}
-									</>
-								)}
-							</GroupBox>
+									</GroupBox>
+								</>
+							)}
 
 							{/* Caisse Section */}
 							<SectionHeader
@@ -939,7 +962,7 @@ export default function Floor({ onStart }) {
 									isActive={caisseExpanded === "enCours"}
 									onPress={() =>
 										setCaisseExpanded(
-											caisseExpanded === "enCours" ? null : "enCours"
+											caisseExpanded === "enCours" ? null : "enCours",
 										)
 									}
 									floorStyles={floorStyles}
@@ -976,7 +999,7 @@ export default function Floor({ onStart }) {
 									isActive={caisseExpanded === "payees"}
 									onPress={() =>
 										setCaisseExpanded(
-											caisseExpanded === "payees" ? null : "payees"
+											caisseExpanded === "payees" ? null : "payees",
 										)
 									}
 									isLast={caisseExpanded !== "payees"}
@@ -1086,8 +1109,8 @@ const createFloorStyles = (THEME) =>
 			marginRight: THEME.spacing.md,
 		},
 		headerTitle: {
-			fontSize: THEME.typography.sizes.xl,
-			fontWeight: THEME.typography.weights.bold,
+			fontSize: 22,
+			fontWeight: "800",
 			color: THEME.colors.text.primary,
 		},
 		sidebarContent: {

@@ -1,17 +1,18 @@
 {
 	"expo": {
-		"name": "easyqr-native",
-		"slug": "easyqr-native",
+		"name": "SunnyGo",
+		"slug": "sunnygo",
+		"owner": "warai",
 		"version": "1.0.0",
 		"orientation": "default",
 		"icon": "./assets/images/icon.png",
-		"scheme": "easyqrnative",
+		"scheme": "sunnygo",
 		"userInterfaceStyle": "automatic",
 		"newArchEnabled": true,
 		"jsEngine": "jsc",
 		"ios": {
 			"supportsTablet": true,
-			"bundleIdentifier": "com.anonymous.easyqr-native",
+			"bundleIdentifier": "com.sunnygo.dev",
 			"orientation": "all"
 		},
 		"android": {
@@ -20,7 +21,8 @@
 				"backgroundColor": "#ffffff"
 			},
 			"edgeToEdgeEnabled": true,
-			"orientation": "default"
+			"orientation": "default",
+			"package": "com.sunnygo.dev"
 		},
 		"web": {
 			"bundler": "metro",

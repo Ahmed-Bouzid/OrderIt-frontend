@@ -38,7 +38,7 @@ const SOFT_DISCONNECT_TYPES = [
 const calculateBackoffDelay = (attempt) => {
 	const delay = Math.min(
 		INITIAL_RECONNECT_DELAY * Math.pow(2, attempt),
-		MAX_RECONNECT_DELAY
+		MAX_RECONNECT_DELAY,
 	);
 	// Ajout d'un jitter (variation aléatoire ±20%) pour éviter les reconnexions simultanées
 	const jitter = delay * 0.2 * (Math.random() - 0.5);
@@ -60,7 +60,7 @@ const scheduleFallbackExit = () => {
 	if (fallbackExitTimer) clearTimeout(fallbackExitTimer);
 
 	console.log(
-		`⏱️ Sortie du fallback planifiée dans ${FALLBACK_EXIT_DELAY / 60000}min`
+		`⏱️ Sortie du fallback planifiée dans ${FALLBACK_EXIT_DELAY / 60000}min`,
 	);
 
 	fallbackExitTimer = setTimeout(() => {
@@ -95,7 +95,7 @@ const startHeartbeat = (socket) => {
 	}
 
 	console.log(
-		`💓 Démarrage du heartbeat (intervalle: ${HEARTBEAT_INTERVAL}ms)`
+		`💓 Démarrage du heartbeat (intervalle: ${HEARTBEAT_INTERVAL}ms)`,
 	);
 	lastPingTime = Date.now();
 
@@ -211,7 +211,7 @@ const useSocket = () => {
 					...SOCKET_CONFIG.options,
 					auth: { token },
 					reconnection: true,
-					reconnectionAttempts: Infinity,
+					reconnectionAttempts: 15, // ⭐ Limité (évite boucle infinie si token invalide)
 					reconnectionDelay: INITIAL_RECONNECT_DELAY,
 					reconnectionDelayMax: MAX_RECONNECT_DELAY,
 					timeout: 20000,
@@ -260,7 +260,7 @@ const useSocket = () => {
 				// Différencier les types de déconnexion
 				if (isSoftDisconnect(reason)) {
 					console.log(
-						"💤 Déconnexion douce (timeout/inactivité) - reconnexion automatique..."
+						"💤 Déconnexion douce (timeout/inactivité) - reconnexion automatique...",
 					);
 					// Ne pas incrémenter le compteur pour les déconnexions douces
 					// Socket.io reconnectera automatiquement avec un délai court
@@ -269,7 +269,7 @@ const useSocket = () => {
 					if (globalReconnectAttempts > 2) {
 						notifyConnectionChange(
 							"lost",
-							"Connexion instable, tentative de reconnexion..."
+							"Connexion instable, tentative de reconnexion...",
 						);
 					}
 				} else if (reason === "io server disconnect") {
@@ -277,7 +277,7 @@ const useSocket = () => {
 					// Le serveur a fermé la connexion, reconnexion manuelle requise
 					notifyConnectionChange(
 						"lost",
-						"Serveur déconnecté, reconnexion en cours..."
+						"Serveur déconnecté, reconnexion en cours...",
 					);
 					socket.connect();
 				} else if (reason === "io client disconnect") {
@@ -288,7 +288,7 @@ const useSocket = () => {
 					globalReconnectAttempts += 1;
 					notifyConnectionChange(
 						"lost",
-						`Connexion perdue (${reason}), reconnexion...`
+						`Connexion perdue (${reason}), reconnexion...`,
 					);
 				}
 			});
@@ -308,7 +308,7 @@ const useSocket = () => {
 					if (globalReconnectAttempts > 3) {
 						notifyConnectionChange(
 							"lost",
-							"Connexion lente, reconnexion en cours..."
+							"Connexion lente, reconnexion en cours...",
 						);
 					}
 				} else {
@@ -321,8 +321,21 @@ const useSocket = () => {
 						errorMsg.toLowerCase().includes("authentification")
 					) {
 						console.error(
-							"🔐 Erreur d'authentification Socket → Redirection login"
+							"🔐 Erreur d'authentification Socket → Arrêt complet + Redirection login",
 						);
+
+						// ⭐ CRITIQUE: Arrêter complètement le socket AVANT la redirection
+						// pour éviter la boucle infinie de reconnexion
+						stopHeartbeat();
+						if (socketInstance) {
+							socketInstance.disconnect();
+							socketInstance = null;
+						}
+						socketRef.current = null;
+						globalReconnectAttempts = 0;
+						globalFallbackMode = false;
+
+						// Nettoyer les tokens et rediriger
 						AsyncStorage.multiRemove([
 							"token",
 							"@access_token",
@@ -338,18 +351,18 @@ const useSocket = () => {
 					// Calcul du backoff
 					const delay = calculateBackoffDelay(globalReconnectAttempts - 1);
 					console.log(
-						`🔄 Tentative ${globalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} - Prochaine dans ${delay}ms`
+						`🔄 Tentative ${globalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} - Prochaine dans ${delay}ms`,
 					);
 
 					// Activer le fallback après max tentatives
 					if (globalReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
 						console.error(
-							"❌ Max tentatives atteint → Activation du mode fallback REST"
+							"❌ Max tentatives atteint → Activation du mode fallback REST",
 						);
 						globalFallbackMode = true;
 						notifyConnectionChange(
 							"lost",
-							"Mode hors ligne activé, certaines fonctionnalités limitées"
+							"Mode hors ligne activé, certaines fonctionnalités limitées",
 						);
 
 						// Planifier une sortie automatique du fallback

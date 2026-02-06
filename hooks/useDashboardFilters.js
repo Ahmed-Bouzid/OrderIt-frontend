@@ -1,28 +1,47 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import usePresentStore from "../src/stores/usePresentStore";
+import useUserStore from "../src/stores/useUserStore";
+
+// Catégories avec filtres simplifiés (pas de "actives"/"present")
+const SIMPLIFIED_CATEGORIES = ["foodtruck", "snack", "fastfood", "fast-food"];
 
 export const useDashboardFilters = (
 	reservations,
-	selectedDate = new Date()
+	selectedDate = new Date(),
 ) => {
-	const [filter, setFilter] = useState("actives");
+	const category = useUserStore((state) => state.category);
+	const isSimplifiedMode = SIMPLIFIED_CATEGORIES.includes(category);
+
+	// Filtre par défaut selon la catégorie
+	const defaultFilter = isSimplifiedMode ? "ouverte" : "actives";
+	const [filter, setFilter] = useState(defaultFilter);
 	const [searchQuery, setSearchQuery] = useState("");
 
-	// Restaurer le filtre au montage
+	// Restaurer le filtre au montage (ou forcer un filtre valide)
 	useEffect(() => {
 		const loadFilter = async () => {
 			try {
 				const savedFilter = await AsyncStorage.getItem("dashboardFilter");
 				if (savedFilter) {
-					setFilter(savedFilter);
+					// Si mode simplifié et filtre sauvegardé invalide, utiliser le défaut
+					if (
+						isSimplifiedMode &&
+						(savedFilter === "actives" || savedFilter === "present")
+					) {
+						setFilter("ouverte");
+					} else {
+						setFilter(savedFilter);
+					}
+				} else {
+					setFilter(defaultFilter);
 				}
 			} catch (error) {
 				console.error("❌ Erreur chargement filtre:", error);
 			}
 		};
 		loadFilter();
-	}, []);
+	}, [isSimplifiedMode, defaultFilter]);
 
 	// 🔍 Filtrage par recherche (tous statuts confondus)
 	const searchedReservations = useMemo(() => {
@@ -91,7 +110,7 @@ export const useDashboardFilters = (
 					}
 					// Toutes les "en attente" (présent ou non)
 					return dateFilteredReservations.filter(
-						(r) => r?.status === "en attente"
+						(r) => r?.status === "en attente",
 					);
 
 				case "present":
@@ -103,7 +122,7 @@ export const useDashboardFilters = (
 					return dateFilteredReservations.filter(
 						(r) =>
 							r?.isPresent === true &&
-							(r?.status === "en attente" || r?.status === "ouverte")
+							(r?.status === "en attente" || r?.status === "ouverte"),
 					);
 
 				case "ouverte":
@@ -112,19 +131,19 @@ export const useDashboardFilters = (
 						return [];
 					}
 					return dateFilteredReservations.filter(
-						(r) => r?.status === "ouverte"
+						(r) => r?.status === "ouverte",
 					);
 
 				case "terminée":
 					// 📅 "Terminée" visible à tout moment
 					return dateFilteredReservations.filter(
-						(r) => r?.status === "terminée"
+						(r) => r?.status === "terminée",
 					);
 
 				case "annulée":
 					// 📅 "Annulée" visible à tout moment
 					return dateFilteredReservations.filter(
-						(r) => r?.status === "annulée"
+						(r) => r?.status === "annulée",
 					);
 
 				default:

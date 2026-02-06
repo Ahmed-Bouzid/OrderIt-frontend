@@ -27,7 +27,7 @@ import useUserStore from "../../src/stores/useUserStore";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-// 🎨 Design cohérent OrderIt
+// 🎨 Design cohérent SunnyGo
 const COLORS = {
 	primary: ["#667eea", "#764ba2"],
 	accent: "#667eea",

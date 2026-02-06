@@ -1,5 +1,5 @@
 /**
- * Thèmes premium pour OrderIt
+ * Thèmes premium pour SunnyGo
  * Mode clair, mode sombre et mode Ocean
  */
 

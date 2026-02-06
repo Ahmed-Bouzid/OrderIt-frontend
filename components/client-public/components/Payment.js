@@ -111,7 +111,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 			const token = await getSecureItem("@access_token");
 			const baseUrl =
 				process.env.EXPO_PUBLIC_API_URL ||
-				"https://orderit-backend-6y1m.onrender.com";
+				"https://sunnygo-backend-6y1m.onrender.com";
 
 			console.log("💳 Création PaymentIntent...");
 

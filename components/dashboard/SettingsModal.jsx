@@ -17,7 +17,9 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
+import useUserStore from "../../src/stores/useUserStore";
 import { getTheme } from "../../utils/themeUtils";
+import { isFastService } from "../../utils/categoryUtils";
 
 // ─────────────── Action Button Component ───────────────
 const ActionButton = React.memo(({ icon, label, colors, onPress, styles }) => (
@@ -53,6 +55,10 @@ const SettingsModal = React.memo(
 		// Thème dynamique
 		const { themeMode } = useThemeStore();
 		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
+
+		// 🍔 Catégorie du restaurant (snack = mode simplifié)
+		const category = useUserStore((state) => state.category);
+		const isSnackMode = isFastService(category);
 		const modalStyles = useMemo(() => createModalStyles(THEME), [THEME]);
 
 		// Animation refs
@@ -199,166 +205,259 @@ const SettingsModal = React.memo(
 
 								{/* Actions */}
 								<View style={modalStyles.actionsContainer}>
-									{effectiveStatus === "en attente" &&
-										!reservation.isPresent && (
-											<>
-												<ActionButton
-													icon="checkmark-circle"
-													label="Marquer présent"
-													colors={["#10B981", "#059669"]}
-													onPress={() => onTogglePresent?.(reservation._id)}
-													styles={modalStyles}
-												/>
-												<ActionButton
-													icon="restaurant"
-													label="Ouvrir la réservation"
-													colors={["#0EA5E9", "#0284C7"]}
-													onPress={() =>
-														onUpdateStatus?.(
-															reservation._id,
-															"ouverte",
-															reservation
-														)
-													}
-													styles={modalStyles}
-												/>
-												<ActionButton
-													icon="checkmark-done"
-													label="Terminer la réservation"
-													colors={["#10B981", "#059669"]}
-													onPress={() =>
-														onUpdateStatus?.(
-															reservation._id,
-															"terminée",
-															reservation
-														)
-													}
-													styles={modalStyles}
-												/>
-											</>
-										)}
-
-									{effectiveStatus === "en attente" &&
-										reservation.isPresent && (
-											<>
-												<ActionButton
-													icon="remove-circle"
-													label="Annuler présent"
-													colors={["#F59E0B", "#D97706"]}
-													onPress={() => onTogglePresent?.(reservation._id)}
-													styles={modalStyles}
-												/>
-												<ActionButton
-													icon="restaurant"
-													label="Ouvrir la réservation"
-													colors={["#0EA5E9", "#0284C7"]}
-													onPress={() =>
-														onUpdateStatus?.(
-															reservation._id,
-															"ouverte",
-															reservation
-														)
-													}
-													styles={modalStyles}
-												/>
-												<ActionButton
-													icon="checkmark-done"
-													label="Terminer la réservation"
-													colors={["#10B981", "#059669"]}
-													onPress={() => {
-														if (
-															typeof reservation.totalAmount === "number" &&
-															reservation.totalAmount > 0
-														) {
-															alert(
-																"Fermeture impossible : le montant de la réservation n'est pas à zéro."
-															);
-															return;
-														}
-														onUpdateStatus?.(
-															reservation._id,
-															"terminée",
-															reservation
-														);
-													}}
-													styles={modalStyles}
-												/>
-												<ActionButton
-													icon="close-circle"
-													label="Annuler la réservation"
-													colors={["#EF4444", "#DC2626"]}
-													onPress={() =>
-														onCancel(reservation._id, "terminée", reservation)
-													}
-													styles={modalStyles}
-												/>
-											</>
-										)}
-
-									{effectiveStatus === "annulée" && (
-										<ActionButton
-											icon="refresh"
-											label="Rétablir la réservation"
-											colors={["#10B981", "#059669"]}
-											onPress={() =>
-												onUpdateStatus?.(
-													reservation._id,
-													"en attente",
-													reservation
-												)
-											}
-											styles={modalStyles}
-										/>
-									)}
-
-									{effectiveStatus === "ouverte" && (
+									{/* 🍔 Mode snack: actions simplifiées (pas de présent/en attente) */}
+									{isSnackMode ? (
 										<>
-											<ActionButton
-												icon="checkmark-done"
-												label="Terminer la réservation"
-												colors={["#10B981", "#059669"]}
-												onPress={() => {
-													if (
-														typeof reservation.totalAmount === "number" &&
-														reservation.totalAmount > 0
-													) {
-														alert(
-															"Fermeture impossible : le montant de la réservation n'est pas à zéro."
-														);
-														return;
+											{/* Snack: juste ouvrir, terminer, annuler */}
+											{(effectiveStatus === "en attente" ||
+												effectiveStatus === "ouverte") && (
+												<>
+													{effectiveStatus === "en attente" && (
+														<ActionButton
+															icon="restaurant"
+															label="Ouvrir la commande"
+															colors={["#0EA5E9", "#0284C7"]}
+															onPress={() =>
+																onUpdateStatus?.(
+																	reservation._id,
+																	"ouverte",
+																	reservation,
+																)
+															}
+															styles={modalStyles}
+														/>
+													)}
+													<ActionButton
+														icon="checkmark-done"
+														label="Terminer la commande"
+														colors={["#10B981", "#059669"]}
+														onPress={() => {
+															if (
+																typeof reservation.totalAmount === "number" &&
+																reservation.totalAmount > 0
+															) {
+																alert(
+																	"Fermeture impossible : le montant de la commande n'est pas à zéro.",
+																);
+																return;
+															}
+															onUpdateStatus?.(
+																reservation._id,
+																"terminée",
+																reservation,
+															);
+														}}
+														styles={modalStyles}
+													/>
+													<ActionButton
+														icon="close-circle"
+														label="Annuler la commande"
+														colors={["#EF4444", "#DC2626"]}
+														onPress={() => onCancel(reservation._id)}
+														styles={modalStyles}
+													/>
+												</>
+											)}
+											{effectiveStatus === "terminée" && (
+												<ActionButton
+													icon="refresh"
+													label="Rétablir la commande"
+													colors={["#10B981", "#059669"]}
+													onPress={() =>
+														onUpdateStatus?.(
+															reservation._id,
+															"en attente",
+															reservation,
+														)
 													}
-													onUpdateStatus?.(
-														reservation._id,
-														"terminée",
-														reservation
-													);
-												}}
-												styles={modalStyles}
-											/>
-											<ActionButton
-												icon="close-circle"
-												label="Annuler la réservation"
-												colors={["#EF4444", "#DC2626"]}
-												onPress={() => onCancel(reservation._id)}
-												styles={modalStyles}
-											/>
+													styles={modalStyles}
+												/>
+											)}
+											{effectiveStatus === "annulée" && (
+												<ActionButton
+													icon="refresh"
+													label="Rétablir la commande"
+													colors={["#10B981", "#059669"]}
+													onPress={() =>
+														onUpdateStatus?.(
+															reservation._id,
+															"en attente",
+															reservation,
+														)
+													}
+													styles={modalStyles}
+												/>
+											)}
 										</>
-									)}
+									) : (
+										<>
+											{/* Mode restaurant classique: toutes les actions */}
+											{effectiveStatus === "en attente" &&
+												!reservation.isPresent && (
+													<>
+														<ActionButton
+															icon="checkmark-circle"
+															label="Marquer présent"
+															colors={["#10B981", "#059669"]}
+															onPress={() => onTogglePresent?.(reservation._id)}
+															styles={modalStyles}
+														/>
+														<ActionButton
+															icon="restaurant"
+															label="Ouvrir la réservation"
+															colors={["#0EA5E9", "#0284C7"]}
+															onPress={() =>
+																onUpdateStatus?.(
+																	reservation._id,
+																	"ouverte",
+																	reservation,
+																)
+															}
+															styles={modalStyles}
+														/>
+														<ActionButton
+															icon="checkmark-done"
+															label="Terminer la réservation"
+															colors={["#10B981", "#059669"]}
+															onPress={() =>
+																onUpdateStatus?.(
+																	reservation._id,
+																	"terminée",
+																	reservation,
+																)
+															}
+															styles={modalStyles}
+														/>
+													</>
+												)}
 
-									{effectiveStatus === "terminée" && (
-										<ActionButton
-											icon="refresh"
-											label="Rouvrir la réservation"
-											colors={["#0EA5E9", "#0284C7"]}
-											onPress={() =>
-												onUpdateStatus?.(
-													reservation._id,
-													"ouverte",
-													reservation
-												)
-											}
-											styles={modalStyles}
-										/>
+											{effectiveStatus === "en attente" &&
+												reservation.isPresent && (
+													<>
+														<ActionButton
+															icon="remove-circle"
+															label="Annuler présent"
+															colors={["#F59E0B", "#D97706"]}
+															onPress={() => onTogglePresent?.(reservation._id)}
+															styles={modalStyles}
+														/>
+														<ActionButton
+															icon="restaurant"
+															label="Ouvrir la réservation"
+															colors={["#0EA5E9", "#0284C7"]}
+															onPress={() =>
+																onUpdateStatus?.(
+																	reservation._id,
+																	"ouverte",
+																	reservation,
+																)
+															}
+															styles={modalStyles}
+														/>
+														<ActionButton
+															icon="checkmark-done"
+															label="Terminer la réservation"
+															colors={["#10B981", "#059669"]}
+															onPress={() => {
+																if (
+																	typeof reservation.totalAmount === "number" &&
+																	reservation.totalAmount > 0
+																) {
+																	alert(
+																		"Fermeture impossible : le montant de la réservation n'est pas à zéro.",
+																	);
+																	return;
+																}
+																onUpdateStatus?.(
+																	reservation._id,
+																	"terminée",
+																	reservation,
+																);
+															}}
+															styles={modalStyles}
+														/>
+														<ActionButton
+															icon="close-circle"
+															label="Annuler la réservation"
+															colors={["#EF4444", "#DC2626"]}
+															onPress={() =>
+																onCancel(
+																	reservation._id,
+																	"terminée",
+																	reservation,
+																)
+															}
+															styles={modalStyles}
+														/>
+													</>
+												)}
+
+											{effectiveStatus === "annulée" && (
+												<ActionButton
+													icon="refresh"
+													label="Rétablir la réservation"
+													colors={["#10B981", "#059669"]}
+													onPress={() =>
+														onUpdateStatus?.(
+															reservation._id,
+															"en attente",
+															reservation,
+														)
+													}
+													styles={modalStyles}
+												/>
+											)}
+
+											{effectiveStatus === "ouverte" && (
+												<>
+													<ActionButton
+														icon="checkmark-done"
+														label="Terminer la réservation"
+														colors={["#10B981", "#059669"]}
+														onPress={() => {
+															if (
+																typeof reservation.totalAmount === "number" &&
+																reservation.totalAmount > 0
+															) {
+																alert(
+																	"Fermeture impossible : le montant de la réservation n'est pas à zéro.",
+																);
+																return;
+															}
+															onUpdateStatus?.(
+																reservation._id,
+																"terminée",
+																reservation,
+															);
+														}}
+														styles={modalStyles}
+													/>
+													<ActionButton
+														icon="close-circle"
+														label="Annuler la réservation"
+														colors={["#EF4444", "#DC2626"]}
+														onPress={() => onCancel(reservation._id)}
+														styles={modalStyles}
+													/>
+												</>
+											)}
+
+											{effectiveStatus === "terminée" && (
+												<ActionButton
+													icon="refresh"
+													label="Rouvrir la réservation"
+													colors={["#0EA5E9", "#0284C7"]}
+													onPress={() =>
+														onUpdateStatus?.(
+															reservation._id,
+															"ouverte",
+															reservation,
+														)
+													}
+													styles={modalStyles}
+												/>
+											)}
+										</>
 									)}
 								</View>
 
@@ -380,7 +479,7 @@ const SettingsModal = React.memo(
 				</TouchableWithoutFeedback>
 			</Modal>
 		);
-	}
+	},
 );
 
 // ─────────────── Styles Premium ───────────────

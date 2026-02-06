@@ -34,6 +34,7 @@ import { useDashboardActions } from "../../hooks/useDashboardActions";
 import { useDashboardFilters } from "../../hooks/useDashboardFilters";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
+import { shouldShowCalendar } from "../../utils/categoryUtils";
 
 export default function Dashboard() {
 	const category = useUserStore((state) => state.category);
@@ -53,9 +54,9 @@ export default function Dashboard() {
 	const [recreateData, setRecreateData] = useState(null); // ⭐ Données pour recréer une réservation
 	const [selectedDate, setSelectedDate] = useState(new Date()); // 📅 Date sélectionnée pour le filtrage
 
-	// Si foodtruck, forcer la date à aujourd'hui
+	// Si foodtruck ou snack, forcer la date à aujourd'hui
 	useEffect(() => {
-		if (category === "foodtruck") {
+		if (!shouldShowCalendar(category)) {
 			const today = new Date();
 			setSelectedDate(today);
 		}
@@ -131,7 +132,7 @@ export default function Dashboard() {
 				handleCloseSettings();
 			}
 		},
-		[togglePresent, handleCloseSettings]
+		[togglePresent, handleCloseSettings],
 	);
 
 	const handleUpdateStatus = useCallback(
@@ -141,7 +142,7 @@ export default function Dashboard() {
 				handleCloseSettings();
 			}
 		},
-		[updateStatus, handleCloseSettings]
+		[updateStatus, handleCloseSettings],
 	);
 
 	const handleCancel = useCallback(
@@ -149,7 +150,7 @@ export default function Dashboard() {
 			await cancelReservation(id);
 			handleCloseSettings();
 		},
-		[cancelReservation, handleCloseSettings]
+		[cancelReservation, handleCloseSettings],
 	);
 
 	const handleOpenAssignTable = useCallback(
@@ -157,7 +158,7 @@ export default function Dashboard() {
 			await refreshActiveReservation(reservation._id);
 			setShowAssignTableModal(true);
 		},
-		[refreshActiveReservation]
+		[refreshActiveReservation],
 	);
 
 	// ⭐ Handler pour éditer le nombre de personnes
@@ -176,7 +177,7 @@ export default function Dashboard() {
 								await updateReservationField(
 									reservation._id,
 									"nbPersonnes",
-									nb
+									nb,
 								);
 							} else {
 								Alert.alert("Erreur", "Veuillez entrer un nombre valide");
@@ -186,10 +187,10 @@ export default function Dashboard() {
 				],
 				"plain-text",
 				String(reservation.nbPersonnes || 1),
-				"number-pad"
+				"number-pad",
 			);
 		},
-		[updateReservationField]
+		[updateReservationField],
 	);
 
 	// ⭐ Handler pour éditer le téléphone
@@ -207,7 +208,7 @@ export default function Dashboard() {
 								await updateReservationField(
 									reservation._id,
 									"phone",
-									value.trim()
+									value.trim(),
 								);
 							}
 						},
@@ -215,10 +216,10 @@ export default function Dashboard() {
 				],
 				"plain-text",
 				reservation.phone || "",
-				"phone-pad"
+				"phone-pad",
 			);
 		},
-		[updateReservationField]
+		[updateReservationField],
 	);
 
 	const handleCloseAssignTable = useCallback(() => {
@@ -233,7 +234,7 @@ export default function Dashboard() {
 				handleCloseAssignTable();
 			}
 		},
-		[assignTable, handleCloseAssignTable]
+		[assignTable, handleCloseAssignTable],
 	);
 
 	const handleCreateReservation = useCallback(
@@ -249,7 +250,7 @@ export default function Dashboard() {
 			}
 			return success;
 		},
-		[createReservation]
+		[createReservation],
 	);
 
 	// ⭐ Handler pour ouvrir l'audit
@@ -282,7 +283,7 @@ export default function Dashboard() {
 			handleEditPhone,
 			handleOpenAudit, // ⭐ NOUVEAU
 			theme,
-		]
+		],
 	);
 
 	const keyExtractor = useCallback((item) => item._id, []);
@@ -301,7 +302,7 @@ export default function Dashboard() {
 				</Text>
 			</View>
 		),
-		[THEME, localStyles]
+		[THEME, localStyles],
 	);
 
 	// FAB animations
@@ -365,8 +366,8 @@ export default function Dashboard() {
 			/>
 
 			{/* 📅 Navigateur de date */}
-			{/* Afficher le DateNavigator seulement si ce n'est pas un foodtruck */}
-			{category !== "foodtruck" && (
+			{/* Afficher le DateNavigator seulement pour restaurants classiques */}
+			{shouldShowCalendar(category) && (
 				<DateNavigator
 					selectedDate={selectedDate}
 					onDateChange={setSelectedDate}

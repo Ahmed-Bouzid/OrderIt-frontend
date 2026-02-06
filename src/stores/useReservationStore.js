@@ -13,16 +13,23 @@ const useReservationStore = create((set, get) => ({
 	// ⭐ Fonction pour attacher les listeners WebSocket
 	attachSocketListener: (socket) => {
 		if (!socket) {
+			console.log(
+				"❌ [RESA STORE] Socket null, impossible d'attacher listener",
+			);
 			return;
 		}
 
+		console.log("✅ [RESA STORE] Attachement listener WebSocket reservation");
+
 		// Écouter les événements de réservation
 		socket.on("reservation", (event) => {
+			console.log("📡 [RESA STORE] WebSocket event reçu:", event);
 			const { type, data } = event;
 			const state = get();
 
 			switch (type) {
 				case "created": {
+					console.log("➕ [RESA STORE] Nouvelle réservation:", data._id);
 					// Ajouter la nouvelle réservation si elle n'existe pas
 					const exists = state.reservations.some((r) => r._id === data._id);
 					if (!exists) {
@@ -36,15 +43,22 @@ const useReservationStore = create((set, get) => ({
 				case "statusUpdated":
 				case "presentToggled":
 				case "tableAssigned": {
+					console.log(
+						"🔄 [RESA STORE] Mise à jour réservation:",
+						data._id,
+						"- status:",
+						data.status,
+					);
 					// Mettre à jour la réservation existante
 					const updated = state.reservations.map((r) =>
-						r._id === data._id ? data : r
+						r._id === data._id ? data : r,
 					);
 					set({ reservations: updated });
 					break;
 				}
 
 				case "deleted": {
+					console.log("🗑️ [RESA STORE] Suppression réservation:", data._id);
 					// Supprimer la réservation
 					const filtered = state.reservations.filter((r) => r._id !== data._id);
 					set({ reservations: filtered });
@@ -108,7 +122,7 @@ const useReservationStore = create((set, get) => ({
 					console.error(
 						"❌ Erreur fetch réservations :",
 						response.status,
-						text
+						text,
 					);
 					return {
 						success: false,
@@ -132,7 +146,7 @@ const useReservationStore = create((set, get) => ({
 					(r) =>
 						!fetchedIds.has(r._id) &&
 						// Ne garder que les réservations récentes (créées dans les dernières 24h)
-						new Date(r.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000)
+						new Date(r.createdAt) > new Date(Date.now() - 24 * 60 * 60 * 1000),
 				);
 
 				// Fusionner : réservations API + nouvelles WebSocket
@@ -168,7 +182,7 @@ const useReservationStore = create((set, get) => ({
 	updateReservation: (updatedResa) =>
 		set((state) => ({
 			reservations: state.reservations.map((r) =>
-				r._id === updatedResa._id ? updatedResa : r
+				r._id === updatedResa._id ? updatedResa : r,
 			),
 		})),
 

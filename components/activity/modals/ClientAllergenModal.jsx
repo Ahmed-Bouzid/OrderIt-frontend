@@ -141,7 +141,7 @@ export const ClientAllergenModal = React.memo(
 				const token = await getSecureItem("@access_token");
 				const baseUrl =
 					process.env.EXPO_PUBLIC_API_URL ||
-					"https://orderit-backend-6y1m.onrender.com";
+					"https://sunnygo-backend-6y1m.onrender.com";
 
 				console.log("🔑 Token:", token ? "présent" : "absent");
 				console.log("🌐 URL:", `${baseUrl}/allergens`);

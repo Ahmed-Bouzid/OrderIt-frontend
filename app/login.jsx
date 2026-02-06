@@ -21,6 +21,11 @@ import {
 import { useRouter } from "expo-router";
 import { create } from "zustand";
 import useUserStore from "../src/stores/useUserStore";
+import * as WebBrowser from "expo-web-browser";
+import * as Google from "expo-auth-session/providers/google";
+import * as AuthSession from "expo-auth-session";
+
+WebBrowser.maybeCompleteAuthSession();
 
 // ─────────────── Store restaurant ───────────────
 export const useRestaurantStore = create((set) => ({
@@ -37,6 +42,36 @@ export default function Login() {
 	const [showPassword, setShowPassword] = useState(false);
 	const { setRestaurantId } = useRestaurantStore();
 	const setUser = useUserStore((state) => state.setUser);
+
+	// 🔐 Configuration Google OAuth avec scheme natif (pour dev build)
+	const redirectUri = AuthSession.makeRedirectUri({
+		scheme: "sunnygo",
+		useProxy: false,
+	});
+
+	console.log("🔐 Redirect URI:", redirectUri);
+
+	const [request, response, promptAsync] = Google.useAuthRequest({
+		iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
+		androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
+		scopes: ["openid", "profile", "email"],
+	});
+
+	// Gérer réponse OAuth Google
+	useEffect(() => {
+		console.log("🔍 OAuth response:", response);
+		if (response?.type === "success") {
+			console.log("✅ OAuth success! Params:", response.params);
+			const { id_token, code } = response.params;
+			if (id_token) {
+				handleGoogleLogin(id_token);
+			} else if (code) {
+				handleGoogleLogin(code);
+			}
+		} else if (response?.type === "error") {
+			console.log("❌ OAuth error:", response.error);
+		}
+	}, [response]);
 
 	// Animation glow pulsant
 	const glowAnim = useRef(new Animated.Value(0)).current;
@@ -56,10 +91,11 @@ export default function Login() {
 					easing: Easing.inOut(Easing.ease),
 					useNativeDriver: false,
 				}),
-			])
+			]),
 		).start();
 	}, [glowAnim]);
 
+	// 🔐 Forgot Password - Étape 1: Demander l'email
 	const handleForgotPassword = () => {
 		Alert.prompt(
 			"Réinitialiser le mot de passe",
@@ -73,11 +109,22 @@ export default function Login() {
 							method: "POST",
 							headers: { "Content-Type": "application/json" },
 							body: JSON.stringify({ email: emailInput }),
-						}
+						},
 					);
 					const data = await res.json();
 					if (res.ok) {
-						Alert.alert("Succès", "Un email de réinitialisation a été envoyé.");
+						// Succès - demander le code
+						Alert.alert(
+							"📧 Code envoyé",
+							"Si cet email existe, un code à 6 chiffres a été envoyé.\n\nVérifiez votre boîte mail (et les spams).",
+							[
+								{ text: "Annuler", style: "cancel" },
+								{
+									text: "Entrer le code",
+									onPress: () => handleEnterResetCode(emailInput),
+								},
+							],
+						);
 					} else {
 						Alert.alert("Erreur", data.message || "Une erreur est survenue");
 					}
@@ -85,8 +132,143 @@ export default function Login() {
 					Alert.alert("Erreur", "Impossible de contacter le serveur");
 				}
 			},
-			"plain-text"
+			"plain-text",
+			"",
+			"email-address",
 		);
+	};
+
+	// 🔐 Forgot Password - Étape 2: Entrer le code
+	const handleEnterResetCode = (emailForReset) => {
+		Alert.prompt(
+			"Code de vérification",
+			"Entrez le code à 6 chiffres reçu par email",
+			async (codeInput) => {
+				if (!codeInput || codeInput.length !== 6) {
+					Alert.alert("Erreur", "Le code doit contenir 6 chiffres");
+					return;
+				}
+				// Vérifier le code avant de demander le nouveau mot de passe
+				try {
+					const res = await fetch(
+						`${API_CONFIG.baseURL}/auth/verify-reset-token`,
+						{
+							method: "POST",
+							headers: { "Content-Type": "application/json" },
+							body: JSON.stringify({ email: emailForReset, token: codeInput }),
+						},
+					);
+					const data = await res.json();
+					if (res.ok && data.valid) {
+						// Code valide - demander le nouveau mot de passe
+						handleEnterNewPassword(emailForReset, codeInput);
+					} else {
+						Alert.alert(
+							"Code invalide",
+							data.message || "Code incorrect ou expiré",
+						);
+					}
+				} catch {
+					Alert.alert("Erreur", "Impossible de vérifier le code");
+				}
+			},
+			"plain-text",
+			"",
+			"number-pad",
+		);
+	};
+
+	// 🔐 Forgot Password - Étape 3: Nouveau mot de passe
+	const handleEnterNewPassword = (emailForReset, codeForReset) => {
+		Alert.prompt(
+			"Nouveau mot de passe",
+			"Entrez votre nouveau mot de passe\n(min. 8 caractères, 1 majuscule, 1 chiffre)",
+			async (newPasswordInput) => {
+				if (!newPasswordInput || newPasswordInput.length < 8) {
+					Alert.alert(
+						"Erreur",
+						"Le mot de passe doit contenir au moins 8 caractères",
+					);
+					return;
+				}
+				try {
+					const res = await fetch(`${API_CONFIG.baseURL}/auth/reset-password`, {
+						method: "POST",
+						headers: { "Content-Type": "application/json" },
+						body: JSON.stringify({
+							email: emailForReset,
+							token: codeForReset,
+							newPassword: newPasswordInput,
+						}),
+					});
+					const data = await res.json();
+					if (res.ok) {
+						Alert.alert(
+							"✅ Succès",
+							"Votre mot de passe a été réinitialisé. Vous pouvez maintenant vous connecter.",
+						);
+					} else {
+						Alert.alert(
+							"Erreur",
+							data.message || "Impossible de réinitialiser le mot de passe",
+						);
+					}
+				} catch {
+					Alert.alert("Erreur", "Impossible de contacter le serveur");
+				}
+			},
+			"secure-text",
+		);
+	};
+
+	// 🔐 Connexion Google OAuth
+	const handleGoogleLogin = async (idToken) => {
+		setLoading(true);
+		try {
+			const res = await fetch(`${API_CONFIG.baseURL}/auth/google-login`, {
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({ idToken }),
+			});
+
+			const data = await res.json();
+
+			if (res.ok) {
+				// Stocker tokens et infos (même logique que handleLogin)
+				await setSecureItem("@access_token", data.accessToken);
+				if (data.refreshToken) {
+					await setSecureItem("refreshToken", data.refreshToken);
+				}
+
+				const restaurantId = data.user.restaurantId;
+				if (restaurantId) {
+					await AsyncStorage.setItem("restaurantId", restaurantId);
+					setRestaurantId(restaurantId);
+				}
+
+				if (data.user.category) {
+					await AsyncStorage.setItem("category", data.user.category);
+				}
+
+				await setUser({
+					userId: data.user.id,
+					email: data.user.email,
+					role: data.user.role,
+					restaurantId: restaurantId,
+					category: data.user.category || "restaurant",
+				});
+
+				console.log("✅ [GOOGLE] Connexion réussie:", data.user.email);
+				router.replace("/");
+			} else {
+				Alert.alert("Erreur", data.message || "Connexion Google échouée");
+			}
+		} catch (err) {
+			console.error("❌ [GOOGLE] Erreur:", err);
+			Alert.alert("Erreur", "Impossible de se connecter avec Google");
+		} finally {
+			setLoading(false);
+		}
 	};
 
 	const handleLogin = async () => {
@@ -110,13 +292,13 @@ export default function Login() {
 			if (!contentType || !contentType.includes("application/json")) {
 				console.error(
 					"❌ Réponse non-JSON du serveur. Content-Type:",
-					contentType
+					contentType,
 				);
 				const bodyText = await res.text();
 				console.error("❌ Body brut:", bodyText);
 				Alert.alert(
 					"Erreur",
-					"Erreur serveur - réponse non-JSON. Vérifiez les logs."
+					"Erreur serveur - réponse non-JSON. Vérifiez les logs.",
 				);
 				setLoading(false);
 				return;
@@ -146,11 +328,11 @@ export default function Login() {
 					const saved = await getSecureItem("refreshToken");
 					if (saved) {
 						console.log(
-							"✅✅ Vérification: RefreshToken présent en SecureStore"
+							"✅✅ Vérification: RefreshToken présent en SecureStore",
 						);
 					} else {
 						console.error(
-							"❌ ERREUR: RefreshToken n'a pas pu être sauvegardé!"
+							"❌ ERREUR: RefreshToken n'a pas pu être sauvegardé!",
 						);
 					}
 				} else {
@@ -163,7 +345,7 @@ export default function Login() {
 				if (!restaurantId) {
 					console.warn(
 						"⚠️ restaurantId non trouvé dans la réponse du backend",
-						data
+						data,
 					);
 					// Nettoyer l'ancien restaurantId (important pour mode développeur)
 					await AsyncStorage.removeItem("restaurantId");
@@ -254,7 +436,7 @@ export default function Login() {
 
 				{/* Titre et sous-titre */}
 				<Text style={styles.title}>Welcome Back</Text>
-				<Text style={styles.subtitle}>Sign in to continue to OrderIt</Text>
+				<Text style={styles.subtitle}>Sign in to continue to SunnyGo</Text>
 
 				{/* Formulaire */}
 				<View style={styles.form}>
@@ -307,6 +489,31 @@ export default function Login() {
 							{loading ? "Loading..." : "Sign In"}
 						</Text>
 					</TouchableOpacity>
+
+					{/* 🔐 Google Sign In - DÉSACTIVÉ (nécessite Apple Developer Account pour iOS)
+					    TODO: Réactiver quand compte Apple Developer disponible
+					    Pour réactiver: 
+					    1. Décommenter les blocs ci-dessous
+					    2. Lancer: npx eas build --platform ios --profile development
+					    3. Installer l'app buildée sur iPhone
+					*/}
+					{/* Séparateur OR
+					<View style={styles.separator}>
+						<View style={styles.separatorLine} />
+						<Text style={styles.separatorText}>OR</Text>
+						<View style={styles.separatorLine} />
+					</View>
+					*/}
+					{/* 
+					<TouchableOpacity
+						style={styles.googleButton}
+						onPress={() => promptAsync()}
+						disabled={loading || !request}
+					>
+						<Text style={styles.googleIcon}>🔐</Text>
+						<Text style={styles.googleText}>Sign in with Google</Text>
+					</TouchableOpacity>
+					*/}
 				</View>
 			</View>
 		</KeyboardAvoidingView>
@@ -406,9 +613,49 @@ const styles = StyleSheet.create({
 		overflow: "hidden",
 		shadowColor: "#4e56efff",
 		shadowOffset: { width: 0, height: 4 },
-		shadowOpacity: 0.5,
-		shadowRadius: 10,
-		elevation: 8,
+		shadowOpacity: 0.4,
+		shadowRadius: 8,
+		elevation: 6,
+	},
+	separator: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginVertical: 20,
+	},
+	separatorLine: {
+		flex: 1,
+		height: 1,
+		backgroundColor: "rgba(0,0,0,0.1)",
+	},
+	separatorText: {
+		marginHorizontal: 10,
+		color: "#aaa",
+		fontSize: 12,
+		fontWeight: "600",
+	},
+	googleButton: {
+		height: 50,
+		borderRadius: 14,
+		backgroundColor: "#fff",
+		borderWidth: 2,
+		borderColor: "rgba(0,0,0,0.1)",
+		flexDirection: "row",
+		justifyContent: "center",
+		alignItems: "center",
+		shadowColor: "#000",
+		shadowOffset: { width: 0, height: 2 },
+		shadowOpacity: 0.1,
+		shadowRadius: 4,
+		elevation: 3,
+	},
+	googleIcon: {
+		fontSize: 20,
+		marginRight: 10,
+	},
+	googleText: {
+		fontSize: 15,
+		fontWeight: "600",
+		color: "#333",
 	},
 	signInText: {
 		color: "#fff",
