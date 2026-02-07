@@ -20,7 +20,6 @@ import * as SecureStore from "expo-secure-store";
 import { API_CONFIG } from "../../src/config/apiConfig";
 import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
 import * as Clipboard from "expo-clipboard";
-import RNFS from "react-native-fs";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -224,40 +223,16 @@ export default function AccountingScreen({ onClose }) {
 
 			const fileName = `comptabilite-${periodLabels[selectedPeriod] || selectedPeriod}-${new Date().toISOString().split("T")[0]}.csv`;
 			
-			try {
-				// Essayer d'abord d'exporter en fichier avec react-native-fs
-				const filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
-				await RNFS.writeFile(filePath, csvContent, 'utf8');
+			// Copier les données CSV dans le presse-papier
+			await Clipboard.setStringAsync(csvContent);
 
-				console.log("✅ [AccountingScreen] Fichier créé:", filePath);
+			console.log("✅ [AccountingScreen] Données copiées dans le presse-papier");
 
-				// Proposer les options à l'utilisateur
-				Alert.alert(
-					"Export réussi",
-					`Les données ont été exportées avec succès !\n\nFichier: ${fileName}\nEmplacement: Documents/`,
-					[
-						{
-							text: "Copier aussi dans le presse-papier",
-							onPress: async () => {
-								await Clipboard.setStringAsync(csvContent);
-								Alert.alert("Copié", "Données copiées dans le presse-papier");
-							}
-						},
-						{ text: "OK" }
-					],
-				);
-			} catch (fileError) {
-				console.log("⚠️ [AccountingScreen] Échec export fichier, utilisation presse-papier:", fileError);
-				
-				// Fallback: copier dans le presse-papier
-				await Clipboard.setStringAsync(csvContent);
-
-				Alert.alert(
-					"Export réussi (presse-papier)",
-					`Les données comptables ont été copiées dans le presse-papier au format CSV.\n\nVous pouvez maintenant les coller dans Excel, Numbers ou tout autre tableur.\n\nNom de fichier suggéré: ${fileName}`,
-					[{ text: "OK" }],
-				);
-			}
+			Alert.alert(
+				"📊 Export réussi !",
+				`Les données comptables ont été copiées dans le presse-papier au format CSV.\n\n• Ouvrez Excel, Numbers ou Google Sheets\n• Collez les données (Ctrl+V ou Cmd+V)\n• Sauvegardez sous: ${fileName}\n\n💡 Le format CSV sera automatiquement reconnu !`,
+				[{ text: "Compris !" }],
+			);
 		} catch (error) {
 			console.error("❌ [AccountingScreen] Erreur export:", error);
 			Alert.alert(
@@ -834,9 +809,9 @@ export default function AccountingScreen({ onClose }) {
 							</>
 						) : (
 							<>
-								<Ionicons name="download" size={20} color="#fff" />
+								<Ionicons name="copy" size={20} color="#fff" />
 								<Text style={styles.exportButtonText}>
-									Télécharger Excel/CSV
+									Copier données CSV
 								</Text>
 							</>
 						)}
@@ -861,7 +836,7 @@ export default function AccountingScreen({ onClose }) {
 								marginBottom: THEME.spacing.xs,
 							}}
 						>
-							📄 Contenu de l&apos;export :
+							� Export via presse-papier :
 						</Text>
 						<Text
 							style={{
@@ -872,7 +847,7 @@ export default function AccountingScreen({ onClose }) {
 						>
 							• Résumé financier complet (CA, TVA, marges){"\n"}• Détail de
 							toutes les commandes{"\n"}• Analyse des produits populaires{"\n"}•
-							Évolution quotidienne{"\n"}• Format CSV compatible Excel
+							Évolution quotidienne{"\n"}• Format CSV prêt pour Excel/Numbers
 						</Text>
 					</View>
 				</View>
