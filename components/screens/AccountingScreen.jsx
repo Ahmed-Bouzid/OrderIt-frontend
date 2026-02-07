@@ -1,189 +1,284 @@
 /**
- * AccountingScreen.jsx - Module Comptabilité
- * Interface de gestion financière pour les administrateurs
+ * AccountingScreen.jsx - Module Comptabilité Avancé
+ * Interface de gestion financière complète avec graphiques et analyses
  */
 import React, { useState, useEffect } from "react";
 import {
 	View,
 	Text,
 	TouchableOpacity,
-	Alert,
 	ScrollView,
 	ActivityIndicator,
 	Modal,
+	Dimensions,
+	Alert,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import useUserStore from "../../src/stores/useUserStore";
 import * as SecureStore from "expo-secure-store";
+import { API_CONFIG } from "../../src/config/apiConfig";
+import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
+import * as Clipboard from "expo-clipboard";
+import RNFS from "react-native-fs";
+
+const { width: screenWidth } = Dimensions.get("window");
 
 export default function AccountingScreen({ onClose }) {
 	const THEME = useTheme();
 	const { role } = useUserStore();
 
-	// États locaux
+	// ═══════════════════════════════════════════════════════════════════════
+	// 🔧 ÉTATS
+	// ═══════════════════════════════════════════════════════════════════════
 	const [token, setToken] = useState(null);
 	const [isLoading, setIsLoading] = useState(false);
+	const [dataLoaded, setDataLoaded] = useState(false);
+	const [selectedPeriod, setSelectedPeriod] = useState("today");
+	const [selectedTab, setSelectedTab] = useState("overview");
+	const [isExporting, setIsExporting] = useState(false);
+
+	// Données principales
 	const [data, setData] = useState({
-		totalVentes: 0,
-		totalCommandes: 0,
-		produitPopulaire: "N/A",
-		moyennePanier: 0,
+		// Métriques de base
+		totalRevenue: 0,
+		totalOrders: 0,
+		averageOrderValue: 0,
+
+		// Comptabilité avancée
+		revenueHT: 0,
+		revenueTTC: 0,
+		tvaCollected: 0,
+		costs: 0,
+		grossMargin: 0,
+		marginPercent: 0,
+		netResult: 0,
+
+		// Évolution
+		previousPeriodRevenue: 0,
+		growthRate: 0,
+
+		// Produits
+		topProduct: "N/A",
+		topProducts: [],
+
+		// Graphiques
+		dailyRevenues: [],
+
+		// Meta
+		period: "today",
+		startDate: "",
+		endDate: "",
 	});
 
-	// Charger le token depuis SecureStore au montage
+	// ═══════════════════════════════════════════════════════════════════════
+	// 🔧 CONFIGURATION
+	// ═══════════════════════════════════════════════════════════════════════
+	const PERIODS = [
+		{ key: "today", label: "Aujourd'hui", icon: "today" },
+		{ key: "week", label: "Cette semaine", icon: "calendar" },
+		{ key: "month", label: "Ce mois", icon: "calendar-outline" },
+		{ key: "year", label: "Cette année", icon: "calendar-sharp" },
+	];
+
+	const TABS = [
+		{ key: "overview", label: "Vue d'ensemble", icon: "analytics" },
+		{ key: "charts", label: "Graphiques", icon: "bar-chart" },
+		{ key: "details", label: "Détails", icon: "list" },
+	];
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// 🔧 HOOKS
+	// ═══════════════════════════════════════════════════════════════════════
 	useEffect(() => {
 		const getToken = async () => {
 			try {
 				const storedToken = await SecureStore.getItemAsync("access_token");
-				console.log("🔐 [AccountingScreen] Token depuis SecureStore:", !!storedToken);
+				console.log(
+					"🔐 [AccountingScreen] Token depuis SecureStore:",
+					!!storedToken,
+				);
 				setToken(storedToken);
 			} catch (error) {
-				console.error("❌ [AccountingScreen] Erreur récupération token:", error);
+				console.error(
+					"❌ [AccountingScreen] Erreur récupération token:",
+					error,
+				);
 			}
 		};
 		getToken();
 	}, []);
 
-	// Charger les données
+	useEffect(() => {
+		if (token && !dataLoaded) {
+			console.log(
+				"🔑 [AccountingScreen] Token disponible, chargement des données...",
+			);
+			setDataLoaded(true);
+			loadData();
+			if (selectedTab === "charts") {
+				loadChartData();
+			}
+		}
+	}, [token, dataLoaded, selectedPeriod]); // eslint-disable-line
+
+	useEffect(() => {
+		if (token && dataLoaded && selectedTab === "charts") {
+			loadChartData();
+		}
+	}, [selectedTab, selectedPeriod]); // eslint-disable-line
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// 📡 API CALLS
+	// ═══════════════════════════════════════════════════════════════════════
 	const loadData = async () => {
 		setIsLoading(true);
 		try {
-			console.log("💰 [AccountingScreen] Chargement données depuis l'API accounting/summary...");
-			console.log("🔑 [AccountingScreen] Token utilisé:", token ? "✅ présent" : "❌ manquant");
-			
-			// Appel API real accounting endpoint
-			const response = await fetch('https://orderit-backend.onrender.com/accounting/summary', {
-				method: 'GET',
-				headers: {
-					'Authorization': `Bearer ${token}`,
-					'Content-Type': 'application/json',
-				},
-			});
+			console.log(
+				`💰 [AccountingScreen] Chargement données période: ${selectedPeriod}`,
+			);
 
-			console.log("📡 [AccountingScreen] Réponse API status:", response.status);
-			console.log("📡 [AccountingScreen] Réponse API ok:", response.ok);
+			const controller = new AbortController();
+			const timeoutId = setTimeout(() => controller.abort(), 10000);
+
+			const response = await fetch(
+				`${API_CONFIG.baseURL}/accounting/summary?period=${selectedPeriod}`,
+				{
+					method: "GET",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+					signal: controller.signal,
+				},
+			);
+
+			clearTimeout(timeoutId);
 
 			if (!response.ok) {
 				const errorText = await response.text();
-				console.log("❌ [AccountingScreen] Erreur API text:", errorText);
 				throw new Error(`Erreur API: ${response.status} - ${errorText}`);
 			}
 
 			const apiData = await response.json();
-			console.log("✅ [AccountingScreen] Données reçues de l'API:", apiData);
+			console.log("✅ [AccountingScreen] Données reçues:", apiData.data);
 
 			if (apiData.success && apiData.data) {
-				setData({
-					totalVentes: apiData.data.totalRevenue || 0,
-					totalCommandes: apiData.data.totalOrders || 0,
-					produitPopulaire: apiData.data.topProduct || "Aucun produit",
-					moyennePanier: apiData.data.averageOrderValue || 0,
-					revenusMensuel: apiData.data.monthlyRevenue || 0,
-					periode: apiData.data.date || "Aujourd'hui"
-				});
-			} else {
-				throw new Error("Format de réponse API invalide");
+				setData(apiData.data);
 			}
-
 		} catch (error) {
-			console.error("❌ [AccountingScreen] Erreur complète:", error);
-			console.error("❌ [AccountingScreen] Erreur message:", error.message);
-			
-			// En cas d'erreur, données nulles pour forcer la gestion d'erreur
-			setData({
-				totalVentes: 0,
-				totalCommandes: 0,
-				produitPopulaire: "Erreur de chargement",
-				moyennePanier: 0,
-				revenusMensuel: 0,
-				periode: "Erreur"
-			});
+			console.error("❌ [AccountingScreen] Erreur:", error.message);
+			Alert.alert("Erreur", "Impossible de charger les données comptables");
 		} finally {
 			setIsLoading(false);
 		}
 	};
 
-	useEffect(() => {
-		if (token) {
-			console.log("🔑 [AccountingScreen] Token disponible, chargement des données...");
-			loadData();
+	const loadChartData = async () => {
+		try {
+			console.log("📊 [AccountingScreen] Chargement des données graphiques...");
+			// Pour l'instant, on utilise juste les données dailyRevenues
+		} catch (error) {
+			console.error(
+				"❌ [AccountingScreen] Erreur chargement graphiques:",
+				error,
+			);
 		}
-	}, [token]); // Se déclenche quand le token est chargé
+	};
 
-	// Styles
+	// ═══════════════════════════════════════════════════════════════════════
+	// 📥 FONCTION D'EXPORT
+	// ═══════════════════════════════════════════════════════════════════════
+	const exportAccountingData = async () => {
+		setIsExporting(true);
+		try {
+			console.log(
+				`📥 [AccountingScreen] Démarrage export pour période: ${selectedPeriod}`,
+			);
+
+			const response = await fetch(
+				`${API_CONFIG.baseURL}/accounting/export?period=${selectedPeriod}&format=csv`,
+				{
+					method: "GET",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+				},
+			);
+
+			if (!response.ok) {
+				throw new Error(`Erreur export: ${response.status}`);
+			}
+
+			// Récupérer le contenu CSV
+			const csvContent = await response.text();
+
+			// Créer le nom de fichier
+			const periodLabels = {
+				today: "aujourd-hui",
+				week: "cette-semaine",
+				month: "ce-mois",
+				year: "cette-annee",
+			};
+
+			const fileName = `comptabilite-${periodLabels[selectedPeriod] || selectedPeriod}-${new Date().toISOString().split("T")[0]}.csv`;
+			
+			try {
+				// Essayer d'abord d'exporter en fichier avec react-native-fs
+				const filePath = `${RNFS.DocumentDirectoryPath}/${fileName}`;
+				await RNFS.writeFile(filePath, csvContent, 'utf8');
+
+				console.log("✅ [AccountingScreen] Fichier créé:", filePath);
+
+				// Proposer les options à l'utilisateur
+				Alert.alert(
+					"Export réussi",
+					`Les données ont été exportées avec succès !\n\nFichier: ${fileName}\nEmplacement: Documents/`,
+					[
+						{
+							text: "Copier aussi dans le presse-papier",
+							onPress: async () => {
+								await Clipboard.setStringAsync(csvContent);
+								Alert.alert("Copié", "Données copiées dans le presse-papier");
+							}
+						},
+						{ text: "OK" }
+					],
+				);
+			} catch (fileError) {
+				console.log("⚠️ [AccountingScreen] Échec export fichier, utilisation presse-papier:", fileError);
+				
+				// Fallback: copier dans le presse-papier
+				await Clipboard.setStringAsync(csvContent);
+
+				Alert.alert(
+					"Export réussi (presse-papier)",
+					`Les données comptables ont été copiées dans le presse-papier au format CSV.\n\nVous pouvez maintenant les coller dans Excel, Numbers ou tout autre tableur.\n\nNom de fichier suggéré: ${fileName}`,
+					[{ text: "OK" }],
+				);
+			}
+		} catch (error) {
+			console.error("❌ [AccountingScreen] Erreur export:", error);
+			Alert.alert(
+				"Erreur d'export",
+				"Impossible d'exporter les données. Vérifiez votre connexion et réessayez.",
+				[{ text: "OK" }],
+			);
+		} finally {
+			setIsExporting(false);
+		}
+	};
+
+	// ═══════════════════════════════════════════════════════════════════════
+	// 🎨 STYLES
+	// ═══════════════════════════════════════════════════════════════════════
 	const styles = {
-		container: {
-			flex: 1,
-			padding: THEME.spacing.lg,
-		},
-		centerContent: {
-			justifyContent: "center",
-			alignItems: "center",
-		},
-		header: {
-			marginBottom: THEME.spacing.xl,
-		},
-		title: {
-			fontSize: 24,
-			fontWeight: "bold",
-			color: THEME.colors.text.primary,
-			marginBottom: THEME.spacing.sm,
-		},
-		subtitle: {
-			fontSize: 16,
-			color: THEME.colors.text.secondary,
-		},
-		statsContainer: {
-			flexDirection: "row",
-			flexWrap: "wrap",
-			gap: THEME.spacing.md,
-			marginBottom: THEME.spacing.xl,
-		},
-		statCard: {
-			flex: 1,
-			minWidth: 150,
-			backgroundColor: THEME.colors.background.elevated,
-			borderRadius: THEME.radius.lg,
-			padding: THEME.spacing.lg,
-			alignItems: "center",
-		},
-		statValue: {
-			fontSize: 20,
-			fontWeight: "bold",
-			color: THEME.colors.primary.amber,
-			marginBottom: THEME.spacing.xs,
-		},
-		statLabel: {
-			fontSize: 14,
-			color: THEME.colors.text.secondary,
-			textAlign: "center",
-		},
-		refreshButton: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderRadius: THEME.radius.md,
-			paddingVertical: THEME.spacing.md,
-			paddingHorizontal: THEME.spacing.lg,
-			alignItems: "center",
-			flexDirection: "row",
-			justifyContent: "center",
-			gap: THEME.spacing.sm,
-		},
-		refreshButtonText: {
-			color: "#fff",
-			fontWeight: "600",
-			fontSize: 16,
-		},
-		errorText: {
-			fontSize: 16,
-			textAlign: "center",
-			marginTop: THEME.spacing.md,
-		},
 		modalContainer: {
 			flex: 1,
 			backgroundColor: THEME.colors.background.dark,
 		},
-		modalHeader: {
+		header: {
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "center",
@@ -192,72 +287,234 @@ export default function AccountingScreen({ onClose }) {
 			borderBottomWidth: 1,
 			borderBottomColor: THEME.colors.border.subtle,
 		},
-		modalTitle: {
-			fontSize: 20,
+		title: {
+			fontSize: 24,
 			fontWeight: "bold",
 			color: THEME.colors.text.primary,
 		},
 		closeButton: {
 			padding: THEME.spacing.sm,
 		},
-		scrollContainer: {
+		content: {
 			flex: 1,
+		},
+		periodSelector: {
+			flexDirection: "row",
+			backgroundColor: THEME.colors.background.card,
+			padding: THEME.spacing.md,
+			justifyContent: "space-around",
+		},
+		periodButton: {
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			backgroundColor: THEME.colors.background.subtle,
+		},
+		periodButtonActive: {
+			backgroundColor: THEME.colors.primary.amber,
+		},
+		periodButtonText: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			textAlign: "center",
+		},
+		periodButtonTextActive: {
+			color: "#fff",
+			fontWeight: "600",
+		},
+		tabSelector: {
+			flexDirection: "row",
+			backgroundColor: THEME.colors.background.card,
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.md,
+		},
+		tabButton: {
+			flex: 1,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			marginHorizontal: THEME.spacing.xs,
+		},
+		tabButtonActive: {
+			backgroundColor: THEME.colors.primary.amber + "20",
+		},
+		tabButtonText: {
+			fontSize: 14,
+			color: THEME.colors.text.secondary,
+			marginLeft: THEME.spacing.xs,
+		},
+		tabButtonTextActive: {
+			color: THEME.colors.primary.amber,
+			fontWeight: "600",
+		},
+		scrollContent: {
 			padding: THEME.spacing.lg,
+		},
+		// Cartes métriques
+		metricsGrid: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			justifyContent: "space-between",
+			marginBottom: THEME.spacing.lg,
+		},
+		metricCard: {
+			width: "48%",
+			backgroundColor: THEME.colors.background.card,
+			padding: THEME.spacing.md,
+			borderRadius: THEME.radius.lg,
+			marginBottom: THEME.spacing.md,
+		},
+		metricCardLarge: {
+			width: "100%",
+		},
+		metricValue: {
+			fontSize: 20,
+			fontWeight: "bold",
+			color: THEME.colors.text.primary,
+			marginBottom: THEME.spacing.xs,
+		},
+		metricLabel: {
+			fontSize: 14,
+			color: THEME.colors.text.secondary,
+		},
+		metricChange: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginTop: THEME.spacing.xs,
+		},
+		metricChangeText: {
+			fontSize: 12,
+			marginLeft: THEME.spacing.xs,
+		},
+		metricChangePositive: {
+			color: "#22C55E",
+		},
+		metricChangeNegative: {
+			color: "#EF4444",
+		},
+		// Sections
+		section: {
+			marginBottom: THEME.spacing.lg,
+		},
+		sectionTitle: {
+			fontSize: 18,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginBottom: THEME.spacing.md,
+		},
+		// Graphiques
+		chartContainer: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.md,
+			marginBottom: THEME.spacing.md,
+		},
+		chartTitle: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginBottom: THEME.spacing.md,
+			textAlign: "center",
+		},
+		// Liste produits
+		productsList: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.lg,
+			overflow: "hidden",
+		},
+		productItem: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			padding: THEME.spacing.md,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		productName: {
+			fontSize: 14,
+			color: THEME.colors.text.primary,
+			flex: 1,
+		},
+		productStats: {
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		productQuantity: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			marginRight: THEME.spacing.sm,
+		},
+		productRevenue: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.primary.amber,
+		},
+		// Loading
+		loadingContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			padding: THEME.spacing.xl,
+		},
+		loadingText: {
+			fontSize: 16,
+			color: THEME.colors.text.secondary,
+			marginTop: THEME.spacing.md,
+		},
+		// Boutons d'export
+		exportButton: {
+			backgroundColor: "#22C55E",
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.md,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			marginTop: THEME.spacing.lg,
+		},
+		exportButtonDisabled: {
+			backgroundColor: THEME.colors.text.muted,
+			opacity: 0.6,
+		},
+		exportButtonText: {
+			color: "#fff",
+			fontWeight: "600",
+			fontSize: 16,
+			marginLeft: THEME.spacing.sm,
 		},
 	};
 
-	// Vérifier les permissions - Accès restreint aux admins et développeurs
-	const hasAccess = token && (
-		["admin", "developer", "manager"].includes(role) || 
-		role?.toLowerCase().includes("admin")
-	);
-	
-	console.log("🔐 [AccountingScreen] Debug accès DÉTAILLÉ:", { 
-		token: !!token, 
-		tokenLength: token?.length || 0,
-		role, 
-		roleType: typeof role,
-		hasAccess,
-		isRoleInArray: ["admin", "developer", "manager"].includes(role),
-		isRoleLowerCaseAdmin: role?.toLowerCase().includes("admin"),
-		userStoreData: { token: !!token, role }
-	});
-	
+	// ═══════════════════════════════════════════════════════════════════════
+	// 🔐 VÉRIFICATIONS ACCÈS
+	// ═══════════════════════════════════════════════════════════════════════
+	const hasAccess = token && ["admin", "developer", "manager"].includes(role);
+
 	if (!hasAccess) {
-		console.log("❌ [AccountingScreen] ACCÈS REFUSÉ - Raisons possibles:", {
-			noToken: !token,
-			tokenExists: !!token,
-			role: role,
-			roleIsString: typeof role === 'string',
-			expectedRoles: ["admin", "developer", "manager"],
-			actualRole: role
-		});
 		return (
-			<Modal
-				visible={true}
-				animationType="slide"
-				presentationStyle="pageSheet"
-			>
+			<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
 				<View style={styles.modalContainer}>
-					<View style={styles.modalHeader}>
-						<Text style={styles.modalTitle}>💰 Comptabilité</Text>
+					<View style={styles.header}>
+						<Text style={styles.title}>💰 Comptabilité</Text>
 						{onClose && (
 							<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-								<Ionicons name="close" size={24} color={THEME.colors.text.primary} />
+								<Ionicons
+									name="close"
+									size={24}
+									color={THEME.colors.text.primary}
+								/>
 							</TouchableOpacity>
 						)}
 					</View>
-					<View style={[styles.scrollContainer, styles.centerContent]}>
+					<View style={styles.loadingContainer}>
 						<Ionicons
 							name="lock-closed"
-							size={64}
-							color={THEME.colors.text.muted}
+							size={48}
+							color={THEME.colors.text.secondary}
 						/>
-						<Text style={[styles.errorText, { color: THEME.colors.text.secondary }]}>
+						<Text style={styles.loadingText}>
 							Accès restreint aux administrateurs
-						</Text>
-						<Text style={[styles.errorText, { color: THEME.colors.text.muted, fontSize: 12, marginTop: 8 }]}>
-							Debug: role='{role}' | token={!!token ? 'oui' : 'non'}
 						</Text>
 					</View>
 				</View>
@@ -265,26 +522,387 @@ export default function AccountingScreen({ onClose }) {
 		);
 	}
 
-	if (isLoading) {
+	// ═══════════════════════════════════════════════════════════════════════
+	// 🎨 RENDU CONTENU
+	// ═══════════════════════════════════════════════════════════════════════
+
+	const renderOverviewTab = () => (
+		<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+			<View style={styles.scrollContent}>
+				{/* Métriques principales */}
+				<View style={styles.metricsGrid}>
+					<View style={styles.metricCard}>
+						<Text style={styles.metricValue}>
+							€{data.totalRevenue?.toFixed(2) || "0.00"}
+						</Text>
+						<Text style={styles.metricLabel}>Chiffre d&apos;Affaires</Text>
+						{data.growthRate !== undefined && (
+							<View style={styles.metricChange}>
+								<Ionicons
+									name={data.growthRate >= 0 ? "trending-up" : "trending-down"}
+									size={16}
+									color={data.growthRate >= 0 ? "#22C55E" : "#EF4444"}
+								/>
+								<Text
+									style={[
+										styles.metricChangeText,
+										data.growthRate >= 0
+											? styles.metricChangePositive
+											: styles.metricChangeNegative,
+									]}
+								>
+									{data.growthRate > 0 ? "+" : ""}
+									{data.growthRate?.toFixed(1) || "0.0"}%
+								</Text>
+							</View>
+						)}
+					</View>
+
+					<View style={styles.metricCard}>
+						<Text style={styles.metricValue}>{data.totalOrders || 0}</Text>
+						<Text style={styles.metricLabel}>Commandes</Text>
+					</View>
+
+					<View style={styles.metricCard}>
+						<Text style={styles.metricValue}>
+							€{data.averageOrderValue?.toFixed(2) || "0.00"}
+						</Text>
+						<Text style={styles.metricLabel}>Panier Moyen</Text>
+					</View>
+
+					<View style={styles.metricCard}>
+						<Text style={styles.metricValue}>
+							{data.marginPercent?.toFixed(1) || "0.0"}%
+						</Text>
+						<Text style={styles.metricLabel}>Marge Brute</Text>
+					</View>
+				</View>
+
+				{/* Comptabilité avancée */}
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>📊 Analyse Comptable</Text>
+
+					<View style={styles.metricsGrid}>
+						<View style={styles.metricCard}>
+							<Text style={styles.metricValue}>
+								€{data.revenueHT?.toFixed(2) || "0.00"}
+							</Text>
+							<Text style={styles.metricLabel}>CA Hors Taxes</Text>
+						</View>
+
+						<View style={styles.metricCard}>
+							<Text style={styles.metricValue}>
+								€{data.tvaCollected?.toFixed(2) || "0.00"}
+							</Text>
+							<Text style={styles.metricLabel}>TVA Collectée</Text>
+						</View>
+
+						<View style={styles.metricCard}>
+							<Text style={styles.metricValue}>
+								€{data.costs?.toFixed(2) || "0.00"}
+							</Text>
+							<Text style={styles.metricLabel}>Coûts Estimés</Text>
+						</View>
+
+						<View style={styles.metricCard}>
+							<Text style={styles.metricValue}>
+								€{data.netResult?.toFixed(2) || "0.00"}
+							</Text>
+							<Text style={styles.metricLabel}>Résultat Net</Text>
+						</View>
+					</View>
+				</View>
+
+				{/* Top produits */}
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>🏆 Produits Populaires</Text>
+					<View style={styles.productsList}>
+						{data.topProducts?.length > 0 ? (
+							data.topProducts.map((product, index) => (
+								<View key={index} style={styles.productItem}>
+									<Text style={styles.productName}>{product.name}</Text>
+									<View style={styles.productStats}>
+										<Text style={styles.productQuantity}>
+											{product.quantity}x
+										</Text>
+										<Text style={styles.productRevenue}>
+											€{product.revenue?.toFixed(2)}
+										</Text>
+									</View>
+								</View>
+							))
+						) : (
+							<View style={styles.productItem}>
+								<Text style={styles.productName}>Aucun produit vendu</Text>
+							</View>
+						)}
+					</View>
+				</View>
+			</View>
+		</ScrollView>
+	);
+
+	const renderChartsTab = () => {
+		const chartConfig = {
+			backgroundColor: THEME.colors.background.card,
+			backgroundGradientFrom: THEME.colors.background.card,
+			backgroundGradientTo: THEME.colors.background.card,
+			decimalPlaces: 2,
+			color: (opacity = 1) =>
+				THEME.colors.primary.amber +
+				Math.floor(opacity * 255)
+					.toString(16)
+					.padStart(2, "0"),
+			labelColor: (opacity = 1) =>
+				THEME.colors.text.secondary +
+				Math.floor(opacity * 255)
+					.toString(16)
+					.padStart(2, "0"),
+			style: {
+				borderRadius: THEME.radius.lg,
+			},
+			propsForDots: {
+				r: "6",
+				strokeWidth: "2",
+				stroke: THEME.colors.primary.amber,
+			},
+		};
+
 		return (
-			<Modal
-				visible={true}
-				animationType="slide"
-				presentationStyle="pageSheet"
-			>
+			<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+				<View style={styles.scrollContent}>
+					{/* Évolution du CA */}
+					{data.dailyRevenues?.length > 0 && (
+						<View style={styles.chartContainer}>
+							<Text style={styles.chartTitle}>
+								📈 Évolution du Chiffre d&apos;Affaires
+							</Text>
+							<LineChart
+								data={{
+									labels: data.dailyRevenues
+										.slice(-7)
+										.map((d) => new Date(d.date).getDate().toString()),
+									datasets: [
+										{
+											data: data.dailyRevenues.slice(-7).map((d) => d.revenue),
+										},
+									],
+								}}
+								width={screenWidth - 64}
+								height={220}
+								chartConfig={chartConfig}
+								bezier
+								style={{
+									marginVertical: 8,
+									borderRadius: THEME.radius.lg,
+								}}
+							/>
+						</View>
+					)}
+
+					{/* Nombre de commandes */}
+					{data.dailyRevenues?.length > 0 && (
+						<View style={styles.chartContainer}>
+							<Text style={styles.chartTitle}>📦 Nombre de Commandes</Text>
+							<BarChart
+								data={{
+									labels: data.dailyRevenues
+										.slice(-7)
+										.map((d) => new Date(d.date).getDate().toString()),
+									datasets: [
+										{
+											data: data.dailyRevenues.slice(-7).map((d) => d.orders),
+										},
+									],
+								}}
+								width={screenWidth - 64}
+								height={220}
+								chartConfig={chartConfig}
+								style={{
+									marginVertical: 8,
+									borderRadius: THEME.radius.lg,
+								}}
+							/>
+						</View>
+					)}
+
+					{/* Répartition CA/Coûts/Marge */}
+					{data.revenueHT > 0 && (
+						<View style={styles.chartContainer}>
+							<Text style={styles.chartTitle}>💰 Répartition Financière</Text>
+							<PieChart
+								data={[
+									{
+										name: "Marge",
+										population: data.grossMargin,
+										color: "#22C55E",
+										legendFontColor: THEME.colors.text.primary,
+										legendFontSize: 12,
+									},
+									{
+										name: "Coûts",
+										population: data.costs,
+										color: "#EF4444",
+										legendFontColor: THEME.colors.text.primary,
+										legendFontSize: 12,
+									},
+								]}
+								width={screenWidth - 64}
+								height={220}
+								chartConfig={chartConfig}
+								accessor="population"
+								backgroundColor="transparent"
+								paddingLeft="15"
+								style={{
+									marginVertical: 8,
+									borderRadius: THEME.radius.lg,
+								}}
+							/>
+						</View>
+					)}
+				</View>
+			</ScrollView>
+		);
+	};
+
+	const renderDetailsTab = () => (
+		<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+			<View style={styles.scrollContent}>
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>📋 Détails de la Période</Text>
+
+					<View style={styles.metricCard}>
+						<Text style={styles.metricLabel}>Période sélectionnée</Text>
+						<Text style={styles.metricValue}>
+							{PERIODS.find((p) => p.key === selectedPeriod)?.label}
+						</Text>
+						<Text style={styles.metricLabel}>
+							Du {data.startDate} au {data.endDate}
+						</Text>
+					</View>
+
+					<View style={styles.metricsGrid}>
+						<View style={styles.metricCard}>
+							<Text style={styles.metricValue}>
+								€{data.revenueTTC?.toFixed(2) || "0.00"}
+							</Text>
+							<Text style={styles.metricLabel}>CA Toutes Taxes</Text>
+						</View>
+
+						<View style={styles.metricCard}>
+							<Text style={styles.metricValue}>
+								€{data.previousPeriodRevenue?.toFixed(2) || "0.00"}
+							</Text>
+							<Text style={styles.metricLabel}>Période Précédente</Text>
+						</View>
+					</View>
+
+					<TouchableOpacity
+						style={{
+							backgroundColor: THEME.colors.primary.amber,
+							borderRadius: THEME.radius.lg,
+							padding: THEME.spacing.md,
+							alignItems: "center",
+							marginTop: THEME.spacing.lg,
+						}}
+						onPress={loadData}
+					>
+						<Text
+							style={{
+								color: "#fff",
+								fontWeight: "600",
+								fontSize: 16,
+							}}
+						>
+							🔄 Actualiser les données
+						</Text>
+					</TouchableOpacity>
+
+					{/* Bouton d'export CSV */}
+					<TouchableOpacity
+						style={[
+							styles.exportButton,
+							isExporting && styles.exportButtonDisabled,
+						]}
+						onPress={exportAccountingData}
+						disabled={isExporting}
+					>
+						{isExporting ? (
+							<>
+								<ActivityIndicator size="small" color="#fff" />
+								<Text style={styles.exportButtonText}>Export en cours...</Text>
+							</>
+						) : (
+							<>
+								<Ionicons name="download" size={20} color="#fff" />
+								<Text style={styles.exportButtonText}>
+									Télécharger Excel/CSV
+								</Text>
+							</>
+						)}
+					</TouchableOpacity>
+
+					{/* Info sur l'export */}
+					<View
+						style={{
+							backgroundColor: THEME.colors.background.card,
+							borderRadius: THEME.radius.md,
+							padding: THEME.spacing.md,
+							marginTop: THEME.spacing.md,
+							borderLeftWidth: 4,
+							borderLeftColor: "#22C55E",
+						}}
+					>
+						<Text
+							style={{
+								fontSize: 14,
+								color: THEME.colors.text.primary,
+								fontWeight: "600",
+								marginBottom: THEME.spacing.xs,
+							}}
+						>
+							📄 Contenu de l&apos;export :
+						</Text>
+						<Text
+							style={{
+								fontSize: 12,
+								color: THEME.colors.text.secondary,
+								lineHeight: 18,
+							}}
+						>
+							• Résumé financier complet (CA, TVA, marges){"\n"}• Détail de
+							toutes les commandes{"\n"}• Analyse des produits populaires{"\n"}•
+							Évolution quotidienne{"\n"}• Format CSV compatible Excel
+						</Text>
+					</View>
+				</View>
+			</View>
+		</ScrollView>
+	);
+
+	if (isLoading && !data.totalRevenue) {
+		return (
+			<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
 				<View style={styles.modalContainer}>
-					<View style={styles.modalHeader}>
-						<Text style={styles.modalTitle}>💰 Comptabilité</Text>
+					<View style={styles.header}>
+						<Text style={styles.title}>💰 Comptabilité</Text>
 						{onClose && (
 							<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-								<Ionicons name="close" size={24} color={THEME.colors.text.primary} />
+								<Ionicons
+									name="close"
+									size={24}
+									color={THEME.colors.text.primary}
+								/>
 							</TouchableOpacity>
 						)}
 					</View>
-					<View style={[styles.scrollContainer, styles.centerContent]}>
-						<ActivityIndicator size="large" color={THEME.colors.primary.amber} />
-						<Text style={[styles.errorText, { color: THEME.colors.text.secondary }]}>
-							Chargement des données...
+					<View style={styles.loadingContainer}>
+						<ActivityIndicator
+							size="large"
+							color={THEME.colors.primary.amber}
+						/>
+						<Text style={styles.loadingText}>
+							Chargement des données comptables...
 						</Text>
 					</View>
 				</View>
@@ -292,62 +910,98 @@ export default function AccountingScreen({ onClose }) {
 		);
 	}
 
+	// ═══════════════════════════════════════════════════════════════════════
+	// 🎨 RENDU PRINCIPAL
+	// ═══════════════════════════════════════════════════════════════════════
 	return (
-		<Modal
-			visible={true}
-			animationType="slide"
-			presentationStyle="pageSheet"
-		>
+		<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
 			<View style={styles.modalContainer}>
-				{/* Modal Header */}
-				<View style={styles.modalHeader}>
-					<Text style={styles.modalTitle}>💰 Comptabilité</Text>
+				{/* Header */}
+				<View style={styles.header}>
+					<Text style={styles.title}>💰 Comptabilité</Text>
 					{onClose && (
 						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-							<Ionicons name="close" size={24} color={THEME.colors.text.primary} />
+							<Ionicons
+								name="close"
+								size={24}
+								color={THEME.colors.text.primary}
+							/>
 						</TouchableOpacity>
 					)}
 				</View>
-				
-				<ScrollView style={styles.scrollContainer} showsVerticalScrollIndicator={false}>
-					{/* Header */}
-					<View style={styles.header}>
-						<Text style={styles.subtitle}>Aperçu des données financières</Text>
-					</View>
 
-					{/* Stats Cards */}
-					<View style={styles.statsContainer}>
-						<View style={styles.statCard}>
-							<Text style={styles.statValue}>€{data.totalVentes.toFixed(2)}</Text>
-							<Text style={styles.statLabel}>Total Ventes</Text>
-						</View>
+				{/* Sélecteur de période */}
+				<View style={styles.periodSelector}>
+					{PERIODS.map((period) => (
+						<TouchableOpacity
+							key={period.key}
+							style={[
+								styles.periodButton,
+								selectedPeriod === period.key && styles.periodButtonActive,
+							]}
+							onPress={() => {
+								setSelectedPeriod(period.key);
+								setDataLoaded(false); // Forcer le rechargement
+							}}
+						>
+							<Ionicons
+								name={period.icon}
+								size={16}
+								color={
+									selectedPeriod === period.key
+										? "#fff"
+										: THEME.colors.text.secondary
+								}
+							/>
+							<Text
+								style={[
+									styles.periodButtonText,
+									selectedPeriod === period.key &&
+										styles.periodButtonTextActive,
+								]}
+							>
+								{period.label}
+							</Text>
+						</TouchableOpacity>
+					))}
+				</View>
 
-						<View style={styles.statCard}>
-							<Text style={styles.statValue}>{data.totalCommandes}</Text>
-							<Text style={styles.statLabel}>Commandes</Text>
-						</View>
+				{/* Sélecteur d'onglets */}
+				<View style={styles.tabSelector}>
+					{TABS.map((tab) => (
+						<TouchableOpacity
+							key={tab.key}
+							style={[
+								styles.tabButton,
+								selectedTab === tab.key && styles.tabButtonActive,
+							]}
+							onPress={() => setSelectedTab(tab.key)}
+						>
+							<Ionicons
+								name={tab.icon}
+								size={18}
+								color={
+									selectedTab === tab.key
+										? THEME.colors.primary.amber
+										: THEME.colors.text.secondary
+								}
+							/>
+							<Text
+								style={[
+									styles.tabButtonText,
+									selectedTab === tab.key && styles.tabButtonTextActive,
+								]}
+							>
+								{tab.label}
+							</Text>
+						</TouchableOpacity>
+					))}
+				</View>
 
-						<View style={styles.statCard}>
-							<Text style={styles.statValue}>€{data.moyennePanier.toFixed(2)}</Text>
-							<Text style={styles.statLabel}>Panier Moyen</Text>
-						</View>
-						
-						<View style={styles.statCard}>
-							<Text style={styles.statValue}>{data.produitPopulaire}</Text>
-							<Text style={styles.statLabel}>Produit Populaire</Text>
-						</View>
-					</View>
-
-					{/* Bouton actualiser */}
-					<TouchableOpacity
-						style={styles.refreshButton}
-						onPress={loadData}
-						disabled={isLoading}
-					>
-						<Ionicons name="refresh" size={20} color="#fff" />
-						<Text style={styles.refreshButtonText}>Actualiser les données</Text>
-					</TouchableOpacity>
-				</ScrollView>
+				{/* Contenu des onglets */}
+				{selectedTab === "overview" && renderOverviewTab()}
+				{selectedTab === "charts" && renderChartsTab()}
+				{selectedTab === "details" && renderDetailsTab()}
 			</View>
 		</Modal>
 	);
