@@ -26,7 +26,6 @@
     "expo-av": "~16.0.8",
     "expo-barcode-scanner": "^13.0.1",
     "expo-blur": "~15.0.8",
-    "expo-clipboard": "~8.0.8",
     "expo-constants": "^18.0.8",
     "expo-crypto": "~15.0.8",
     "expo-dev-client": "~6.0.20",

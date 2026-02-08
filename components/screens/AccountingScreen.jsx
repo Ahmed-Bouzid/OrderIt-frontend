@@ -19,7 +19,6 @@ import useUserStore from "../../src/stores/useUserStore";
 import * as SecureStore from "expo-secure-store";
 import { API_CONFIG } from "../../src/config/apiConfig";
 import { LineChart, BarChart, PieChart } from "react-native-chart-kit";
-import * as Clipboard from "expo-clipboard";
 
 const { width: screenWidth } = Dimensions.get("window");
 
@@ -35,7 +34,6 @@ export default function AccountingScreen({ onClose }) {
 	const [dataLoaded, setDataLoaded] = useState(false);
 	const [selectedPeriod, setSelectedPeriod] = useState("today");
 	const [selectedTab, setSelectedTab] = useState("overview");
-	const [isExporting, setIsExporting] = useState(false);
 
 	// Données principales
 	const [data, setData] = useState({
@@ -182,66 +180,6 @@ export default function AccountingScreen({ onClose }) {
 				"❌ [AccountingScreen] Erreur chargement graphiques:",
 				error,
 			);
-		}
-	};
-
-	// ═══════════════════════════════════════════════════════════════════════
-	// 📥 FONCTION D'EXPORT
-	// ═══════════════════════════════════════════════════════════════════════
-	const exportAccountingData = async () => {
-		setIsExporting(true);
-		try {
-			console.log(
-				`📥 [AccountingScreen] Démarrage export pour période: ${selectedPeriod}`,
-			);
-
-			const response = await fetch(
-				`${API_CONFIG.baseURL}/accounting/export?period=${selectedPeriod}&format=csv`,
-				{
-					method: "GET",
-					headers: {
-						Authorization: `Bearer ${token}`,
-						"Content-Type": "application/json",
-					},
-				},
-			);
-
-			if (!response.ok) {
-				throw new Error(`Erreur export: ${response.status}`);
-			}
-
-			// Récupérer le contenu CSV
-			const csvContent = await response.text();
-
-			// Créer le nom de fichier
-			const periodLabels = {
-				today: "aujourd-hui",
-				week: "cette-semaine",
-				month: "ce-mois",
-				year: "cette-annee",
-			};
-
-			const fileName = `comptabilite-${periodLabels[selectedPeriod] || selectedPeriod}-${new Date().toISOString().split("T")[0]}.csv`;
-			
-			// Copier les données CSV dans le presse-papier
-			await Clipboard.setStringAsync(csvContent);
-
-			console.log("✅ [AccountingScreen] Données copiées dans le presse-papier");
-
-			Alert.alert(
-				"📊 Export réussi !",
-				`Les données comptables ont été copiées dans le presse-papier au format CSV.\n\n• Ouvrez Excel, Numbers ou Google Sheets\n• Collez les données (Ctrl+V ou Cmd+V)\n• Sauvegardez sous: ${fileName}\n\n💡 Le format CSV sera automatiquement reconnu !`,
-				[{ text: "Compris !" }],
-			);
-		} catch (error) {
-			console.error("❌ [AccountingScreen] Erreur export:", error);
-			Alert.alert(
-				"Erreur d'export",
-				"Impossible d'exporter les données. Vérifiez votre connexion et réessayez.",
-				[{ text: "OK" }],
-			);
-		} finally {
-			setIsExporting(false);
 		}
 	};
 
@@ -438,26 +376,6 @@ export default function AccountingScreen({ onClose }) {
 			fontSize: 16,
 			color: THEME.colors.text.secondary,
 			marginTop: THEME.spacing.md,
-		},
-		// Boutons d'export
-		exportButton: {
-			backgroundColor: "#22C55E",
-			borderRadius: THEME.radius.lg,
-			padding: THEME.spacing.md,
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "center",
-			marginTop: THEME.spacing.lg,
-		},
-		exportButtonDisabled: {
-			backgroundColor: THEME.colors.text.muted,
-			opacity: 0.6,
-		},
-		exportButtonText: {
-			color: "#fff",
-			fontWeight: "600",
-			fontSize: 16,
-			marginLeft: THEME.spacing.sm,
 		},
 	};
 
@@ -792,64 +710,6 @@ export default function AccountingScreen({ onClose }) {
 							🔄 Actualiser les données
 						</Text>
 					</TouchableOpacity>
-
-					{/* Bouton d'export CSV */}
-					<TouchableOpacity
-						style={[
-							styles.exportButton,
-							isExporting && styles.exportButtonDisabled,
-						]}
-						onPress={exportAccountingData}
-						disabled={isExporting}
-					>
-						{isExporting ? (
-							<>
-								<ActivityIndicator size="small" color="#fff" />
-								<Text style={styles.exportButtonText}>Export en cours...</Text>
-							</>
-						) : (
-							<>
-								<Ionicons name="copy" size={20} color="#fff" />
-								<Text style={styles.exportButtonText}>
-									Copier données CSV
-								</Text>
-							</>
-						)}
-					</TouchableOpacity>
-
-					{/* Info sur l'export */}
-					<View
-						style={{
-							backgroundColor: THEME.colors.background.card,
-							borderRadius: THEME.radius.md,
-							padding: THEME.spacing.md,
-							marginTop: THEME.spacing.md,
-							borderLeftWidth: 4,
-							borderLeftColor: "#22C55E",
-						}}
-					>
-						<Text
-							style={{
-								fontSize: 14,
-								color: THEME.colors.text.primary,
-								fontWeight: "600",
-								marginBottom: THEME.spacing.xs,
-							}}
-						>
-							� Export via presse-papier :
-						</Text>
-						<Text
-							style={{
-								fontSize: 12,
-								color: THEME.colors.text.secondary,
-								lineHeight: 18,
-							}}
-						>
-							• Résumé financier complet (CA, TVA, marges){"\n"}• Détail de
-							toutes les commandes{"\n"}• Analyse des produits populaires{"\n"}•
-							Évolution quotidienne{"\n"}• Format CSV prêt pour Excel/Numbers
-						</Text>
-					</View>
 				</View>
 			</View>
 		</ScrollView>
