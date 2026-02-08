@@ -497,7 +497,7 @@ export const PremiumTPEModal = ({
 	};
 
 	const getApiUrl = () => {
-		return API_CONFIG?.baseURL || "https://sunnygo-backend-6y1m.onrender.com";
+		return API_CONFIG?.baseURL || "https://orderit-backend-6y1m.onrender.com";
 	};
 
 	// ═══════════════════════════════════════════════════════════════════════

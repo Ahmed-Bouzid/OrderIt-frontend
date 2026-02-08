@@ -50,7 +50,7 @@ export const ProductOptionsModal = ({
 					const response = await fetch(
 						`${
 							process.env.EXPO_PUBLIC_API_URL ||
-							"https://sunnygo-backend-6y1m.onrender.com"
+							"https://orderit-backend-6y1m.onrender.com"
 						}/products/${product._id}/options`,
 						{
 							headers: {

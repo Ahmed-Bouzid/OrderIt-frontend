@@ -78,10 +78,10 @@ export default function ManageFeatures() {
 		try {
 			const [restaurantsRes, statsRes] = await Promise.all([
 				fetch(
-					"https://sunnygo-backend-6y1m.onrender.com/api/developer/features",
+					"https://orderit-backend-6y1m.onrender.com/api/developer/features",
 				),
 				fetch(
-					"https://sunnygo-backend-6y1m.onrender.com/api/developer/features/stats",
+					"https://orderit-backend-6y1m.onrender.com/api/developer/features/stats",
 				),
 			]);
 
@@ -125,7 +125,7 @@ export default function ManageFeatures() {
 	const toggleFeature = async (restaurantId, featureName, currentEnabled) => {
 		try {
 			const response = await fetch(
-				`https://sunnygo-backend-6y1m.onrender.com/api/developer/features/${restaurantId}/toggle`,
+				`https://orderit-backend-6y1m.onrender.com/api/developer/features/${restaurantId}/toggle`,
 				{
 					method: "POST",
 					headers: {

@@ -56,35 +56,43 @@ const LeaderboardSection = ({
 	}, [animationDelay, opacity, slideY]);
 
 	// ─────────────── Metrics Options ───────────────
-	const metrics = useMemo(() => [
-		{
-			key: "totalRevenue",
-			label: "Chiffre d'Affaires",
-			icon: "cash",
-			unit: "€",
-		},
-		{ key: "totalOrders", label: "Commandes", icon: "restaurant", unit: "" },
-		{
-			key: "performanceScore",
-			label: "Score Global",
-			icon: "trophy",
-			unit: "%",
-		},
-		{ key: "customerRating", label: "Satisfaction", icon: "star", unit: "/5" },
-		{
-			key: "upsellRate",
-			label: "Vente Additionnelle",
-			icon: "trending-up",
-			unit: "%",
-		},
-		{
-			key: "averageServiceTime",
-			label: "Rapidité",
-			icon: "time",
-			unit: "min",
-			reverse: true,
-		},
-	], []);
+	const metrics = useMemo(
+		() => [
+			{
+				key: "totalRevenue",
+				label: "Chiffre d'Affaires",
+				icon: "cash",
+				unit: "€",
+			},
+			{ key: "totalOrders", label: "Commandes", icon: "restaurant", unit: "" },
+			{
+				key: "performanceScore",
+				label: "Score Global",
+				icon: "trophy",
+				unit: "%",
+			},
+			{
+				key: "customerRating",
+				label: "Satisfaction",
+				icon: "star",
+				unit: "/5",
+			},
+			{
+				key: "upsellRate",
+				label: "Vente Additionnelle",
+				icon: "trending-up",
+				unit: "%",
+			},
+			{
+				key: "averageServiceTime",
+				label: "Rapidité",
+				icon: "time",
+				unit: "min",
+				reverse: true,
+			},
+		],
+		[],
+	);
 
 	// ─────────────── Data Processing ───────────────
 	const rankedServers = useMemo(() => {
