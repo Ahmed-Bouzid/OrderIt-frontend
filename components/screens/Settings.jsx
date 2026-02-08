@@ -29,6 +29,7 @@ import {
 	MenuManagement,
 	SecuritySettings,
 	TableManagement,
+	CRMPerformance,
 } from "./manager";
 import FeedbackModal from "../modals/FeedbackModal";
 import feedbackService from "../../services/feedbackService";
@@ -552,6 +553,9 @@ export default function Settings() {
 			case "security":
 				return <SecuritySettings />;
 
+			case "crm":
+				return <CRMPerformance />;
+
 			case "messaging":
 				return (
 					<>
@@ -934,6 +938,11 @@ export default function Settings() {
 									icon="analytics-outline"
 									label="Comptabilité"
 									section="accounting"
+								/>
+								<MenuItem
+									icon="stats-chart-outline"
+									label="CRM Performance"
+									section="crm"
 								/>
 								<MenuItem
 									icon="chatbubbles-outline"
