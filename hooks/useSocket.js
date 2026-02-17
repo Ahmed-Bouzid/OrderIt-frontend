@@ -312,19 +312,16 @@ const useSocket = () => {
 						);
 					}
 				} else {
-					console.error("❌ Erreur connexion Socket:", errorMsg);
+			console.log("⏱️ Token expiré/invalide (normal après inactivité):", errorMsg);
 
-					// ⭐ Vérifier si c'est une erreur d'authentification
-					if (
-						errorMsg.toLowerCase().includes("token invalide") ||
-						errorMsg.toLowerCase().includes("unauthorized") ||
-						errorMsg.toLowerCase().includes("authentification")
-					) {
-						console.error(
-							"🔐 Erreur d'authentification Socket → Arrêt complet + Redirection login",
-						);
-
-						// ⭐ CRITIQUE: Arrêter complètement le socket AVANT la redirection
+			// ⭐ Vérifier si c'est une erreur d'authentification
+			if (
+				errorMsg.toLowerCase().includes("token invalide") ||
+				errorMsg.toLowerCase().includes("unauthorized") ||
+				errorMsg.toLowerCase().includes("authentification")
+			) {
+				console.log(
+					"🔐 Session expirée → Redirection login (comportement normal)",
 						// pour éviter la boucle infinie de reconnexion
 						stopHeartbeat();
 						if (socketInstance) {
@@ -356,8 +353,8 @@ const useSocket = () => {
 
 					// Activer le fallback après max tentatives
 					if (globalReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
-						console.error(
-							"❌ Max tentatives atteint → Activation du mode fallback REST",
+					console.warn(
+						"⚠️ Max tentatives de reconnexion atteint → Mode fallback activé",
 						);
 						globalFallbackMode = true;
 						notifyConnectionChange(
@@ -380,7 +377,7 @@ const useSocket = () => {
 			// ============ LISTENER: ÉCHEC DÉFINITIF ============
 			socket.off("reconnect_failed");
 			socket.on("reconnect_failed", () => {
-				console.error("❌ Reconnexion échouée définitivement");
+			console.warn("⚠️ Reconnexion échouée → Mode fallback activé");
 				globalFallbackMode = true;
 				scheduleFallbackExit();
 			});
