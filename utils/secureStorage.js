@@ -88,17 +88,8 @@ export async function getItem(key) {
 		if (isSecureKey(key)) {
 			const secureKey = normalizeKey(key);
 			value = await SecureStore.getItemAsync(secureKey);
-			// Log uniquement lors de la vraie lecture (pas du cache)
-			console.log(
-				`🔐 SecureStore.getItem("${secureKey}"):`,
-				value ? "✅ exists" : "❌ null",
-			);
 		} else {
 			value = await AsyncStorage.getItem(key);
-			console.log(
-				`📦 AsyncStorage.getItem("${key}"):`,
-				value ? "✅ exists" : "❌ null",
-			);
 		}
 
 		// ⭐ Mettre en cache
@@ -141,10 +132,8 @@ export async function setItem(key, value) {
 		if (isSecureKey(key)) {
 			const secureKey = normalizeKey(key);
 			await SecureStore.setItemAsync(secureKey, value);
-			console.log(`🔐 SecureStore.setItem("${secureKey}"): ✅`);
 		} else {
 			await AsyncStorage.setItem(key, value);
-			console.log(`📦 AsyncStorage.setItem("${key}"): ✅`);
 		}
 		// ⭐ Mettre à jour le cache après écriture réussie
 		setCache(cacheKey, value);
