@@ -83,6 +83,12 @@ const useReservationStore = create((set, get) => ({
 	fetchReservations: async (force = false) => {
 		const state = get();
 
+		console.log(`\n🔵 [DEBUG RESA] ========================================`);
+		console.log(`🔵 [DEBUG RESA] FETCH RÉSERVATIONS`);
+		console.log(`🔵 [DEBUG RESA] ========================================`);
+		console.log(`🔵 Force: ${force}`);
+		console.log(`🔵 Cache actuel: ${state.reservations.length} réservations`);
+
 		// ⭐ Si pas de force et cache existe, retourner le cache
 		if (!force && state.reservations.length > 0) {
 			console.log("📦 Réservations déjà en cache, pas de fetch");
@@ -97,9 +103,15 @@ const useReservationStore = create((set, get) => ({
 
 		fetchPromise = (async () => {
 			try {
+				console.log(`🔍 [DEBUG RESA] Lecture token et restaurantId...`);
 				const token = await getSecureItem("@access_token");
 				const restaurantId = await AsyncStorage.getItem("restaurantId");
+				
+				console.log(`🔍 [DEBUG RESA] Token présent: ${!!token}`);
+				console.log(`🔍 [DEBUG RESA] RestaurantId: ${restaurantId}`);
+				
 				if (!token || !restaurantId) {
+					console.error(`❌ [DEBUG RESA] Données manquantes!`);
 					return {
 						success: false,
 						error: "NO_TOKEN_OR_RESTAURANT",
@@ -108,9 +120,13 @@ const useReservationStore = create((set, get) => ({
 				}
 
 				const url = `${API_CONFIG.baseURL}/reservations/restaurant/${restaurantId}`;
+				console.log(`📡 [DEBUG RESA] Appel API: ${url}`);
+				
 				const response = await fetch(url, {
 					headers: { Authorization: `Bearer ${token}` },
 				});
+
+				console.log(`📡 [DEBUG RESA] Response status: ${response.status}`);
 
 				// 🔹 si le token est invalide ou expiré
 				if (response.status === 401 || response.status === 403) {
@@ -134,6 +150,14 @@ const useReservationStore = create((set, get) => ({
 
 				const data = await response.json();
 				const fetchedReservations = data.reservations || data;
+
+				console.log(`✅ [DEBUG RESA] Réservations reçues de l'API: ${Array.isArray(fetchedReservations) ? fetchedReservations.length : 'format incorrect'}`);
+				if (Array.isArray(fetchedReservations) && fetchedReservations.length > 0) {
+					console.log(`📋 [DEBUG RESA] Premières réservations:`);
+					fetchedReservations.slice(0, 3).forEach(r => {
+						console.log(`   - ${r.clientName} (${r._id?.slice(-6)}) - ${r.status} - ${new Date(r.reservationDate).toLocaleDateString()}`);
+					});
+				}
 
 				// ⭐ IMPORTANT: Fusionner au lieu d'écraser pour garder les réservations WebSocket
 				// Les réservations ajoutées via WebSocket qui ne sont pas dans la réponse API
@@ -159,6 +183,8 @@ const useReservationStore = create((set, get) => ({
 				// Forcer un nouveau tableau d'objets (deep copy) pour garantir le re-render
 				const refreshedReservations = mergedReservations.map((r) => ({ ...r }));
 				set({ reservations: refreshedReservations });
+								console.log(`💾 [DEBUG RESA] Réservations stockées dans le state: ${refreshedReservations.length}`);
+								console.log(`🔵 [DEBUG RESA] ========================================\n`);
 				return { success: true, data: refreshedReservations };
 			} catch (err) {
 				console.error("🚨 Erreur récupération réservations :", err);
