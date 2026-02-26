@@ -5,17 +5,25 @@
  *
  * Accessible uniquement aux admins et managers
  */
-import React, { useState, useCallback, useMemo } from "react";
+import React, {
+	useState,
+	useCallback,
+	useRef,
+	useMemo,
+	useEffect,
+} from "react";
 import {
 	View,
 	Text,
 	StyleSheet,
+	Animated,
 	TouchableOpacity,
 	Alert,
 	ScrollView,
 	RefreshControl,
 	Modal,
 } from "react-native";
+import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
 // Hooks et stores
@@ -23,8 +31,7 @@ import useUserStore from "../../../src/stores/useUserStore";
 import { useTheme } from "../../../hooks/useTheme";
 import { useCRMData } from "../../../hooks/useCRMData";
 import { useCRMActions } from "../../../hooks/useCRMActions";
-// Composants UI
-import LoadingSkeleton from "../../dashboard/LoadingSkeleton";
+
 // Composants CRM spécialisés
 import {
 	KPICard,
@@ -32,35 +39,49 @@ import {
 	PerformanceChart,
 	LeaderboardSection,
 	RecommendationsPanel,
-	DonutChart,
 } from "../../crm";
-import ServerPerformanceDetail from "./ServerPerformanceDetail";
-import { MessageForm } from "../../messaging";
 
 export default function CRMPerformance({ onClose }) {
-	// ─────────────── États et données (AVANT tout contrôle conditionnel) ───────────────
+	// ─────────────── Hooks (toujours appelés en premier) ───────────────
+	const THEME = useTheme();
+	const isManager = useUserStore((state) => state.checkIsManager());
+
+	// États et données
 	const [selectedPeriod, setSelectedPeriod] = useState("week");
 	const [selectedTab, setSelectedTab] = useState("dashboard");
 	const [refreshing, setRefreshing] = useState(false);
 
-	// État pour le profil individuel
-	const [selectedServer, setSelectedServer] = useState(null);
+	// Animation
+	const fadeAnim = useRef(new Animated.Value(0)).current;
+	const slideAnim = useRef(new Animated.Value(100)).current;
 
-	// État pour le formulaire de message
-	const [showMessageForm, setShowMessageForm] = useState(false);
-	const [messageFormServer, setMessageFormServer] = useState(null);
-
-	// Hooks personnalisés CRM
-	const { dashboard, servers, isLoading, refreshData } =
+	// Hooks CRM personnalisés
+	const { dashboard, servers, leaderboard, isLoading, error, refreshData } =
 		useCRMData(selectedPeriod);
 
 	const { sendCoachingAlert } = useCRMActions();
 
-	// Hooks de thème et autorisation
-	const THEME = useTheme();
-	const isManager = useUserStore((state) => state.checkIsManager());
+	// Styles
+	const styles = useMemo(() => createStyles(THEME), [THEME]);
 
-	// Callbacks
+	// ─────────────── Effets ───────────────
+	useEffect(() => {
+		// Animation d'entrée
+		Animated.parallel([
+			Animated.timing(fadeAnim, {
+				toValue: 1,
+				duration: 300,
+				useNativeDriver: true,
+			}),
+			Animated.timing(slideAnim, {
+				toValue: 0,
+				duration: 400,
+				useNativeDriver: true,
+			}),
+		]).start();
+	}, [fadeAnim, slideAnim]);
+
+	// ─────────────── Handlers ───────────────
 	const handleRefresh = useCallback(async () => {
 		setRefreshing(true);
 		await refreshData();
@@ -75,71 +96,56 @@ export default function CRMPerformance({ onClose }) {
 		setSelectedTab(tab);
 	}, []);
 
-	const handleCoachingActionPress = useCallback((server) => {
-		// Ouvrir le formulaire de message
-		setMessageFormServer(server);
-		setShowMessageForm(true);
-	}, []);
+	const handleCoachingActionPress = useCallback(
+		(recommendation) => {
+			Alert.alert(
+				"Action de Coaching",
+				`Voulez-vous envoyer une recommandation de coaching à ${recommendation.serverName} ?`,
+				[
+					{ text: "Annuler" },
+					{
+						text: "Envoyer",
+						onPress: async () => {
+							try {
+								await sendCoachingAlert(recommendation);
+								Alert.alert("Envoyé", "La recommandation a été envoyée");
+							} catch (_error) {
+								Alert.alert("Erreur", "Impossible d'envoyer la recommandation");
+							}
+						},
+					},
+				],
+			);
+		},
+		[sendCoachingAlert],
+	);
 
 	const handleServerPress = useCallback((server) => {
-		// Ouvrir le profil détaillé du serveur
-		setSelectedServer(server);
+		// Navigation vers les détails du serveur
+		console.log("Afficher détails serveur:", server.name);
 	}, []);
 
 	const handleContactPress = useCallback((server) => {
-		// Options de contact disponibles
-		const contactOptions = [
+		Alert.alert("Contact", `Contacter ${server.name}?`, [
+			{ text: "Annuler", style: "cancel" },
 			{
-				text: "Appel",
-				onPress: () => {
-					// Copier le numéro de téléphone
-					console.log("📱 Appel:", server.phone);
-					Alert.alert(
-						"Contact",
-						`Appelez ${server?.name} au ${server?.phone || "N/A"}`,
-					);
-				},
+				text: "Message",
+				onPress: () => console.log("Envoyer message à", server.name),
 			},
-			{
-				text: "SMS",
-				onPress: () => {
-					console.log("💬 SMS:", server.phone);
-					Alert.alert("Message", `Envoyer un SMS à ${server?.name}`);
-				},
-			},
-			{
-				text: "Email",
-				onPress: () => {
-					console.log("📧 Email:", server.email);
-					Alert.alert("Email", `Envoyer un email à ${server?.email || "N/A"}`);
-				},
-			},
-			{
-				text: "Annuler",
-				style: "cancel",
-			},
-		];
-
-		Alert.alert(
-			"Contacter le Serveur",
-			`Choose une méthode de contact pour ${server?.name}:`,
-			contactOptions,
-		);
+		]);
 	}, []);
 
 	const markCoachingCompleted = useCallback(
 		async (recommendationId, notes = "") => {
 			try {
-				// Logic pour marquer as completed
-				console.log("✅ Coaching terminé:", { recommendationId, notes });
-			} catch (error) {
-				console.error("Erreur coaching completion:", error);
+				console.log("Marqué comme complété:", recommendationId, notes);
+				Alert.alert("Succès", "Coaching marqué comme complété");
+			} catch (_error) {
+				Alert.alert("Erreur", "Impossible de marquer comme complété");
 			}
 		},
 		[],
 	);
-
-	const styles = useMemo(() => createStyles(THEME), [THEME]);
 
 	// ─────────────── Validation d'accès ───────────────
 	if (!isManager) {
@@ -152,7 +158,9 @@ export default function CRMPerformance({ onClose }) {
 					]}
 				>
 					<View style={styles.header}>
-						<Text style={[styles.title, { color: THEME.colors.text.primary }]}>
+						<Text
+							style={[styles.headerTitle, { color: THEME.colors.text.primary }]}
+						>
 							📊 CRM Performance
 						</Text>
 						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
@@ -188,9 +196,7 @@ export default function CRMPerformance({ onClose }) {
 		);
 	}
 
-	// ─────────────── Rendu du contenu principal ───────────────
-
-	// ─────────────── Composants de navigation ───────────────
+	// ─────────────── Composants utilitaires ───────────────
 	const TabButton = ({ id, icon, label, isActive }) => (
 		<TouchableOpacity
 			style={[styles.tabButton, isActive && styles.tabButtonActive]}
@@ -199,14 +205,10 @@ export default function CRMPerformance({ onClose }) {
 			<Ionicons
 				name={icon}
 				size={20}
-				color={isActive ? "#FFFFFF" : THEME.colors.text.secondary}
+				color={isActive ? "#FFFFFF" : "#6B7280"}
 			/>
 			<Text
-				style={[
-					styles.tabButtonText,
-					isActive && styles.tabButtonTextActive,
-					{ color: isActive ? "#FFFFFF" : THEME.colors.text.secondary },
-				]}
+				style={[styles.tabButtonText, isActive && styles.tabButtonTextActive]}
 			>
 				{label}
 			</Text>
@@ -291,118 +293,6 @@ export default function CRMPerformance({ onClose }) {
 						color="info"
 						animationDelay={300}
 						loading={isLoading}
-					/>
-				</View>
-
-				{/* Nouvelles métriques */}
-				<View style={styles.kpiRow}>
-					<KPICard
-						title="Temps Attente Tampon"
-						value={Math.round(dashboard?.kpi?.averageWaitTime || 0)}
-						unit="min"
-						icon="timer-outline"
-						color="warning"
-						animationDelay={350}
-						loading={isLoading}
-					/>
-					<KPICard
-						title="Satisfaction Client"
-						value={(dashboard?.kpi?.customerSatisfaction || 0).toFixed(1)}
-						unit="/5"
-						icon="star-outline"
-						color="success"
-						animationDelay={400}
-						loading={isLoading}
-					/>
-				</View>
-			</View>
-
-			{/* Graphiques Donut - Nouvelles métriques */}
-			<View style={styles.donutSection}>
-				<Text
-					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
-				>
-					📊 Analyse Détaillée
-				</Text>
-
-				{/* Répartition Réservations */}
-				<View
-					style={[
-						styles.donutCard,
-						{ backgroundColor: THEME.colors.background.elevated },
-					]}
-				>
-					<DonutChart
-						data={[
-							{
-								label: "Ouvertes",
-								value: dashboard?.reservations?.open || 0,
-								color: "#10B981",
-							},
-							{
-								label: "Fermées",
-								value: dashboard?.reservations?.closed || 0,
-								color: "#6B7280",
-							},
-						]}
-						size={180}
-						strokeWidth={25}
-						title="Réservations"
-						centerLabel="Total"
-						showLegend={true}
-						animationDelay={500}
-					/>
-				</View>
-
-				{/* Méthodes de Paiement */}
-				<View
-					style={[
-						styles.donutCard,
-						{ backgroundColor: THEME.colors.background.elevated },
-					]}
-				>
-					<DonutChart
-						data={[
-							{
-								label: "Espèces",
-								value: dashboard?.payments?.cash || 0,
-								color: "#F59E0B",
-							},
-							{
-								label: "Carte Bancaire",
-								value: dashboard?.payments?.card || 0,
-								color: "#3B82F6",
-							},
-						]}
-						size={180}
-						strokeWidth={25}
-						title="Méthodes de Paiement"
-						centerValue={`${((dashboard?.payments?.cash || 0) + (dashboard?.payments?.card || 0)).toLocaleString()}€`}
-						centerLabel="CA Total"
-						showLegend={true}
-						animationDelay={600}
-					/>
-				</View>
-
-				{/* Produits Add-ons */}
-				<View
-					style={[
-						styles.donutCard,
-						{ backgroundColor: THEME.colors.background.elevated },
-					]}
-				>
-					<DonutChart
-						data={
-							dashboard?.addOns || [
-								{ label: "Add-ons", value: 0, color: "#8B5CF6" },
-							]
-						}
-						size={180}
-						strokeWidth={25}
-						title="Produits Add-ons Vendus"
-						centerLabel="Upsell"
-						showLegend={true}
-						animationDelay={700}
 					/>
 				</View>
 			</View>
@@ -496,7 +386,7 @@ export default function CRMPerformance({ onClose }) {
 			}
 		>
 			<LeaderboardSection
-				servers={servers || []}
+				servers={leaderboard?.leaderboard || []}
 				period={selectedPeriod}
 				metric="totalRevenue"
 				onServerPress={handleServerPress}
@@ -521,17 +411,8 @@ export default function CRMPerformance({ onClose }) {
 				</Text>
 				{/* TODO: Implémenter graphiques de tendances */}
 				<View style={styles.comingSoon}>
-					<Ionicons
-						name="trending-up"
-						size={48}
-						color={THEME.colors.text.secondary}
-					/>
-					<Text
-						style={[
-							styles.comingSoonText,
-							{ color: THEME.colors.text.secondary },
-						]}
-					>
+					<Ionicons name="construct-outline" size={40} color="#9CA3AF" />
+					<Text style={styles.comingSoonText}>
 						Graphiques de tendances à venir
 					</Text>
 				</View>
@@ -540,116 +421,93 @@ export default function CRMPerformance({ onClose }) {
 	);
 
 	// ─────────────── Rendu principal ───────────────
-	if (isLoading && !dashboard) {
-		return (
-			<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-				<View
-					style={[
-						styles.container,
-						{ backgroundColor: THEME.colors.background },
-					]}
-				>
-					<LoadingSkeleton theme={THEME} />
-				</View>
-			</Modal>
-		);
-	}
-
 	return (
 		<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-			<View
+			<Animated.View
 				style={[
 					styles.container,
-					{
-						backgroundColor: THEME.colors.background,
-					},
+					{ backgroundColor: THEME.colors.background, opacity: fadeAnim },
 				]}
 			>
-				{/* Header - Identique à Messagerie/Compta */}
-				<View
-					style={[
-						styles.header,
-						{
-							backgroundColor: THEME.colors.background.card,
-							borderBottomColor: THEME.colors.border.subtle,
-						},
-					]}
+				{/* Header avec gradient */}
+				<LinearGradient
+					colors={["#F59E0B", "#FBBF24"]}
+					style={styles.header}
+					start={{ x: 0, y: 0 }}
+					end={{ x: 1, y: 1 }}
 				>
-					<Text
-						style={[styles.headerTitle, { color: THEME.colors.text.primary }]}
-					>
-						📊 CRM Performance
-					</Text>
-					<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-						<Ionicons
-							name="close"
-							size={22}
-							color={THEME.colors.text.primary}
+					<View style={styles.headerContent}>
+						<View>
+							<Text style={styles.headerTitle}>📊 CRM Performance</Text>
+							<Text style={styles.headerSubtitle}>Analyse des équipes</Text>
+						</View>
+						<View style={styles.headerActions}>
+							<TouchableOpacity
+								onPress={handleRefresh}
+								style={styles.headerButton}
+							>
+								<Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
+							</TouchableOpacity>
+							<TouchableOpacity onPress={onClose} style={styles.closeButton}>
+								<Ionicons name="close" size={24} color="#FFFFFF" />
+							</TouchableOpacity>
+						</View>
+					</View>
+
+					{/* Sélecteur de période */}
+					<PeriodSelector />
+
+					{/* Navigation par onglets */}
+					<View style={styles.tabNavigation}>
+						<TabButton
+							id="dashboard"
+							icon="analytics-outline"
+							label="Dashboard"
+							isActive={selectedTab === "dashboard"}
 						/>
-					</TouchableOpacity>
+						<TabButton
+							id="servers"
+							icon="people-outline"
+							label="Serveurs"
+							isActive={selectedTab === "servers"}
+						/>
+						<TabButton
+							id="leaderboard"
+							icon="trophy-outline"
+							label="Classement"
+							isActive={selectedTab === "leaderboard"}
+						/>
+						<TabButton
+							id="trends"
+							icon="trending-up-outline"
+							label="Tendances"
+							isActive={selectedTab === "trends"}
+						/>
+					</View>
+				</LinearGradient>
+
+				{/* Contenu */}
+				<View style={styles.content}>
+					{error && (
+						<View style={styles.errorBanner}>
+							<Ionicons name="warning-outline" size={20} color="#F59E0B" />
+							<Text style={styles.errorText}>{error}</Text>
+						</View>
+					)}
+
+					{isLoading && (
+						<View style={styles.loadingContainer}>
+							<Ionicons name="hourglass-outline" size={32} color="#F59E0B" />
+							<Text style={styles.loadingText}>Chargement des données...</Text>
+						</View>
+					)}
+
+					{!isLoading && selectedTab === "dashboard" && renderDashboard()}
+					{!isLoading && selectedTab === "servers" && renderServers()}
+					{!isLoading && selectedTab === "leaderboard" && renderLeaderboard()}
+					{!isLoading && selectedTab === "trends" && renderTrends()}
 				</View>
-
-				{/* Sélecteur de période */}
-				<PeriodSelector />
-
-				{/* Navigation par onglets */}
-				<View style={styles.tabNavigation}>
-					<TabButton
-						id="dashboard"
-						icon="analytics-outline"
-						label="Dashboard"
-						isActive={selectedTab === "dashboard"}
-					/>
-					<TabButton
-						id="servers"
-						icon="people-outline"
-						label="Serveurs"
-						isActive={selectedTab === "servers"}
-					/>
-					<TabButton
-						id="leaderboard"
-						icon="trophy-outline"
-						label="Classement"
-						isActive={selectedTab === "leaderboard"}
-					/>
-					<TabButton
-						id="trends"
-						icon="trending-up-outline"
-						label="Tendances"
-						isActive={selectedTab === "trends"}
-					/>
-
-					{selectedTab === "dashboard" && renderDashboard()}
-					{selectedTab === "servers" && renderServers()}
-					{selectedTab === "leaderboard" && renderLeaderboard()}
-					{selectedTab === "trends" && renderTrends()}
-				</View>
-			</View>
-
-			{/* Profil détaillé d'un serveur */}
-			{selectedServer && (
-				<ServerPerformanceDetail
-					server={selectedServer}
-					onClose={() => setSelectedServer(null)}
-				/>
-			)}
-
-			{/* Formulaire de message */}
-			{showMessageForm && messageFormServer && (
-				<MessageForm
-					serverId={messageFormServer._id}
-					serverName={messageFormServer.name}
-					onClose={() => {
-						setShowMessageForm(false);
-						setMessageFormServer(null);
-					}}
-					onSuccess={() => {
-						setShowMessageForm(false);
-						setMessageFormServer(null);
-						refreshData();
-					}}
-				/>
-			)}
+			</Animated.View>
 		</Modal>
 	);
 }
@@ -672,88 +530,122 @@ const createStyles = (THEME) =>
 			flex: 1,
 		},
 		header: {
+			paddingTop: 60,
+			paddingBottom: 20,
+			paddingHorizontal: 20,
+		},
+		headerContent: {
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "center",
-			padding: 16,
-			borderBottomWidth: 1,
+			marginBottom: 20,
 		},
 		headerTitle: {
-			fontSize: 22,
+			fontSize: 24,
 			fontWeight: "700",
+			color: "#FFFFFF",
+			marginBottom: 4,
+		},
+		headerSubtitle: {
+			fontSize: 14,
+			color: "rgba(255, 255, 255, 0.8)",
+		},
+		headerActions: {
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		headerButton: {
+			width: 40,
+			height: 40,
+			borderRadius: 20,
+			backgroundColor: "rgba(255, 255, 255, 0.2)",
+			justifyContent: "center",
+			alignItems: "center",
+			marginRight: 12,
 		},
 		closeButton: {
-			padding: 8,
+			width: 40,
+			height: 40,
+			borderRadius: 20,
+			backgroundColor: "rgba(255, 255, 255, 0.2)",
+			justifyContent: "center",
+			alignItems: "center",
 		},
+
+		// Period Selector
 		periodSelector: {
 			flexDirection: "row",
-			backgroundColor: THEME.colors.background.card,
-			padding: 12,
-			justifyContent: "space-around",
-			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
+			backgroundColor: "rgba(255, 255, 255, 0.15)",
+			borderRadius: 25,
+			padding: 4,
+			marginBottom: 20,
 		},
 		periodButton: {
+			flex: 1,
 			paddingVertical: 8,
 			paddingHorizontal: 12,
-			borderRadius: 8,
-			backgroundColor: THEME.colors.background.subtle,
+			borderRadius: 20,
 			alignItems: "center",
 		},
 		periodButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "rgba(255, 255, 255, 0.3)",
 		},
 		periodButtonText: {
 			fontSize: 12,
-			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			fontWeight: "500",
+			color: "rgba(255, 255, 255, 0.7)",
 		},
 		periodButtonTextActive: {
 			color: "#FFFFFF",
+			fontWeight: "600",
 		},
+
+		// Tab Navigation
 		tabNavigation: {
 			flexDirection: "row",
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "rgba(255, 255, 255, 0.15)",
 			borderRadius: 16,
 			padding: 4,
 		},
 		tabButton: {
 			flex: 1,
-			flexDirection: "row",
+			flexDirection: "column",
 			alignItems: "center",
-			justifyContent: "center",
-			paddingVertical: 12,
-			paddingHorizontal: 8,
+			paddingVertical: 8,
 			borderRadius: 12,
 		},
 		tabButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "rgba(255, 255, 255, 0.3)",
 		},
 		tabButtonText: {
-			fontSize: 12,
-			fontWeight: "600",
-			marginLeft: 4,
+			fontSize: 10,
+			fontWeight: "500",
+			color: "#6B7280",
+			marginTop: 4,
 		},
 		tabButtonTextActive: {
 			color: "#FFFFFF",
+			fontWeight: "600",
 		},
+
+		// Content
 		content: {
 			flex: 1,
-			padding: 12,
+			backgroundColor: THEME.colors.background,
 		},
 		tabContent: {
 			flex: 1,
-			paddingHorizontal: 20,
 		},
+
+		// Error
 		errorBanner: {
 			flexDirection: "row",
 			alignItems: "center",
 			backgroundColor: "#FEF3C7",
 			paddingHorizontal: 16,
 			paddingVertical: 12,
-			marginHorizontal: 20,
-			marginTop: 16,
-			borderRadius: 12,
+			margin: 16,
+			borderRadius: 8,
 		},
 		errorText: {
 			fontSize: 14,
@@ -761,73 +653,73 @@ const createStyles = (THEME) =>
 			marginLeft: 8,
 			flex: 1,
 		},
-		sectionTitle: {
-			fontSize: 20,
-			fontWeight: "bold",
-			marginBottom: 16,
-			marginTop: 24,
+
+		// Loading
+		loadingContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			padding: 40,
 		},
+		loadingText: {
+			fontSize: 16,
+			color: THEME.colors.text.secondary,
+			marginTop: 16,
+		},
+
+		// Sections
 		kpiSection: {
-			marginBottom: 20,
+			padding: 16,
+		},
+		sectionTitle: {
+			fontSize: 18,
+			fontWeight: "600",
+			marginBottom: 16,
 		},
 		kpiRow: {
 			flexDirection: "row",
-			justifyContent: "space-between",
 			marginBottom: 12,
 		},
 		chartSection: {
-			marginBottom: 20,
+			padding: 16,
+			paddingTop: 0,
 		},
 		performersSection: {
-			marginBottom: 20,
+			padding: 16,
+			paddingTop: 0,
 		},
 		serversSection: {
-			marginBottom: 20,
+			padding: 16,
 		},
 		trendsSection: {
-			marginBottom: 20,
+			padding: 16,
 		},
 		comingSoon: {
 			alignItems: "center",
-			paddingVertical: 40,
+			justifyContent: "center",
+			padding: 40,
 		},
 		comingSoonText: {
 			fontSize: 16,
+			color: "#9CA3AF",
 			marginTop: 12,
 		},
+
+		// Access Denied
 		accessDenied: {
 			flex: 1,
-			alignItems: "center",
 			justifyContent: "center",
-			padding: 32,
+			alignItems: "center",
+			padding: 40,
 		},
 		accessTitle: {
-			fontSize: 22,
-			fontWeight: "700",
+			fontSize: 20,
+			fontWeight: "600",
 			marginTop: 16,
 			marginBottom: 8,
 		},
 		accessText: {
 			fontSize: 14,
 			textAlign: "center",
-			lineHeight: 20,
-		},
-		donutSection: {
-			marginVertical: 12,
-			paddingHorizontal: 0,
-		},
-		donutCard: {
-			paddingVertical: 16,
-			paddingHorizontal: 12,
-			borderRadius: 12,
-			marginBottom: 12,
-			marginHorizontal: 12,
-			alignItems: "center",
-			justifyContent: "center",
-			shadowColor: "#000",
-			shadowOffset: { width: 0, height: 2 },
-			shadowOpacity: 0.08,
-			shadowRadius: 8,
-			elevation: 3,
 		},
 	});
