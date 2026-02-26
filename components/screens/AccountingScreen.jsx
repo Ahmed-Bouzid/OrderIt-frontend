@@ -284,7 +284,7 @@ export default function AccountingScreen({ onClose }) {
 			padding: 12,
 			borderRadius: 12,
 			marginBottom: 12,
-		}
+		},
 		metricCardLarge: {
 			width: "100%",
 		},
@@ -297,7 +297,7 @@ export default function AccountingScreen({ onClose }) {
 		metricLabel: {
 			fontSize: 12,
 			color: THEME.colors.text.secondary,
-		}
+		},
 		metricChange: {
 			flexDirection: "row",
 			alignItems: "center",
@@ -306,7 +306,7 @@ export default function AccountingScreen({ onClose }) {
 		metricChangeText: {
 			fontSize: 11,
 			marginLeft: 4,
-		},
+		},,
 		metricChangePositive: {
 			color: "#22C55E",
 		},
