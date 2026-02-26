@@ -3,7 +3,14 @@ export default {
 		name: "SunnyGo",
 		slug: "sunnygo",
 		version: "1.0.0",
+		orientation: "landscape", // Tablette en paysage
 		scheme: "sunnygo", // Ajout pour corriger le warning Expo Linking
+		icon: "./assets/images/icon.png",
+		splash: {
+			image: "./assets/images/splash.png",
+			resizeMode: "contain",
+			backgroundColor: "#000000",
+		},
 		plugins: ["expo-web-browser"],
 		updates: {
 			url: "https://u.expo.dev/dea632ab-80a0-4526-ab61-8a6022535377",
@@ -14,6 +21,10 @@ export default {
 		},
 		android: {
 			package: "com.sunnygo.dev",
+			adaptiveIcon: {
+				foregroundImage: "./assets/images/adaptive-icon.png",
+				backgroundColor: "#000000",
+			},
 		},
 		extra: {
 			eas: {

@@ -67,7 +67,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 			const token = await getSecureItem("@access_token");
 			console.log(
 				"🔑 Token récupéré:",
-				token ? `${token.substring(0, 20)}...` : "NULL"
+				token ? `${token.substring(0, 20)}...` : "NULL",
 			);
 			const url = `${API_URL}/restaurants/${restaurantId}/servers`;
 			const response = await fetch(url, {
@@ -131,7 +131,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 		if (!editingServer && !password.trim()) {
 			Alert.alert(
 				"Erreur",
-				"Le mot de passe est obligatoire pour un nouveau serveur"
+				"Le mot de passe est obligatoire pour un nouveau serveur",
 			);
 			return;
 		}
@@ -153,7 +153,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 							"Content-Type": "application/json",
 						},
 						body: JSON.stringify(updateData),
-					}
+					},
 				);
 
 				if (!response.ok) {
@@ -214,7 +214,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 											Authorization: `Bearer ${token}`,
 											"Content-Type": "application/json",
 										},
-									}
+									},
 								);
 
 								if (!response.ok) {
@@ -229,10 +229,10 @@ export default function ServerManagement({ theme: parentTheme }) {
 							}
 						},
 					},
-				]
+				],
 			);
 		},
-		[fetchServers, refreshServersStore]
+		[fetchServers, refreshServersStore],
 	);
 
 	// Rendu d'un serveur
@@ -292,7 +292,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 				</View>
 			);
 		},
-		[openModal, handleDelete]
+		[openModal, handleDelete],
 	);
 
 	// État vide
@@ -315,7 +315,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 				</LinearGradient>
 			</View>
 		),
-		[]
+		[],
 	);
 
 	const styles = React.useMemo(() => createStyles(THEME), [THEME]);

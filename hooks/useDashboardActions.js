@@ -15,7 +15,7 @@ export const useDashboardActions = (fetchReservations) => {
 		async (reservationId) => {
 			try {
 				const data = await authFetch(
-					`${API_CONFIG.baseURL}/reservations/${reservationId}`
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`,
 				);
 				if (data && !Array.isArray(data)) {
 					setActiveReservation(data);
@@ -24,7 +24,7 @@ export const useDashboardActions = (fetchReservations) => {
 				console.error("❌ Erreur rafraîchissement réservation:", error);
 			}
 		},
-		[authFetch]
+		[authFetch],
 	);
 
 	// Marquer comme présent (utilise la route togglePresent du backend)
@@ -35,7 +35,7 @@ export const useDashboardActions = (fetchReservations) => {
 					`${API_CONFIG.baseURL}/reservations/${id}/togglePresent`,
 					{
 						method: "PUT",
-					}
+					},
 				);
 
 				if (data && !Array.isArray(data)) {
@@ -50,7 +50,7 @@ export const useDashboardActions = (fetchReservations) => {
 			}
 			return false;
 		},
-		[markAsPresent, fetchReservations, authFetch]
+		[markAsPresent, fetchReservations, authFetch],
 	);
 
 	// Mettre à jour le statut
@@ -86,12 +86,12 @@ export const useDashboardActions = (fetchReservations) => {
 										onPress: async () => {
 											const success = await proceedWithStatusUpdate(
 												id,
-												newStatus
+												newStatus,
 											);
 											resolve(success);
 										},
 									},
-								]
+								],
 							);
 						});
 					} else {
@@ -99,7 +99,7 @@ export const useDashboardActions = (fetchReservations) => {
 						Alert.alert(
 							"Paiement requis",
 							"Procédez au paiement avant la fermeture de cette réservation.",
-							[{ text: "OK" }]
+							[{ text: "OK" }],
 						);
 						return false;
 					}
@@ -111,7 +111,7 @@ export const useDashboardActions = (fetchReservations) => {
 			console.log("[DEBUG] Résultat proceedWithStatusUpdate:", result);
 			return result;
 		},
-		[authFetch, fetchReservations, cleanup]
+		[authFetch, fetchReservations, cleanup],
 	);
 
 	// Fonction interne pour effectuer la mise à jour
@@ -122,7 +122,7 @@ export const useDashboardActions = (fetchReservations) => {
 				{
 					method: "PUT",
 					body: { status: newStatus },
-				}
+				},
 			);
 			console.log("[DEBUG] Réponse backend update status:", data);
 			if (data && !Array.isArray(data)) {
@@ -141,7 +141,7 @@ export const useDashboardActions = (fetchReservations) => {
 			console.error("❌ Erreur update status:", error);
 			Alert.alert(
 				"Erreur",
-				"Impossible de mettre à jour le statut: " + (error?.message || error)
+				"Impossible de mettre à jour le statut: " + (error?.message || error),
 			);
 			return false;
 		}
@@ -164,7 +164,7 @@ export const useDashboardActions = (fetchReservations) => {
 									{
 										method: "PUT",
 										body: { status: "annulée" },
-									}
+									},
 								);
 
 								if (data && !Array.isArray(data)) {
@@ -180,10 +180,10 @@ export const useDashboardActions = (fetchReservations) => {
 							return false;
 						},
 					},
-				]
+				],
 			);
 		},
-		[authFetch, fetchReservations]
+		[authFetch, fetchReservations],
 	);
 
 	// Assigner une table
@@ -195,7 +195,7 @@ export const useDashboardActions = (fetchReservations) => {
 					{
 						method: "PUT",
 						body: { tableId },
-					}
+					},
 				);
 
 				if (data && !Array.isArray(data)) {
@@ -210,7 +210,7 @@ export const useDashboardActions = (fetchReservations) => {
 			}
 			return false;
 		},
-		[authFetch, fetchReservations, refreshActiveReservation]
+		[authFetch, fetchReservations, refreshActiveReservation],
 	);
 
 	// ⭐ Mettre à jour un champ de la réservation (phone, nbPersonnes, etc.)
@@ -223,7 +223,7 @@ export const useDashboardActions = (fetchReservations) => {
 					{
 						method: "PUT",
 						body,
-					}
+					},
 				);
 
 				if (data && !Array.isArray(data)) {
@@ -236,7 +236,7 @@ export const useDashboardActions = (fetchReservations) => {
 			}
 			return false;
 		},
-		[authFetch, fetchReservations]
+		[authFetch, fetchReservations],
 	);
 
 	// Créer une réservation
@@ -306,12 +306,44 @@ export const useDashboardActions = (fetchReservations) => {
 				console.error(err);
 				Alert.alert(
 					"Erreur",
-					"Impossible de créer la réservation, vérifie ta connexion."
+					"Impossible de créer la réservation, vérifie ta connexion.",
 				);
 				return false;
 			}
 		},
-		[authFetch, fetchReservations]
+		[authFetch, fetchReservations],
+	);
+
+	// Enregistrer le paiement d'une réservation
+	const payReservation = useCallback(
+		async (id, paidAmount, paymentMethod) => {
+			try {
+				const data = await authFetch(
+					`${API_CONFIG.baseURL}/reservations/${id}/payment`,
+					{
+						method: "PUT",
+						body: {
+							paidAmount: paidAmount || 0,
+							remainingAmount: 0,
+							paymentMethod,
+						},
+					},
+				);
+				if (data && !Array.isArray(data)) {
+					await fetchReservations(true);
+					return true;
+				}
+				throw new Error("Réponse invalide du serveur");
+			} catch (err) {
+				console.error("❌ Erreur paiement réservation:", err);
+				Alert.alert(
+					"Erreur paiement",
+					err.message || "Impossible d'enregistrer le paiement.",
+				);
+				return false;
+			}
+		},
+		[authFetch, fetchReservations],
 	);
 
 	return {
@@ -324,5 +356,6 @@ export const useDashboardActions = (fetchReservations) => {
 		assignTable,
 		updateReservationField,
 		createReservation,
+		payReservation,
 	};
 };

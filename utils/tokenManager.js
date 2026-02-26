@@ -1,5 +1,6 @@
 import { getItem, setItem } from "./secureStorage";
 import { API_CONFIG } from "../src/config/apiConfig";
+import { clearAllUserData } from "./storageHelper";
 
 /**
  * 🔐 Token Manager - Gestion automatique des tokens JWT
@@ -24,10 +25,7 @@ export async function getValidToken() {
 		// Valider le format JWT (doit avoir 3 parties séparées par des points)
 		const tokenParts = token.split(".");
 		if (tokenParts.length !== 3) {
-			console.error(
-				"❌ Token malformé détecté:",
-				token.substring(0, 20) + "..."
-			);
+			console.warn("⚠️ Token malformé, reconnexion requise");
 			throw new Error("Token JWT malformé");
 		}
 
@@ -50,12 +48,18 @@ export async function getValidToken() {
 			return newTokens.accessToken;
 		}
 
-		// ⚠️ Refresh échoué : nettoyer et signaler l'échec
-		console.error("❌ Refresh échoué - tokens invalides");
+		// ⚠️ Refresh échoué : nettoyer et signaler l'échec (flux normal après inactivité)
+		console.warn("⚠️ Session expirée, reconnexion requise");
 		await clearAllUserData();
 		throw new Error("Session expirée - refresh échoué");
 	} catch (error) {
-		console.error("❌ Erreur getValidToken:", error);
+		// Ne logger qu'si ce n'est pas une erreur de session normale
+		if (
+			!error.message?.includes("Session expirée") &&
+			!error.message?.includes("token")
+		) {
+			console.warn("⚠️ getValidToken:", error.message);
+		}
 		throw error;
 	}
 }
@@ -98,9 +102,9 @@ async function refreshAccessToken(refreshToken, retries = 2) {
 
 			clearTimeout(timeoutId);
 
-			// ❌ Si 401/403 → token invalide (pas de retry)
+			// Si 401/403 → token invalide (pas de retry) — flux normal après inactivité
 			if (response.status === 401 || response.status === 403) {
-				console.error("❌ Refresh token invalide (pas de retry)");
+				console.warn("⚠️ Session expirée (401/403)");
 				return null;
 			}
 
@@ -111,12 +115,12 @@ async function refreshAccessToken(refreshToken, retries = 2) {
 					console.warn(
 						`⚠️ Refresh échec (tentative ${attempt + 1}/${
 							retries + 1
-						}), retry dans ${delay}ms`
+						}), retry dans ${delay}ms`,
 					);
 					await new Promise((resolve) => setTimeout(resolve, delay));
 					continue;
 				}
-				console.error("❌ Refresh échoué après", retries, "tentatives");
+				console.warn("⚠️ Refresh échoué après", retries, "tentatives");
 				return null;
 			}
 
@@ -133,20 +137,16 @@ async function refreshAccessToken(refreshToken, retries = 2) {
 		} catch (error) {
 			if (error.name === "AbortError") {
 				console.warn(
-					`⚠️ Refresh timeout (tentative ${attempt + 1}/${retries + 1})`
+					`⚠️ Refresh timeout (tentative ${attempt + 1}/${retries + 1})`,
 				);
 				if (attempt < retries) {
 					await new Promise((resolve) => setTimeout(resolve, 1000));
 					continue;
 				}
+				return null;
 			}
 
-			console.error(
-				"❌ Erreur refresh après",
-				retries,
-				"tentatives:",
-				error.message
-			);
+			console.warn("⚠️ Refresh interrompu:", error.message);
 			return null;
 		}
 	}
@@ -176,9 +176,7 @@ export async function fetchWithAuth(url, options = {}) {
 
 			// ⚠️ NE PAS retry les requêtes POST/PUT/PATCH/DELETE (non-idempotentes)
 			if (method !== "GET" && method !== "HEAD") {
-				console.error(
-					`❌ ${method} request failed with 401/403 - cannot retry (non-idempotent)`
-				);
+				console.warn(`⚠️ ${method} 401/403 - session expirée`);
 				throw new Error("Session expirée, veuillez vous reconnecter");
 			}
 
@@ -208,7 +206,13 @@ export async function fetchWithAuth(url, options = {}) {
 
 		return response;
 	} catch (error) {
-		console.error("❌ Erreur fetchWithAuth:", error);
+		// Ne logger que les erreurs inattendues (pas les expirations de session)
+		if (
+			!error.message?.includes("Session expirée") &&
+			!error.message?.includes("token")
+		) {
+			console.warn("⚠️ fetchWithAuth:", error.message);
+		}
 		throw error;
 	}
 }

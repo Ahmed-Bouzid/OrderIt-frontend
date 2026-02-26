@@ -16,6 +16,7 @@ import { getItem as getSecureItem } from "../utils/secureStorage";
 export const useActivityData = () => {
 	const router = useRouter();
 	const isRedirectingRef = useRef(false);
+	const hasFetchedRef = useRef(false); // Évite le double-fetch (React StrictMode, remontage)
 	const [token, setToken] = useState(null);
 	const [restaurantId, setRestaurantId] = useState(null);
 	const [isLoading, setIsLoading] = useState(true);
@@ -30,11 +31,36 @@ export const useActivityData = () => {
 	// ⭐ Utiliser le store Zustand pour les réservations (synchro WebSocket)
 	const reservations = useReservationStore((state) => state.reservations);
 	const fetchReservationsFromStore = useReservationStore(
-		(state) => state.fetchReservations
+		(state) => state.fetchReservations,
 	);
 
 	useEffect(() => {
 		const loadAllData = async () => {
+			// ⚡ Lire la catégorie DEPUIS AsyncStorage directement (sans attendre le store)
+			// pour décider immédiatement si cet écran est pertinent.
+			// Expo Router pre-monte Activity même pour fast-food/foodtruck – on évite un fetch inutile.
+			const category = await AsyncStorage.getItem("category");
+			const NON_ACTIVITY_CATEGORIES = [
+				"fast-food",
+				"fastfood",
+				"foodtruck",
+				"food-truck",
+				"snack",
+				"cafe",
+				"boulangerie",
+				"bar",
+			];
+			if (
+				category &&
+				NON_ACTIVITY_CATEGORIES.includes(category.toLowerCase().trim())
+			) {
+				setIsLoading(false);
+				return;
+			}
+
+			// Évite le double-fetch (React StrictMode / featureStoreReady change)
+			if (hasFetchedRef.current) return;
+
 			setIsLoading(true);
 			setReservationsError(null);
 			setProducts([]);
@@ -58,7 +84,7 @@ export const useActivityData = () => {
 					"| tableId:",
 					tidValue,
 					"| serverId:",
-					sidValue
+					sidValue,
 				);
 
 				// ⭐ Fetch des réservations via le store Zustand (force refresh au chargement)
@@ -105,6 +131,7 @@ export const useActivityData = () => {
 						setServers([]);
 						console.error("❌ Erreur fetch serveurs:", serverErr);
 					}
+					hasFetchedRef.current = true; // Marquer comme chargé pour éviter le double-fetch
 				}
 			} catch (error) {
 				console.error("❌ Erreur chargement données:", error);
@@ -116,7 +143,7 @@ export const useActivityData = () => {
 			}
 		};
 		loadAllData();
-	}, []);
+	}, []); // une seule exécution : la catégorie est lue depuis AsyncStorage (pas de race condition)
 
 	return {
 		token,

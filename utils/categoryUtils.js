@@ -14,7 +14,13 @@
  * - Pas de calendrier (juste aujourd'hui)
  * - Formulaire simplifié (pas de tél, pas d'heure, pas de table)
  */
-const FAST_SERVICE_CATEGORIES = ["snack", "fastfood", "fast-food", "fast food"];
+const FAST_SERVICE_CATEGORIES = [
+	"snack",
+	"fastfood",
+	"fast-food",
+	"fast food",
+	"fast_food",
+];
 
 /**
  * Catégories sans salle physique (pas de plan de salle)
@@ -80,9 +86,32 @@ export const shouldShowFullReservationForm = (category) => {
 	return !isFastService(category) && !isFoodtruck(category);
 };
 
+/**
+ * Vérifie si le restaurant est de type "fast-food" avec commandes directes
+ * (fast_food, fastfood, fast-food, fast food mais PAS snack)
+ * → Active la modale "Créer commande" depuis le bouton "+"
+ * @param {string} category - Catégorie du restaurant
+ * @returns {boolean}
+ */
+export const isFastFoodOrder = (category) => {
+	if (!category) {
+		console.log("[isFastFoodOrder] ❌ category est null/undefined");
+		return false;
+	}
+	const normalized = category.toLowerCase().trim();
+	const result = ["fastfood", "fast-food", "fast food", "fast_food"].includes(
+		normalized,
+	);
+	console.log(
+		`[isFastFoodOrder] category="${category}" → normalized="${normalized}" → ${result ? "✅ FAST-FOOD" : "❌ pas fast-food"}`,
+	);
+	return result;
+};
+
 export default {
 	isFastService,
 	isFoodtruck,
+	isFastFoodOrder,
 	isSimplifiedReservation,
 	shouldShowCalendar,
 	shouldShowPresenceStatus,

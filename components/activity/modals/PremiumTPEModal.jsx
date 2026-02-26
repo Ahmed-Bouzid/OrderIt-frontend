@@ -120,7 +120,7 @@ export const PremiumTPEModal = ({
 		try {
 			const { sound } = await Audio.Sound.createAsync(
 				require("../../../assets/sounds/success-chime.mp3"),
-				{ shouldPlay: true, volume: 0.8 }
+				{ shouldPlay: true, volume: 0.8 },
 			);
 			soundRef.current = sound;
 		} catch (_e) {
@@ -195,7 +195,7 @@ export const PremiumTPEModal = ({
 						duration: 0,
 						useNativeDriver: true,
 					}),
-				])
+				]),
 			);
 		};
 
@@ -219,7 +219,7 @@ export const PremiumTPEModal = ({
 					duration: 800,
 					useNativeDriver: true,
 				}),
-			])
+			]),
 		).start();
 	};
 
@@ -241,7 +241,7 @@ export const PremiumTPEModal = ({
 						duration: 600,
 						useNativeDriver: true,
 					}),
-				])
+				]),
 			);
 		};
 
@@ -270,7 +270,7 @@ export const PremiumTPEModal = ({
 				toValue: 1,
 				duration: 1500,
 				useNativeDriver: true,
-			})
+			}),
 		).start();
 	};
 
@@ -301,7 +301,7 @@ export const PremiumTPEModal = ({
 					duration: 1000,
 					useNativeDriver: true,
 				}),
-			])
+			]),
 		).start();
 	};
 
@@ -334,7 +334,7 @@ export const PremiumTPEModal = ({
 				"🔄 C pressé - baseAmount:",
 				baseAmount,
 				"finalAmount avant:",
-				finalAmount
+				finalAmount,
 			);
 			setCustomAmount("");
 			setFinalAmount(baseAmount);
@@ -418,12 +418,12 @@ export const PremiumTPEModal = ({
 				console.error(
 					"❌ Erreur API create-intent:",
 					createResponse.status,
-					errorData
+					errorData,
 				);
 				throw new Error(
 					errorData.message ||
 						errorData.error ||
-						`Erreur ${createResponse.status}`
+						`Erreur ${createResponse.status}`,
 				);
 			}
 

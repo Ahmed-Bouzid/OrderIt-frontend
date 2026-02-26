@@ -397,9 +397,9 @@ const RecommendationsPanel = ({
 						<View key={categoryKey} style={styles.group}>
 							<GroupHeader group={group} itemCount={group.items.length} />
 
-							{group.items.map((recommendation) => (
+							{group.items.map((recommendation, index) => (
 								<RecommendationItem
-									key={recommendation.id}
+									key={recommendation.id || `${categoryKey}-${index}`}
 									recommendation={recommendation}
 									groupColor={group.color}
 								/>

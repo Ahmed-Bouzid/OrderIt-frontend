@@ -57,7 +57,7 @@ export const ProductOptionsModal = ({
 								"Content-Type": "application/json",
 								Authorization: `Bearer ${token}`,
 							},
-						}
+						},
 					);
 					const data = await response.json();
 					setOptions(Array.isArray(data) ? data : []);
@@ -175,7 +175,7 @@ export const ProductOptionsModal = ({
 						<ScrollView style={{ maxHeight: 200, width: "100%" }}>
 							{options.map((option) => {
 								const selected = selectedOptions.find(
-									(opt) => opt._id === option._id
+									(opt) => opt._id === option._id,
 								);
 								return (
 									<TouchableOpacity

@@ -250,6 +250,19 @@ export default function Login() {
 					await AsyncStorage.setItem("category", data.user.category);
 				}
 
+				// 🔧 Stocker les feature overrides (developer mode)
+				if (
+					data.user.featureOverrides &&
+					Object.keys(data.user.featureOverrides).length > 0
+				) {
+					await AsyncStorage.setItem(
+						"featureOverrides",
+						JSON.stringify(data.user.featureOverrides),
+					);
+				} else {
+					await AsyncStorage.removeItem("featureOverrides");
+				}
+
 				await setUser({
 					userId: data.user.id,
 					email: data.user.email,
@@ -377,6 +390,20 @@ export default function Login() {
 					await AsyncStorage.removeItem("category");
 				}
 
+				// 🔧 Stocker les feature overrides (developer mode)
+				if (
+					data.featureOverrides &&
+					Object.keys(data.featureOverrides).length > 0
+				) {
+					await AsyncStorage.setItem(
+						"featureOverrides",
+						JSON.stringify(data.featureOverrides),
+					);
+					console.log("✅ featureOverrides sauvegardés");
+				} else {
+					await AsyncStorage.removeItem("featureOverrides");
+				}
+
 				// ✅ Stocker les infos utilisateur (role, userType)
 				await setUser({
 					userId: data.userId,
@@ -431,7 +458,7 @@ export default function Login() {
 			<View style={styles.card}>
 				{/* Logo */}
 				<View style={styles.logo}>
-					<Text style={styles.logoText}>O</Text>
+					<Text style={styles.logoText}>S</Text>
 				</View>
 
 				{/* Titre et sous-titre */}
@@ -523,7 +550,7 @@ export default function Login() {
 const styles = StyleSheet.create({
 	container: {
 		flex: 1,
-		backgroundColor: "#083db0ff",
+		backgroundColor: "rgba(242, 5, 5, 0.69)",
 		justifyContent: "center",
 		alignItems: "center",
 	},
@@ -544,11 +571,11 @@ const styles = StyleSheet.create({
 		width: 70,
 		height: 70,
 		borderRadius: 35,
-		backgroundColor: "#4e56efff",
+		backgroundColor: "rgb(228, 239, 78)",
 		justifyContent: "center",
 		alignItems: "center",
 		marginBottom: 20,
-		shadowColor: "#002fa7ff",
+		shadowColor: "rgb(171, 171, 5)",
 		shadowOffset: { width: 0, height: 4 },
 		shadowOpacity: 0.6,
 		shadowRadius: 12,
@@ -557,7 +584,7 @@ const styles = StyleSheet.create({
 	logoText: {
 		fontSize: 36,
 		fontWeight: "bold",
-		color: "#fff",
+		color: "#ef1a1a93",
 	},
 	title: {
 		fontSize: 28,
@@ -599,7 +626,7 @@ const styles = StyleSheet.create({
 	},
 	forgot: {
 		alignSelf: "flex-end",
-		color: "#4e56efff",
+		color: "rgb(239, 78, 78)",
 		marginBottom: 24,
 		fontSize: 13,
 		fontWeight: "600",
@@ -607,11 +634,11 @@ const styles = StyleSheet.create({
 	signInButton: {
 		height: 52,
 		borderRadius: 14,
-		backgroundColor: "#4e56efff",
+		backgroundColor: "rgb(239, 78, 78)",
 		justifyContent: "center",
 		alignItems: "center",
 		overflow: "hidden",
-		shadowColor: "#4e56efff",
+		shadowColor: "rgb(211, 31, 31)",
 		shadowOffset: { width: 0, height: 4 },
 		shadowOpacity: 0.4,
 		shadowRadius: 8,

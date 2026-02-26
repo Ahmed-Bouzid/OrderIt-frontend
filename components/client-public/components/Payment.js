@@ -35,7 +35,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 
 	const total = orders.reduce(
 		(sum, item) => sum + (item.price || 0) * (item.quantity || 0),
-		0
+		0,
 	);
 
 	// Debug pour comprendre pourquoi NaN
@@ -45,12 +45,12 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 			total,
 			"€ | Orders:",
 			orders.length,
-			"produits"
+			"produits",
 		);
 		if (isNaN(total)) {
 			console.error(
 				"❌ Total = NaN! Orders structure:",
-				JSON.stringify(orders.slice(0, 2))
+				JSON.stringify(orders.slice(0, 2)),
 			);
 		}
 	}, []); // ⭐ VIDE = exécuté 1 seule fois au mount
@@ -71,7 +71,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 						duration: 800,
 						useNativeDriver: true,
 					}),
-				])
+				]),
 			).start();
 
 			// Animation des vagues concentriques
@@ -80,7 +80,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 					toValue: 1,
 					duration: 2000,
 					useNativeDriver: true,
-				})
+				}),
 			).start();
 		} else {
 			pulseAnim.setValue(1);
@@ -111,7 +111,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 			const token = await getSecureItem("@access_token");
 			const baseUrl =
 				process.env.EXPO_PUBLIC_API_URL ||
-				"https://sunnygo-backend-6y1m.onrender.com";
+				"https://orderit-backend-6y1m.onrender.com";
 
 			console.log("💳 Création PaymentIntent...");
 
@@ -136,7 +136,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 				throw new Error(
 					errorData.message ||
 						errorData.error ||
-						"Erreur création PaymentIntent"
+						"Erreur création PaymentIntent",
 				);
 			}
 
@@ -162,7 +162,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 			if (!confirmResponse.ok) {
 				const errorData = await confirmResponse.json();
 				throw new Error(
-					errorData.message || "Erreur confirmation paiement test"
+					errorData.message || "Erreur confirmation paiement test",
 				);
 			}
 
@@ -176,7 +176,7 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 					headers: {
 						Authorization: `Bearer ${token}`,
 					},
-				}
+				},
 			);
 
 			const paymentStatus = await checkResponse.json();

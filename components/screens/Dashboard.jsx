@@ -21,23 +21,33 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import { useRouter } from "expo-router";
 import ReservationCard from "../dashboard/ReservationCard";
 import Filters from "../dashboard/Filters";
 import DateNavigator from "../dashboard/DateNavigator";
 import SettingsModal from "../dashboard/SettingsModal";
 import NewReservationModal from "../dashboard/NewReservationModal";
+import CreateFastFoodOrderModal from "../dashboard/CreateFastFoodOrderModal";
 import AssignTableModal from "../dashboard/AssignTableModal";
 import AuditModal from "../dashboard/AuditModal"; // ⭐ NOUVEAU
 import LoadingSkeleton from "../dashboard/LoadingSkeleton";
+import ExpressOrders from "./ExpressOrders"; // 🏃 NOUVEAU
+import FastFoodKitchen from "./FastFoodKitchen"; // 🍔 NOUVEAU
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { useDashboardActions } from "../../hooks/useDashboardActions";
 import { useDashboardFilters } from "../../hooks/useDashboardFilters";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
-import { shouldShowCalendar } from "../../utils/categoryUtils";
+import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 
 export default function Dashboard() {
 	const category = useUserStore((state) => state.category);
+	const {
+		hasCalendrier,
+		hasCommandesExpress,
+		hasFabFastCommande,
+		hasAutoTables,
+	} = useFeatureLevel();
 	const { themeMode } = useThemeStore();
 	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 
@@ -50,17 +60,27 @@ export default function Dashboard() {
 	const [showNewReservationModal, setShowNewReservationModal] = useState(false);
 	const [showAssignTableModal, setShowAssignTableModal] = useState(false);
 	const [showAuditModal, setShowAuditModal] = useState(false); // ⭐ NOUVEAU
+	const [showExpressOrders, setShowExpressOrders] = useState(false); // 🏃 NOUVEAU pour Le Grillz
+	const [showKitchen, setShowKitchen] = useState(false); // 🍔 Vue cuisine fast-food
+	const [showFastFoodOrderModal, setShowFastFoodOrderModal] = useState(false);
 	const [selectedReservation, setSelectedReservation] = useState(null);
 	const [recreateData, setRecreateData] = useState(null); // ⭐ Données pour recréer une réservation
 	const [selectedDate, setSelectedDate] = useState(new Date()); // 📅 Date sélectionnée pour le filtrage
 
-	// Si foodtruck ou snack, forcer la date à aujourd'hui
+	// Si pas de calendrier (foodtruck/snack), forcer la date à aujourd'hui
 	useEffect(() => {
-		if (!shouldShowCalendar(category)) {
+		if (!hasCalendrier) {
 			const today = new Date();
 			setSelectedDate(today);
 		}
-	}, [category]);
+	}, [hasCalendrier]);
+
+	// 🚐 Commandes Express activées : afficher directement les Commandes Express au montage
+	useEffect(() => {
+		if (hasCommandesExpress) {
+			setShowExpressOrders(true);
+		}
+	}, [hasCommandesExpress]);
 
 	// ─────────────── Hooks Custom ───────────────
 	const { reservations, tables, theme, loading, fetchReservations } =
@@ -78,6 +98,7 @@ export default function Dashboard() {
 		assignTable,
 		updateReservationField,
 		createReservation,
+		payReservation,
 	} = useDashboardActions(fetchReservations);
 
 	const {
@@ -103,6 +124,25 @@ export default function Dashboard() {
 		setShowSettingsModal(false);
 		setSelectedReservation(null);
 	}, []);
+
+	// 🏃 Handler pour les filtres avec gestion spéciale pour "express" et "cuisine"
+	const handleFilterChange = useCallback(
+		(newFilter) => {
+			if (newFilter === "express") {
+				// ExpressOrders : pour tous les foodtrucks ET pour Le Grillz spécifiquement
+				setShowExpressOrders(true);
+			} else if (newFilter === "cuisine") {
+				// Ouvrir la vue cuisine pour les fast-foods
+				setShowKitchen(true);
+			} else {
+				// Revenir à la liste normale si on change de filtre
+				setShowExpressOrders(false);
+				setShowKitchen(false);
+				changeFilter(newFilter);
+			}
+		},
+		[changeFilter],
+	);
 
 	// ⭐ Handler pour recréer une réservation
 	const handleRecreateReservation = useCallback((reservation) => {
@@ -151,6 +191,16 @@ export default function Dashboard() {
 			handleCloseSettings();
 		},
 		[cancelReservation, handleCloseSettings],
+	);
+
+	const handlePayReservation = useCallback(
+		async (id, paidAmount, method) => {
+			const success = await payReservation(id, paidAmount, method);
+			if (success) {
+				handleCloseSettings();
+			}
+		},
+		[payReservation, handleCloseSettings],
 	);
 
 	const handleOpenAssignTable = useCallback(
@@ -269,7 +319,7 @@ export default function Dashboard() {
 			<ReservationCard
 				reservation={item}
 				onSettingsPress={handleOpenSettings}
-				onAssignTablePress={handleOpenAssignTable}
+				onAssignTablePress={hasAutoTables ? handleOpenAssignTable : undefined}
 				onEditNbPersonnes={handleEditNbPersonnes}
 				onEditPhone={handleEditPhone}
 				onAuditPress={handleOpenAudit} // ⭐ NOUVEAU
@@ -283,6 +333,7 @@ export default function Dashboard() {
 			handleEditPhone,
 			handleOpenAudit, // ⭐ NOUVEAU
 			theme,
+			hasAutoTables,
 		],
 	);
 
@@ -359,39 +410,75 @@ export default function Dashboard() {
 			{/* Filtres */}
 			<Filters
 				activeFilter={filter}
-				onFilterChange={changeFilter}
+				onFilterChange={handleFilterChange}
 				searchQuery={searchQuery}
 				onSearchChange={setSearchQuery}
 				theme={theme}
 			/>
 
-			{/* 📅 Navigateur de date */}
-			{/* Afficher le DateNavigator seulement pour restaurants classiques */}
-			{shouldShowCalendar(category) && (
-				<DateNavigator
-					selectedDate={selectedDate}
-					onDateChange={setSelectedDate}
-					onAssignmentComplete={() => fetchReservations(true)}
-				/>
-			)}
-
-			{/* Liste des réservations avec FlatList */}
-			{loading ? (
-				<LoadingSkeleton theme={theme} count={6} />
+			{/* 🏃 Screen ExpressOrders (foodtruck = vue par défaut, autre = filtre express) */}
+			{showExpressOrders ? (
+				<View style={{ flex: 1 }}>
+					<ExpressOrders />
+				</View>
+			) : showKitchen ? (
+				<View style={{ flex: 1 }}>
+					<View style={localStyles.expressHeader}>
+						<TouchableOpacity
+							onPress={() => {
+								setShowKitchen(false);
+								changeFilter("actives");
+							}}
+							style={localStyles.backButton}
+						>
+							<Ionicons
+								name="arrow-back"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+							<Text
+								style={[
+									localStyles.backButtonText,
+									{ color: THEME.colors.text.secondary },
+								]}
+							>
+								Retour
+							</Text>
+						</TouchableOpacity>
+					</View>
+					<FastFoodKitchen />
+				</View>
 			) : (
-				<FlatList
-					data={filteredReservations}
-					renderItem={renderReservationCard}
-					keyExtractor={keyExtractor}
-					numColumns={2}
-					contentContainerStyle={localStyles.listContent}
-					ListEmptyComponent={ListEmptyComponent}
-					initialNumToRender={10}
-					maxToRenderPerBatch={10}
-					windowSize={5}
-					removeClippedSubviews={true}
-					showsVerticalScrollIndicator={false}
-				/>
+				<>
+					{/* 📅 Navigateur de date */}
+					{/* Afficher le DateNavigator seulement pour restaurants classiques */}
+					{hasCalendrier && (
+						<DateNavigator
+							selectedDate={selectedDate}
+							onDateChange={setSelectedDate}
+							onAssignmentComplete={() => fetchReservations(true)}
+						/>
+					)}
+
+					{/* Liste des réservations avec FlatList */}
+					{loading ? (
+						<LoadingSkeleton theme={theme} count={6} />
+					) : (
+						<FlatList
+							data={filteredReservations}
+							renderItem={renderReservationCard}
+							keyExtractor={keyExtractor}
+							numColumns={2}
+							contentContainerStyle={localStyles.listContent}
+							ListEmptyComponent={ListEmptyComponent}
+							initialNumToRender={10}
+							maxToRenderPerBatch={10}
+							windowSize={5}
+							removeClippedSubviews={true}
+							showsVerticalScrollIndicator={false}
+						/>
+					)}
+				</>
 			)}
 
 			{/* FAB Premium */}
@@ -402,7 +489,23 @@ export default function Dashboard() {
 				]}
 			>
 				<TouchableOpacity
-					onPress={() => setShowNewReservationModal(true)}
+					onPress={() => {
+						console.log(
+							"[Dashboard FAB] category depuis store:",
+							category,
+							"| hasFabFastCommande:",
+							hasFabFastCommande,
+						);
+						if (hasFabFastCommande) {
+							console.log(
+								"[Dashboard FAB] → ouverture CreateFastFoodOrderModal",
+							);
+							setShowFastFoodOrderModal(true);
+						} else {
+							console.log("[Dashboard FAB] → ouverture NewReservationModal");
+							setShowNewReservationModal(true);
+						}
+					}}
 					onPressIn={handleFabPressIn}
 					onPressOut={handleFabPressOut}
 					activeOpacity={0.95}
@@ -430,6 +533,7 @@ export default function Dashboard() {
 				onUpdateStatus={handleUpdateStatus}
 				onCancel={handleCancel}
 				onRecreate={handleRecreateReservation}
+				onPayReservation={handlePayReservation}
 			/>
 
 			<NewReservationModal
@@ -442,7 +546,7 @@ export default function Dashboard() {
 			/>
 
 			<AssignTableModal
-				visible={showAssignTableModal}
+				visible={showAssignTableModal && hasAutoTables}
 				onClose={handleCloseAssignTable}
 				tables={tables}
 				activeReservation={activeReservation}
@@ -455,6 +559,16 @@ export default function Dashboard() {
 				visible={showAuditModal}
 				onClose={handleCloseAudit}
 				reservation={selectedReservation}
+			/>
+
+			{/* 🍔 Modale commande fast-food */}
+			<CreateFastFoodOrderModal
+				visible={showFastFoodOrderModal}
+				onClose={() => setShowFastFoodOrderModal(false)}
+				onCreated={() => {
+					setShowFastFoodOrderModal(false);
+					fetchReservations(true);
+				}}
 			/>
 		</View>
 	);
@@ -547,5 +661,21 @@ const createStyles = (THEME) =>
 			shadowOpacity: 0.4,
 			shadowRadius: 12,
 			elevation: 8,
+		},
+		// 🏃 Styles pour ExpressOrders
+		expressHeader: {
+			paddingHorizontal: 16,
+			paddingVertical: 12,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		backButton: {
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		backButtonText: {
+			fontSize: 16,
+			fontWeight: "500",
+			marginLeft: 8,
 		},
 	});

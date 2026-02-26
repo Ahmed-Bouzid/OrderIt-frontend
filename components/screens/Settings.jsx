@@ -22,7 +22,6 @@ import useThemeStore, {
 } from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
 import useUserStore from "../../src/stores/useUserStore";
-import useDeveloperStore from "../../src/stores/useDeveloperStore";
 import { clearAllUserData } from "../../utils/storageHelper";
 import {
 	ServerManagement,
@@ -34,13 +33,21 @@ import {
 import FeedbackModal from "../modals/FeedbackModal";
 import feedbackService from "../../services/feedbackService";
 import AccountingScreen from "./AccountingScreen";
+import MessagingScreen from "./MessagingScreen";
+import { useFeatures } from "../../hooks/useFeatures";
+import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
+import {
+	AccountingGuard,
+	AnalyticsGuard,
+	MessagingGuard,
+	TableAssistantGuard,
+} from "../FeatureGuard";
 
 export default function Settings() {
 	const router = useRouter();
 	const { themeMode, initTheme, setThemeMode, fontSize, setFontSize } =
 		useThemeStore();
 	const { isManager, email, role, userType, init: initUser } = useUserStore();
-	const { isDeveloper, selectedRestaurant } = useDeveloperStore();
 
 	// État pour la section active du menu
 	const [activeSection, setActiveSection] = useState("account");
@@ -51,6 +58,12 @@ export default function Settings() {
 	// ⭐ État comptabilité
 	const [showAccountingScreen, setShowAccountingScreen] = useState(false);
 
+	// ⭐ État CRM Performance
+	const [showCRMScreen, setShowCRMScreen] = useState(false);
+	// ⭐ État Messagerie Interne
+	const [showInternalMessagingScreen, setShowInternalMessagingScreen] =
+		useState(false);
+
 	// ⭐ État messagerie
 	const [isMessagingEnabled, setIsMessagingEnabled] = useState(true);
 	const [loadingMessaging, setLoadingMessaging] = useState(false);
@@ -59,26 +72,25 @@ export default function Settings() {
 	// ⭐ Utiliser useTheme() pour avoir le thème complet avec typography scalée
 	const THEME = useTheme();
 
+	// ⭐ Hook pour vérifier les fonctionnalités premium (API)
+	// Gardé uniquement pour hasFeedback (pas d'équivalent dans useFeatureLevel)
+	const { hasFeedback } = useFeatures();
+
+	// 🔧 Feature level (developer overrides) — source unique de vérité pour le portail manager
+	const { hasChatClient, hasStatistiques, hasAutoTables, isComplete } =
+		useFeatureLevel();
+
 	// ⭐ Styles dynamiques selon le thème
 	const settingsStyles = useMemo(() => createStyles(THEME), [THEME]);
+
+	// 🛡️ SÉCURITÉ: Vérification stricte pour développeur (pas basé sur isDeveloper store)
+	const isRealDeveloper =
+		email === "ahmed.waraiotoko@developer.com" || role === "developer";
 
 	// Vérifier si l'utilisateur est manager ou admin
 	// isManager est un booléen calculé dans le store (role === 'admin' || userType === 'admin')
 	const canAccessManagerPortal =
-		isManager ||
-		role === "admin" ||
-		userType === "admin" ||
-		role === "developer" ||
-		isDeveloper;
-
-	// DEBUG: Log temporaire pour comprendre pourquoi l'admin n'a pas accès
-	console.log("🔐 [Settings] Debug accès comptabilité:", {
-		isManager,
-		role,
-		userType,
-		isDeveloper,
-		canAccessManagerPortal,
-	});
+		isManager || role === "admin" || userType === "admin" || isRealDeveloper;
 
 	// Initialiser le thème et l'utilisateur au montage
 	useEffect(() => {
@@ -471,8 +483,8 @@ export default function Settings() {
 			case "account":
 				return (
 					<>
-						{/* ⭐ Section développeur */}
-						{isDeveloper && (
+						{/* 🛡️ Section développeur - SÉCURITÉ RENFORCÉE */}
+						{isRealDeveloper && (
 							<View style={settingsStyles.developerCard}>
 								<View style={settingsStyles.developerHeader}>
 									<Ionicons name="code-slash" size={24} color="#f59e0b" />
@@ -481,12 +493,21 @@ export default function Settings() {
 									</Text>
 								</View>
 								<Text style={settingsStyles.developerSubtitle}>
-									Restaurant actuel :{" "}
-									{selectedRestaurant?.name || "Non sélectionné"}
+									Accès développeur vérifié par email
 								</Text>
 								<TouchableOpacity
 									style={settingsStyles.developerButton}
-									onPress={() => router.push("/developer-selector")}
+									onPress={() => {
+										// 🛡️ Double vérification sécurité avant navigation
+										if (!isRealDeveloper) {
+											console.warn("🚨 TENTATIVE D'ACCÈS NON AUTORISÉE!", {
+												email,
+												role,
+											});
+											return;
+										}
+										router.push("/developer-selector");
+									}}
 								>
 									<Ionicons name="swap-horizontal" size={18} color="#fff" />
 									<Text style={settingsStyles.developerButtonText}>
@@ -545,7 +566,11 @@ export default function Settings() {
 				return <ServerManagement />;
 
 			case "tables":
-				return <TableManagement />;
+				return (
+					<TableAssistantGuard fallback={null}>
+						<TableManagement />
+					</TableAssistantGuard>
+				);
 
 			case "menu":
 				return <MenuManagement />;
@@ -554,14 +579,305 @@ export default function Settings() {
 				return <SecuritySettings />;
 
 			case "crm":
-				return <CRMPerformance />;
+				return (
+					<AnalyticsGuard fallback={null}>
+						{/* Titre principal */}
+						<Text style={settingsStyles.sectionHeaderText}>
+							📊 CRM Performance
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="people"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Analyse des performances d`&apos;`équipe
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Suivez les performances de vos serveurs : CA, réservations,
+										satisfaction client, temps de service, et bien plus.
+										Graphiques détaillés et statistiques avancées.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Lancement de l'interface CRM */}
+						<TouchableOpacity
+							style={[
+								settingsStyles.themeLabelRow,
+								{
+									backgroundColor: THEME.colors.background.elevated,
+									borderRadius: THEME.radius.lg,
+									padding: THEME.spacing.lg,
+									borderLeftWidth: 4,
+									borderLeftColor: THEME.colors.primary.amber,
+									shadowColor: THEME.colors.primary.amber,
+									shadowOffset: { width: 0, height: 2 },
+									shadowOpacity: 0.1,
+									shadowRadius: 8,
+									elevation: 3,
+								},
+							]}
+							onPress={() => setShowCRMScreen(true)}
+							activeOpacity={0.8}
+						>
+							<Ionicons
+								name="stats-chart"
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+								<Text style={settingsStyles.settingLabel}>
+									Ouvrir le module CRM Performance
+								</Text>
+								<Text style={settingsStyles.settingDescription}>
+									Tableau de bord RH et statistiques avancées
+								</Text>
+							</View>
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
+
+						{/* Fonctionnalités disponibles */}
+						<View style={settingsStyles.themeSection}>
+							<Text style={settingsStyles.settingLabel}>
+								Fonctionnalités disponibles
+							</Text>
+							<View style={{ gap: 12, marginTop: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Réservations ouvertes/fermées par employé
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										CA par employé (espèces / CB)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Produits add-ons vendus (upsell)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Temps moyen de service par réservation
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Temps d`&apos;`attente avant ouverture (tampon)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Note moyenne satisfaction client
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Graphiques Donut interactifs
+									</Text>
+								</View>
+							</View>
+						</View>
+					</AnalyticsGuard>
+				);
+
+			case "internal-messaging":
+				return (
+					<MessagingGuard fallback={null}>
+						{/* Titre principal */}
+						<Text style={settingsStyles.sectionHeaderText}>
+							📨 Messagerie Interne
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="chatbox-ellipses"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Communication manager → serveurs
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Envoyez des demandes de réunion, planning, zonning ou
+										coaching. Suivi complet avec historique et statut des
+										réponses.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Lancement de l'interface messagerie interne */}
+						<TouchableOpacity
+							style={[
+								settingsStyles.themeLabelRow,
+								{
+									backgroundColor: THEME.colors.background.elevated,
+									borderRadius: THEME.radius.lg,
+									padding: THEME.spacing.lg,
+									borderLeftWidth: 4,
+									borderLeftColor: THEME.colors.primary.amber,
+									shadowColor: THEME.colors.primary.amber,
+									shadowOffset: { width: 0, height: 2 },
+									shadowOpacity: 0.1,
+									shadowRadius: 8,
+									elevation: 3,
+								},
+							]}
+							onPress={() => setShowInternalMessagingScreen(true)}
+							activeOpacity={0.8}
+						>
+							<Ionicons
+								name="mail"
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+								<Text style={settingsStyles.settingLabel}>
+									Ouvrir la messagerie interne
+								</Text>
+								<Text style={settingsStyles.settingDescription}>
+									Boite de réception des équipes et réponses rapides
+								</Text>
+							</View>
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
+
+						{/* Fonctionnalités disponibles */}
+						<View style={settingsStyles.themeSection}>
+							<Text style={settingsStyles.settingLabel}>
+								Fonctionnalités disponibles
+							</Text>
+							<View style={{ gap: 12, marginTop: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Demandes de réunion, planning, zonning, coaching
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Historique complet des decisions
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Notifications temps reel (WebSocket)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Suivi des statuts (en attente / accepte / refuse)
+									</Text>
+								</View>
+							</View>
+						</View>
+					</MessagingGuard>
+				);
 
 			case "messaging":
 				return (
-					<>
-						<Text style={settingsStyles.sectionHeaderText}>
-							💬 Messagerie Client
-						</Text>
+					<MessagingGuard fallback={null}>
+						<Text style={settingsStyles.sectionHeaderText}>💬 Chat Client</Text>
 
 						{/* Carte explication */}
 						<View style={settingsStyles.infoCard}>
@@ -691,12 +1007,12 @@ export default function Settings() {
 								</View>
 							</View>
 						</View>
-					</>
+					</MessagingGuard>
 				);
 
 			case "accounting":
 				return (
-					<>
+					<AccountingGuard fallback={null}>
 						{/* Titre principal */}
 						<Text style={settingsStyles.sectionHeaderText}>
 							📊 Comptabilité & Finances
@@ -821,7 +1137,7 @@ export default function Settings() {
 								</View>
 							</View>
 						</View>
-					</>
+					</AccountingGuard>
 				);
 
 			default:
@@ -928,48 +1244,67 @@ export default function Settings() {
 									label="Serveurs"
 									section="servers"
 								/>
-								<MenuItem icon="grid-outline" label="Tables" section="tables" />
+								{hasAutoTables && (
+									<MenuItem
+										icon="grid-outline"
+										label="Tables"
+										section="tables"
+									/>
+								)}
 								<MenuItem
 									icon="restaurant-outline"
 									label="Menu"
 									section="menu"
 								/>
+								{isComplete && (
+									<MenuItem
+										icon="analytics-outline"
+										label="Comptabilité"
+										section="accounting"
+									/>
+								)}
+								{hasStatistiques && (
+									<MenuItem
+										icon="stats-chart-outline"
+										label="CRM Performance"
+										section="crm"
+									/>
+								)}
 								<MenuItem
-									icon="analytics-outline"
-									label="Comptabilité"
-									section="accounting"
+									icon="mail-outline"
+									label="Messagerie Interne"
+									section="internal-messaging"
 								/>
-								<MenuItem
-									icon="stats-chart-outline"
-									label="CRM Performance"
-									section="crm"
-								/>
-								<MenuItem
-									icon="chatbubbles-outline"
-									label="Messagerie"
-									section="messaging"
-								/>
+								{hasChatClient && (
+									<MenuItem
+										icon="chatbubbles-outline"
+										label="Chat-Client"
+										section="messaging"
+									/>
+								)}
 							</>
 						)}
 
-						{/* Feedback - accessible à tous */}
-						<TouchableOpacity
-							style={settingsStyles.menuItem}
-							onPress={() => setShowFeedbackModal(true)}
-						>
-							<Ionicons
-								name="chatbox-ellipses-outline"
-								size={20}
-								color={THEME.colors.text.secondary}
-							/>
-							<Text style={settingsStyles.menuItemText}>Feedback</Text>
-							<Text> </Text>
-							<Ionicons
-								name="chevron-forward"
-								size={18}
-								color={THEME.colors.text.secondary}
-							/>
-						</TouchableOpacity>
+						{/* Feedback - accessible seulement si fonctionnalité activée */}
+						{hasFeedback && (
+							<TouchableOpacity
+								style={settingsStyles.menuItem}
+								onPress={() => setShowFeedbackModal(true)}
+							>
+								<Ionicons
+									name="chatbox-ellipses-outline"
+									size={20}
+									color={THEME.colors.text.secondary}
+								/>
+								<Text style={settingsStyles.menuItemText}>Feedback</Text>
+								<Text> </Text>
+								<Ionicons
+									name="chevron-forward"
+									size={18}
+									color={THEME.colors.text.secondary}
+								/>
+							</TouchableOpacity>
+						)}
 					</ScrollView>
 				</View>
 
@@ -987,6 +1322,7 @@ export default function Settings() {
 						"account",
 						"security",
 						"messaging",
+						"internal-messaging",
 						"accounting",
 					].includes(activeSection) ? (
 						<ScrollView
@@ -1009,6 +1345,18 @@ export default function Settings() {
 			{/* AccountingScreen Modal */}
 			{showAccountingScreen && (
 				<AccountingScreen onClose={() => setShowAccountingScreen(false)} />
+			)}
+
+			{/* CRM Performance Modal */}
+			{showCRMScreen && (
+				<CRMPerformance onClose={() => setShowCRMScreen(false)} />
+			)}
+
+			{/* Messagerie Interne Modal */}
+			{showInternalMessagingScreen && (
+				<MessagingScreen
+					onClose={() => setShowInternalMessagingScreen(false)}
+				/>
 			)}
 
 			{/* Modale Feedback */}

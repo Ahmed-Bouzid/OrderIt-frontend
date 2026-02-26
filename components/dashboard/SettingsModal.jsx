@@ -3,7 +3,7 @@
  * Interface de gestion des réservations avec design spatial
  * Support Mode Clair/Sombre
  */
-import React, { useEffect, useRef, useMemo } from "react";
+import React, { useEffect, useRef, useMemo, useState } from "react";
 import {
 	Modal,
 	View,
@@ -12,14 +12,16 @@ import {
 	TouchableWithoutFeedback,
 	StyleSheet,
 	Animated,
+	ActivityIndicator,
+	ScrollView,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
-import useUserStore from "../../src/stores/useUserStore";
 import { getTheme } from "../../utils/themeUtils";
-import { isFastService } from "../../utils/categoryUtils";
+import { useAuthFetch } from "../../hooks/useAuthFetch";
+import { API_CONFIG } from "../../src/config/apiConfig";
 
 // ─────────────── Action Button Component ───────────────
 const ActionButton = React.memo(({ icon, label, colors, onPress, styles }) => (
@@ -51,15 +53,21 @@ const SettingsModal = React.memo(
 		onTogglePresent,
 		onUpdateStatus,
 		onCancel,
+		onRecreate,
+		onPayReservation,
 	}) => {
 		// Thème dynamique
 		const { themeMode } = useThemeStore();
 		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
 
-		// 🍔 Catégorie du restaurant (snack = mode simplifié)
-		const category = useUserStore((state) => state.category);
-		const isSnackMode = isFastService(category);
 		const modalStyles = useMemo(() => createModalStyles(THEME), [THEME]);
+		const authFetch = useAuthFetch();
+
+		// Étape : "actions" | "payment"
+		const [step, setStep] = useState("actions");
+		const [isPaymentLoading, setIsPaymentLoading] = useState(false);
+		const [receiptItems, setReceiptItems] = useState([]);
+		const [isLoadingReceipt, setIsLoadingReceipt] = useState(false);
 
 		// Animation refs
 		const scaleAnim = useRef(new Animated.Value(0.9)).current;
@@ -83,6 +91,10 @@ const SettingsModal = React.memo(
 			} else {
 				scaleAnim.setValue(0.9);
 				opacityAnim.setValue(0);
+				setStep("actions");
+				setIsPaymentLoading(false);
+				setReceiptItems([]);
+				setIsLoadingReceipt(false);
 			}
 		}, [visible, scaleAnim, opacityAnim]);
 
@@ -203,95 +215,138 @@ const SettingsModal = React.memo(
 									style={modalStyles.divider}
 								/>
 
-								{/* Actions */}
+								{/* Actions / Paiement */}
 								<View style={modalStyles.actionsContainer}>
-									{/* 🍔 Mode snack: actions simplifiées (pas de présent/en attente) */}
-									{isSnackMode ? (
+									{step === "payment" ? (
 										<>
-											{/* Snack: juste ouvrir, terminer, annuler */}
-											{(effectiveStatus === "en attente" ||
-												effectiveStatus === "ouverte") && (
-												<>
-													{effectiveStatus === "en attente" && (
-														<ActionButton
-															icon="restaurant"
-															label="Ouvrir la commande"
-															colors={["#0EA5E9", "#0284C7"]}
-															onPress={() =>
-																onUpdateStatus?.(
-																	reservation._id,
-																	"ouverte",
-																	reservation,
-																)
-															}
-															styles={modalStyles}
-														/>
-													)}
-													<ActionButton
-														icon="checkmark-done"
-														label="Terminer la commande"
-														colors={["#10B981", "#059669"]}
-														onPress={() => {
-															if (
-																typeof reservation.totalAmount === "number" &&
-																reservation.totalAmount > 0
-															) {
-																alert(
-																	"Fermeture impossible : le montant de la commande n'est pas à zéro.",
-																);
-																return;
-															}
-															onUpdateStatus?.(
-																reservation._id,
-																"terminée",
-																reservation,
-															);
-														}}
-														styles={modalStyles}
-													/>
-													<ActionButton
-														icon="close-circle"
-														label="Annuler la commande"
-														colors={["#EF4444", "#DC2626"]}
-														onPress={() => onCancel(reservation._id)}
-														styles={modalStyles}
-													/>
-												</>
-											)}
-											{effectiveStatus === "terminée" && (
-												<ActionButton
-													icon="refresh"
-													label="Rétablir la commande"
-													colors={["#10B981", "#059669"]}
-													onPress={() =>
-														onUpdateStatus?.(
-															reservation._id,
-															"en attente",
-															reservation,
-														)
-													}
-													styles={modalStyles}
+											<Text style={modalStyles.paymentAmount}>
+												{reservation?.totalAmount > 0
+													? `${reservation.totalAmount.toFixed(2)} €`
+													: "Montant à confirmer"}
+											</Text>
+
+											{/* ─── Reçu ─── */}
+											{isLoadingReceipt ? (
+												<ActivityIndicator
+													size="small"
+													color="#10B981"
+													style={{ marginBottom: 12 }}
 												/>
-											)}
-											{effectiveStatus === "annulée" && (
-												<ActionButton
-													icon="refresh"
-													label="Rétablir la commande"
-													colors={["#10B981", "#059669"]}
-													onPress={() =>
-														onUpdateStatus?.(
+											) : receiptItems.length > 0 ? (
+												<View style={modalStyles.receiptContainer}>
+													<Text style={modalStyles.receiptTitle}>
+														Détail de la commande
+													</Text>
+													<ScrollView
+														nestedScrollEnabled
+														style={modalStyles.receiptScroll}
+														showsVerticalScrollIndicator={false}
+													>
+														{receiptItems.map((item, i) => (
+															<View key={i} style={modalStyles.receiptItem}>
+																<View style={modalStyles.receiptItemLeft}>
+																	<Text style={modalStyles.receiptItemQty}>
+																		{item.quantity}×
+																	</Text>
+																	<Text
+																		style={modalStyles.receiptItemName}
+																		numberOfLines={1}
+																	>
+																		{item.name}
+																	</Text>
+																</View>
+																<Text style={modalStyles.receiptItemPrice}>
+																	{(item.price * item.quantity).toFixed(2)} €
+																</Text>
+															</View>
+														))}
+													</ScrollView>
+												</View>
+											) : null}
+
+											<Text style={modalStyles.paymentMethodLabel}>
+												Mode de paiement
+											</Text>
+											<View style={modalStyles.paymentBtns}>
+												<TouchableOpacity
+													style={modalStyles.paymentBtn}
+													onPress={async () => {
+														setIsPaymentLoading(true);
+														await onPayReservation?.(
 															reservation._id,
-															"en attente",
-															reservation,
-														)
-													}
-													styles={modalStyles}
-												/>
-											)}
+															reservation?.totalAmount || 0,
+															"Espèces",
+														);
+														setIsPaymentLoading(false);
+													}}
+													disabled={isPaymentLoading}
+													activeOpacity={0.85}
+												>
+													<LinearGradient
+														colors={["#F59E0B", "#D97706"]}
+														style={modalStyles.paymentBtnGradient}
+														start={{ x: 0, y: 0 }}
+														end={{ x: 1, y: 1 }}
+													>
+														{isPaymentLoading ? (
+															<ActivityIndicator size="small" color="#FFFFFF" />
+														) : (
+															<>
+																<Ionicons
+																	name="cash-outline"
+																	size={22}
+																	color="#FFFFFF"
+																	style={{ marginBottom: 3 }}
+																/>
+																<Text style={modalStyles.paymentBtnText}>
+																	Espèces
+																</Text>
+															</>
+														)}
+													</LinearGradient>
+												</TouchableOpacity>
+												<TouchableOpacity
+													style={modalStyles.paymentBtn}
+													onPress={async () => {
+														setIsPaymentLoading(true);
+														await onPayReservation?.(
+															reservation._id,
+															reservation?.totalAmount || 0,
+															"Carte",
+														);
+														setIsPaymentLoading(false);
+													}}
+													disabled={isPaymentLoading}
+													activeOpacity={0.85}
+												>
+													<LinearGradient
+														colors={["#6366F1", "#4F46E5"]}
+														style={modalStyles.paymentBtnGradient}
+														start={{ x: 0, y: 0 }}
+														end={{ x: 1, y: 1 }}
+													>
+														{isPaymentLoading ? (
+															<ActivityIndicator size="small" color="#FFFFFF" />
+														) : (
+															<>
+																<Ionicons
+																	name="card-outline"
+																	size={22}
+																	color="#FFFFFF"
+																	style={{ marginBottom: 3 }}
+																/>
+																<Text style={modalStyles.paymentBtnText}>
+																	Carte
+																</Text>
+															</>
+														)}
+													</LinearGradient>
+												</TouchableOpacity>
+											</View>
 										</>
 									) : (
 										<>
-											{/* Mode restaurant classique: toutes les actions */}
+											{/* En attente, pas présent */}
 											{effectiveStatus === "en attente" &&
 												!reservation.isPresent && (
 													<>
@@ -303,87 +358,41 @@ const SettingsModal = React.memo(
 															styles={modalStyles}
 														/>
 														<ActionButton
-															icon="restaurant"
-															label="Ouvrir la réservation"
-															colors={["#0EA5E9", "#0284C7"]}
-															onPress={() =>
-																onUpdateStatus?.(
-																	reservation._id,
-																	"ouverte",
-																	reservation,
-																)
-															}
-															styles={modalStyles}
-														/>
-														<ActionButton
-															icon="checkmark-done"
-															label="Terminer la réservation"
-															colors={["#10B981", "#059669"]}
-															onPress={() =>
-																onUpdateStatus?.(
-																	reservation._id,
-																	"terminée",
-																	reservation,
-																)
-															}
+															icon="close-circle"
+															label="Annuler la réservation"
+															colors={["#EF4444", "#DC2626"]}
+															onPress={() => onCancel(reservation._id)}
 															styles={modalStyles}
 														/>
 													</>
 												)}
 
+											{/* En attente + présent */}
 											{effectiveStatus === "en attente" &&
 												reservation.isPresent && (
 													<>
 														<ActionButton
 															icon="remove-circle"
-															label="Annuler présent"
+															label="Marquer absent"
 															colors={["#F59E0B", "#D97706"]}
 															onPress={() => onTogglePresent?.(reservation._id)}
-															styles={modalStyles}
-														/>
-														<ActionButton
-															icon="restaurant"
-															label="Ouvrir la réservation"
-															colors={["#0EA5E9", "#0284C7"]}
-															onPress={() =>
-																onUpdateStatus?.(
-																	reservation._id,
-																	"ouverte",
-																	reservation,
-																)
-															}
-															styles={modalStyles}
-														/>
-														<ActionButton
-															icon="checkmark-done"
-															label="Terminer la réservation"
-															colors={["#10B981", "#059669"]}
-															onPress={() => {
-																if (
-																	typeof reservation.totalAmount === "number" &&
-																	reservation.totalAmount > 0
-																) {
-																	alert(
-																		"Fermeture impossible : le montant de la réservation n'est pas à zéro.",
-																	);
-																	return;
-																}
-																onUpdateStatus?.(
-																	reservation._id,
-																	"terminée",
-																	reservation,
-																);
-															}}
 															styles={modalStyles}
 														/>
 														<ActionButton
 															icon="close-circle"
 															label="Annuler la réservation"
 															colors={["#EF4444", "#DC2626"]}
+															onPress={() => onCancel(reservation._id)}
+															styles={modalStyles}
+														/>
+														<ActionButton
+															icon="restaurant"
+															label="Ouvrir la réservation"
+															colors={["#0EA5E9", "#0284C7"]}
 															onPress={() =>
-																onCancel(
+																onUpdateStatus?.(
 																	reservation._id,
-																	"terminée",
+																	"ouverte",
 																	reservation,
 																)
 															}
@@ -392,28 +401,44 @@ const SettingsModal = React.memo(
 													</>
 												)}
 
-											{effectiveStatus === "annulée" && (
-												<ActionButton
-													icon="refresh"
-													label="Rétablir la réservation"
-													colors={["#10B981", "#059669"]}
-													onPress={() =>
-														onUpdateStatus?.(
-															reservation._id,
-															"en attente",
-															reservation,
-														)
-													}
-													styles={modalStyles}
-												/>
-											)}
-
+											{/* Ouverte */}
 											{effectiveStatus === "ouverte" && (
 												<>
 													<ActionButton
-														icon="checkmark-done"
-														label="Terminer la réservation"
+														icon="card-outline"
+														label="Payer la commande"
 														colors={["#10B981", "#059669"]}
+														onPress={async () => {
+															setIsLoadingReceipt(true);
+															try {
+																const orders = await authFetch(
+																	`${API_CONFIG.baseURL}/orders/reservation/${reservation._id}`,
+																);
+																if (Array.isArray(orders)) {
+																	setReceiptItems(
+																		orders.flatMap((o) => o.items || []),
+																	);
+																}
+															} catch (_) {
+																setReceiptItems([]);
+															} finally {
+																setIsLoadingReceipt(false);
+															}
+															setStep("payment");
+														}}
+														styles={modalStyles}
+													/>
+													<ActionButton
+														icon="close-circle"
+														label="Annuler la réservation"
+														colors={["#EF4444", "#DC2626"]}
+														onPress={() => onCancel(reservation._id)}
+														styles={modalStyles}
+													/>
+													<ActionButton
+														icon="checkmark-done"
+														label="Terminer (0 €)"
+														colors={["#6B7280", "#4B5563"]}
 														onPress={() => {
 															if (
 																typeof reservation.totalAmount === "number" &&
@@ -432,28 +457,33 @@ const SettingsModal = React.memo(
 														}}
 														styles={modalStyles}
 													/>
-													<ActionButton
-														icon="close-circle"
-														label="Annuler la réservation"
-														colors={["#EF4444", "#DC2626"]}
-														onPress={() => onCancel(reservation._id)}
-														styles={modalStyles}
-													/>
 												</>
 											)}
 
+											{/* Terminée */}
 											{effectiveStatus === "terminée" && (
 												<ActionButton
-													icon="refresh"
-													label="Rouvrir la réservation"
-													colors={["#0EA5E9", "#0284C7"]}
-													onPress={() =>
-														onUpdateStatus?.(
-															reservation._id,
-															"ouverte",
-															reservation,
-														)
-													}
+													icon="add-circle"
+													label="Recréer la réservation"
+													colors={["#F59E0B", "#D97706"]}
+													onPress={() => {
+														onClose?.();
+														onRecreate?.(reservation);
+													}}
+													styles={modalStyles}
+												/>
+											)}
+
+											{/* Annulée */}
+											{effectiveStatus === "annulée" && (
+												<ActionButton
+													icon="add-circle"
+													label="Recréer la réservation"
+													colors={["#F59E0B", "#D97706"]}
+													onPress={() => {
+														onClose?.();
+														onRecreate?.(reservation);
+													}}
 													styles={modalStyles}
 												/>
 											)}
@@ -464,14 +494,22 @@ const SettingsModal = React.memo(
 								{/* Footer */}
 								<TouchableOpacity
 									style={modalStyles.footerButton}
-									onPress={onClose}
+									onPress={() => {
+										if (step === "payment") {
+											setStep("actions");
+										} else {
+											onClose?.();
+										}
+									}}
 								>
 									<Ionicons
 										name="chevron-back"
 										size={18}
 										color={THEME.colors.text.secondary}
 									/>
-									<Text style={modalStyles.footerButtonText}>Fermer</Text>
+									<Text style={modalStyles.footerButtonText}>
+										{step === "payment" ? "Retour" : "Fermer"}
+									</Text>
 								</TouchableOpacity>
 							</Animated.View>
 						</TouchableWithoutFeedback>
@@ -580,6 +618,91 @@ const createModalStyles = (THEME) =>
 		footerButtonText: {
 			fontSize: THEME.typography.sizes.md,
 			fontWeight: THEME.typography.weights.medium,
+			color: THEME.colors.text.secondary,
+		},
+		// ─── Paiement ────────────────────────────
+		paymentAmount: {
+			fontSize: 36,
+			fontWeight: "900",
+			color: "#10B981",
+			textAlign: "center",
+			marginBottom: 4,
+		},
+		paymentMethodLabel: {
+			fontSize: 11,
+			fontWeight: "700",
+			color: THEME.colors.text.muted,
+			textTransform: "uppercase",
+			letterSpacing: 0.8,
+			textAlign: "center",
+			marginBottom: THEME.spacing.md,
+		},
+		paymentBtns: {
+			flexDirection: "row",
+			gap: 12,
+			width: "100%",
+		},
+		paymentBtn: {
+			flex: 1,
+			borderRadius: THEME.radius.lg,
+			overflow: "hidden",
+		},
+		paymentBtnGradient: {
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: 18,
+		},
+		paymentBtnText: {
+			fontSize: 14,
+			fontWeight: "700",
+			color: "#FFFFFF",
+		},
+		// ─── Reçu ────────────────────────────────
+		receiptContainer: {
+			width: "100%",
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.md,
+			paddingHorizontal: 12,
+			paddingVertical: 8,
+			marginBottom: THEME.spacing.md,
+		},
+		receiptTitle: {
+			fontSize: 10,
+			fontWeight: "700",
+			color: THEME.colors.text.muted,
+			textTransform: "uppercase",
+			letterSpacing: 0.8,
+			marginBottom: 6,
+		},
+		receiptScroll: {
+			maxHeight: 120,
+		},
+		receiptItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
+			paddingVertical: 3,
+		},
+		receiptItemLeft: {
+			flexDirection: "row",
+			alignItems: "center",
+			flex: 1,
+			marginRight: 8,
+		},
+		receiptItemQty: {
+			fontSize: 12,
+			fontWeight: "700",
+			color: "#10B981",
+			minWidth: 22,
+		},
+		receiptItemName: {
+			fontSize: 12,
+			color: THEME.colors.text.primary,
+			flex: 1,
+		},
+		receiptItemPrice: {
+			fontSize: 12,
+			fontWeight: "600",
 			color: THEME.colors.text.secondary,
 		},
 	});

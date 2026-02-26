@@ -97,7 +97,7 @@ const CategoryButton = React.memo(
 				</Text>
 			</TouchableOpacity>
 		);
-	}
+	},
 );
 
 CategoryButton.displayName = "CategoryButton";
@@ -265,7 +265,7 @@ export const ProductSelection = React.memo(
 		// ⭐ Valeurs sécurisées (memoizées pour éviter les changements de référence)
 		const safeProducts = useMemo(
 			() => (Array.isArray(products) ? products : []),
-			[products]
+			[products],
 		);
 
 		// Barre de recherche (état local)
@@ -279,11 +279,11 @@ export const ProductSelection = React.memo(
 						(p.name &&
 							p.name.toLowerCase().includes(searchQuery.toLowerCase())) ||
 						(p.description &&
-							p.description.toLowerCase().includes(searchQuery.toLowerCase()))
+							p.description.toLowerCase().includes(searchQuery.toLowerCase())),
 				);
 			}
 			return safeProducts.filter(
-				(p) => p && normalize(p.category) === normalize(selectedCategory)
+				(p) => p && normalize(p.category) === normalize(selectedCategory),
 			);
 		}, [safeProducts, searchQuery, selectedCategory]);
 
@@ -292,7 +292,7 @@ export const ProductSelection = React.memo(
 				Array.isArray(activeReservation?.orderItems)
 					? activeReservation.orderItems
 					: [],
-			[activeReservation?.orderItems]
+			[activeReservation?.orderItems],
 		);
 
 		const handleProductPress = useCallback(
@@ -301,7 +301,7 @@ export const ProductSelection = React.memo(
 				setSelectedProduct?.(product);
 				setShowProductModal?.(true);
 			},
-			[setSelectedProduct, setShowProductModal]
+			[setSelectedProduct, setShowProductModal],
 		);
 
 		const handleDecrement = useCallback(
@@ -335,7 +335,7 @@ export const ProductSelection = React.memo(
 					return newItems;
 				});
 			},
-			[editField]
+			[editField],
 		);
 		const handleIncrement = useCallback(
 			async (productId, product) => {
@@ -346,13 +346,13 @@ export const ProductSelection = React.memo(
 					const token = await getSecureItem("@access_token");
 					const url = `${
 						process.env.EXPO_PUBLIC_API_URL ||
-						"https://sunnygo-backend-6y1m.onrender.com"
+						"https://orderit-backend-6y1m.onrender.com"
 					}/products/${productId}/options`;
 					console.log(
 						"🔍 Vérification options pour:",
 						product?.name,
 						"URL:",
-						url
+						url,
 					);
 
 					const response = await fetch(url, {
@@ -370,7 +370,7 @@ export const ProductSelection = React.memo(
 							// Ouvrir la modale d'options
 							console.log("🎯 Ouverture modale pour:", product?.name);
 							setProductForOptions(
-								product || safeProducts.find((p) => p._id === productId)
+								product || safeProducts.find((p) => p._id === productId),
 							);
 							setOptionsModalVisible(true);
 							return;
@@ -393,14 +393,14 @@ export const ProductSelection = React.memo(
 						return safePrev.map((i) =>
 							i?.productId === productId
 								? { ...i, quantity: Math.min(99, (i.quantity || 0) + 1) }
-								: i
+								: i,
 						);
 					} else {
 						return [...safePrev, { productId, quantity: 1 }];
 					}
 				});
 			},
-			[editField, safeProducts]
+			[editField, safeProducts],
 		);
 
 		const handleValidateOptions = useCallback(
@@ -438,7 +438,7 @@ export const ProductSelection = React.memo(
 				setOptionsModalVisible(false);
 				setProductForOptions(null);
 			},
-			[editField, productForOptions]
+			[editField, productForOptions],
 		);
 
 		// Fonction pour détecter les allergènes conflictuels d'un produit
@@ -450,11 +450,11 @@ export const ProductSelection = React.memo(
 					return product.allergens.some(
 						(prodAllergen) =>
 							(prodAllergen._id || prodAllergen.id || prodAllergen) ===
-							allergenId
+							allergenId,
 					);
 				});
 			},
-			[clientAllergens]
+			[clientAllergens],
 		);
 
 		const renderProductItem = useCallback(
@@ -529,12 +529,12 @@ export const ProductSelection = React.memo(
 				handleDecrement,
 				handleIncrement,
 				getMatchingAllergens,
-			]
+			],
 		);
 
 		const hasSelectedItems = useMemo(
 			() => safeSunnyGoems.some((i) => (i?.quantity || 0) > 0),
-			[safeSunnyGoems]
+			[safeSunnyGoems],
 		);
 
 		const handleNext = useCallback(() => {
@@ -681,7 +681,7 @@ export const ProductSelection = React.memo(
 				</View>
 			</>
 		);
-	}
+	},
 );
 
 ProductSelection.displayName = "ProductSelection";

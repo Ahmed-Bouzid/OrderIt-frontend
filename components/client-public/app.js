@@ -9,7 +9,12 @@ export default function App() {
 	return (
 		<View style={{ flex: 1 }}>
 			{!userName ? (
-				<JoinOrCreateTable tableId="686af692bb4cba684ff3b757" onJoin={(name) => setUserName(name)} />
+				<JoinOrCreateTable
+					tableId="686af692bb4cba684ff3b757"
+					onJoin={(name) => setUserName(name)}
+				/>
+			) : (
+				<Menu />
 			)}
 		</View>
 	);

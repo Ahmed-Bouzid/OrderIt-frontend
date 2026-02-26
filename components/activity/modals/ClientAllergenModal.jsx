@@ -121,7 +121,7 @@ export const ClientAllergenModal = React.memo(
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const styles = useMemo(
 			() => createStyles(THEME, themeMode === "dark" || themeMode === "ocean"),
-			[THEME, themeMode]
+			[THEME, themeMode],
 		);
 
 		// Animation du slide
@@ -141,9 +141,7 @@ export const ClientAllergenModal = React.memo(
 				const token = await getSecureItem("@access_token");
 				const baseUrl =
 					process.env.EXPO_PUBLIC_API_URL ||
-					"https://sunnygo-backend-6y1m.onrender.com";
-
-				console.log("🔑 Token:", token ? "présent" : "absent");
+					"https://orderit-backend-6y1m.onrender.com";
 				console.log("🌐 URL:", `${baseUrl}/allergens`);
 
 				const response = await fetch(`${baseUrl}/allergens`, {
@@ -229,7 +227,7 @@ export const ClientAllergenModal = React.memo(
 		const handleValidate = useCallback(() => {
 			// Retourner les allergènes sélectionnés avec leurs infos complètes
 			const selectedAllergens = allergens.filter((a) =>
-				selected.includes(a._id)
+				selected.includes(a._id),
 			);
 			onValidate?.(selectedAllergens);
 			onClose?.();
@@ -241,7 +239,7 @@ export const ClientAllergenModal = React.memo(
 			return allergens.filter(
 				(a) =>
 					a.name.toLowerCase().includes(query) ||
-					a.description?.toLowerCase().includes(query)
+					a.description?.toLowerCase().includes(query),
 			);
 		}, [allergens, searchQuery]);
 
@@ -294,7 +292,7 @@ export const ClientAllergenModal = React.memo(
 					</TouchableOpacity>
 				);
 			},
-			[selected, toggleAllergen, styles, THEME]
+			[selected, toggleAllergen, styles, THEME],
 		);
 
 		return (
@@ -415,7 +413,7 @@ export const ClientAllergenModal = React.memo(
 				</Pressable>
 			</Modal>
 		);
-	}
+	},
 );
 
 ClientAllergenModal.displayName = "ClientAllergenModal";

@@ -12,7 +12,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
-import useUserStore from "../../src/stores/useUserStore";
+import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 
 // Enable LayoutAnimation on Android
 if (
@@ -57,17 +57,34 @@ const ALL_FILTERS = [
 
 const Filters = React.memo(
 	({ activeFilter, onFilterChange, searchQuery, onSearchChange }) => {
-		const category = useUserStore((state) => state.category);
-		// Filtrage dynamique des statuts pour foodtruck, snack, fastfood
-		const FILTERS =
-			category === "foodtruck" ||
-			category === "snack" ||
-			category === "fastfood" ||
-			category === "fast-food"
-				? ALL_FILTERS.filter((f) =>
-						["ouverte", "terminée", "annulée"].includes(f.key),
-					)
-				: ALL_FILTERS;
+		const { hasCommandesExpress, hasCuisine } = useFeatureLevel();
+		// Affichage des filtres :
+		// - foodtruck (express, pas de cuisine) : uniquement Commandes Express
+		// - fast-food (cuisine) : filtres classiques + Cuisine
+		// - autres : 5 boutons classiques
+		let FILTERS;
+		if (hasCommandesExpress && !hasCuisine) {
+			FILTERS = [
+				{
+					key: "express",
+					label: "COMMANDES EXPRESS",
+					icon: "flash-outline",
+					color: "#F59E0B",
+				},
+			];
+		} else if (hasCuisine) {
+			FILTERS = [
+				...ALL_FILTERS,
+				{
+					key: "cuisine",
+					label: "Cuisine",
+					icon: "restaurant-outline",
+					color: "#10B981",
+				},
+			];
+		} else {
+			FILTERS = ALL_FILTERS;
+		}
 		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const filterStyles = useMemo(() => createFilterStyles(THEME), [THEME]);
@@ -164,8 +181,8 @@ const Filters = React.memo(
 
 					{/* Filtres de statut */}
 					<View style={filterStyles.inner}>
-						{/* Background slider */}
-						{isReady && (
+						{/* Background slider (désactivé pour foodtruck) */}
+						{isReady && FILTERS.length > 1 && (
 							<Animated.View
 								style={[
 									filterStyles.slider,

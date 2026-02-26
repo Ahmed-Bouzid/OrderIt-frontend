@@ -40,6 +40,10 @@ export default function DeveloperSelector() {
 	const [showCreateModal, setShowCreateModal] = useState(false);
 	const [creatingRestaurant, setCreatingRestaurant] = useState(false);
 
+	// 🔧 Feature overrides par restaurant
+	const [expandedOverridesId, setExpandedOverridesId] = useState(null);
+	const [restaurantOverrides, setRestaurantOverrides] = useState({}); // { [restaurantId]: { featureKey: bool } }
+
 	// Formulaire de création
 	const [newRestaurant, setNewRestaurant] = useState({
 		name: "",
@@ -204,6 +208,168 @@ export default function DeveloperSelector() {
 			} else {
 				Alert.alert("Erreur", "Impossible de modifier le statut");
 			}
+		}
+	};
+
+	// ══════════════════════════════════════════
+	// 🔧 GESTION DES FEATURE OVERRIDES
+	// ══════════════════════════════════════════
+
+	/**
+	 * Features toggleables par catégorie de restaurant :
+	 * - restaurant       → messagerie (chat_client)
+	 * - fast-food/snack  → gestion des stocks (gestion_stocks)
+	 * - foodtruck        → bouton + commande directe (fab_fast_commande)
+	 */
+	const STAT_FEATURE = {
+		key: "statistiques",
+		label: "Stats & CRM Performance",
+		icon: "bar-chart-outline",
+	};
+
+	const TOGGLEABLE_FEATURES = {
+		restaurant: [
+			{
+				key: "chat_client",
+				label: "Messagerie client-serveur",
+				icon: "chatbubbles-outline",
+			},
+			STAT_FEATURE,
+		],
+		"fast-food": [
+			{
+				key: "gestion_stocks",
+				label: "Gestion des stocks",
+				icon: "cube-outline",
+			},
+			STAT_FEATURE,
+		],
+		snack: [
+			{
+				key: "gestion_stocks",
+				label: "Gestion des stocks",
+				icon: "cube-outline",
+			},
+			STAT_FEATURE,
+		],
+		cafe: [
+			{
+				key: "gestion_stocks",
+				label: "Gestion des stocks",
+				icon: "cube-outline",
+			},
+			STAT_FEATURE,
+		],
+		boulangerie: [
+			{
+				key: "gestion_stocks",
+				label: "Gestion des stocks",
+				icon: "cube-outline",
+			},
+			STAT_FEATURE,
+		],
+		bar: [
+			{
+				key: "gestion_stocks",
+				label: "Gestion des stocks",
+				icon: "cube-outline",
+			},
+			STAT_FEATURE,
+		],
+		foodtruck: [
+			{
+				key: "fab_fast_commande",
+				label: "Bouton + commande directe",
+				icon: "add-circle-outline",
+			},
+			STAT_FEATURE,
+		],
+	};
+
+	/** Ouvre / ferme le panneau d'overrides d'un restaurant et charge les données si besoin */
+	const handleToggleOverridePanel = async (restaurant) => {
+		const id = restaurant._id;
+
+		// Fermer si déjà ouvert
+		if (expandedOverridesId === id) {
+			setExpandedOverridesId(null);
+			return;
+		}
+
+		setExpandedOverridesId(id);
+
+		// Charger les overrides depuis le serveur si pas encore en cache
+		if (!restaurantOverrides[id]) {
+			try {
+				const API_URL = process.env.EXPO_PUBLIC_API_URL;
+				const response = await fetchWithAuth(
+					`${API_URL}/developer/restaurants/${id}/feature-overrides`,
+				);
+				if (response.ok) {
+					const data = await response.json();
+					setRestaurantOverrides((prev) => ({
+						...prev,
+						[id]: data.featureOverrides || {},
+					}));
+				} else {
+					setRestaurantOverrides((prev) => ({ ...prev, [id]: {} }));
+				}
+			} catch {
+				setRestaurantOverrides((prev) => ({ ...prev, [id]: {} }));
+			}
+		}
+	};
+
+	/** Bascule un override et persiste sur le serveur */
+	const handleUpdateFeatureOverride = async (restaurant, featureKey) => {
+		const id = restaurant._id;
+		const current = restaurantOverrides[id] || {};
+
+		// La valeur courante : si override explicite → utiliser, sinon laisser undefined (= matrice par défaut)
+		// On calcule la valeur de base selon la catégorie pour déterminer ce qu'on va toggler
+		const BASE_ON_FEATURES = {
+			restaurant: { chat_client: true, statistiques: true },
+			"fast-food": { gestion_stocks: true, statistiques: false },
+			snack: { gestion_stocks: true, statistiques: false },
+			cafe: { gestion_stocks: true, statistiques: false },
+			boulangerie: { gestion_stocks: true, statistiques: false },
+			bar: { gestion_stocks: true, statistiques: false },
+			foodtruck: { fab_fast_commande: true, statistiques: false },
+		};
+		const baseValue =
+			(BASE_ON_FEATURES[restaurant.category] || {})[featureKey] ?? true;
+		const effectiveValue =
+			featureKey in current ? current[featureKey] : baseValue;
+		const newValue = !effectiveValue;
+
+		const newOverrides = { ...current, [featureKey]: newValue };
+
+		// Optimiste local
+		setRestaurantOverrides((prev) => ({
+			...prev,
+			[id]: newOverrides,
+		}));
+
+		try {
+			const API_URL = process.env.EXPO_PUBLIC_API_URL;
+			const response = await fetchWithAuth(
+				`${API_URL}/developer/restaurants/${id}/feature-overrides`,
+				{
+					method: "PUT",
+					headers: { "Content-Type": "application/json" },
+					body: JSON.stringify({ overrides: newOverrides }),
+				},
+			);
+			if (!response.ok) {
+				throw new Error("Erreur serveur");
+			}
+		} catch {
+			// Rollback
+			setRestaurantOverrides((prev) => ({
+				...prev,
+				[id]: current,
+			}));
+			Alert.alert("Erreur", "Impossible de sauvegarder l'override");
 		}
 	};
 
@@ -665,6 +831,124 @@ export default function DeveloperSelector() {
 					thumbColor="#fff"
 				/>
 			</View>
+
+			{/* 🔧 Fonctionnalités toggleables */}
+			{(TOGGLEABLE_FEATURES[item.category] || []).length > 0 && (
+				<>
+					<TouchableOpacity
+						style={[
+							styles.toggleContainer,
+							{
+								borderTopWidth: 1,
+								borderTopColor:
+									theme === "dark"
+										? "rgba(255,255,255,0.07)"
+										: "rgba(0,0,0,0.06)",
+								marginTop: 2,
+							},
+						]}
+						onPress={() => handleToggleOverridePanel(item)}
+					>
+						<View
+							style={{ flexDirection: "row", alignItems: "center", gap: 6 }}
+						>
+							<Ionicons
+								name="settings-outline"
+								size={15}
+								color={theme === "dark" ? "#94a3b8" : "#64748b"}
+							/>
+							<Text
+								style={[
+									styles.toggleLabel,
+									{ color: theme === "dark" ? "#94a3b8" : "#64748b" },
+								]}
+							>
+								Fonctionnalités
+							</Text>
+						</View>
+						<Ionicons
+							name={
+								expandedOverridesId === item._id ? "chevron-up" : "chevron-down"
+							}
+							size={16}
+							color={theme === "dark" ? "#94a3b8" : "#64748b"}
+						/>
+					</TouchableOpacity>
+
+					{expandedOverridesId === item._id && (
+						<View style={{ paddingHorizontal: 12, paddingBottom: 10, gap: 8 }}>
+							{(TOGGLEABLE_FEATURES[item.category] || []).map((feat) => {
+								const BASE_ON = {
+									restaurant: { chat_client: true, statistiques: true },
+									"fast-food": { gestion_stocks: true, statistiques: false },
+									snack: { gestion_stocks: true, statistiques: false },
+									cafe: { gestion_stocks: true, statistiques: false },
+									boulangerie: { gestion_stocks: true, statistiques: false },
+									bar: { gestion_stocks: true, statistiques: false },
+									foodtruck: { fab_fast_commande: true, statistiques: false },
+								};
+								const overrides = restaurantOverrides[item._id] || {};
+								const baseVal =
+									(BASE_ON[item.category] || {})[feat.key] ?? true;
+								const value =
+									feat.key in overrides ? overrides[feat.key] : baseVal;
+								return (
+									<View
+										key={feat.key}
+										style={{
+											flexDirection: "row",
+											alignItems: "center",
+											justifyContent: "space-between",
+											backgroundColor:
+												theme === "dark"
+													? "rgba(255,255,255,0.04)"
+													: "rgba(0,0,0,0.04)",
+											borderRadius: 8,
+											paddingHorizontal: 10,
+											paddingVertical: 8,
+										}}
+									>
+										<View
+											style={{
+												flexDirection: "row",
+												alignItems: "center",
+												gap: 8,
+												flex: 1,
+											}}
+										>
+											<Ionicons
+												name={feat.icon}
+												size={15}
+												color={value ? "#10b981" : "#94a3b8"}
+											/>
+											<Text
+												style={{
+													fontSize: 13,
+													color: theme === "dark" ? "#e2e8f0" : "#334155",
+													flex: 1,
+												}}
+											>
+												{feat.label}
+											</Text>
+										</View>
+										<Switch
+											value={value}
+											onValueChange={() =>
+												handleUpdateFeatureOverride(item, feat.key)
+											}
+											trackColor={{ false: "#64748b", true: "#10b981" }}
+											thumbColor="#fff"
+											style={{
+												transform: [{ scaleX: 0.85 }, { scaleY: 0.85 }],
+											}}
+										/>
+									</View>
+								);
+							})}
+						</View>
+					)}
+				</>
+			)}
 		</View>
 	);
 
@@ -711,17 +995,6 @@ export default function DeveloperSelector() {
 					<TouchableOpacity
 						style={[
 							styles.actionButton,
-							{ backgroundColor: theme === "dark" ? "#ef4444" : "#dc2626" },
-						]}
-						onPress={handleLogout}
-					>
-						<Ionicons name="log-out" size={20} color="#fff" />
-						<Text style={styles.actionButtonText}>Déconnexion</Text>
-					</TouchableOpacity>
-
-					<TouchableOpacity
-						style={[
-							styles.actionButton,
 							{ backgroundColor: theme === "dark" ? "#0ea5e9" : "#0284c7" },
 						]}
 						onPress={() => setShowCreateModal(true)}
@@ -751,6 +1024,27 @@ export default function DeveloperSelector() {
 					>
 						<Ionicons name="scan" size={20} color="#fff" />
 						<Text style={styles.actionButtonText}>Scan Menu</Text>
+					</TouchableOpacity>
+					{/* ✨ NOUVEAU : Bouton Gérer Fonctionnalités */}
+					<TouchableOpacity
+						style={[
+							styles.actionButton,
+							{ backgroundColor: theme === "dark" ? "#10b981" : "#059669" },
+						]}
+						onPress={() => router.push("/restaurant-features")}
+					>
+						<Ionicons name="settings" size={20} color="#fff" />
+						<Text style={styles.actionButtonText}>Gérer Fonctionnalités</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						style={[
+							styles.actionButton,
+							{ backgroundColor: theme === "dark" ? "#ef4444" : "#dc2626" },
+						]}
+						onPress={handleLogout}
+					>
+						<Ionicons name="log-out" size={20} color="#fff" />
+						<Text style={styles.actionButtonText}>Déconnexion</Text>
 					</TouchableOpacity>
 				</View>
 			</View>

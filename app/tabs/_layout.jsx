@@ -21,9 +21,11 @@ import Activity from "../../components/screens/Activity";
 import FloorScreen from "../../components/screens/Floor";
 import Settings from "../../components/screens/Settings";
 import useSocket from "../../hooks/useSocket";
+import { getItem } from "../../utils/secureStorage";
 
 import useUserStore from "../../src/stores/useUserStore";
 import { useFeatureLevelStore } from "../../src/stores/useFeatureLevelStore";
+import useExpressOrdersStore from "../../src/stores/useExpressOrdersStore";
 
 import ClientMessagesPanel from "../../components/ui/ClientMessagesPanel";
 
@@ -96,7 +98,57 @@ export default function TabsLayout() {
 	const [activeTab, setActiveTab] = useState("");
 	const [showMessagesPanel, setShowMessagesPanel] = useState(false);
 	const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+	const [restaurantName, setRestaurantName] = useState("Restaurant");
 
+	// Charger le nom du restaurant
+	useEffect(() => {
+		const loadRestaurantName = async () => {
+			try {
+				const restaurantId = await AsyncStorage.getItem("restaurantId");
+				const token = await getItem("access_token");
+
+				if (!restaurantId || !token) {
+					console.log(
+						"❌ Impossible de charger le nom: restaurantId ou token manquant",
+					);
+					return;
+				}
+
+				// Vérifier le cache : utiliser uniquement si le restaurantId correspond
+				const cachedId = await AsyncStorage.getItem("restaurantNameId");
+				const cachedName = await AsyncStorage.getItem("restaurantName");
+				if (cachedId === restaurantId && cachedName) {
+					setRestaurantName(cachedName);
+					return;
+				}
+
+				// Cache invalide ou absent → fetch API
+				console.log("📡 Fetch nom restaurant:", restaurantId);
+
+				const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${restaurantId}`;
+				const response = await fetch(url, {
+					headers: { Authorization: `Bearer ${token}` },
+				});
+
+				if (response.ok) {
+					const data = await response.json();
+					const name = data.name || "Restaurant";
+					console.log("✅ Nom du restaurant chargé:", name);
+					setRestaurantName(name);
+					// Mettre en cache avec l'ID associé
+					await AsyncStorage.setItem("restaurantName", name);
+					await AsyncStorage.setItem("restaurantNameId", restaurantId);
+				} else {
+					console.error("❌ Erreur API restaurant:", response.status);
+				}
+			} catch (error) {
+				console.error("❌ Erreur chargement nom restaurant:", error);
+			}
+		};
+		loadRestaurantName();
+	}, []);
+
+	// Debug : surveiller le changement de showMessagesPanel
 	// Debug : surveiller le changement de showMessagesPanel
 	useEffect(() => {
 		console.log("🔍 showMessagesPanel a changé:", showMessagesPanel);
@@ -111,6 +163,25 @@ export default function TabsLayout() {
 	}, [isFeatureLevelReady, TABS, activeTab]);
 
 	const { connect, socket, isConnected } = useSocket();
+
+	// ⚡ Attacher le store Express Orders aux WebSocket
+	const { attachSocketListener: attachExpressOrdersListener } =
+		useExpressOrdersStore();
+
+	// Attacher les listeners WebSocket pour Express Orders
+	useEffect(() => {
+		let cleanup = null;
+
+		if (socket && isConnected) {
+			cleanup = attachExpressOrdersListener(socket);
+		}
+
+		return () => {
+			if (cleanup) {
+				cleanup();
+			}
+		};
+	}, [socket, isConnected, attachExpressOrdersListener]);
 
 	// Écouter les nouveaux messages pour le badge
 	useEffect(() => {
@@ -201,11 +272,14 @@ export default function TabsLayout() {
 	}, [activeTab, tabLayouts, isSliderReady, sliderTranslateX, sliderWidth]);
 
 	// Si la catégorie change (ex: login), s'assurer que le tab actif existe
+	// ⚠️ Guard obligatoire : avant isFeatureLevelReady, TABS contient les tabs par défaut
+	// ("activity" inclus) et activeTab="" → ce guard forcerait "activity" pour fast-food.
 	useEffect(() => {
+		if (!isFeatureLevelReady) return;
 		if (!TABS.find((t) => t.name === activeTab)) {
 			setActiveTab(TABS[0]?.name);
 		}
-	}, [TABS, activeTab]);
+	}, [isFeatureLevelReady, TABS, activeTab]);
 
 	// ✅ Connecter WebSocket au montage (index.jsx gère déjà l'auth)
 	useEffect(() => {
@@ -254,9 +328,9 @@ export default function TabsLayout() {
 						<Text
 							style={tabStyles.brandText}
 							numberOfLines={1}
-							ellipsizeMode="clip"
+							ellipsizeMode="tail"
 						>
-							SunnyGo
+							{restaurantName}
 						</Text>
 					</View>
 
@@ -387,8 +461,6 @@ const tabStyles = StyleSheet.create({
 	brandContainer: {
 		flexDirection: "row",
 		alignItems: "center",
-		minWidth: 180,
-		maxWidth: 280,
 		width: "auto",
 	},
 	brandIconBg: {
@@ -402,7 +474,7 @@ const tabStyles = StyleSheet.create({
 	brandText: {
 		fontSize: 32,
 		fontWeight: "700",
-		flexShrink: 1,
+		flexShrink: 0,
 		alignSelf: "center",
 		color: THEME.colors.text.primary,
 		letterSpacing: 0.8,
@@ -483,11 +555,11 @@ const tabStyles = StyleSheet.create({
 		fontWeight: "700",
 		color: "#fff",
 	},
-	// Bouton flottant de messagerie (côté droit)
+	// Bouton flottant de messagerie (juste au-dessus du bouton +)
 	floatingButtonWrapper: {
 		position: "absolute",
-		right: 16,
-		top: "50%",
+		right: 25, // Aligné avec le FAB
+		bottom: 120, // Au-dessus du FAB (24 + 60 + 16)
 		zIndex: 999,
 	},
 	floatingMessageButton: {

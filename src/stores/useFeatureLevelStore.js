@@ -3,6 +3,28 @@
  *
  * Gère le niveau fonctionnel de l'application serveur selon la catégorie du restaurant.
  * Permet de vérifier facilement si une fonctionnalité est disponible.
+ *
+ * ──────────────────────────────────────────────
+ * MATRICE DES FEATURES PAR TYPE DE RESTAURANT :
+ *
+ * COMPLET    (restaurant classique) :
+ *   Toutes les features sauf CUISINE et COMMANDES_EXPRESS.
+ *   + Bouton FAB = réservation uniquement.
+ *   Toggleable : CHAT_CLIENT (messagerie)
+ *
+ * INTERMEDIAIRE (fast-food, snack, café, bar, boulangerie) :
+ *   Caisse, Commandes, Stocks, Réglages, Réservations, Recherche, Allergies,
+ *   CUISINE (vue FastFoodKitchen), FAB_FAST_COMMANDE.
+ *   Pas de Plan de Salle, Activité, Calendrier, Messagerie, Auto-Tables,
+ *   Section Cuisine dans Floor.jsx.
+ *   Toggleable : GESTION_STOCKS
+ *
+ * MINIMUM    (foodtruck) :
+ *   Caisse Simple, Commandes Simplifiée, COMMANDES_EXPRESS, FAB_FAST_COMMANDE,
+ *   Stocks, Réglages simples.
+ *   Pas de floor plan, Messagerie, Calendrier, Activité.
+ *   Toggleable : FAB_FAST_COMMANDE
+ * ──────────────────────────────────────────────
  */
 
 import { create } from "zustand";
@@ -18,6 +40,7 @@ const LEVELS = {
 const CATEGORY_TO_LEVEL = {
 	restaurant: LEVELS.COMPLET,
 	snack: LEVELS.INTERMEDIAIRE,
+	"fast-food": LEVELS.INTERMEDIAIRE,
 	foodtruck: LEVELS.MINIMUM,
 	cafe: LEVELS.INTERMEDIAIRE,
 	boulangerie: LEVELS.INTERMEDIAIRE,
@@ -25,22 +48,41 @@ const CATEGORY_TO_LEVEL = {
 };
 
 const SERVICE_FEATURES = {
+	// ── Caisse ──
 	CAISSE_COMPLETE: "caisse_complete",
 	CAISSE_SIMPLE: "caisse_simple",
+	// ── Commandes ──
 	STATUT_COMMANDES: "statut_commandes",
 	STATUT_COMMANDES_SIMPLIFIE: "statut_commandes_simplifie",
+	// ── Salle / Plan ──
 	PLAN_SALLE: "plan_salle",
+	SALLE_CUISINE: "salle_cuisine", // Sidebar Cuisine (Boissons/Entrées/Plats/Desserts) dans Floor.jsx
+	// ── Communication ──
 	CHAT_CLIENT: "chat_client",
+	// ── Analytics ──
 	STATISTIQUES: "statistiques",
+	// ── Assignation tables ──
 	AUTO_TABLES: "auto_tables",
+	// ── Planning ──
 	CALENDRIER: "calendrier",
 	ACTIVITE: "activite",
+	// ── Recherche ──
 	RECHERCHE_GLOBALE: "recherche_globale",
+	// ── Stocks ──
 	GESTION_STOCKS: "gestion_stocks",
+	// ── Paramètres ──
 	REGLAGES_COMPLETS: "reglages_complets",
 	REGLAGES_BASIQUES: "reglages_basiques",
+	// ── Réservations ──
 	RESERVATIONS: "reservations",
+	// ── Allergènes ──
 	ALLERGIES_VISIBLES: "allergies_visibles",
+	// ── Fast-Food : vue cuisine dans Dashboard ──
+	CUISINE: "cuisine",
+	// ── Foodtruck : commandes express ──
+	COMMANDES_EXPRESS: "commandes_express",
+	// ── Fast-Food + Foodtruck : bouton FAB crée une commande directe ──
+	FAB_FAST_COMMANDE: "fab_fast_commande",
 };
 
 const SERVICE_LEVEL_CONFIG = {
@@ -51,6 +93,7 @@ const SERVICE_LEVEL_CONFIG = {
 			SERVICE_FEATURES.CAISSE_COMPLETE,
 			SERVICE_FEATURES.STATUT_COMMANDES,
 			SERVICE_FEATURES.PLAN_SALLE,
+			SERVICE_FEATURES.SALLE_CUISINE,
 			SERVICE_FEATURES.CHAT_CLIENT,
 			SERVICE_FEATURES.STATISTIQUES,
 			SERVICE_FEATURES.AUTO_TABLES,
@@ -75,6 +118,8 @@ const SERVICE_LEVEL_CONFIG = {
 			SERVICE_FEATURES.RESERVATIONS,
 			SERVICE_FEATURES.RECHERCHE_GLOBALE,
 			SERVICE_FEATURES.ALLERGIES_VISIBLES,
+			SERVICE_FEATURES.CUISINE,
+			SERVICE_FEATURES.FAB_FAST_COMMANDE,
 		],
 		tabs: ["floor", "reglage"],
 	},
@@ -85,10 +130,15 @@ const SERVICE_LEVEL_CONFIG = {
 			SERVICE_FEATURES.CAISSE_SIMPLE,
 			SERVICE_FEATURES.STATUT_COMMANDES_SIMPLIFIE,
 			SERVICE_FEATURES.REGLAGES_BASIQUES,
+			SERVICE_FEATURES.GESTION_STOCKS,
+			SERVICE_FEATURES.COMMANDES_EXPRESS,
+			SERVICE_FEATURES.FAB_FAST_COMMANDE,
 		],
 		tabs: ["floor", "reglage"],
 	},
 };
+
+// ============ UTILITIES ============
 
 // Fonction utilitaire
 const getLevelFromCategory = (category) => {
@@ -101,6 +151,23 @@ const getServiceConfig = (category) => {
 		level,
 		...SERVICE_LEVEL_CONFIG[level],
 	};
+};
+
+/**
+ * Applique les overrides (Map<feature, boolean>) sur une liste de features.
+ * - override = true  → ajoute la feature si absente
+ * - override = false → retire la feature si présente
+ */
+const applyFeatureOverrides = (features, overrides = {}) => {
+	let result = [...features];
+	Object.entries(overrides).forEach(([feature, enabled]) => {
+		if (enabled && !result.includes(feature)) {
+			result.push(feature);
+		} else if (!enabled) {
+			result = result.filter((f) => f !== feature);
+		}
+	});
+	return result;
 };
 
 // ============ STORE ZUSTAND ============
@@ -116,7 +183,8 @@ export const useFeatureLevelStore = create((set, get) => ({
 	// ============ ACTIONS ============
 
 	/**
-	 * Initialise le store depuis AsyncStorage ou avec une catégorie donnée
+	 * Initialise le store depuis AsyncStorage ou avec une catégorie donnée.
+	 * Applique ensuite les overrides persistés (featureOverrides en AsyncStorage).
 	 * @param {string} category - Catégorie du restaurant (optionnel)
 	 */
 	init: async (category = null) => {
@@ -130,22 +198,38 @@ export const useFeatureLevelStore = create((set, get) => ({
 
 			const config = getServiceConfig(cat);
 
+			// Lire les overrides persistés (stockés lors du login ou depuis DeveloperSelector)
+			let baseFeatures = [...config.features];
+			try {
+				const overridesRaw = await AsyncStorage.getItem("featureOverrides");
+				if (overridesRaw) {
+					const overrides = JSON.parse(overridesRaw);
+					baseFeatures = applyFeatureOverrides(baseFeatures, overrides);
+					console.log(
+						`🔧 [SERVICE] Overrides appliqués:`,
+						Object.keys(overrides),
+					);
+				}
+			} catch (overrideErr) {
+				console.warn("⚠️ Erreur lecture featureOverrides:", overrideErr);
+			}
+
 			console.log(`🎯 [SERVICE] Feature Level initialisé:`, {
 				category: cat,
 				level: config.level,
 				tabs: config.tabs,
-				featuresCount: config.features.length,
+				featuresCount: baseFeatures.length,
 			});
 
 			set({
 				level: config.level,
 				category: cat,
-				features: config.features,
+				features: baseFeatures,
 				tabs: config.tabs,
 				isInitialized: true,
 			});
 
-			return config;
+			return { ...config, features: baseFeatures };
 		} catch (error) {
 			console.error("❌ Erreur init FeatureLevelStore:", error);
 			// Fallback niveau complet
@@ -176,6 +260,31 @@ export const useFeatureLevelStore = create((set, get) => ({
 	},
 
 	/**
+	 * Applique des overrides (Map<feature, boolean>) sur les features actives.
+	 * Persiste aussi les overrides dans AsyncStorage pour les sessions suivantes.
+	 * @param {Record<string, boolean>} overrides
+	 */
+	applyOverrides: async (overrides = {}) => {
+		try {
+			// Recalculer depuis la base (catégorie actuelle) + appliquer les overrides
+			const { category } = get();
+			const config = getServiceConfig(category);
+			const updatedFeatures = applyFeatureOverrides(config.features, overrides);
+
+			// Persister dans AsyncStorage
+			await AsyncStorage.setItem("featureOverrides", JSON.stringify(overrides));
+
+			set({ features: updatedFeatures });
+
+			console.log(
+				`🔧 [SERVICE] applyOverrides → ${updatedFeatures.length} features actives`,
+			);
+		} catch (err) {
+			console.error("❌ Erreur applyOverrides:", err);
+		}
+	},
+
+	/**
 	 * Vérifie si une fonctionnalité est active
 	 * @param {string} feature - Clé de la fonctionnalité
 	 * @returns {boolean}
@@ -200,10 +309,13 @@ export const useFeatureLevelStore = create((set, get) => ({
 
 	// ============ GETTERS PRATIQUES ============
 
-	// Plan de salle
+	// Plan de salle (restaurant classique)
 	hasPlanSalle: () => get().hasFeature(SERVICE_FEATURES.PLAN_SALLE),
 
-	// Chat client
+	// Sidebar Cuisine dans Floor.jsx (Boissons/Entrées/Plats/Desserts) — restaurant uniquement
+	hasSalleCuisine: () => get().hasFeature(SERVICE_FEATURES.SALLE_CUISINE),
+
+	// Chat client / messagerie
 	hasChatClient: () => get().hasFeature(SERVICE_FEATURES.CHAT_CLIENT),
 
 	// Statistiques
@@ -215,7 +327,7 @@ export const useFeatureLevelStore = create((set, get) => ({
 	// Calendrier
 	hasCalendrier: () => get().hasFeature(SERVICE_FEATURES.CALENDRIER),
 
-	// Activité
+	// Activité (onglet + dashboard avancé)
 	hasActivite: () => get().hasFeature(SERVICE_FEATURES.ACTIVITE),
 
 	// Recherche globale
@@ -238,6 +350,17 @@ export const useFeatureLevelStore = create((set, get) => ({
 	// Réglages complets
 	hasReglagesComplets: () =>
 		get().hasFeature(SERVICE_FEATURES.REGLAGES_COMPLETS),
+
+	// Vue FastFoodKitchen dans Dashboard (fast-food)
+	hasCuisine: () => get().hasFeature(SERVICE_FEATURES.CUISINE),
+
+	// Commandes Express (foodtruck)
+	hasCommandesExpress: () =>
+		get().hasFeature(SERVICE_FEATURES.COMMANDES_EXPRESS),
+
+	// Bouton FAB crée une commande directe (fast-food + foodtruck)
+	hasFabFastCommande: () =>
+		get().hasFeature(SERVICE_FEATURES.FAB_FAST_COMMANDE),
 
 	// Vérifications de niveau
 	isMinimum: () => get().level === LEVELS.MINIMUM,
@@ -263,8 +386,9 @@ export const useFeatureLevel = () => {
 		tabs: store.tabs,
 		isInitialized: store.isInitialized,
 
-		// Fonctionnalités
+		// Fonctionnalités (restaurant classique)
 		hasPlanSalle: store.hasPlanSalle(),
+		hasSalleCuisine: store.hasSalleCuisine(), // Sidebar Boissons/Entrées/Plats/Desserts dans Floor.jsx
 		hasChatClient: store.hasChatClient(),
 		hasStatistiques: store.hasStatistiques(),
 		hasAutoTables: store.hasAutoTables(),
@@ -277,6 +401,13 @@ export const useFeatureLevel = () => {
 		hasCaisseComplete: store.hasCaisseComplete(),
 		hasReglagesComplets: store.hasReglagesComplets(),
 
+		// Fonctionnalités (fast-food)
+		hasCuisine: store.hasCuisine(), // Vue FastFoodKitchen dans Dashboard
+		hasFabFastCommande: store.hasFabFastCommande(), // FAB → commande directe
+
+		// Fonctionnalités (foodtruck)
+		hasCommandesExpress: store.hasCommandesExpress(),
+
 		// Niveaux
 		isMinimum: store.isMinimum(),
 		isIntermediate: store.isIntermediate(),
@@ -285,6 +416,9 @@ export const useFeatureLevel = () => {
 		// Vérification générique
 		hasFeature: store.hasFeature,
 		getAvailableTabs: store.getAvailableTabs,
+
+		// Action : appliquer des overrides depuis l'extérieur
+		applyOverrides: store.applyOverrides,
 	};
 };
 

@@ -1,4 +1,5 @@
 import Constants from "expo-constants";
+import { Resto_id_key } from "./restaurantConfig.js";
 
 export const API_CONFIG = {
 	baseURL:
@@ -7,7 +8,7 @@ export const API_CONFIG = {
 	socketURL:
 		Constants.expoConfig?.extra?.socketUrl ||
 		"https://orderit-backend-6y1m.onrender.com",
-	RESTAURANT_ID: "686af511bb4cba684ff3b72e",
+	RESTAURANT_ID: Resto_id_key,
 	DEFAULT_TABLE_ID: "686af692bb4cba684ff3b757", // Table T1 par défaut
 	timeout: 10000,
 };
@@ -24,7 +25,7 @@ export const SOCKET_CONFIG = {
 		timeout: 45000,
 		forceNew: true,
 		query: {
-			restaurantId: "686af511bb4cba684ff3b72e",
+			restaurantId: Resto_id_key,
 			client: "mobile-app",
 		},
 	},

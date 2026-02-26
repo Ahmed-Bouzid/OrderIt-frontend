@@ -42,7 +42,8 @@ const useReservationStore = create((set, get) => ({
 
 				case "statusUpdated":
 				case "presentToggled":
-				case "tableAssigned": {
+				case "tableAssigned":
+				case "updated": {
 					console.log(
 						"🔄 [RESA STORE] Mise à jour réservation:",
 						data._id,

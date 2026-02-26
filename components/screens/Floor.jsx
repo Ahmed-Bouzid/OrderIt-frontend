@@ -22,7 +22,6 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Dashboard from "./Dashboard";
-import useUserStore from "../../src/stores/useUserStore";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 import ItemRow from "../floor/ItemRow";
 import FloorPlanModal from "../floor/FloorPlanModal";
@@ -134,10 +133,9 @@ const GroupBox = React.memo(({ children, floorStyles }) => (
 GroupBox.displayName = "GroupBox";
 
 export default function Floor({ onStart }) {
-	const category = useUserStore((state) => state.category);
-
 	// 🎯 Feature Levels : Récupérer les fonctionnalités disponibles
-	const { hasGestionStocks, hasPlanSalle, isMinimum } = useFeatureLevel();
+	const { hasGestionStocks, hasPlanSalle, hasSalleCuisine, isMinimum } =
+		useFeatureLevel();
 
 	const { themeMode, initTheme } = useThemeStore();
 	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
@@ -462,8 +460,8 @@ export default function Floor({ onStart }) {
 
 			{/* Container principal */}
 			<View style={floorStyles.mainContainer}>
-				{/* Sidebar Premium : masquer si foodtruck */}
-				{category !== "foodtruck" && (
+				{/* Sidebar Premium : masquer pour niveau Minimum (foodtruck) */}
+				{!isMinimum && (
 					<View style={floorStyles.sidebar}>
 						{/* Header Sidebar */}
 						<View style={floorStyles.sidebarHeader}>
@@ -487,207 +485,211 @@ export default function Floor({ onStart }) {
 							showsVerticalScrollIndicator={false}
 							contentContainerStyle={floorStyles.sidebarContent}
 						>
-							{/* Cuisine Section */}
-							<SectionHeader
-								icon="flame-outline"
-								label="Cuisine"
-								gradientColors={[
-									"rgba(239, 68, 68, 0.15)",
-									"rgba(239, 68, 68, 0.05)",
-								]}
-								floorStyles={floorStyles}
-								THEME={THEME}
-							/>
-							<GroupBox floorStyles={floorStyles}>
-								{/* Boissons */}
-								<MenuItem
-									icon="wine-outline"
-									label="Boissons"
-									count={getCategoryCount("boisson")}
-									isActive={activeCategory === "boisson"}
-									onPress={() => handleCategoryPress("boisson")}
-									floorStyles={floorStyles}
-									THEME={THEME}
-								/>
-								{activeCategory === "boisson" && (
-									<View style={floorStyles.itemsSection}>
-										{loading ? (
-											<View style={floorStyles.loadingContainer}>
-												<ActivityIndicator
-													size="small"
-													color={THEME.colors.primary.amber}
-												/>
+							{/* Cuisine Section — restaurant classique uniquement */}
+							{hasSalleCuisine && (
+								<>
+									<SectionHeader
+										icon="flame-outline"
+										label="Cuisine"
+										gradientColors={[
+											"rgba(239, 68, 68, 0.15)",
+											"rgba(239, 68, 68, 0.05)",
+										]}
+										floorStyles={floorStyles}
+										THEME={THEME}
+									/>
+									<GroupBox floorStyles={floorStyles}>
+										{/* Boissons */}
+										<MenuItem
+											icon="wine-outline"
+											label="Boissons"
+											count={getCategoryCount("boisson")}
+											isActive={activeCategory === "boisson"}
+											onPress={() => handleCategoryPress("boisson")}
+											floorStyles={floorStyles}
+											THEME={THEME}
+										/>
+										{activeCategory === "boisson" && (
+											<View style={floorStyles.itemsSection}>
+												{loading ? (
+													<View style={floorStyles.loadingContainer}>
+														<ActivityIndicator
+															size="small"
+															color={THEME.colors.primary.amber}
+														/>
+													</View>
+												) : filteredItems.length === 0 ? (
+													<View style={floorStyles.emptyContainer}>
+														<Ionicons
+															name="checkmark-circle-outline"
+															size={24}
+															color={THEME.colors.text.muted}
+														/>
+														<Text style={floorStyles.emptyText}>
+															Aucune boisson en cours
+														</Text>
+													</View>
+												) : (
+													filteredItems.map((item, index) => (
+														<View
+															key={`${item.orderId}-${item._id || index}`}
+															style={floorStyles.itemWrapper}
+														>
+															<ItemRow
+																item={item}
+																onUpdateStatus={handleUpdateItemStatus}
+																THEME={THEME}
+															/>
+														</View>
+													))
+												)}
 											</View>
-										) : filteredItems.length === 0 ? (
-											<View style={floorStyles.emptyContainer}>
-												<Ionicons
-													name="checkmark-circle-outline"
-													size={24}
-													color={THEME.colors.text.muted}
-												/>
-												<Text style={floorStyles.emptyText}>
-													Aucune boisson en cours
-												</Text>
-											</View>
-										) : (
-											filteredItems.map((item, index) => (
-												<View
-													key={`${item.orderId}-${item._id || index}`}
-													style={floorStyles.itemWrapper}
-												>
-													<ItemRow
-														item={item}
-														onUpdateStatus={handleUpdateItemStatus}
-														THEME={THEME}
-													/>
-												</View>
-											))
 										)}
-									</View>
-								)}
 
-								{/* Entrées */}
-								<MenuItem
-									icon="nutrition-outline"
-									label="Entrées"
-									count={getCategoryCount("entree")}
-									isActive={activeCategory === "entree"}
-									onPress={() => handleCategoryPress("entree")}
-									floorStyles={floorStyles}
-									THEME={THEME}
-								/>
-								{activeCategory === "entree" && (
-									<View style={floorStyles.itemsSection}>
-										{loading ? (
-											<View style={floorStyles.loadingContainer}>
-												<ActivityIndicator
-													size="small"
-													color={THEME.colors.primary.amber}
-												/>
+										{/* Entrées */}
+										<MenuItem
+											icon="nutrition-outline"
+											label="Entrées"
+											count={getCategoryCount("entree")}
+											isActive={activeCategory === "entree"}
+											onPress={() => handleCategoryPress("entree")}
+											floorStyles={floorStyles}
+											THEME={THEME}
+										/>
+										{activeCategory === "entree" && (
+											<View style={floorStyles.itemsSection}>
+												{loading ? (
+													<View style={floorStyles.loadingContainer}>
+														<ActivityIndicator
+															size="small"
+															color={THEME.colors.primary.amber}
+														/>
+													</View>
+												) : filteredItems.length === 0 ? (
+													<View style={floorStyles.emptyContainer}>
+														<Ionicons
+															name="checkmark-circle-outline"
+															size={24}
+															color={THEME.colors.text.muted}
+														/>
+														<Text style={floorStyles.emptyText}>
+															Aucune entrée en cours
+														</Text>
+													</View>
+												) : (
+													filteredItems.map((item, index) => (
+														<View
+															key={`${item.orderId}-${item._id || index}`}
+															style={floorStyles.itemWrapper}
+														>
+															<ItemRow
+																item={item}
+																onUpdateStatus={handleUpdateItemStatus}
+																THEME={THEME}
+															/>
+														</View>
+													))
+												)}
 											</View>
-										) : filteredItems.length === 0 ? (
-											<View style={floorStyles.emptyContainer}>
-												<Ionicons
-													name="checkmark-circle-outline"
-													size={24}
-													color={THEME.colors.text.muted}
-												/>
-												<Text style={floorStyles.emptyText}>
-													Aucune entrée en cours
-												</Text>
-											</View>
-										) : (
-											filteredItems.map((item, index) => (
-												<View
-													key={`${item.orderId}-${item._id || index}`}
-													style={floorStyles.itemWrapper}
-												>
-													<ItemRow
-														item={item}
-														onUpdateStatus={handleUpdateItemStatus}
-														THEME={THEME}
-													/>
-												</View>
-											))
 										)}
-									</View>
-								)}
 
-								{/* Plats */}
-								<MenuItem
-									icon="restaurant-outline"
-									label="Plats"
-									count={getCategoryCount("plat")}
-									isActive={activeCategory === "plat"}
-									onPress={() => handleCategoryPress("plat")}
-									floorStyles={floorStyles}
-									THEME={THEME}
-								/>
-								{activeCategory === "plat" && (
-									<View style={floorStyles.itemsSection}>
-										{loading ? (
-											<View style={floorStyles.loadingContainer}>
-												<ActivityIndicator
-													size="small"
-													color={THEME.colors.primary.amber}
-												/>
+										{/* Plats */}
+										<MenuItem
+											icon="restaurant-outline"
+											label="Plats"
+											count={getCategoryCount("plat")}
+											isActive={activeCategory === "plat"}
+											onPress={() => handleCategoryPress("plat")}
+											floorStyles={floorStyles}
+											THEME={THEME}
+										/>
+										{activeCategory === "plat" && (
+											<View style={floorStyles.itemsSection}>
+												{loading ? (
+													<View style={floorStyles.loadingContainer}>
+														<ActivityIndicator
+															size="small"
+															color={THEME.colors.primary.amber}
+														/>
+													</View>
+												) : filteredItems.length === 0 ? (
+													<View style={floorStyles.emptyContainer}>
+														<Ionicons
+															name="checkmark-circle-outline"
+															size={24}
+															color={THEME.colors.text.muted}
+														/>
+														<Text style={floorStyles.emptyText}>
+															Aucun plat en cours
+														</Text>
+													</View>
+												) : (
+													filteredItems.map((item, index) => (
+														<View
+															key={`${item.orderId}-${item._id || index}`}
+															style={floorStyles.itemWrapper}
+														>
+															<ItemRow
+																item={item}
+																onUpdateStatus={handleUpdateItemStatus}
+																THEME={THEME}
+															/>
+														</View>
+													))
+												)}
 											</View>
-										) : filteredItems.length === 0 ? (
-											<View style={floorStyles.emptyContainer}>
-												<Ionicons
-													name="checkmark-circle-outline"
-													size={24}
-													color={THEME.colors.text.muted}
-												/>
-												<Text style={floorStyles.emptyText}>
-													Aucun plat en cours
-												</Text>
-											</View>
-										) : (
-											filteredItems.map((item, index) => (
-												<View
-													key={`${item.orderId}-${item._id || index}`}
-													style={floorStyles.itemWrapper}
-												>
-													<ItemRow
-														item={item}
-														onUpdateStatus={handleUpdateItemStatus}
-														THEME={THEME}
-													/>
-												</View>
-											))
 										)}
-									</View>
-								)}
 
-								{/* Desserts */}
-								<MenuItem
-									icon="ice-cream-outline"
-									label="Desserts"
-									count={getCategoryCount("dessert")}
-									isActive={activeCategory === "dessert"}
-									onPress={() => handleCategoryPress("dessert")}
-									isLast
-									floorStyles={floorStyles}
-									THEME={THEME}
-								/>
-								{activeCategory === "dessert" && (
-									<View style={floorStyles.itemsSection}>
-										{loading ? (
-											<View style={floorStyles.loadingContainer}>
-												<ActivityIndicator
-													size="small"
-													color={THEME.colors.primary.amber}
-												/>
+										{/* Desserts */}
+										<MenuItem
+											icon="ice-cream-outline"
+											label="Desserts"
+											count={getCategoryCount("dessert")}
+											isActive={activeCategory === "dessert"}
+											onPress={() => handleCategoryPress("dessert")}
+											isLast
+											floorStyles={floorStyles}
+											THEME={THEME}
+										/>
+										{activeCategory === "dessert" && (
+											<View style={floorStyles.itemsSection}>
+												{loading ? (
+													<View style={floorStyles.loadingContainer}>
+														<ActivityIndicator
+															size="small"
+															color={THEME.colors.primary.amber}
+														/>
+													</View>
+												) : filteredItems.length === 0 ? (
+													<View style={floorStyles.emptyContainer}>
+														<Ionicons
+															name="checkmark-circle-outline"
+															size={24}
+															color={THEME.colors.text.muted}
+														/>
+														<Text style={floorStyles.emptyText}>
+															Aucun dessert en cours
+														</Text>
+													</View>
+												) : (
+													filteredItems.map((item, index) => (
+														<View
+															key={`${item.orderId}-${item._id || index}`}
+															style={floorStyles.itemWrapper}
+														>
+															<ItemRow
+																item={item}
+																onUpdateStatus={handleUpdateItemStatus}
+																THEME={THEME}
+															/>
+														</View>
+													))
+												)}
 											</View>
-										) : filteredItems.length === 0 ? (
-											<View style={floorStyles.emptyContainer}>
-												<Ionicons
-													name="checkmark-circle-outline"
-													size={24}
-													color={THEME.colors.text.muted}
-												/>
-												<Text style={floorStyles.emptyText}>
-													Aucun dessert en cours
-												</Text>
-											</View>
-										) : (
-											filteredItems.map((item, index) => (
-												<View
-													key={`${item.orderId}-${item._id || index}`}
-													style={floorStyles.itemWrapper}
-												>
-													<ItemRow
-														item={item}
-														onUpdateStatus={handleUpdateItemStatus}
-														THEME={THEME}
-													/>
-												</View>
-											))
 										)}
-									</View>
-								)}
-							</GroupBox>
+									</GroupBox>
+								</>
+							)}
 
 							{/* 🏢 Salles Section - Affiché seulement si Plan de Salle disponible */}
 							{hasPlanSalle && (

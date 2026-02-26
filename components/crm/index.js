@@ -8,3 +8,4 @@ export { default as ServerCard } from "./ServerCard";
 export { default as PerformanceChart } from "./PerformanceChart";
 export { default as LeaderboardSection } from "./LeaderboardSection";
 export { default as RecommendationsPanel } from "./RecommendationsPanel";
+export { default as DonutChart } from "./DonutChart";
