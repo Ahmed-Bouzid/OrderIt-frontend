@@ -5,7 +5,7 @@
  *
  * Accessible uniquement aux admins et managers
  */
-import React, { useState, useCallback, useMemo, useEffect } from "react";
+import React, { useState, useCallback, useMemo } from "react";
 import {
 	View,
 	Text,
@@ -16,7 +16,6 @@ import {
 	RefreshControl,
 	Modal,
 } from "react-native";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
 // Hooks et stores
@@ -52,7 +51,7 @@ export default function CRMPerformance({ onClose }) {
 	const [messageFormServer, setMessageFormServer] = useState(null);
 
 	// Hooks personnalisés CRM
-	const { dashboard, servers, isLoading, error, refreshData } =
+	const { dashboard, servers, isLoading, refreshData } =
 		useCRMData(selectedPeriod);
 
 	const { sendCoachingAlert } = useCRMActions();
@@ -566,20 +565,32 @@ export default function CRMPerformance({ onClose }) {
 					},
 				]}
 			>
-					{/* Header - Identique à Messagerie/Compta */}
-					<View style={[styles.header, { backgroundColor: THEME.colors.background.card, borderBottomColor: THEME.colors.border.subtle }]}>
-						<Text style={[styles.headerTitle, { color: THEME.colors.text.primary }]}>📊 CRM Performance</Text>
-						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-							<Ionicons
-								name="close"
-								size={22}
-								color={THEME.colors.text.primary}
-							/>
-						</TouchableOpacity>
-					</View>
+				{/* Header - Identique à Messagerie/Compta */}
+				<View
+					style={[
+						styles.header,
+						{
+							backgroundColor: THEME.colors.background.card,
+							borderBottomColor: THEME.colors.border.subtle,
+						},
+					]}
+				>
+					<Text
+						style={[styles.headerTitle, { color: THEME.colors.text.primary }]}
+					>
+						📊 CRM Performance
+					</Text>
+					<TouchableOpacity onPress={onClose} style={styles.closeButton}>
+						<Ionicons
+							name="close"
+							size={22}
+							color={THEME.colors.text.primary}
+						/>
+					</TouchableOpacity>
+				</View>
 
-					{/* Sélecteur de période */}
-					<PeriodSelector />
+				{/* Sélecteur de période */}
+				<PeriodSelector />
 
 				{/* Navigation par onglets */}
 				<View style={styles.tabNavigation}>
@@ -590,20 +601,23 @@ export default function CRMPerformance({ onClose }) {
 						isActive={selectedTab === "dashboard"}
 					/>
 					<TabButton
-							label="Tendances"
-							isActive={selectedTab === "trends"}
-						/>
-					</View>
-				</View>
-
-				{/* Contenu */}
-				<View style={styles.content}>
-					{error && (
-						<View style={styles.errorBanner}>
-							<Ionicons name="warning-outline" size={20} color="#F59E0B" />
-							<Text style={styles.errorText}>{error}</Text>
-						</View>
-					)}
+						id="servers"
+						icon="people-outline"
+						label="Serveurs"
+						isActive={selectedTab === "servers"}
+					/>
+					<TabButton
+						id="leaderboard"
+						icon="trophy-outline"
+						label="Classement"
+						isActive={selectedTab === "leaderboard"}
+					/>
+					<TabButton
+						id="trends"
+						icon="trending-up-outline"
+						label="Tendances"
+						isActive={selectedTab === "trends"}
+					/>
 
 					{selectedTab === "dashboard" && renderDashboard()}
 					{selectedTab === "servers" && renderServers()}
@@ -764,19 +778,6 @@ const createStyles = (THEME) =>
 		chartSection: {
 			marginBottom: 20,
 		},
-		donutSection: {
-			marginBottom: 20,
-		},
-		donutCard: {
-			borderRadius: 16,
-			padding: 20,
-			marginBottom: 16,
-			shadowColor: "#000",
-			shadowOffset: { width: 0, height: 2 },
-			shadowOpacity: 0.1,
-			shadowRadius: 8,
-			elevation: 3,
-		},
 		performersSection: {
 			marginBottom: 20,
 		},
@@ -793,7 +794,7 @@ const createStyles = (THEME) =>
 		comingSoonText: {
 			fontSize: 16,
 			marginTop: 12,
-		}
+		},
 		accessDenied: {
 			flex: 1,
 			alignItems: "center",
