@@ -306,7 +306,7 @@ export default function AccountingScreen({ onClose }) {
 		metricChangeText: {
 			fontSize: 11,
 			marginLeft: 4,
-		},,
+		},
 		metricChangePositive: {
 			color: "#22C55E",
 		},
