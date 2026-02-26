@@ -91,6 +91,9 @@ export default function TabsLayout() {
 
 	// Charger la catégorie dès le montage (initialise automatiquement le FeatureLevelStore)
 	useEffect(() => {
+		console.log(`\n🔵 [DEBUG] ========================================`);
+		console.log(`🔵 [DEBUG] APP FRONTEND - DÉMARRAGE CHARGEMENT`);
+		console.log(`🔵 [DEBUG] ========================================\n`);
 		useUserStore.getState().init();
 	}, []);
 
@@ -157,7 +160,11 @@ export default function TabsLayout() {
 	useEffect(() => {
 		if (isFeatureLevelReady && TABS.length > 0 && !activeTab) {
 			const firstTab = TABS[0]?.name || "floor";
-			console.log("🎯 [TabsLayout] Premier tab disponible:", firstTab);
+			console.log(`\n✅ [DEBUG] ========================================`);
+			console.log(`✅ [DEBUG] CHARGEMENT TERMINÉ - APP PRÊTE`);
+			console.log(`✅ [DEBUG] ========================================`);
+			console.log(`📱 Tabs affichés: ${TABS.map(t => t.name).join(", ")}`);
+			console.log(`🎯 Premier tab actif: ${firstTab}\n`);
 			setActiveTab(firstTab);
 		}
 	}, [isFeatureLevelReady, TABS, activeTab]);

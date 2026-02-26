@@ -214,12 +214,18 @@ export const useFeatureLevelStore = create((set, get) => ({
 				console.warn("⚠️ Erreur lecture featureOverrides:", overrideErr);
 			}
 
-			console.log(`🎯 [SERVICE] Feature Level initialisé:`, {
-				category: cat,
-				level: config.level,
-				tabs: config.tabs,
-				featuresCount: baseFeatures.length,
+			console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+			console.log(`🎯 [DEBUG] FONCTIONNALITÉS AU CHARGEMENT`);
+			console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+			console.log(`📋 Catégorie: ${cat}`);
+			console.log(`🎚️  Niveau: ${config.level}`);
+			console.log(`📱 Tabs disponibles: ${config.tabs.join(", ")}`);
+			console.log(`🔢 Nombre de features: ${baseFeatures.length}`);
+			console.log(`\n✅ FEATURES ACTIVES:`);
+			baseFeatures.forEach((feature, index) => {
+				console.log(`   ${index + 1}. ${feature}`);
 			});
+			console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
 			set({
 				level: config.level,

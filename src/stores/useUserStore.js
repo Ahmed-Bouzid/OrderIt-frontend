@@ -22,6 +22,8 @@ const useUserStore = create((set, get) => ({
 	 */
 	init: async () => {
 		try {
+			console.log(`\n🚀 [DEBUG] Démarrage initialisation UserStore...`);
+			
 			const [userId, email, role, userType, restaurantId, category] =
 				await Promise.all([
 					AsyncStorage.getItem("userId"),
@@ -44,17 +46,21 @@ const useUserStore = create((set, get) => ({
 				isManager,
 			});
 
-			// 🎯 Initialiser automatiquement le Feature Level Store
-			if (category) {
-				await useFeatureLevelStore.getState().init(category);
-			}
-
 			console.log("✅ UserStore initialisé:", {
 				role,
 				userType,
 				category,
 				isManager,
 			});
+
+			// 🎯 Initialiser automatiquement le Feature Level Store
+			if (category) {
+				console.log(`🎯 [DEBUG] Initialisation FeatureLevelStore avec catégorie: ${category}\n`);
+				await useFeatureLevelStore.getState().init(category);
+			} else {
+				console.warn("⚠️ Catégorie manquante, FeatureLevelStore non initialisé");
+			}
+
 			return { role, userType, category, isManager };
 		} catch (error) {
 			console.error("❌ Erreur init UserStore:", error);
