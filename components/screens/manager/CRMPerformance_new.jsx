@@ -28,6 +28,7 @@ import { Ionicons } from "@expo/vector-icons";
 
 // Hooks et stores
 import useUserStore from "../../../src/stores/useUserStore";
+import useThemeStore from "../../../src/stores/useThemeStore";
 import { useTheme } from "../../../hooks/useTheme";
 import { useCRMData } from "../../../hooks/useCRMData";
 import { useCRMActions } from "../../../hooks/useCRMActions";
@@ -249,7 +250,11 @@ export default function CRMPerformance({ onClose }) {
 		>
 			{/* KPI Principales */}
 			<View style={styles.kpiSection}>
-				<Text style={styles.sectionTitle}>📈 Indicateurs Clés</Text>
+				<Text
+					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+				>
+					📈 Indicateurs Clés
+				</Text>
 				<View style={styles.kpiRow}>
 					<KPICard
 						title="Commandes"
@@ -295,7 +300,11 @@ export default function CRMPerformance({ onClose }) {
 
 			{/* Graphique principal */}
 			<View style={styles.chartSection}>
-				<Text style={styles.sectionTitle}>📊 Performance Globale</Text>
+				<Text
+					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+				>
+					📊 Performance Globale
+				</Text>
 				<PerformanceChart
 					data={dashboard?.charts?.ordersTimeline || []}
 					type="line"
@@ -311,7 +320,11 @@ export default function CRMPerformance({ onClose }) {
 
 			{/* Top Performers */}
 			<View style={styles.performersSection}>
-				<Text style={styles.sectionTitle}>🏆 Meilleurs Performers</Text>
+				<Text
+					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+				>
+					🏆 Meilleurs Performers
+				</Text>
 				{(dashboard?.kpi?.topPerformers || []).map((performer, index) => (
 					<ServerCard
 						key={performer.serverId}
@@ -334,7 +347,11 @@ export default function CRMPerformance({ onClose }) {
 			}
 		>
 			<View style={styles.serversSection}>
-				<Text style={styles.sectionTitle}>👥 Analyse par Serveur</Text>
+				<Text
+					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+				>
+					👥 Analyse par Serveur
+				</Text>
 				{(servers?.servers || []).map((server, index) => (
 					<ServerCard
 						key={server._id}
@@ -388,7 +405,11 @@ export default function CRMPerformance({ onClose }) {
 			}
 		>
 			<View style={styles.trendsSection}>
-				<Text style={styles.sectionTitle}>📈 Tendances & Évolutions</Text>
+				<Text
+					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+				>
+					📈 Tendances & Évolutions
+				</Text>
 				{/* TODO: Implémenter graphiques de tendances */}
 				<View style={styles.comingSoon}>
 					<Ionicons name="construct-outline" size={40} color="#9CA3AF" />
@@ -508,7 +529,6 @@ const createStyles = (THEME) =>
 	StyleSheet.create({
 		container: {
 			flex: 1,
-			backgroundColor: THEME.colors.background.dark,
 		},
 		header: {
 			paddingTop: 60,
@@ -612,7 +632,7 @@ const createStyles = (THEME) =>
 		// Content
 		content: {
 			flex: 1,
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: THEME.colors.background,
 		},
 		tabContent: {
 			flex: 1,
@@ -656,7 +676,7 @@ const createStyles = (THEME) =>
 			fontSize: 18,
 			fontWeight: "600",
 			marginBottom: 16,
-			color: THEME.colors.text.primary,
+			color: "#1F2937",
 		},
 		kpiRow: {
 			flexDirection: "row",
@@ -699,7 +719,6 @@ const createStyles = (THEME) =>
 			fontWeight: "600",
 			marginTop: 16,
 			marginBottom: 8,
-			color: THEME.colors.text.primary,
 		},
 		accessText: {
 			fontSize: 14,

@@ -322,7 +322,7 @@ export default function MessagingScreen({ onClose }) {
 							{ backgroundColor: "rgba(255,255,255,0.15)" },
 						]}
 					>
-						<Ionicons name="time" size={16} color="#FFFFFF" />
+						<Ionicons name="time" size={16} color=`THEME.colors.text.primary` />
 						<Text style={styles.statValue}>{stats.pending}</Text>
 						<Text style={styles.statLabel}>En attente</Text>
 					</View>
@@ -332,7 +332,7 @@ export default function MessagingScreen({ onClose }) {
 							{ backgroundColor: "rgba(255,255,255,0.15)" },
 						]}
 					>
-						<Ionicons name="checkmark-circle" size={16} color="#FFFFFF" />
+						<Ionicons name="checkmark-circle" size={16} color=`THEME.colors.text.primary` />
 						<Text style={styles.statValue}>{stats.accepted}</Text>
 						<Text style={styles.statLabel}>Acceptés</Text>
 					</View>
@@ -342,7 +342,7 @@ export default function MessagingScreen({ onClose }) {
 							{ backgroundColor: "rgba(255,255,255,0.15)" },
 						]}
 					>
-						<Ionicons name="close-circle" size={16} color="#FFFFFF" />
+						<Ionicons name="close-circle" size={16} color=`THEME.colors.text.primary` />
 						<Text style={styles.statValue}>{stats.rejected}</Text>
 						<Text style={styles.statLabel}>Refusés</Text>
 					</View>
@@ -384,7 +384,7 @@ export default function MessagingScreen({ onClose }) {
 									{
 										color:
 											statusFilter === status
-												? "#FFFFFF"
+												? `THEME.colors.text.primary`
 												: THEME.colors.text.secondary,
 									},
 								]}
@@ -436,7 +436,7 @@ export default function MessagingScreen({ onClose }) {
 			{/* Error banner */}
 			{error && (
 				<View style={styles.errorBanner}>
-					<Ionicons name="warning-outline" size={18} color="#EF4444" />
+					<Ionicons name="warning-outline" size={18} color=`THEME.colors.danger` />
 					<Text style={styles.errorText}>{error}</Text>
 				</View>
 			)}
@@ -506,15 +506,15 @@ const styles = StyleSheet.create({
 	headerTitle: {
 		fontSize: 28,
 		fontWeight: "bold",
-		color: "#FFFFFF",
+		color: `THEME.colors.text.primary`,
 		marginBottom: 4,
 	},
 	headerSubtitle: {
 		fontSize: 14,
-		color: "rgba(255, 255, 255, 0.8)",
+		color: `THEME.colors.text.secondary + "80"`,
 	},
 	badge: {
-		backgroundColor: "#EF4444",
+		backgroundColor: `THEME.colors.danger`,
 		width: 28,
 		height: 28,
 		borderRadius: 14,
@@ -522,7 +522,7 @@ const styles = StyleSheet.create({
 		justifyContent: "center",
 	},
 	badgeText: {
-		color: "#FFFFFF",
+		color: `THEME.colors.text.primary`,
 		fontSize: 12,
 		fontWeight: "bold",
 	},
@@ -539,12 +539,12 @@ const styles = StyleSheet.create({
 	statValue: {
 		fontSize: 16,
 		fontWeight: "bold",
-		color: "#FFFFFF",
+		color: `THEME.colors.text.primary`,
 		marginTop: 2,
 	},
 	statLabel: {
 		fontSize: 10,
-		color: "rgba(255, 255, 255, 0.8)",
+		color: `THEME.colors.text.secondary + "80"`,
 		marginTop: 2,
 	},
 	controls: {
@@ -576,7 +576,7 @@ const styles = StyleSheet.create({
 		fontWeight: "600",
 	},
 	filterButtonTextActive: {
-		color: "#FFFFFF",
+		color: `THEME.colors.text.primary`,
 	},
 	sortRow: {
 		flexDirection: "row",
@@ -603,14 +603,14 @@ const styles = StyleSheet.create({
 		paddingHorizontal: 12,
 		paddingVertical: 10,
 		backgroundColor: "rgba(239, 68, 68, 0.1)",
-		borderLeftColor: "#EF4444",
+		borderLeftColor: `THEME.colors.danger`,
 		borderLeftWidth: 3,
 		borderRadius: 8,
 	},
 	errorText: {
 		flex: 1,
 		fontSize: 12,
-		color: "#EF4444",
+		color: `THEME.colors.danger`,
 	},
 	emptyContainer: {
 		flex: 1,
