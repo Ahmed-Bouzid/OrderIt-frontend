@@ -250,7 +250,7 @@ export default function CRMPerformance({ onClose }) {
 			{/* KPI Principales */}
 			<View style={styles.kpiSection}>
 				<Text
-					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+					style={styles.sectionTitle}
 				>
 					📈 Indicateurs Clés
 				</Text>
@@ -300,7 +300,7 @@ export default function CRMPerformance({ onClose }) {
 			{/* Graphique principal */}
 			<View style={styles.chartSection}>
 				<Text
-					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+					style={styles.sectionTitle}
 				>
 					📊 Performance Globale
 				</Text>
@@ -320,7 +320,7 @@ export default function CRMPerformance({ onClose }) {
 			{/* Top Performers */}
 			<View style={styles.performersSection}>
 				<Text
-					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+					style={styles.sectionTitle}
 				>
 					🏆 Meilleurs Performers
 				</Text>
@@ -347,7 +347,7 @@ export default function CRMPerformance({ onClose }) {
 		>
 			<View style={styles.serversSection}>
 				<Text
-					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+					style={styles.sectionTitle}
 				>
 					👥 Analyse par Serveur
 				</Text>
@@ -405,7 +405,7 @@ export default function CRMPerformance({ onClose }) {
 		>
 			<View style={styles.trendsSection}>
 				<Text
-					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+					style={styles.sectionTitle}
 				>
 					📈 Tendances & Évolutions
 				</Text>
@@ -675,6 +675,7 @@ const createStyles = (THEME) =>
 			fontSize: 18,
 			fontWeight: "600",
 			marginBottom: 16,
+		color: "#1F2937",
 		},
 		kpiRow: {
 			flexDirection: "row",
