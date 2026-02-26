@@ -322,7 +322,7 @@ export default function MessagingScreen({ onClose }) {
 							{ backgroundColor: "rgba(255,255,255,0.15)" },
 						]}
 					>
-						<Ionicons name="time" size={16} color=`THEME.colors.text.primary` />
+						<Ionicons name="time" size={16} color={THEME.colors.text.primary} />
 						<Text style={styles.statValue}>{stats.pending}</Text>
 						<Text style={styles.statLabel}>En attente</Text>
 					</View>
@@ -332,7 +332,7 @@ export default function MessagingScreen({ onClose }) {
 							{ backgroundColor: "rgba(255,255,255,0.15)" },
 						]}
 					>
-						<Ionicons name="checkmark-circle" size={16} color=`THEME.colors.text.primary` />
+						<Ionicons name="checkmark-circle" size={16} color={THEME.colors.text.primary} />
 						<Text style={styles.statValue}>{stats.accepted}</Text>
 						<Text style={styles.statLabel}>Acceptés</Text>
 					</View>
@@ -342,7 +342,7 @@ export default function MessagingScreen({ onClose }) {
 							{ backgroundColor: "rgba(255,255,255,0.15)" },
 						]}
 					>
-						<Ionicons name="close-circle" size={16} color=`THEME.colors.text.primary` />
+						<Ionicons name="close-circle" size={16} color={THEME.colors.text.primary} />
 						<Text style={styles.statValue}>{stats.rejected}</Text>
 						<Text style={styles.statLabel}>Refusés</Text>
 					</View>
@@ -436,7 +436,7 @@ export default function MessagingScreen({ onClose }) {
 			{/* Error banner */}
 			{error && (
 				<View style={styles.errorBanner}>
-					<Ionicons name="warning-outline" size={18} color=`THEME.colors.danger` />
+					<Ionicons name="warning-outline" size={18} color={THEME.colors.danger} />
 					<Text style={styles.errorText}>{error}</Text>
 				</View>
 			)}
