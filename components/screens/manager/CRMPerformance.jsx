@@ -5,18 +5,11 @@
  *
  * Accessible uniquement aux admins et managers
  */
-import React, {
-	useState,
-	useCallback,
-	useRef,
-	useMemo,
-	useEffect,
-} from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
 	View,
 	Text,
 	StyleSheet,
-	Animated,
 	TouchableOpacity,
 	Alert,
 	ScrollView,
@@ -40,7 +33,10 @@ import {
 	PerformanceChart,
 	LeaderboardSection,
 	RecommendationsPanel,
+	DonutChart,
 } from "../../crm";
+import ServerPerformanceDetail from "./ServerPerformanceDetail";
+import { MessageForm } from "../../messaging";
 
 export default function CRMPerformance({ onClose }) {
 	// ─────────────── États et données (AVANT tout contrôle conditionnel) ───────────────
@@ -48,9 +44,12 @@ export default function CRMPerformance({ onClose }) {
 	const [selectedTab, setSelectedTab] = useState("dashboard");
 	const [refreshing, setRefreshing] = useState(false);
 
-	// Animation et hooks personnalisés
-	const fadeAnim = useRef(new Animated.Value(0)).current;
-	const slideAnim = useRef(new Animated.Value(100)).current;
+	// État pour le profil individuel
+	const [selectedServer, setSelectedServer] = useState(null);
+
+	// État pour le formulaire de message
+	const [showMessageForm, setShowMessageForm] = useState(false);
+	const [messageFormServer, setMessageFormServer] = useState(null);
 
 	// Hooks personnalisés CRM
 	const { dashboard, servers, isLoading, error, refreshData } =
@@ -61,22 +60,6 @@ export default function CRMPerformance({ onClose }) {
 	// Hooks de thème et autorisation
 	const THEME = useTheme();
 	const isManager = useUserStore((state) => state.checkIsManager());
-
-	// Animation d'entrée
-	useEffect(() => {
-		Animated.parallel([
-			Animated.timing(fadeAnim, {
-				toValue: 1,
-				duration: 300,
-				useNativeDriver: true,
-			}),
-			Animated.timing(slideAnim, {
-				toValue: 0,
-				duration: 300,
-				useNativeDriver: true,
-			}),
-		]).start();
-	}, [fadeAnim, slideAnim]);
 
 	// Callbacks
 	const handleRefresh = useCallback(async () => {
@@ -93,41 +76,56 @@ export default function CRMPerformance({ onClose }) {
 		setSelectedTab(tab);
 	}, []);
 
-	const handleCoachingActionPress = useCallback(
-		async (recommendation) => {
-			Alert.alert(
-				"Action de Coaching",
-				`Voulez-vous envoyer une alerte de coaching pour "${recommendation.title}" ?`,
-				[
-					{ text: "Annuler", style: "cancel" },
-					{
-						text: "Envoyer",
-						onPress: async () => {
-							try {
-								await sendCoachingAlert(recommendation.serverId, {
-									type: recommendation.type,
-									message: recommendation.message,
-									priority: recommendation.priority,
-								});
-							} catch (_error) {
-								// Géré par le hook
-							}
-						},
-					},
-				],
-			);
-		},
-		[sendCoachingAlert],
-	);
+	const handleCoachingActionPress = useCallback((server) => {
+		// Ouvrir le formulaire de message
+		setMessageFormServer(server);
+		setShowMessageForm(true);
+	}, []);
 
 	const handleServerPress = useCallback((server) => {
-		// Navigation vers détails serveur
-		console.log("📊 Navigation vers détails serveur:", server.id);
+		// Ouvrir le profil détaillé du serveur
+		setSelectedServer(server);
 	}, []);
 
 	const handleContactPress = useCallback((server) => {
-		// Ouvrir modal de contact
-		console.log("📨 Contact serveur:", server.name);
+		// Options de contact disponibles
+		const contactOptions = [
+			{
+				text: "Appel",
+				onPress: () => {
+					// Copier le numéro de téléphone
+					console.log("📱 Appel:", server.phone);
+					Alert.alert(
+						"Contact",
+						`Appelez ${server?.name} au ${server?.phone || "N/A"}`,
+					);
+				},
+			},
+			{
+				text: "SMS",
+				onPress: () => {
+					console.log("💬 SMS:", server.phone);
+					Alert.alert("Message", `Envoyer un SMS à ${server?.name}`);
+				},
+			},
+			{
+				text: "Email",
+				onPress: () => {
+					console.log("📧 Email:", server.email);
+					Alert.alert("Email", `Envoyer un email à ${server?.email || "N/A"}`);
+				},
+			},
+			{
+				text: "Annuler",
+				style: "cancel",
+			},
+		];
+
+		Alert.alert(
+			"Contacter le Serveur",
+			`Choose une méthode de contact pour ${server?.name}:`,
+			contactOptions,
+		);
 	}, []);
 
 	const markCoachingCompleted = useCallback(
@@ -296,6 +294,118 @@ export default function CRMPerformance({ onClose }) {
 						loading={isLoading}
 					/>
 				</View>
+
+				{/* Nouvelles métriques */}
+				<View style={styles.kpiRow}>
+					<KPICard
+						title="Temps Attente Tampon"
+						value={Math.round(dashboard?.kpi?.averageWaitTime || 0)}
+						unit="min"
+						icon="timer-outline"
+						color="warning"
+						animationDelay={350}
+						loading={isLoading}
+					/>
+					<KPICard
+						title="Satisfaction Client"
+						value={(dashboard?.kpi?.customerSatisfaction || 0).toFixed(1)}
+						unit="/5"
+						icon="star-outline"
+						color="success"
+						animationDelay={400}
+						loading={isLoading}
+					/>
+				</View>
+			</View>
+
+			{/* Graphiques Donut - Nouvelles métriques */}
+			<View style={styles.donutSection}>
+				<Text
+					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+				>
+					📊 Analyse Détaillée
+				</Text>
+
+				{/* Répartition Réservations */}
+				<View
+					style={[
+						styles.donutCard,
+						{ backgroundColor: THEME.colors.background.elevated },
+					]}
+				>
+					<DonutChart
+						data={[
+							{
+								label: "Ouvertes",
+								value: dashboard?.reservations?.open || 0,
+								color: "#10B981",
+							},
+							{
+								label: "Fermées",
+								value: dashboard?.reservations?.closed || 0,
+								color: "#6B7280",
+							},
+						]}
+						size={180}
+						strokeWidth={25}
+						title="Réservations"
+						centerLabel="Total"
+						showLegend={true}
+						animationDelay={500}
+					/>
+				</View>
+
+				{/* Méthodes de Paiement */}
+				<View
+					style={[
+						styles.donutCard,
+						{ backgroundColor: THEME.colors.background.elevated },
+					]}
+				>
+					<DonutChart
+						data={[
+							{
+								label: "Espèces",
+								value: dashboard?.payments?.cash || 0,
+								color: "#F59E0B",
+							},
+							{
+								label: "Carte Bancaire",
+								value: dashboard?.payments?.card || 0,
+								color: "#3B82F6",
+							},
+						]}
+						size={180}
+						strokeWidth={25}
+						title="Méthodes de Paiement"
+						centerValue={`${((dashboard?.payments?.cash || 0) + (dashboard?.payments?.card || 0)).toLocaleString()}€`}
+						centerLabel="CA Total"
+						showLegend={true}
+						animationDelay={600}
+					/>
+				</View>
+
+				{/* Produits Add-ons */}
+				<View
+					style={[
+						styles.donutCard,
+						{ backgroundColor: THEME.colors.background.elevated },
+					]}
+				>
+					<DonutChart
+						data={
+							dashboard?.addOns || [
+								{ label: "Add-ons", value: 0, color: "#8B5CF6" },
+							]
+						}
+						size={180}
+						strokeWidth={25}
+						title="Produits Add-ons Vendus"
+						centerLabel="Upsell"
+						showLegend={true}
+						animationDelay={700}
+					/>
+				</View>
 			</View>
 
 			{/* Graphique principal */}
@@ -448,70 +558,43 @@ export default function CRMPerformance({ onClose }) {
 
 	return (
 		<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-			<Animated.View
+			<View
 				style={[
 					styles.container,
 					{
 						backgroundColor: THEME.colors.background,
-						opacity: fadeAnim,
-						transform: [{ translateY: slideAnim }],
 					},
 				]}
 			>
-				{/* Header */}
-				<LinearGradient
-					colors={THEME.gradients?.primary || ["#F59E0B", "#FBBF24"]}
-					style={styles.header}
-				>
-					<View style={styles.headerContent}>
-						<View>
-							<Text style={styles.headerTitle}>📊 CRM Performance</Text>
-							<Text style={styles.headerSubtitle}>Analyse des équipes</Text>
-						</View>
-						<View style={styles.headerActions}>
-							<TouchableOpacity
-								onPress={handleRefresh}
-								style={styles.headerButton}
-							>
-								<Ionicons name="refresh-outline" size={20} color="#FFFFFF" />
-							</TouchableOpacity>
-							<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-								<Ionicons name="close" size={24} color="#FFFFFF" />
-							</TouchableOpacity>
-						</View>
+					{/* Header - Identique à Messagerie/Compta */}
+					<View style={[styles.header, { backgroundColor: THEME.colors.background.card, borderBottomColor: THEME.colors.border.subtle }]}>
+						<Text style={[styles.headerTitle, { color: THEME.colors.text.primary }]}>📊 CRM Performance</Text>
+						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
+							<Ionicons
+								name="close"
+								size={22}
+								color={THEME.colors.text.primary}
+							/>
+						</TouchableOpacity>
 					</View>
 
 					{/* Sélecteur de période */}
 					<PeriodSelector />
 
-					{/* Navigation par onglets */}
-					<View style={styles.tabNavigation}>
-						<TabButton
-							id="dashboard"
-							icon="analytics-outline"
-							label="Dashboard"
-							isActive={selectedTab === "dashboard"}
-						/>
-						<TabButton
-							id="servers"
-							icon="people-outline"
-							label="Serveurs"
-							isActive={selectedTab === "servers"}
-						/>
-						<TabButton
-							id="leaderboard"
-							icon="trophy-outline"
-							label="Classement"
-							isActive={selectedTab === "leaderboard"}
-						/>
-						<TabButton
-							id="trends"
-							icon="trending-up-outline"
+				{/* Navigation par onglets */}
+				<View style={styles.tabNavigation}>
+					<TabButton
+						id="dashboard"
+						icon="analytics-outline"
+						label="Dashboard"
+						isActive={selectedTab === "dashboard"}
+					/>
+					<TabButton
 							label="Tendances"
 							isActive={selectedTab === "trends"}
 						/>
 					</View>
-				</LinearGradient>
+				</View>
 
 				{/* Contenu */}
 				<View style={styles.content}>
@@ -527,7 +610,32 @@ export default function CRMPerformance({ onClose }) {
 					{selectedTab === "leaderboard" && renderLeaderboard()}
 					{selectedTab === "trends" && renderTrends()}
 				</View>
-			</Animated.View>
+			</View>
+
+			{/* Profil détaillé d'un serveur */}
+			{selectedServer && (
+				<ServerPerformanceDetail
+					server={selectedServer}
+					onClose={() => setSelectedServer(null)}
+				/>
+			)}
+
+			{/* Formulaire de message */}
+			{showMessageForm && messageFormServer && (
+				<MessageForm
+					serverId={messageFormServer._id}
+					serverName={messageFormServer.name}
+					onClose={() => {
+						setShowMessageForm(false);
+						setMessageFormServer(null);
+					}}
+					onSuccess={() => {
+						setShowMessageForm(false);
+						setMessageFormServer(null);
+						refreshData();
+					}}
+				/>
+			)}
 		</Modal>
 	);
 }
@@ -550,69 +658,48 @@ const createStyles = (THEME) =>
 			flex: 1,
 		},
 		header: {
-			paddingTop: 60,
-			paddingBottom: 20,
-			paddingHorizontal: 20,
-		},
-		headerContent: {
 			flexDirection: "row",
 			justifyContent: "space-between",
-			alignItems: "flex-start",
-			marginBottom: 20,
+			alignItems: "center",
+			padding: 16,
+			borderBottomWidth: 1,
 		},
 		headerTitle: {
-			fontSize: 28,
-			fontWeight: "bold",
-			color: "#FFFFFF",
-			marginBottom: 4,
-		},
-		headerSubtitle: {
-			fontSize: 16,
-			color: "rgba(255, 255, 255, 0.8)",
-		},
-		headerActions: {
-			flexDirection: "row",
-			alignItems: "center",
-		},
-		headerButton: {
-			backgroundColor: "rgba(255, 255, 255, 0.2)",
-			padding: 8,
-			borderRadius: 12,
-			marginRight: 12,
+			fontSize: 22,
+			fontWeight: "700",
 		},
 		closeButton: {
-			backgroundColor: "rgba(255, 255, 255, 0.2)",
 			padding: 8,
-			borderRadius: 12,
 		},
 		periodSelector: {
 			flexDirection: "row",
-			backgroundColor: "rgba(255, 255, 255, 0.1)",
-			borderRadius: 16,
-			padding: 4,
-			marginBottom: 20,
+			backgroundColor: THEME.colors.background.card,
+			padding: 12,
+			justifyContent: "space-around",
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
 		},
 		periodButton: {
-			flex: 1,
-			paddingVertical: 10,
-			paddingHorizontal: 16,
-			borderRadius: 12,
+			paddingVertical: 8,
+			paddingHorizontal: 12,
+			borderRadius: 8,
+			backgroundColor: THEME.colors.background.subtle,
 			alignItems: "center",
 		},
 		periodButtonActive: {
-			backgroundColor: "rgba(255, 255, 255, 0.2)",
+			backgroundColor: THEME.colors.primary.amber,
 		},
 		periodButtonText: {
-			fontSize: 14,
+			fontSize: 12,
 			fontWeight: "600",
-			color: "rgba(255, 255, 255, 0.7)",
+			color: THEME.colors.text.secondary,
 		},
 		periodButtonTextActive: {
 			color: "#FFFFFF",
 		},
 		tabNavigation: {
 			flexDirection: "row",
-			backgroundColor: "rgba(255, 255, 255, 0.1)",
+			backgroundColor: THEME.colors.background.elevated,
 			borderRadius: 16,
 			padding: 4,
 		},
@@ -626,7 +713,7 @@ const createStyles = (THEME) =>
 			borderRadius: 12,
 		},
 		tabButtonActive: {
-			backgroundColor: "rgba(255, 255, 255, 0.2)",
+			backgroundColor: THEME.colors.primary.amber,
 		},
 		tabButtonText: {
 			fontSize: 12,
@@ -638,6 +725,7 @@ const createStyles = (THEME) =>
 		},
 		content: {
 			flex: 1,
+			padding: 12,
 		},
 		tabContent: {
 			flex: 1,
@@ -676,6 +764,19 @@ const createStyles = (THEME) =>
 		chartSection: {
 			marginBottom: 20,
 		},
+		donutSection: {
+			marginBottom: 20,
+		},
+		donutCard: {
+			borderRadius: 16,
+			padding: 20,
+			marginBottom: 16,
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.1,
+			shadowRadius: 8,
+			elevation: 3,
+		},
 		performersSection: {
 			marginBottom: 20,
 		},
@@ -692,22 +793,40 @@ const createStyles = (THEME) =>
 		comingSoonText: {
 			fontSize: 16,
 			marginTop: 12,
-		},
+		}
 		accessDenied: {
 			flex: 1,
 			alignItems: "center",
 			justifyContent: "center",
-			paddingHorizontal: 40,
+			padding: 32,
 		},
 		accessTitle: {
-			fontSize: 24,
-			fontWeight: "bold",
-			marginTop: 20,
+			fontSize: 22,
+			fontWeight: "700",
+			marginTop: 16,
 			marginBottom: 8,
 		},
 		accessText: {
-			fontSize: 16,
+			fontSize: 14,
 			textAlign: "center",
-			lineHeight: 24,
+			lineHeight: 20,
+		},
+		donutSection: {
+			marginVertical: 12,
+			paddingHorizontal: 0,
+		},
+		donutCard: {
+			paddingVertical: 16,
+			paddingHorizontal: 12,
+			borderRadius: 12,
+			marginBottom: 12,
+			marginHorizontal: 12,
+			alignItems: "center",
+			justifyContent: "center",
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.08,
+			shadowRadius: 8,
+			elevation: 3,
 		},
 	});
