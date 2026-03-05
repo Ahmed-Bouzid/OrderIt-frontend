@@ -52,6 +52,25 @@ import {
 // 🔔 Notifications
 import Toast from "../ui/Toast";
 
+/**
+ * Composant qui fait un fade-in (0→1) à chaque montage.
+ * Utilisé avec key={activeId} pour garantir un remount propre
+ * sans aucun stop()/setValue() sur le thread natif.
+ */
+function FadeInCard({ style, children }) {
+	const opacity = useRef(new Animated.Value(0)).current;
+	useEffect(() => {
+		Animated.timing(opacity, {
+			toValue: 1,
+			duration: 120,
+			useNativeDriver: true,
+		}).start();
+	}, []);
+	return (
+		<Animated.View style={[style, { opacity }]}>{children}</Animated.View>
+	);
+}
+
 export default function Activity() {
 	// Rafraîchissement global pour le temps écoulé (mini popups dynamiques)
 	const [now, setNow] = useState(Date.now());
@@ -897,8 +916,9 @@ export default function Activity() {
 							</Animated.View>
 						)}
 
-						{/* 🎬 Carte principale (apparition directe, sans animation d'entrée) */}
-						<View
+						{/* 🎬 Carte principale — fade-in 120ms, remount propre via key={activeId} */}
+						<FadeInCard
+							key={activeId}
 							style={[
 								activityStyles.popupMain,
 								{
@@ -1376,7 +1396,7 @@ export default function Activity() {
 									</View>
 								)}
 							</View>
-						</View>
+						</FadeInCard>
 					</View>
 				)}
 
