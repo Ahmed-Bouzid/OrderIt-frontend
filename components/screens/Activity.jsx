@@ -50,6 +50,28 @@ import {
 // 🔔 Notifications
 import Toast from "../ui/Toast";
 
+/**
+ * 8 couleurs distinctes, cohérentes avec le thème sombre.
+ * La sélection est déterministe par l'_id de la réservation
+ * → jamais deux réservations adjacentes avec la même couleur.
+ */
+const RESA_COLORS = [
+	["rgba(245, 158,  11, 0.22)", "rgba(245, 158,  11, 0.04)"], // amber
+	["rgba( 20, 184, 166, 0.22)", "rgba( 20, 184, 166, 0.04)"], // teal
+	["rgba( 99, 102, 241, 0.22)", "rgba( 99, 102, 241, 0.04)"], // indigo
+	["rgba(244,  63,  94, 0.22)", "rgba(244,  63,  94, 0.04)"], // rose
+	["rgba( 52, 211, 153, 0.22)", "rgba( 52, 211, 153, 0.04)"], // emerald
+	["rgba(167, 139, 250, 0.22)", "rgba(167, 139, 250, 0.04)"], // violet
+	["rgba( 56, 189, 248, 0.22)", "rgba( 56, 189, 248, 0.04)"], // sky
+	["rgba(251, 146,  60, 0.22)", "rgba(251, 146,  60, 0.04)"], // orange
+];
+
+function getResaColors(id) {
+	if (!id) return RESA_COLORS[0];
+	const hash = [...String(id)].reduce((acc, c) => acc + c.charCodeAt(0), 0);
+	return RESA_COLORS[hash % RESA_COLORS.length];
+}
+
 export default function Activity() {
 	// Rafraîchissement global pour le temps écoulé (mini popups dynamiques)
 	const [now, setNow] = useState(Date.now());
@@ -738,7 +760,7 @@ export default function Activity() {
 						>
 							{/* Header Premium */}
 							<LinearGradient
-								colors={["rgba(245, 158, 11, 0.1)", "rgba(245, 158, 11, 0.02)"]}
+								colors={getResaColors(activeReservation._id)}
 								style={activityStyles.headerRow}
 								start={{ x: 0, y: 0 }}
 								end={{ x: 1, y: 0 }}
@@ -1341,7 +1363,7 @@ const createStyles = (THEME) =>
 			color: "#FFFFFF",
 		},
 		popupMainWrapper: {
-			flex: 1,
+			maxHeight: "90%",
 			padding: THEME.spacing.md,
 		},
 		popupMain: {
