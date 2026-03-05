@@ -6,7 +6,6 @@ import { API_CONFIG } from "../../src/config/apiConfig";
 import React, {
 	useState,
 	useEffect,
-	useLayoutEffect,
 	useMemo,
 	useCallback,
 	useRef,
@@ -52,34 +51,6 @@ import {
 
 // 🔔 Notifications
 import Toast from "../ui/Toast";
-
-/**
- * Fade-in sans flash : useLayoutEffect s'exécute après le render
- * mais AVANT le paint. useNativeDriver:false = opacity gérée côté JS,
- * donc setValue(0) est synchrone et effectif dès le premier frame visible.
- */
-function FadeInCard({ style, children, activeId }) {
-	const opacity = useRef(new Animated.Value(1)).current;
-	const animRef = useRef(null);
-	useLayoutEffect(() => {
-		if (animRef.current) {
-			animRef.current.stop();
-			animRef.current = null;
-		}
-		opacity.setValue(0);
-		animRef.current = Animated.timing(opacity, {
-			toValue: 1,
-			duration: 180,
-			useNativeDriver: false,
-		});
-		animRef.current.start(({ finished }) => {
-			if (finished) animRef.current = null;
-		});
-	}, [activeId]);
-	return (
-		<Animated.View style={[style, { opacity }]}>{children}</Animated.View>
-	);
-}
 
 export default function Activity() {
 	// Rafraîchissement global pour le temps écoulé (mini popups dynamiques)
@@ -926,9 +897,8 @@ export default function Activity() {
 							</Animated.View>
 						)}
 
-						{/* 🎬 Carte principale — fade-in 150ms sans unmount (zero flash) */}
-						<FadeInCard
-							activeId={activeId}
+						{/* Carte principale */}
+						<View
 							style={[
 								activityStyles.popupMain,
 								{
@@ -1406,7 +1376,7 @@ export default function Activity() {
 									</View>
 								)}
 							</View>
-						</FadeInCard>
+</View>
 					</View>
 				)}
 
