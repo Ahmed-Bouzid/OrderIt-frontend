@@ -6,6 +6,7 @@ import { API_CONFIG } from "../../src/config/apiConfig";
 import React, {
 	useState,
 	useEffect,
+	useLayoutEffect,
 	useMemo,
 	useCallback,
 	useRef,
@@ -53,15 +54,14 @@ import {
 import Toast from "../ui/Toast";
 
 /**
- * Fade-in (0→1) à chaque changement de activeId.
- * Le composant reste MONTÉ — pas de unmount/remount = pas de flash.
- * opacity.setValue(0) est sûr ici : aucune animation translateY en cours,
- * valeur entre 0 et 1 uniquement, résultat identique des deux côtés du bridge.
+ * Fade-in sans flash : useLayoutEffect s'exécute après le render
+ * mais AVANT le paint. useNativeDriver:false = opacity gérée côté JS,
+ * donc setValue(0) est synchrone et effectif dès le premier frame visible.
  */
 function FadeInCard({ style, children, activeId }) {
-	const opacity = useRef(new Animated.Value(0)).current;
+	const opacity = useRef(new Animated.Value(1)).current;
 	const animRef = useRef(null);
-	useEffect(() => {
+	useLayoutEffect(() => {
 		if (animRef.current) {
 			animRef.current.stop();
 			animRef.current = null;
@@ -69,8 +69,8 @@ function FadeInCard({ style, children, activeId }) {
 		opacity.setValue(0);
 		animRef.current = Animated.timing(opacity, {
 			toValue: 1,
-			duration: 150,
-			useNativeDriver: true,
+			duration: 180,
+			useNativeDriver: false,
 		});
 		animRef.current.start(({ finished }) => {
 			if (finished) animRef.current = null;
