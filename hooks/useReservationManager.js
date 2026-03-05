@@ -69,7 +69,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		return () => {
 			if (activeId) {
 				AsyncStorage.setItem("activeReservationId", activeId).catch(
-					console.error
+					console.error,
 				);
 			}
 		};
@@ -111,7 +111,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				setActiveId(openedResas[0]._id);
 				// updateCachedActiveId supprimé (inutile)
 				AsyncStorage.setItem("activeReservationId", openedResas[0]._id).catch(
-					console.error
+					console.error,
 				);
 			}
 		} else if (hasLoadedReservationsRef.current && activeId) {
@@ -209,7 +209,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			.reduce(
 				(total, order) =>
 					total + order.items.reduce((sum, i) => sum + i.price * i.quantity, 0),
-				0
+				0,
 			)
 			.toFixed(2);
 
@@ -228,10 +228,10 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			if (event.type === "updated" && event.data) {
 				// Mettre à jour openedReservations si la réservation est dedans
 				setOpenedReservations((prev) =>
-					prev.map((r) => (r._id === event.data._id ? event.data : r))
+					prev.map((r) => (r._id === event.data._id ? event.data : r)),
 				);
 				console.log(
-					`✅ Activity: Réservation ${event.data._id} mise à jour, totalAmount: ${event.data.totalAmount}€`
+					`✅ Activity: Réservation ${event.data._id} mise à jour, totalAmount: ${event.data.totalAmount}€`,
 				);
 			}
 		};
@@ -261,12 +261,12 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			try {
 				// ⭐ UTILISER LA NOUVELLE ROUTE /orders/reservation/:reservationId
 				const data = await authFetch(
-					`${API_CONFIG.baseURL}/orders/reservation/${reservationId}`
+					`${API_CONFIG.baseURL}/orders/reservation/${reservationId}`,
 				);
 
 				console.log(
 					`📦 Commandes récupérées pour réservation ${reservationId}:`,
-					(data || []).length
+					(data || []).length,
 				);
 				setOrders(data || []);
 				lastFetchedReservationRef.current = reservationId;
@@ -275,7 +275,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				setOrders([]);
 			}
 		},
-		[authFetch]
+		[authFetch],
 	);
 
 	// Marquer réservation comme fermée
@@ -289,7 +289,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 					{
 						method: "PUT",
 						body: { status: "terminée" },
-					}
+					},
 				);
 				return response;
 			} catch (error) {
@@ -297,7 +297,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				return null;
 			}
 		},
-		[authFetch]
+		[authFetch],
 	);
 
 	// Marquer réservation comme ouverte
@@ -309,7 +309,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 					{
 						method: "PUT",
 						body: { status: "ouverte" },
-					}
+					},
 				);
 
 				if (Array.isArray(response) && response.length === 0) {
@@ -323,7 +323,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				return null;
 			}
 		},
-		[authFetch]
+		[authFetch],
 	);
 
 	// ⭐ Rafraîchir une réservation (pour récupérer totalAmount mis à jour)
@@ -331,7 +331,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		async (reservationId) => {
 			try {
 				const updatedResa = await authFetch(
-					`${API_CONFIG.baseURL}/reservations/${reservationId}`
+					`${API_CONFIG.baseURL}/reservations/${reservationId}`,
 				);
 
 				if (!updatedResa || Array.isArray(updatedResa)) {
@@ -341,13 +341,13 @@ export const useReservationManager = (reservations, fetchReservations) => {
 
 				// Mettre à jour dans openedReservations
 				setOpenedReservations((prev) =>
-					prev.map((r) => (r._id === reservationId ? updatedResa : r))
+					prev.map((r) => (r._id === reservationId ? updatedResa : r)),
 				);
 			} catch (error) {
 				console.error("❌ refreshReservation error:", error);
 			}
 		},
-		[authFetch]
+		[authFetch],
 	);
 
 	// Ouvrir prochaine réservation
@@ -368,7 +368,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			const shortId = getShortId(r._id);
 			const isAlreadyOpened = openedReservations.some(
 				(o) =>
-					o._id === r._id || o.id === shortId || getShortId(o._id) === shortId
+					o._id === r._id || o.id === shortId || getShortId(o._id) === shortId,
 			);
 			return (
 				r.isPresent === true && r.status === "en attente" && !isAlreadyOpened
@@ -378,14 +378,14 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		const nextResa = openableReservations.sort(
 			(a, b) =>
 				new Date(`${a.reservationDate} ${a.reservationTime}`) -
-				new Date(`${b.reservationDate} ${b.reservationTime}`)
+				new Date(`${b.reservationDate} ${b.reservationTime}`),
 		)[0];
 
 		if (!nextResa) {
 			Alert.alert(
 				"Aucune réservation",
 				"Il n'y a pas de réservation présente en attente à ouvrir.\n\nAssurez-vous qu'un client est marqué comme présent.",
-				[{ text: "OK" }]
+				[{ text: "OK" }],
 			);
 			return null;
 		}
@@ -428,7 +428,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				console.error(`❌ Erreur sauvegarde ${field}:`, error);
 			}
 		},
-		[authFetch]
+		[authFetch],
 	);
 
 	// Modifier un champ
@@ -446,9 +446,9 @@ export const useReservationManager = (reservations, fetchReservations) => {
 						? {
 								...r,
 								[field]: finalValue,
-						  }
-						: r
-				)
+							}
+						: r,
+				),
 			);
 			// ⭐ Mettre à jour activeReservation immédiatement pour une UI réactive
 			setActiveReservation((prev) => {
@@ -464,7 +464,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				saveFieldToBackend(activeId, field, finalValue);
 			}
 		},
-		[activeId, activeReservation, saveFieldToBackend]
+		[activeId, activeReservation, saveFieldToBackend],
 	);
 
 	return {

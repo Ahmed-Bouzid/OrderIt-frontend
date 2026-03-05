@@ -194,7 +194,7 @@ export default function Activity() {
 
 	// Déclencher l'animation quand activeId change
 	useEffect(() => {
-		// Ne pas animer si c'est la première apparition
+				// Ne pas animer si c'est la première apparition
 		if (
 			previousActiveId.current !== null &&
 			activeId &&
@@ -222,7 +222,6 @@ export default function Activity() {
 
 			// Reset des valeurs d'entrée (position de départ - PLUS BAS pour effet visible)
 			popupAnimY.setValue(SCREEN_HEIGHT * 0.7); // 70% au lieu de 40%
-			popupAnimOpacity.setValue(0);
 			popupAnimScale.setValue(0.8); // Plus petit au départ
 
 			// === ANIMATION PARALLÈLE : Sortie + Entrée ===
@@ -254,14 +253,6 @@ export default function Activity() {
 					}),
 				]),
 				Animated.sequence([
-					Animated.delay(20),
-					Animated.timing(popupAnimOpacity, {
-						toValue: 1,
-						duration: 200,
-						useNativeDriver: true,
-					}),
-				]),
-				Animated.sequence([
 					Animated.delay(30),
 					Animated.spring(popupAnimScale, {
 						toValue: 1,
@@ -287,7 +278,6 @@ export default function Activity() {
 		exitAnimOpacity,
 		exitAnimScale,
 		popupAnimY,
-		popupAnimOpacity,
 		popupAnimScale,
 	]);
 
@@ -944,7 +934,6 @@ export default function Activity() {
 										{ translateY: popupAnimY },
 										{ scale: popupAnimScale },
 									],
-									opacity: popupAnimOpacity,
 									// Bordure statique (borderColor ne supporte pas useNativeDriver)
 									borderColor: "rgba(255, 255, 255, 0.15)",
 									borderWidth: 2,
