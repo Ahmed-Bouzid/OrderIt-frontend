@@ -170,103 +170,77 @@ export default function Activity() {
 	// ═══════════════════════════════════════════════════════════════════════
 	const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
-	// Animation principale de la popup active (entrée)
-	const popupAnimY = useRef(new Animated.Value(0)).current;
-	const popupAnimOpacity = useRef(new Animated.Value(1)).current;
-	const popupAnimScale = useRef(new Animated.Value(1)).current;
-
-	// Animation de l'ancienne popup (sortie)
+	// Animation de l'ancienne popup (sortie uniquement)
 	const exitAnimY = useRef(new Animated.Value(0)).current;
-	const exitAnimOpacity = useRef(new Animated.Value(0)).current;
+	const exitAnimOpacity = useRef(new Animated.Value(1)).current;
 	const exitAnimScale = useRef(new Animated.Value(1)).current;
 
 	// Tracking
 	const previousActiveId = useRef(null);
 	const [exitingReservation, setExitingReservation] = useState(null);
 	const [showExitCard, setShowExitCard] = useState(false);
-	const currentAnimation = useRef(null); // Pour annuler l'animation en cours
+	const currentAnimation = useRef(null);
 
-	// Fonction pour nettoyer après l'animation de sortie
 	const clearExitingCard = useCallback(() => {
 		setExitingReservation(null);
 		setShowExitCard(false);
-	}, []);
+		// Remettre les valeurs à zéro pour la prochaine sortie
+		exitAnimY.setValue(0);
+		exitAnimOpacity.setValue(1);
+		exitAnimScale.setValue(1);
+	}, [exitAnimY, exitAnimOpacity, exitAnimScale]);
 
-	// Déclencher l'animation quand activeId change
+	// Déclencher l'animation de SORTIE quand activeId change
 	useEffect(() => {
-				// Ne pas animer si c'est la première apparition
 		if (
 			previousActiveId.current !== null &&
 			activeId &&
 			previousActiveId.current !== activeId
 		) {
-			// ⭐ Annuler l'animation en cours si elle existe
-			if (currentAnimation.current) {
-				currentAnimation.current.stop();
-				clearExitingCard();
-			}
-
-			// Sauvegarder la réservation sortante pour l'afficher pendant l'animation
+			// Sauvegarder la réservation sortante
 			const exitingResa = openedReservations.find(
 				(r) => r._id === previousActiveId.current,
 			);
+
 			if (exitingResa) {
+				// Annuler animation en cours si elle existe
+				if (currentAnimation.current) {
+					currentAnimation.current.stop();
+					currentAnimation.current = null;
+				}
+
 				setExitingReservation(exitingResa);
 				setShowExitCard(true);
-			}
 
-			// Reset des valeurs de sortie
-			exitAnimY.setValue(0);
-			exitAnimOpacity.setValue(1);
-			exitAnimScale.setValue(1);
+				// Reset valeurs de sortie (JS uniquement, pas de désync natif)
+				exitAnimY.setValue(0);
+				exitAnimOpacity.setValue(1);
+				exitAnimScale.setValue(1);
 
-			// Reset des valeurs d'entrée (position de départ - PLUS BAS pour effet visible)
-			popupAnimY.setValue(SCREEN_HEIGHT * 0.7); // 70% au lieu de 40%
-			popupAnimScale.setValue(0.8); // Plus petit au départ
-
-			// === ANIMATION PARALLÈLE : Sortie + Entrée ===
-			currentAnimation.current = Animated.parallel([
-				// SORTIE : ancienne popup glisse vers le bas (plus loin)
-				Animated.timing(exitAnimY, {
-					toValue: SCREEN_HEIGHT * 0.8, // Plus loin vers le bas
-					duration: 400,
-					useNativeDriver: true,
-				}),
-				Animated.timing(exitAnimOpacity, {
-					toValue: 0,
-					duration: 300,
-					useNativeDriver: true,
-				}),
-				Animated.timing(exitAnimScale, {
-					toValue: 0.85,
-					duration: 350,
-					useNativeDriver: true,
-				}),
-				// ENTRÉE : nouvelle popup monte depuis le bas
-				Animated.sequence([
-					Animated.delay(30),
-					Animated.spring(popupAnimY, {
+				// Animation de sortie uniquement — la nouvelle carte apparaît directement
+				currentAnimation.current = Animated.parallel([
+					Animated.timing(exitAnimY, {
+						toValue: SCREEN_HEIGHT * 0.8,
+						duration: 350,
+						useNativeDriver: true,
+					}),
+					Animated.timing(exitAnimOpacity, {
 						toValue: 0,
-						tension: 55, // Plus de tension = plus rapide
-						friction: 6, // Moins de friction = plus de rebond visible
+						duration: 250,
 						useNativeDriver: true,
 					}),
-				]),
-				Animated.sequence([
-					Animated.delay(30),
-					Animated.spring(popupAnimScale, {
-						toValue: 1,
-						tension: 60,
-						friction: 5,
+					Animated.timing(exitAnimScale, {
+						toValue: 0.85,
+						duration: 300,
 						useNativeDriver: true,
 					}),
-				]),
-			]);
+				]);
 
-			currentAnimation.current.start(() => {
-				currentAnimation.current = null;
-				setTimeout(clearExitingCard, 20);
-			});
+				currentAnimation.current.start(({ finished }) => {
+					currentAnimation.current = null;
+					if (finished) clearExitingCard();
+				});
+			}
 		}
 		previousActiveId.current = activeId;
 	}, [
@@ -277,8 +251,6 @@ export default function Activity() {
 		exitAnimY,
 		exitAnimOpacity,
 		exitAnimScale,
-		popupAnimY,
-		popupAnimScale,
 	]);
 
 	// Initialiser thème
@@ -925,16 +897,11 @@ export default function Activity() {
 							</Animated.View>
 						)}
 
-						{/* 🎬 Carte principale (enter animation) */}
-						<Animated.View
+						{/* 🎬 Carte principale (apparition directe, sans animation d'entrée) */}
+						<View
 							style={[
 								activityStyles.popupMain,
 								{
-									transform: [
-										{ translateY: popupAnimY },
-										{ scale: popupAnimScale },
-									],
-									// Bordure statique (borderColor ne supporte pas useNativeDriver)
 									borderColor: "rgba(255, 255, 255, 0.15)",
 									borderWidth: 2,
 								},
@@ -1409,7 +1376,7 @@ export default function Activity() {
 									</View>
 								)}
 							</View>
-						</Animated.View>
+						</View>
 					</View>
 				)}
 
