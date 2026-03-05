@@ -130,8 +130,8 @@ export const useDashboardFilters = (
 					break;
 
 				case "ouverte":
-					// 📅 "Ouverte" : toujours toutes les dates (une resa ouverte hier = encore active)
-					result = searchedReservations.filter(
+					// 📅 "Ouverte" : toutes les dates (passé, aujourd'hui, futur)
+					result = dateFilteredReservations.filter(
 						(r) => r?.status === "ouverte",
 					);
 					break;
@@ -158,7 +158,7 @@ export const useDashboardFilters = (
 			console.error("❌ Erreur filtrage réservations:", error);
 			return [];
 		}
-	}, [dateFilteredReservations, searchedReservations, filter, searchQuery, selectedDate]);
+	}, [dateFilteredReservations, filter, searchQuery, selectedDate]);
 
 	const changeFilter = useCallback(async (newFilter) => {
 		setFilter(newFilter);
