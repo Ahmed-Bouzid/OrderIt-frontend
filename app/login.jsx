@@ -259,7 +259,6 @@ export default function Login() {
 					category: data.user.category || "restaurant",
 				});
 
-				console.log("✅ [GOOGLE] Connexion réussie:", data.user.email);
 				router.replace("/");
 			} else {
 				Alert.alert("Erreur", data.message || "Connexion Google échouée");
