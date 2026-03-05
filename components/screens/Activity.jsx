@@ -53,19 +53,29 @@ import {
 import Toast from "../ui/Toast";
 
 /**
- * Composant qui fait un fade-in (0→1) à chaque montage.
- * Utilisé avec key={activeId} pour garantir un remount propre
- * sans aucun stop()/setValue() sur le thread natif.
+ * Fade-in (0→1) à chaque changement de activeId.
+ * Le composant reste MONTÉ — pas de unmount/remount = pas de flash.
+ * opacity.setValue(0) est sûr ici : aucune animation translateY en cours,
+ * valeur entre 0 et 1 uniquement, résultat identique des deux côtés du bridge.
  */
-function FadeInCard({ style, children }) {
+function FadeInCard({ style, children, activeId }) {
 	const opacity = useRef(new Animated.Value(0)).current;
+	const animRef = useRef(null);
 	useEffect(() => {
-		Animated.timing(opacity, {
+		if (animRef.current) {
+			animRef.current.stop();
+			animRef.current = null;
+		}
+		opacity.setValue(0);
+		animRef.current = Animated.timing(opacity, {
 			toValue: 1,
-			duration: 120,
+			duration: 150,
 			useNativeDriver: true,
-		}).start();
-	}, []);
+		});
+		animRef.current.start(({ finished }) => {
+			if (finished) animRef.current = null;
+		});
+	}, [activeId]);
 	return (
 		<Animated.View style={[style, { opacity }]}>{children}</Animated.View>
 	);
@@ -916,9 +926,9 @@ export default function Activity() {
 							</Animated.View>
 						)}
 
-						{/* 🎬 Carte principale — fade-in 120ms, remount propre via key={activeId} */}
+						{/* 🎬 Carte principale — fade-in 150ms sans unmount (zero flash) */}
 						<FadeInCard
-							key={activeId}
+							activeId={activeId}
 							style={[
 								activityStyles.popupMain,
 								{
