@@ -56,11 +56,6 @@ export const useDashboardActions = (fetchReservations) => {
 	// Mettre à jour le statut
 	const updateStatus = useCallback(
 		async (id, newStatus, reservation) => {
-			console.log("[DEBUG] updateStatus called", {
-				id,
-				newStatus,
-				reservation,
-			});
 			// Validation avant fermeture : vérifier le paiement
 			if (newStatus === "terminée") {
 				const totalAmount = reservation?.totalAmount || 0;
@@ -108,7 +103,6 @@ export const useDashboardActions = (fetchReservations) => {
 
 			// Procéder normalement
 			const result = await proceedWithStatusUpdate(id, newStatus);
-			console.log("[DEBUG] Résultat proceedWithStatusUpdate:", result);
 			return result;
 		},
 		[authFetch, fetchReservations, cleanup],
@@ -124,7 +118,6 @@ export const useDashboardActions = (fetchReservations) => {
 					body: { status: newStatus },
 				},
 			);
-			console.log("[DEBUG] Réponse backend update status:", data);
 			if (data && !Array.isArray(data)) {
 				// Nettoyer l'état présent si besoin
 				if (newStatus === "terminée" || newStatus === "en attente") {

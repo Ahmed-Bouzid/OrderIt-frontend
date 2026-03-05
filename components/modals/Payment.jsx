@@ -44,19 +44,10 @@ export default function Payment({
 			})),
 		);
 
-		console.log("🔍 Items aplatis:", flattenedItems.length);
 		return flattenedItems;
 	}, [orders]);
 
 	const reservationId = reservation?._id;
-
-	// 🐛 DEBUG: Log pour comprendre le problème
-	useEffect(() => {
-		console.log("🔍 DEBUG Payment:");
-		console.log("- Réservation:", reservationId);
-		console.log("- Nombre de commandes:", orders?.length || 0);
-		console.log("- Nombre total d'articles:", allOrders.length);
-	}, [reservationId, orders, allOrders]);
 
 	// 🔧 Fonction pour générer un ID unique pour chaque article
 	const getItemId = useCallback((item) => {

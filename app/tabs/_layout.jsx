@@ -85,15 +85,13 @@ export default function TabsLayout() {
 	const isFeatureLevelReady = useFeatureLevelStore(
 		(state) => state.isInitialized,
 	);
+	const isMinimum = useFeatureLevelStore((state) => state.isMinimum());
 
 	// Filtrer ALL_TABS selon les tabs disponibles dans le niveau actuel
 	const TABS = ALL_TABS.filter((tab) => availableTabs.includes(tab.name));
 
 	// Charger la catégorie dès le montage (initialise automatiquement le FeatureLevelStore)
 	useEffect(() => {
-		console.log(`\n🔵 [DEBUG] ========================================`);
-		console.log(`🔵 [DEBUG] APP FRONTEND - DÉMARRAGE CHARGEMENT`);
-		console.log(`🔵 [DEBUG] ========================================\n`);
 		useUserStore.getState().init();
 	}, []);
 
@@ -111,9 +109,6 @@ export default function TabsLayout() {
 				const token = await getItem("access_token");
 
 				if (!restaurantId || !token) {
-					console.log(
-						"❌ Impossible de charger le nom: restaurantId ou token manquant",
-					);
 					return;
 				}
 
@@ -126,7 +121,6 @@ export default function TabsLayout() {
 				}
 
 				// Cache invalide ou absent → fetch API
-				console.log("📡 Fetch nom restaurant:", restaurantId);
 
 				const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${restaurantId}`;
 				const response = await fetch(url, {
@@ -136,7 +130,6 @@ export default function TabsLayout() {
 				if (response.ok) {
 					const data = await response.json();
 					const name = data.name || "Restaurant";
-					console.log("✅ Nom du restaurant chargé:", name);
 					setRestaurantName(name);
 					// Mettre en cache avec l'ID associé
 					await AsyncStorage.setItem("restaurantName", name);
@@ -151,20 +144,9 @@ export default function TabsLayout() {
 		loadRestaurantName();
 	}, []);
 
-	// Debug : surveiller le changement de showMessagesPanel
-	// Debug : surveiller le changement de showMessagesPanel
-	useEffect(() => {
-		console.log("🔍 showMessagesPanel a changé:", showMessagesPanel);
-	}, [showMessagesPanel]);
-
 	useEffect(() => {
 		if (isFeatureLevelReady && TABS.length > 0 && !activeTab) {
 			const firstTab = TABS[0]?.name || "floor";
-			console.log(`\n✅ [DEBUG] ========================================`);
-			console.log(`✅ [DEBUG] CHARGEMENT TERMINÉ - APP PRÊTE`);
-			console.log(`✅ [DEBUG] ========================================`);
-			console.log(`📱 Tabs affichés: ${TABS.map(t => t.name).join(", ")}`);
-			console.log(`🎯 Premier tab actif: ${firstTab}\n`);
 			setActiveTab(firstTab);
 		}
 	}, [isFeatureLevelReady, TABS, activeTab]);
@@ -406,34 +388,38 @@ export default function TabsLayout() {
 			</View>
 
 			{/* Panel des messages clients */}
-			<ClientMessagesPanel
-				visible={showMessagesPanel}
-				onClose={() => setShowMessagesPanel(false)}
-				onOpen={() => setShowMessagesPanel(true)}
-			/>
+			{!isMinimum && (
+				<ClientMessagesPanel
+					visible={showMessagesPanel}
+					onClose={() => setShowMessagesPanel(false)}
+					onOpen={() => setShowMessagesPanel(true)}
+				/>
+			)}
 
 			{/* Bouton flottant de messagerie (côté droit) */}
-			<View style={tabStyles.floatingButtonWrapper}>
-				<TouchableOpacity
-					style={tabStyles.floatingMessageButton}
-					onPress={() => setShowMessagesPanel(true)}
-					activeOpacity={0.8}
-				>
-					<LinearGradient
-						colors={["#667eea", "#764ba2"]}
-						style={tabStyles.floatingButtonGradient}
+			{!isMinimum && (
+				<View style={tabStyles.floatingButtonWrapper}>
+					<TouchableOpacity
+						style={tabStyles.floatingMessageButton}
+						onPress={() => setShowMessagesPanel(true)}
+						activeOpacity={0.8}
 					>
-						<Ionicons name="chatbubbles" size={24} color="#fff" />
-					</LinearGradient>
-				</TouchableOpacity>
-				{unreadMessagesCount > 0 && (
-					<View style={tabStyles.floatingBadge}>
-						<Text style={tabStyles.floatingBadgeText}>
-							{unreadMessagesCount > 99 ? "99+" : unreadMessagesCount}
-						</Text>
-					</View>
-				)}
-			</View>
+						<LinearGradient
+							colors={["#667eea", "#764ba2"]}
+							style={tabStyles.floatingButtonGradient}
+						>
+							<Ionicons name="chatbubbles" size={24} color="#fff" />
+						</LinearGradient>
+					</TouchableOpacity>
+					{unreadMessagesCount > 0 && (
+						<View style={tabStyles.floatingBadge}>
+							<Text style={tabStyles.floatingBadgeText}>
+								{unreadMessagesCount > 99 ? "99+" : unreadMessagesCount}
+							</Text>
+						</View>
+					)}
+				</View>
+			)}
 		</SafeAreaView>
 	);
 }

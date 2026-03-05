@@ -107,54 +107,10 @@ export default function Dashboard() {
 									capacity: 4, // Capacité par défaut
 									status: "available", // Statut par défaut (en minuscules)
 								};
-
-								console.log("🔍 Données envoyées pour la table :", tableData);
-
 								const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
 								// Log du token utilisé (via cache)
 								const token = await getSecureItem("access_token");
-								console.log("Token utilisé :", token);
-								console.log(
-									"🔑 Token actuel au moment de la création des tables :",
-									token,
-								);
-
-								console.log("URL appelée :", `${API_URL}/tables`);
-								console.log("Données envoyées :", JSON.stringify(tableData));
-								console.log("En-têtes :", {
-									"Content-Type": "application/json",
-									Authorization: `Bearer ${token}`,
-								});
-								console.log("🔍 En-têtes envoyés avec la requête :", {
-									"Content-Type": "application/json",
-									Authorization: `Bearer ${token}`,
-								});
-								console.log("🔍 Valeur de restaurantId :", restaurantInfo.id);
-								console.log(
-									"🔍 Valeur de number :",
-									tableName ? `${tableName}-1` : "T1",
-								);
-
-								// Vérification du format et de la longueur de restaurantId
-								console.log(
-									"🔍 Longueur de restaurantId :",
-									restaurantInfo.id.length,
-								);
-								console.log(
-									"🔍 Type de restaurantId :",
-									typeof restaurantInfo.id,
-								);
-
-								// Vérification de la structure des données envoyées
-								console.log("🔍 Structure des données envoyées :", tableData);
-
-								// Ajout de logs pour vérifier les valeurs de restaurantId et tableName
-								console.log("🔍 Vérification des données avant envoi :", {
-									restaurantId: restaurantInfo.id,
-									tableName,
-									tableQuantity,
-								});
 
 								const response = await fetchWithAuth(`${API_URL}/tables`, {
 									method: "POST",
@@ -163,10 +119,6 @@ export default function Dashboard() {
 								});
 
 								const responseText = await response.text();
-								console.log(
-									"Réponse brute du backend pour la table :",
-									responseText,
-								);
 
 								if (!response.ok) {
 									const data = JSON.parse(responseText);

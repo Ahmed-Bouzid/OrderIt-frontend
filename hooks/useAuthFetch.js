@@ -68,6 +68,11 @@ export function useAuthFetch() {
 
 			throw new Error("Pas de token reçu");
 		} catch (error) {
+			// ⭐ Gérer les AbortError (timeouts) gracieusement
+			if (error.name === "AbortError") {
+				console.warn("⏱️ Refresh annulé (timeout)");
+				throw error;
+			}
 			console.error("❌ Erreur refresh token:", error);
 			throw error;
 		}
@@ -96,20 +101,20 @@ export function useAuthFetch() {
 					"🔍 Vérification auto-refresh: token=",
 					!!token,
 					"refreshToken=",
-					!!refreshToken
+					!!refreshToken,
 				);
 
 				// Si on a les deux tokens, rafraîchir le token d'accès
 				if (token && refreshToken) {
 					console.log(
-						"🔄 Rafraîchissement automatique du token (avant expiration)..."
+						"🔄 Rafraîchissement automatique du token (avant expiration)...",
 					);
 					await refreshAccessToken();
 				} else {
 					console.warn("⚠️ Impossible de rafraîchir: tokens manquants");
 					if (!refreshToken) {
 						console.error(
-							"❌ PROBLÈME CRITQUE: refreshToken disparu de SecureStore!"
+							"❌ PROBLÈME CRITQUE: refreshToken disparu de SecureStore!",
 						);
 						// Force logout si refresh token est perdu
 						await setSecureItem("@access_token", "");
@@ -241,11 +246,16 @@ export function useAuthFetch() {
 					return []; // ⭐ Airbag en cas d'erreur JSON
 				}
 			} catch (error) {
+				// ⭐ Gérer les AbortError (timeouts) gracieusement
+				if (error.name === "AbortError") {
+					console.warn("⏱️ Requête annulée (timeout):", url);
+					return []; // ⭐ Retourne tableau vide = airbag
+				}
 				console.error("❌ Erreur réseau:", error);
 				return []; // ⭐ Retourne tableau vide = airbag
 			}
 		},
-		[router, refreshAccessToken, setupAutoRefresh]
+		[router, refreshAccessToken, setupAutoRefresh],
 	);
 
 	return authFetch;
@@ -286,7 +296,7 @@ export const redirectToLogin = (router, isRedirectingRef) => {
 					},
 				},
 			],
-			{ cancelable: false }
+			{ cancelable: false },
 		);
 	}
 };

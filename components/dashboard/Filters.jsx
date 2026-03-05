@@ -73,8 +73,8 @@ const Filters = React.memo(
 				},
 			];
 		} else if (hasCuisine) {
+			// Fast-food : UNIQUEMENT le bouton Cuisine
 			FILTERS = [
-				...ALL_FILTERS,
 				{
 					key: "cuisine",
 					label: "Cuisine",

@@ -374,13 +374,6 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				r.isPresent === true && r.status === "en attente" && !isAlreadyOpened
 			);
 		});
-		console.log("🔍 Réservations ouvrables:", openableReservations.length);
-		openableReservations.forEach((r) => {
-			console.log(
-				`  - ${r._id}: ${r.clientName}, status="${r.status}", isPresent=${r.isPresent}`
-			);
-		});
-
 		// ⭐ RÈGLE MÉTIER: Chercher UNIQUEMENT les réservations présentes EN ATTENTE
 		const nextResa = openableReservations.sort(
 			(a, b) =>

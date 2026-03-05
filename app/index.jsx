@@ -19,7 +19,7 @@ export default function Index() {
 				// 🔄 Migration automatique AsyncStorage → SecureStore (première fois uniquement)
 				try {
 					const alreadyMigrated = await AsyncStorage.getItem(
-						"secureStoreMigrated"
+						"secureStoreMigrated",
 					);
 					if (!alreadyMigrated) {
 						console.log("🔄 Première exécution, migration SecureStore...");
@@ -30,7 +30,7 @@ export default function Index() {
 				} catch (migrationError) {
 					console.warn(
 						"⚠️ Erreur migration SecureStore (non-bloquant):",
-						migrationError.message
+						migrationError.message,
 					);
 				}
 
@@ -49,10 +49,10 @@ export default function Index() {
 						await getValidToken();
 						console.log("✅ Token valide, redirection...");
 					} catch (error) {
-						// Token invalide/expiré et refresh échoué → forcer login
-						console.error(
-							"❌ Token invalide, redirection login:",
-							error.message
+						// Token invalide/expiré et refresh échoué → comportement normal
+						console.warn(
+							"⏱️ Session expirée ou invalide, redirection login:",
+							error.message,
 						);
 						// 🧹 Nettoyer TOUTES les données (AsyncStorage + UserStore)
 						await clearAllUserData();

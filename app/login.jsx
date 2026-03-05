@@ -23,7 +23,6 @@ import { create } from "zustand";
 import useUserStore from "../src/stores/useUserStore";
 import * as WebBrowser from "expo-web-browser";
 import * as Google from "expo-auth-session/providers/google";
-import * as AuthSession from "expo-auth-session";
 
 WebBrowser.maybeCompleteAuthSession();
 
@@ -43,14 +42,6 @@ export default function Login() {
 	const { setRestaurantId } = useRestaurantStore();
 	const setUser = useUserStore((state) => state.setUser);
 
-	// 🔐 Configuration Google OAuth avec scheme natif (pour dev build)
-	const redirectUri = AuthSession.makeRedirectUri({
-		scheme: "sunnygo",
-		useProxy: false,
-	});
-
-	console.log("🔐 Redirect URI:", redirectUri);
-
 	const [request, response, promptAsync] = Google.useAuthRequest({
 		iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
 		androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
@@ -59,9 +50,7 @@ export default function Login() {
 
 	// Gérer réponse OAuth Google
 	useEffect(() => {
-		console.log("🔍 OAuth response:", response);
 		if (response?.type === "success") {
-			console.log("✅ OAuth success! Params:", response.params);
 			const { id_token, code } = response.params;
 			if (id_token) {
 				handleGoogleLogin(id_token);
@@ -69,7 +58,6 @@ export default function Login() {
 				handleGoogleLogin(code);
 			}
 		} else if (response?.type === "error") {
-			console.log("❌ OAuth error:", response.error);
 		}
 	}, [response]);
 
@@ -277,8 +265,13 @@ export default function Login() {
 				Alert.alert("Erreur", data.message || "Connexion Google échouée");
 			}
 		} catch (err) {
-			console.error("❌ [GOOGLE] Erreur:", err);
-			Alert.alert("Erreur", "Impossible de se connecter avec Google");
+			if (err.name === "AbortError") {
+				console.warn("⏱️ Google login timeout");
+				Alert.alert("Erreur", "Le serveur ne répond pas. Réessayez.");
+			} else {
+				console.error("❌ [GOOGLE] Erreur:", err);
+				Alert.alert("Erreur", "Impossible de se connecter avec Google");
+			}
 		} finally {
 			setLoading(false);
 		}
@@ -326,8 +319,6 @@ export default function Login() {
 				setLoading(false);
 				return;
 			}
-
-			console.log("Réponse backend login :", data); // 🔹 debug
 
 			if (res.ok) {
 				// ✅ Stocker le token d'accès (SecureStore)
@@ -435,11 +426,12 @@ export default function Login() {
 			clearTimeout(timeoutId);
 
 			if (err.name === "AbortError") {
+				console.warn("⏱️ Login timeout (serveur non réactif)");
 				Alert.alert("Erreur", "Le serveur ne répond pas (timeout). Réessayez.");
 			} else {
+				console.error("❌ Erreur login:", err);
 				Alert.alert("Erreur", "Impossible de contacter le serveur");
 			}
-			console.error(err);
 		} finally {
 			setLoading(false);
 		}

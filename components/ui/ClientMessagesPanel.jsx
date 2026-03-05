@@ -89,7 +89,6 @@ export default function ClientMessagesPanel({ visible, onClose, onOpen }) {
 		if (!socket || !isConnected) return;
 
 		const handleNewMessage = (event) => {
-			console.log("🔔 [FRONTEND DEBUG] Événement client-message reçu:", event);
 			if (event.type === "new-message") {
 				console.log("📨 [Panel] Nouveau message reçu:", event.data);
 

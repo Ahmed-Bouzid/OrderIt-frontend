@@ -25,6 +25,7 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
+import useSocket from "../../hooks/useSocket";
 
 export default function FloorPlanModal({
 	visible,
@@ -83,13 +84,84 @@ export default function FloorPlanModal({
 		}));
 	}, [isSimulation, roomNumber]);
 
-	// Choisir les tables à afficher : mock en simulation, vraies sinon
-	const displayTables = isSimulation ? mockTables : tables;
+	const { on, off } = useSocket();
+
+	// ⭐ Écouter directement le socket pour les suppressions/créations en temps réel
+	useEffect(() => {
+		if (isSimulation) return;
+
+		const handleTableEvent = (event) => {
+			const { type, data } = event;
+			if (type === "deleted") {
+				console.log(
+					`🗑️ [FLOOR] Table supprimée via WS, retrait visuel: ${data._id}`,
+				);
+				setTables((prev) => prev.filter((t) => t._id !== data._id));
+				setModifiedTableIds((prev) => {
+					const next = new Set(prev);
+					next.delete(data._id);
+					return next;
+				});
+			} else if (type === "created") {
+				setTables((prev) => {
+					if (prev.some((t) => t._id === data._id)) return prev;
+					return [...prev, data];
+				});
+			}
+		};
+
+		on("table", handleTableEvent);
+		return () => off("table", handleTableEvent);
+	}, [isSimulation, on, off]);
+
+	// Choisir les tables à afficher : mock en simulation, vraies sinon (déduplication par _id)
+	const displayTables = useMemo(() => {
+		const source = isSimulation ? mockTables : tables;
+		const seen = new Set();
+		return source.filter((t) => {
+			if (seen.has(t._id)) return false;
+			seen.add(t._id);
+			return true;
+		});
+	}, [isSimulation, mockTables, tables]);
 
 	// États édition
 	const [editingTable, setEditingTable] = useState(null);
 	const [editMode, setEditMode] = useState(null); // "number" | "capacity"
 	const [editValue, setEditValue] = useState("");
+
+	// Mode Resa (activé par défaut à l'ouverture)
+	const [resaMode, setResaMode] = useState(true);
+	const [selectedResaTable, setSelectedResaTable] = useState(null); // { table, resaInfo }
+
+	// Résolveur de réservation par table — retourne { resa, type: "en_cours"|"futur" } ou null
+	const getTableResa = useCallback(
+		(table) => {
+			const now = new Date();
+			// tableId peut être populé (objet) ou brut (ObjectId/string)
+			const toId = (v) => (v?._id ?? v)?.toString();
+			const tableIdStr = table._id?.toString();
+			const matches = reservations.filter(
+				(r) =>
+					toId(r.tableId) === tableIdStr &&
+					r.status !== "terminée" &&
+					r.status !== "annulée",
+			);
+			// En cours : SEULEMENT statut "ouverte" (service actif)
+			const enCours = matches.find((r) => r.status === "ouverte") || null;
+			if (enCours) return { resa: enCours, type: "en_cours" };
+			// Futur : toute resa "en attente" (peu importe la date)
+			const futur =
+				matches
+					.filter((r) => r.status === "en attente")
+					.sort(
+						(a, b) => new Date(a.reservationDate) - new Date(b.reservationDate),
+					)[0] || null;
+			if (futur) return { resa: futur, type: "futur" };
+			return null;
+		},
+		[reservations],
+	);
 
 	// Charger les tables
 	const fetchTables = useCallback(async () => {
@@ -124,16 +196,30 @@ export default function FloorPlanModal({
 			today.setHours(0, 0, 0, 0);
 			const data = await authFetch(
 				`/reservations?restaurantId=${restaurantId}&startDate=${today.toISOString()}`,
-				{ method: "GET" }
+				{ method: "GET" },
 			);
 
 			if (Array.isArray(data)) {
-				setReservations(data.filter((r) => r.status === "confirmed"));
+				const active = data.filter(
+					(r) => r.status !== "terminée" && r.status !== "annulée",
+				);
+				setReservations(active);
 			}
 		} catch (error) {
 			console.error("❌ Erreur chargement réservations:", error);
 		}
 	}, [restaurantId, authFetch, isSimulation]);
+
+	useEffect(() => {
+		if (visible) {
+			// Réinitialiser les modes à chaque ouverture
+			setResaMode(true);
+			setDragEnabled(false);
+			setResizeEnabled(false);
+			setSnapToGrid(false);
+			setSelectedResaTable(null);
+		}
+	}, [visible]);
 
 	useEffect(() => {
 		if (visible && restaurantId) {
@@ -198,7 +284,7 @@ export default function FloorPlanModal({
 			if (updatedTable) {
 				console.log("✅ [FLOOR] Table mise à jour:", updatedTable);
 				setTables((prev) =>
-					prev.map((t) => (t._id === editingTable._id ? updatedTable : t))
+					prev.map((t) => (t._id === editingTable._id ? updatedTable : t)),
 				);
 				setEditingTable(null);
 				setEditMode(null);
@@ -218,22 +304,34 @@ export default function FloorPlanModal({
 		if (isSimulation) return;
 
 		try {
+			// Générer un numéro unique non utilisé
+			const existingNumbers = new Set(tables.map((t) => t.number));
+			let n = tables.length + 1;
+			while (existingNumbers.has(`T${n}`)) {
+				n++;
+			}
+
 			const newTable = {
 				restaurantId,
-				number: `T${tables.length + 1}`,
+				number: `T${n}`,
 				capacity: 4,
 				status: "available",
 			};
 
-			const response = await authFetch("/tables", {
+			console.log("➕ [FLOOR] Création table:", newTable);
+
+			// authFetch retourne directement les données parsées (pas un objet Response)
+			const createdTable = await authFetch("/tables", {
 				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify(newTable),
+				body: newTable, // authFetch gère JSON.stringify automatiquement
 			});
 
-			if (response.ok) {
-				const createdTable = await response.json();
+			if (createdTable && createdTable._id) {
+				console.log("✅ [FLOOR] Table créée:", createdTable);
 				setTables((prev) => [...prev, createdTable]);
+			} else {
+				console.error("❌ [FLOOR] Réponse invalide:", createdTable);
+				Alert.alert("Erreur", "Impossible de créer la table");
 			}
 		} catch (error) {
 			console.error("Erreur création table:", error);
@@ -252,16 +350,19 @@ export default function FloorPlanModal({
 				style: "destructive",
 				onPress: async () => {
 					try {
-						const response = await authFetch(`/tables/${tableId}`, {
-							method: "DELETE",
+						// authFetch retourne [] en cas d'erreur, ou les données en cas de succès
+						await authFetch(`/tables/${tableId}`, { method: "DELETE" });
+						// Retrait immédiat du state local (le WS confirmera aussi)
+						console.log(`✅ [FLOOR] Table ${tableId} supprimée, retrait local`);
+						setTables((prev) => prev.filter((t) => t._id !== tableId));
+						setModifiedTableIds((prev) => {
+							const next = new Set(prev);
+							next.delete(tableId);
+							return next;
 						});
-
-						if (response.ok) {
-							setTables((prev) => prev.filter((t) => t._id !== tableId));
-						}
 					} catch (error) {
-						console.error("Erreur suppression:", error);
-						Alert.alert("Erreur", "Impossible de supprimer");
+						console.error("❌ [FLOOR] Erreur suppression table:", error);
+						Alert.alert("Erreur", "Impossible de supprimer la table");
 					}
 				},
 			},
@@ -271,7 +372,9 @@ export default function FloorPlanModal({
 	// � Mettre à jour la position d'une table
 	const handlePositionChange = useCallback((tableId, newPosition) => {
 		setTables((prev) =>
-			prev.map((t) => (t._id === tableId ? { ...t, position: newPosition } : t))
+			prev.map((t) =>
+				t._id === tableId ? { ...t, position: newPosition } : t,
+			),
 		);
 		setModifiedTableIds((prev) => new Set(prev).add(tableId));
 	}, []);
@@ -279,7 +382,9 @@ export default function FloorPlanModal({
 	// � Gérer le changement de taille
 	const handleSizeChange = useCallback((tableId, newSize) => {
 		setTables((prev) =>
-			prev.map((t) => (t._id === tableId ? { ...t, size: newSize } : t))
+			prev.map((t) =>
+				t._id === tableId ? { ...t, sizeW: newSize.w, sizeH: newSize.h } : t,
+			),
 		);
 		setModifiedTableIds((prev) => new Set(prev).add(tableId));
 	}, []);
@@ -297,32 +402,80 @@ export default function FloorPlanModal({
 				return;
 			}
 
+			// ⭐ Filtrer uniquement les tables encore présentes (non supprimées entre-temps)
+			const currentIds = new Set(tables.map((t) => t._id));
 			const updates = displayTables
-				.filter((table) => modifiedIds.includes(table._id))
+				.filter(
+					(table) =>
+						modifiedIds.includes(table._id) && currentIds.has(table._id),
+				)
 				.map((table) => ({
 					id: table._id,
 					position: table.position,
-					size: table.size || 1,
+					sizeW: table.sizeW || table.size || 1,
+					sizeH: table.sizeH || table.size || 1,
 				}));
+
+			if (updates.length === 0) {
+				Alert.alert("Info", "Aucune modification à sauvegarder");
+				return;
+			}
 
 			console.log("💾 Sauvegarde des positions:", updates);
 
 			// Appel API pour sauvegarder toutes les positions et tailles
+			let savedCount = 0;
 			for (const update of updates) {
-				const updatedTable = await authFetch(`/tables/${update.id}`, {
-					method: "PUT",
-					body: { position: update.position, size: update.size },
-				});
+				try {
+					const updatedTable = await authFetch(`/tables/${update.id}`, {
+						method: "PUT",
+						body: {
+							position: update.position,
+							sizeW: update.sizeW,
+							sizeH: update.sizeH,
+						},
+					});
 
-				// ⭐ Mettre à jour le state local avec la table sauvegardée
-				if (updatedTable) {
-					setTables((prev) =>
-						prev.map((t) => (t._id === update.id ? updatedTable : t))
+					// ⭐ Mettre à jour le state local avec la table sauvegardée
+					if (updatedTable && updatedTable._id) {
+						setTables((prev) =>
+							prev.map((t) =>
+								t._id === update.id
+									? {
+											...updatedTable,
+											// Préserver sizeW/sizeH si le serveur ne les retourne pas
+											sizeW: updatedTable.sizeW ?? update.sizeW,
+											sizeH: updatedTable.sizeH ?? update.sizeH,
+										}
+									: t,
+							),
+						);
+						savedCount++;
+					} else {
+						// Table introuvable (supprimée entre-temps) - on nettoie
+						console.warn(`⚠️ [FLOOR] Table ${update.id} introuvable, skip`);
+						setModifiedTableIds((prev) => {
+							const next = new Set(prev);
+							next.delete(update.id);
+							return next;
+						});
+					}
+				} catch (updateError) {
+					console.warn(
+						`⚠️ [FLOOR] Erreur save table ${update.id}:`,
+						updateError,
 					);
 				}
 			}
 
-			Alert.alert("Succès", `${updates.length} position(s) sauvegardée(s)`);
+			if (savedCount > 0) {
+				Alert.alert("Succès", `${savedCount} position(s) sauvegardée(s)`);
+			} else {
+				Alert.alert(
+					"Info",
+					"Aucune table à sauvegarder (supprimées entre-temps)",
+				);
+			}
 			setModifiedTableIds(new Set()); // Réinitialiser après sauvegarde
 		} catch (error) {
 			console.error("Erreur sauvegarde plan:", error);
@@ -353,32 +506,69 @@ export default function FloorPlanModal({
 							<Text style={styles.title}>
 								Salle {roomNumber} {isSimulation && "- Simulation"}
 							</Text>
-							<Text style={styles.subtitle}>Vue du ciel</Text>
-							{/* Toggles Drag / Resize */}
+
+							{/* Toggles Resa / Drag / Resize / Grid */}
 							<View style={styles.toggleContainer}>
+								{/* Bouton Resa */}
 								<TouchableOpacity
 									onPress={() => {
-										if (!dragEnabled) {
-											setDragEnabled(true);
-											setResizeEnabled(false);
-										} else {
+										const next = !resaMode;
+										setResaMode(next);
+										setSelectedResaTable(null);
+										if (next) {
+											// Resa activé → désactiver les autres modes
 											setDragEnabled(false);
+											setResizeEnabled(false);
+											setSnapToGrid(false);
 										}
 									}}
 									style={[
 										styles.toggleButton,
+										resaMode && styles.toggleButtonResaActive,
+									]}
+								>
+									<Ionicons
+										name="calendar-outline"
+										size={20}
+										color={resaMode ? "#fff" : THEME.colors.text.muted}
+									/>
+									<Text
+										style={[
+											styles.toggleButtonText,
+											resaMode && styles.toggleButtonTextActive,
+										]}
+									>
+										Resa
+									</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									onPress={() => {
+										setDragEnabled(!dragEnabled);
+										setResizeEnabled(false);
+									}}
+									disabled={resaMode}
+									style={[
+										styles.toggleButton,
 										dragEnabled && styles.toggleButtonActive,
+										resaMode && styles.toggleButtonDisabled,
 									]}
 								>
 									<Ionicons
 										name="move"
 										size={20}
-										color={dragEnabled ? "#fff" : THEME.colors.text.muted}
+										color={
+											resaMode
+												? THEME.colors.text.muted + "40"
+												: dragEnabled
+													? "#fff"
+													: THEME.colors.text.muted
+										}
 									/>
 									<Text
 										style={[
 											styles.toggleButtonText,
 											dragEnabled && styles.toggleButtonTextActive,
+											resaMode && styles.toggleButtonTextDisabled,
 										]}
 									>
 										Drag
@@ -387,27 +577,32 @@ export default function FloorPlanModal({
 
 								<TouchableOpacity
 									onPress={() => {
-										if (!resizeEnabled) {
-											setResizeEnabled(true);
-											setDragEnabled(false);
-										} else {
-											setResizeEnabled(false);
-										}
+										setResizeEnabled(!resizeEnabled);
+										setDragEnabled(false);
 									}}
+									disabled={resaMode}
 									style={[
 										styles.toggleButton,
 										resizeEnabled && styles.toggleButtonActive,
+										resaMode && styles.toggleButtonDisabled,
 									]}
 								>
 									<Ionicons
 										name="resize"
 										size={20}
-										color={resizeEnabled ? "#fff" : THEME.colors.text.muted}
+										color={
+											resaMode
+												? THEME.colors.text.muted + "40"
+												: resizeEnabled
+													? "#fff"
+													: THEME.colors.text.muted
+										}
 									/>
 									<Text
 										style={[
 											styles.toggleButtonText,
 											resizeEnabled && styles.toggleButtonTextActive,
+											resaMode && styles.toggleButtonTextDisabled,
 										]}
 									>
 										Resize
@@ -416,20 +611,29 @@ export default function FloorPlanModal({
 
 								<TouchableOpacity
 									onPress={() => setSnapToGrid(!snapToGrid)}
+									disabled={resaMode}
 									style={[
 										styles.toggleButton,
 										snapToGrid && styles.toggleButtonActive,
+										resaMode && styles.toggleButtonDisabled,
 									]}
 								>
 									<Ionicons
 										name="grid"
 										size={20}
-										color={snapToGrid ? "#fff" : THEME.colors.text.muted}
+										color={
+											resaMode
+												? THEME.colors.text.muted + "40"
+												: snapToGrid
+													? "#fff"
+													: THEME.colors.text.muted
+										}
 									/>
 									<Text
 										style={[
 											styles.toggleButtonText,
 											snapToGrid && styles.toggleButtonTextActive,
+											resaMode && styles.toggleButtonTextDisabled,
 										]}
 									>
 										Grid
@@ -463,6 +667,84 @@ export default function FloorPlanModal({
 
 						{/* Zone de plan (toutes les tables visibles) */}
 						<View style={styles.planContainer}>
+							{/* Grille visuelle — affichée quand Grid est actif */}
+							{snapToGrid && (
+								<View style={StyleSheet.absoluteFill} pointerEvents="none">
+									{Array.from({ length: 60 }).map((_, i) => (
+										<View
+											key={`h${i}`}
+											style={{
+												position: "absolute",
+												top: i * 30,
+												left: 0,
+												right: 0,
+												height: 1,
+												backgroundColor: "rgba(255,255,255,0.07)",
+											}}
+										/>
+									))}
+									{Array.from({ length: 80 }).map((_, i) => (
+										<View
+											key={`v${i}`}
+											style={{
+												position: "absolute",
+												left: i * 30,
+												top: 0,
+												bottom: 0,
+												width: 1,
+												backgroundColor: "rgba(255,255,255,0.07)",
+											}}
+										/>
+									))}
+								</View>
+							)}
+							{/* Bande info resa — flottante, sans déplacer le plan */}
+							{resaMode && selectedResaTable && (
+								<View style={styles.resaInfoBand}>
+									<View
+										style={[
+											styles.resaInfoBandDot,
+											{
+												backgroundColor:
+													selectedResaTable.resaInfo.type === "en_cours"
+														? "#EF4444"
+														: "#3B82F6",
+											},
+										]}
+									/>
+									<Text style={styles.resaInfoBandText} numberOfLines={1}>
+										<Text style={styles.resaInfoBandBold}>
+											Table {selectedResaTable.table.number}
+										</Text>
+										{"  "}
+										{selectedResaTable.resaInfo.resa.clientName || "—"}
+										{"  ·  "}
+										{selectedResaTable.resaInfo.resa.reservationTime ||
+											(selectedResaTable.resaInfo.resa.reservationDate
+												? new Date(
+														selectedResaTable.resaInfo.resa.reservationDate,
+													).toLocaleTimeString("fr-FR", {
+														hour: "2-digit",
+														minute: "2-digit",
+													})
+												: "")}
+										{selectedResaTable.resaInfo.resa.nbPersonnes
+											? `  · ${selectedResaTable.resaInfo.resa.nbPersonnes} pers.`
+											: ""}
+										{"  · "}
+										{selectedResaTable.resaInfo.type === "en_cours"
+											? "En cours"
+											: "À venir"}
+									</Text>
+									<TouchableOpacity onPress={() => setSelectedResaTable(null)}>
+										<Ionicons
+											name="close"
+											size={16}
+											color={THEME.colors.text.muted}
+										/>
+									</TouchableOpacity>
+								</View>
+							)}
 							{tables.length === 0 ? (
 								<View style={styles.emptyState}>
 									<Ionicons
@@ -478,13 +760,17 @@ export default function FloorPlanModal({
 							) : (
 								<View style={styles.tablesContainer}>
 									{displayTables.map((table, index) => {
+										const _toId = (v) => (v?._id ?? v)?.toString();
 										const nextReservation = reservations
-											.filter((r) => r.tableNumber === table.number)
+											.filter((r) => _toId(r.tableId) === table._id?.toString())
 											.sort(
 												(a, b) =>
 													new Date(a.reservationDate) -
-													new Date(b.reservationDate)
+													new Date(b.reservationDate),
 											)[0];
+
+										const resaInfo = resaMode ? getTableResa(table) : null;
+										const hasReservation = !!getTableResa(table);
 
 										return (
 											<TableCard
@@ -493,6 +779,16 @@ export default function FloorPlanModal({
 												theme={THEME}
 												index={index}
 												nextReservation={nextReservation}
+												resaMode={resaMode}
+												resaInfo={resaInfo}
+												hasReservation={hasReservation}
+												onResaSelect={() => {
+													if (resaInfo) {
+														setSelectedResaTable({ table, resaInfo });
+													} else {
+														setSelectedResaTable(null);
+													}
+												}}
 												onSimpleTouch={() => handleSimpleTouch(table)}
 												onForceTouch={() => handleForceTouch(table)}
 												onPositionChange={handlePositionChange}
@@ -521,8 +817,9 @@ export default function FloorPlanModal({
 									{isSimulation && " (simulation)"}
 								</Text>
 								<Text style={styles.footerHint}>
-									Touch : Changer n° • Force touch : Changer capacité
-									{!isSimulation && " • Appui long sur - pour supprimer"}
+									{resaMode
+										? "Appuyez sur une table pour voir sa réservation"
+										: `Appui : Changer n°  •  Appui long : Changer capacité${!isSimulation ? "  •  × pour supprimer" : ""}`}
 								</Text>
 							</View>
 
@@ -540,8 +837,20 @@ export default function FloorPlanModal({
 
 					{/* Modale d'édition */}
 					{editingTable && (
-						<View style={styles.editModal}>
-							<View style={styles.editContainer}>
+						<TouchableOpacity
+							style={styles.editModal}
+							activeOpacity={1}
+							onPress={() => {
+								setEditingTable(null);
+								setEditMode(null);
+								setEditValue("");
+							}}
+						>
+							<TouchableOpacity
+								activeOpacity={1}
+								style={styles.editContainer}
+								onPress={(e) => e.stopPropagation()}
+							>
 								<Text style={styles.editTitle}>
 									{editMode === "number" ? "Numéro de table" : "Capacité"}
 								</Text>
@@ -577,8 +886,8 @@ export default function FloorPlanModal({
 										<Text style={styles.editButtonText}>Enregistrer</Text>
 									</TouchableOpacity>
 								</View>
-							</View>
-						</View>
+							</TouchableOpacity>
+						</TouchableOpacity>
 					)}
 				</TouchableOpacity>
 			</BlurView>
@@ -592,6 +901,10 @@ const TableCard = ({
 	theme,
 	index,
 	nextReservation,
+	resaMode,
+	resaInfo,
+	hasReservation,
+	onResaSelect,
 	onSimpleTouch,
 	onForceTouch,
 	onDelete,
@@ -602,12 +915,20 @@ const TableCard = ({
 	resizeEnabled,
 	snapToGrid,
 }) => {
-	const tableSize = table.size || 1;
+	const tableSizeW = table.sizeW || table.size || 1;
+	const tableSizeH = table.sizeH || table.size || 1;
 	const baseSize = 100;
 
-	// Taille locale pour le resize en temps réel
-	const [currentSize, setCurrentSize] = useState(tableSize);
-	const actualSize = baseSize * currentSize;
+	// Dimensions locales pour le resize en temps réel (largeur et hauteur indépendantes)
+	const [currentWidth, setCurrentWidth] = useState(tableSizeW);
+	const [currentHeight, setCurrentHeight] = useState(tableSizeH);
+	const actualWidth = baseSize * currentWidth;
+	const actualHeight = baseSize * currentHeight;
+	// Refs pour éviter les closures stales dans PanResponder
+	const currentWidthRef = useRef(tableSizeW);
+	const currentHeightRef = useRef(tableSizeH);
+	// Flag pour empêcher le useEffect de re-sync de casser un resize en cours
+	const isResizingRef = useRef(false);
 
 	// Refs pour les modes drag et resize (pour que PanResponders aient les valeurs à jour)
 	const dragEnabledRef = useRef(dragEnabled);
@@ -620,10 +941,15 @@ const TableCard = ({
 		snapToGridRef.current = snapToGrid;
 	}, [dragEnabled, resizeEnabled, snapToGrid]);
 
-	// Synchroniser currentSize avec tableSize
+	// Synchroniser les dimensions avec les valeurs de la table (depuis le serveur uniquement)
 	useEffect(() => {
-		setCurrentSize(tableSize);
-	}, [tableSize]);
+		// Ne pas écraser les dimensions si un resize est en cours
+		if (isResizingRef.current) return;
+		setCurrentWidth(tableSizeW);
+		setCurrentHeight(tableSizeH);
+		currentWidthRef.current = tableSizeW;
+		currentHeightRef.current = tableSizeH;
+	}, [tableSizeW, tableSizeH]);
 
 	// Disposition espacée (4 colonnes au lieu de 3)
 	const columnIndex = index % 4;
@@ -633,7 +959,7 @@ const TableCard = ({
 
 	// Animation pour le drag
 	const pan = useRef(
-		new Animated.ValueXY({ x: initialX, y: initialY })
+		new Animated.ValueXY({ x: initialX, y: initialY }),
 	).current;
 	const [isDragging, setIsDragging] = useState(false);
 
@@ -645,8 +971,8 @@ const TableCard = ({
 				// Ne pas capturer si on touche le grip de resize
 				const touch = evt.nativeEvent;
 				const isInGrip =
-					touch.locationX > actualSize - 30 &&
-					touch.locationY > actualSize - 30;
+					touch.locationX > actualWidth - 30 &&
+					touch.locationY > actualHeight - 30;
 				return !isInGrip;
 			},
 			onMoveShouldSetPanResponder: (evt, gestureState) => {
@@ -654,8 +980,8 @@ const TableCard = ({
 				// Ne pas capturer si on touche le grip de resize
 				const touch = evt.nativeEvent;
 				const isInGrip =
-					touch.locationX > actualSize - 30 &&
-					touch.locationY > actualSize - 30;
+					touch.locationX > actualWidth - 30 &&
+					touch.locationY > actualHeight - 30;
 				if (isInGrip) return false;
 				// Commence le drag si mouvement > 10px
 				return Math.abs(gestureState.dx) > 10 || Math.abs(gestureState.dy) > 10;
@@ -675,8 +1001,8 @@ const TableCard = ({
 				setIsDragging(false);
 				pan.flattenOffset();
 
-				// Snap to grid si activé (grille 20x20px)
-				const GRID_SIZE = 20;
+				// Snap to grid si activé (grille 30x30px)
+				const GRID_SIZE = 30;
 				let x = Math.round(pan.x._value);
 				let y = Math.round(pan.y._value);
 
@@ -692,40 +1018,55 @@ const TableCard = ({
 					"🎯 Table déplacée:",
 					table.number,
 					"Position:",
-					newPosition
+					newPosition,
 				);
 				if (onPositionChange) {
 					onPositionChange(table._id, newPosition);
 				}
 			},
-		})
+		}),
 	).current;
 
-	// PanResponder pour le resize depuis le grip
-	const startSize = useRef(tableSize);
+	// PanResponder pour le resize depuis le grip (dx → largeur, dy → hauteur)
+	const startSizeW = useRef(tableSizeW);
+	const startSizeH = useRef(tableSizeH);
 	const resizePanResponder = useRef(
 		PanResponder.create({
 			onStartShouldSetPanResponder: () => resizeEnabledRef.current,
 			onPanResponderGrant: () => {
-				startSize.current = currentSize;
+				isResizingRef.current = true;
+				startSizeW.current = currentWidthRef.current;
+				startSizeH.current = currentHeightRef.current;
 			},
 			onPanResponderMove: (_, gestureState) => {
-				// Calculer la nouvelle taille basée sur le déplacement diagonal
-				const delta = (gestureState.dx + gestureState.dy) / 2;
-				const sizeChange = delta / baseSize;
-				const newSize = Math.max(
+				// dx → largeur, dy → hauteur indépendamment
+				const newW = Math.max(
 					0.5,
-					Math.min(2.5, startSize.current + sizeChange)
+					Math.min(3, startSizeW.current + gestureState.dx / baseSize),
 				);
-				setCurrentSize(newSize);
+				const newH = Math.max(
+					0.5,
+					Math.min(3, startSizeH.current + gestureState.dy / baseSize),
+				);
+				currentWidthRef.current = newW;
+				currentHeightRef.current = newH;
+				setCurrentWidth(newW);
+				setCurrentHeight(newH);
 			},
 			onPanResponderRelease: () => {
-				// Sauvegarder la taille finale
+				// Utiliser les refs (pas les states) pour éviter la closure stale
 				if (onSizeChange) {
-					onSizeChange(table._id, currentSize);
+					onSizeChange(table._id, {
+						w: currentWidthRef.current,
+						h: currentHeightRef.current,
+					});
 				}
+				// Désactiver le flag APRÈS le release (léger délai pour laisser le re-render passer)
+				setTimeout(() => {
+					isResizingRef.current = false;
+				}, 100);
 			},
-		})
+		}),
 	).current;
 
 	// Couleur selon statut
@@ -745,6 +1086,15 @@ const TableCard = ({
 		});
 	};
 
+	// Bordure resa dynamique
+	const resaBorderStyle =
+		resaMode && resaInfo
+			? {
+					borderWidth: 3,
+					borderColor: resaInfo.type === "en_cours" ? "#EF4444" : "#3B82F6",
+				}
+			: {};
+
 	return (
 		<Animated.View
 			{...panResponder.panHandlers}
@@ -752,22 +1102,45 @@ const TableCard = ({
 				tableCardStyles(theme).card,
 				{
 					transform: [{ translateX: pan.x }, { translateY: pan.y }],
-					width: actualSize,
-					height: actualSize,
+					width: actualWidth,
+					height: actualHeight,
 				},
 				isDragging && tableCardStyles(theme).dragging,
 				getStatusStyle(),
 				isModified && tableCardStyles(theme).modified,
+				resaBorderStyle,
 			]}
 		>
-			{/* Grip resize en bas à droite */}
+			{/* Grip resize en bas à droite — zone de touch + triangle hors de la carte */}
 			<View
 				style={tableCardStyles(theme).resizeGripContainer}
 				{...resizePanResponder.panHandlers}
-			/>
+			>
+				{/* Triangle ◢ indicateur — en dehors du coin de la carte */}
+				{resizeEnabled && (
+					<View
+						style={{
+							position: "absolute",
+							bottom: -2,
+							right: -2,
+							width: 0,
+							height: 0,
+							borderStyle: "solid",
+							borderTopWidth: 7,
+							borderLeftWidth: 7,
+							borderTopColor: "transparent",
+							borderLeftColor: "transparent",
+							borderBottomWidth: 7,
+							borderRightWidth: 7,
+							borderBottomColor: "rgba(255,255,255,0.5)",
+							borderRightColor: "rgba(255,255,255,0.5)",
+						}}
+					/>
+				)}
+			</View>
 
-			{/* Bouton supprimer (seulement salle 1) */}
-			{onDelete && (
+			{/* Bouton supprimer — masqué en mode Resa et pour les tables avec réservation */}
+			{onDelete && !resaMode && !hasReservation && (
 				<TouchableOpacity
 					style={tableCardStyles(theme).deleteButton}
 					onPress={onDelete}
@@ -777,8 +1150,8 @@ const TableCard = ({
 			)}
 
 			<TouchableOpacity
-				onPress={isDragging ? null : onSimpleTouch}
-				onLongPress={isDragging ? null : onForceTouch}
+				onPress={isDragging ? null : resaMode ? onResaSelect : onSimpleTouch}
+				onLongPress={isDragging || resaMode ? null : onForceTouch}
 				delayLongPress={500}
 				style={tableCardStyles(theme).touchArea}
 				activeOpacity={0.8}
@@ -905,11 +1278,36 @@ const tableCardStyles = (theme) =>
 		},
 		resizeGripContainer: {
 			position: "absolute",
-			bottom: 0,
-			right: 0,
-			width: 30,
-			height: 30,
+			bottom: -6,
+			right: -6,
+			width: 36,
+			height: 36,
 			zIndex: 20,
+		},
+		resaBanner: {
+			position: "absolute",
+			top: 0,
+			left: 0,
+			right: 0,
+			backgroundColor: "#4F46E5",
+			paddingHorizontal: 6,
+			paddingVertical: 4,
+			borderTopLeftRadius: 10,
+			borderTopRightRadius: 10,
+			alignItems: "center",
+			zIndex: 15,
+		},
+		resaBannerName: {
+			fontSize: 9,
+			fontWeight: "700",
+			color: "#fff",
+			width: "100%",
+			textAlign: "center",
+		},
+		resaBannerDetail: {
+			fontSize: 8,
+			color: "rgba(255,255,255,0.85)",
+			textAlign: "center",
 		},
 		deleteButton: {
 			position: "absolute",
@@ -1024,6 +1422,43 @@ const createStyles = (THEME) =>
 			backgroundColor: THEME.colors.primary.amber,
 			borderColor: THEME.colors.primary.amber,
 		},
+		toggleButtonDisabled: {
+			opacity: 0.35,
+		},
+		toggleButtonResaActive: {
+			backgroundColor: "#4F46E5",
+			borderColor: "#4F46E5",
+		},
+		resaInfoBand: {
+			position: "absolute",
+			top: 0,
+			left: 0,
+			right: 0,
+			zIndex: 100,
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: 16,
+			paddingVertical: 10,
+			backgroundColor: THEME.colors.background.card,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.default,
+			gap: 10,
+		},
+		resaInfoBandDot: {
+			width: 10,
+			height: 10,
+			borderRadius: 5,
+			flexShrink: 0,
+		},
+		resaInfoBandText: {
+			flex: 1,
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.secondary,
+		},
+		resaInfoBandBold: {
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
 		toggleButtonText: {
 			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "600",
@@ -1031,6 +1466,9 @@ const createStyles = (THEME) =>
 		},
 		toggleButtonTextActive: {
 			color: "#fff",
+		},
+		toggleButtonTextDisabled: {
+			color: THEME.colors.text.muted,
 		},
 		planContainer: {
 			flex: 1,

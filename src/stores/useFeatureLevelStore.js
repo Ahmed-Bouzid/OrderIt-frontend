@@ -83,6 +83,18 @@ const SERVICE_FEATURES = {
 	COMMANDES_EXPRESS: "commandes_express",
 	// ── Fast-Food + Foodtruck : bouton FAB crée une commande directe ──
 	FAB_FAST_COMMANDE: "fab_fast_commande",
+	// ── Gestion des plats ──
+	GESTION_PLATS: "gestion_plats",
+	// ── Pourboire ──
+	POURBOIRE: "pourboire",
+	// ── Messagerie interne (staff ↔ staff) ──
+	MESSAGERIE_INTERNE: "messagerie_interne",
+	// ── Notifications push ──
+	NOTIFICATIONS_PUSH: "notifications_push",
+	// ── Comptabilité avancée ──
+	COMPTABILITE: "comptabilite",
+	// ── Avis Google ──
+	AVIS_GOOGLE: "avis_google",
 };
 
 const SERVICE_LEVEL_CONFIG = {
@@ -104,6 +116,12 @@ const SERVICE_LEVEL_CONFIG = {
 			SERVICE_FEATURES.REGLAGES_COMPLETS,
 			SERVICE_FEATURES.RESERVATIONS,
 			SERVICE_FEATURES.ALLERGIES_VISIBLES,
+			SERVICE_FEATURES.GESTION_PLATS,
+			SERVICE_FEATURES.POURBOIRE,
+			SERVICE_FEATURES.MESSAGERIE_INTERNE,
+			SERVICE_FEATURES.NOTIFICATIONS_PUSH,
+			SERVICE_FEATURES.COMPTABILITE,
+			SERVICE_FEATURES.AVIS_GOOGLE,
 		],
 		tabs: ["activity", "floor", "reglage"],
 	},
@@ -120,6 +138,11 @@ const SERVICE_LEVEL_CONFIG = {
 			SERVICE_FEATURES.ALLERGIES_VISIBLES,
 			SERVICE_FEATURES.CUISINE,
 			SERVICE_FEATURES.FAB_FAST_COMMANDE,
+			SERVICE_FEATURES.GESTION_PLATS,
+			SERVICE_FEATURES.POURBOIRE,
+			SERVICE_FEATURES.MESSAGERIE_INTERNE,
+			SERVICE_FEATURES.NOTIFICATIONS_PUSH,
+			SERVICE_FEATURES.AVIS_GOOGLE,
 		],
 		tabs: ["floor", "reglage"],
 	},
@@ -133,6 +156,9 @@ const SERVICE_LEVEL_CONFIG = {
 			SERVICE_FEATURES.GESTION_STOCKS,
 			SERVICE_FEATURES.COMMANDES_EXPRESS,
 			SERVICE_FEATURES.FAB_FAST_COMMANDE,
+			SERVICE_FEATURES.GESTION_PLATS,
+			SERVICE_FEATURES.NOTIFICATIONS_PUSH,
+			SERVICE_FEATURES.AVIS_GOOGLE,
 		],
 		tabs: ["floor", "reglage"],
 	},
@@ -213,19 +239,6 @@ export const useFeatureLevelStore = create((set, get) => ({
 			} catch (overrideErr) {
 				console.warn("⚠️ Erreur lecture featureOverrides:", overrideErr);
 			}
-
-			console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-			console.log(`🎯 [DEBUG] FONCTIONNALITÉS AU CHARGEMENT`);
-			console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
-			console.log(`📋 Catégorie: ${cat}`);
-			console.log(`🎚️  Niveau: ${config.level}`);
-			console.log(`📱 Tabs disponibles: ${config.tabs.join(", ")}`);
-			console.log(`🔢 Nombre de features: ${baseFeatures.length}`);
-			console.log(`\n✅ FEATURES ACTIVES:`);
-			baseFeatures.forEach((feature, index) => {
-				console.log(`   ${index + 1}. ${feature}`);
-			});
-			console.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
 
 			set({
 				level: config.level,
@@ -368,6 +381,26 @@ export const useFeatureLevelStore = create((set, get) => ({
 	hasFabFastCommande: () =>
 		get().hasFeature(SERVICE_FEATURES.FAB_FAST_COMMANDE),
 
+	// Gestion des plats
+	hasGestionPlats: () => get().hasFeature(SERVICE_FEATURES.GESTION_PLATS),
+
+	// Pourboire
+	hasPourboire: () => get().hasFeature(SERVICE_FEATURES.POURBOIRE),
+
+	// Messagerie interne (staff ↔ staff)
+	hasMessagerieInterne: () =>
+		get().hasFeature(SERVICE_FEATURES.MESSAGERIE_INTERNE),
+
+	// Notifications push
+	hasNotificationsPush: () =>
+		get().hasFeature(SERVICE_FEATURES.NOTIFICATIONS_PUSH),
+
+	// Comptabilité avancée
+	hasComptabilite: () => get().hasFeature(SERVICE_FEATURES.COMPTABILITE),
+
+	// Avis Google
+	hasAvisGoogle: () => get().hasFeature(SERVICE_FEATURES.AVIS_GOOGLE),
+
 	// Vérifications de niveau
 	isMinimum: () => get().level === LEVELS.MINIMUM,
 	isIntermediate: () => get().level === LEVELS.INTERMEDIAIRE,
@@ -413,6 +446,14 @@ export const useFeatureLevel = () => {
 
 		// Fonctionnalités (foodtruck)
 		hasCommandesExpress: store.hasCommandesExpress(),
+
+		// Nouvelles fonctionnalités universelles
+		hasGestionPlats: store.hasGestionPlats(),
+		hasPourboire: store.hasPourboire(),
+		hasMessagerieInterne: store.hasMessagerieInterne(),
+		hasNotificationsPush: store.hasNotificationsPush(),
+		hasComptabilite: store.hasComptabilite(),
+		hasAvisGoogle: store.hasAvisGoogle(),
 
 		// Niveaux
 		isMinimum: store.isMinimum(),

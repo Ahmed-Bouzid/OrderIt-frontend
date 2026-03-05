@@ -114,7 +114,9 @@ export default function Settings() {
 				setIsMessagingEnabled(data.isMessagingEnabled);
 			}
 		} catch (error) {
-			console.error("❌ Erreur chargement statut messagerie:", error);
+			if (error.name !== "AbortError") {
+				console.error("❌ Erreur chargement statut messagerie:", error);
+			}
 		}
 	}, [restaurantId]);
 
@@ -140,7 +142,11 @@ export default function Settings() {
 				throw new Error(`Erreur ${response.status}`);
 			}
 		} catch (error) {
-			console.error("❌ Erreur toggle messagerie:", error);
+			if (error.name === "AbortError") {
+				console.warn("⏱️ Toggle messagerie annulé (timeout)");
+			} else {
+				console.error("❌ Erreur toggle messagerie:", error);
+			}
 			Alert.alert(
 				"Erreur",
 				"Impossible de modifier les paramètres de messagerie",
@@ -187,7 +193,11 @@ export default function Settings() {
 				[{ text: "OK" }],
 			);
 		} catch (error) {
-			console.error("[Settings] Erreur envoi feedback:", error);
+			if (error.name === "AbortError") {
+				console.warn("⏱️ Feedback annulé (timeout)");
+			} else {
+				console.error("[Settings] Erreur envoi feedback:", error);
+			}
 			Alert.alert(
 				"Erreur",
 				"Impossible d'envoyer le feedback. Réessayez plus tard.",

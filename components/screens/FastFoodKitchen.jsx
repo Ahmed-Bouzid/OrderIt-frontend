@@ -4,7 +4,7 @@
  * Permet de marquer chaque commande comme préparée/servie.
  * ⚡ Mis à jour en temps réel via le store Zustand (WebSocket)
  */
-import React, { useCallback, useMemo } from "react";
+import React, { useCallback, useMemo, useState, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -16,10 +16,12 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../hooks/useTheme";
 import useReservationStore from "../../src/stores/useReservationStore";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import { API_CONFIG } from "../../src/config/apiConfig";
+import { ReceiptModal } from "../receipt";
 
 // ─────────────────────────────────────────────────────────────────
 // Constantes
@@ -43,7 +45,16 @@ const DISH_STATUS_CONFIG = {
 // Composant carte réservation
 // ─────────────────────────────────────────────────────────────────
 const KitchenReservationCard = React.memo(
-	({ reservation, onMarkDone, onMarkPending, THEME }) => {
+	({
+		reservation,
+		orders,
+		isPaid,
+		onMarkDone,
+		onMarkPending,
+		onMarkPaid,
+		onShowReceipt,
+		THEME,
+	}) => {
 		const isDone = reservation.dishStatus === "Terminé";
 		const statusConfig =
 			DISH_STATUS_CONFIG[reservation.dishStatus] ||
@@ -54,6 +65,27 @@ const KitchenReservationCard = React.memo(
 			typeof reservation.totalAmount === "number"
 				? `${reservation.totalAmount.toFixed(2)}€`
 				: "0.00€";
+
+		// Agréger tous les items de toutes les commandes liées
+		const allItems = useMemo(() => {
+			if (!orders || orders.length === 0) return [];
+			const merged = {};
+			orders.forEach((order) => {
+				(order.items || []).forEach((item) => {
+					const key = item.name;
+					if (merged[key]) {
+						merged[key].quantity += item.quantity;
+					} else {
+						merged[key] = {
+							name: item.name,
+							quantity: item.quantity,
+							price: item.price,
+						};
+					}
+				});
+			});
+			return Object.values(merged);
+		}, [orders]);
 
 		const cardBg = isDone
 			? THEME.mode === "dark"
@@ -145,8 +177,38 @@ const KitchenReservationCard = React.memo(
 					</View>
 				</View>
 
-				{/* Résumé commande si disponible */}
-				{!!reservation.orderSummary && (
+				{/* Commande exacte — items de la commande */}
+				{allItems.length > 0 ? (
+					<View style={styles.orderItemsContainer}>
+						<View style={styles.orderItemsDivider} />
+						{allItems.map((item, i) => (
+							<View key={i} style={styles.orderItemRow}>
+								<View style={styles.orderItemQtyBadge}>
+									<Text style={styles.orderItemQty}>{item.quantity}×</Text>
+								</View>
+								<Text
+									style={[
+										styles.orderItemName,
+										{ color: THEME.mode === "dark" ? "#E2E8F0" : "#1E293B" },
+									]}
+									numberOfLines={1}
+								>
+									{item.name}
+								</Text>
+								{item.price > 0 && (
+									<Text
+										style={[
+											styles.orderItemPrice,
+											{ color: THEME.mode === "dark" ? "#64748B" : "#94A3B8" },
+										]}
+									>
+										{(item.price * item.quantity).toFixed(2)}€
+									</Text>
+								)}
+							</View>
+						))}
+					</View>
+				) : !!reservation.orderSummary ? (
 					<Text
 						style={[
 							styles.orderSummary,
@@ -155,39 +217,80 @@ const KitchenReservationCard = React.memo(
 					>
 						{reservation.orderSummary}
 					</Text>
-				)}
+				) : null}
 
-				{/* Bouton action */}
-				{!isDone ? (
-					<TouchableOpacity
-						style={styles.btnDone}
-						onPress={() => onMarkDone(reservation._id, reservation.clientName)}
-						activeOpacity={0.8}
-					>
-						<LinearGradient
-							colors={["#10B981", "#059669"]}
-							start={{ x: 0, y: 0 }}
-							end={{ x: 1, y: 0 }}
-							style={styles.btnGradient}
+				{/* Boutons action - rangee double */}
+				<View style={styles.btnRow}>
+					{/* Preparation */}
+					{!isDone ? (
+						<TouchableOpacity
+							style={[styles.btnDone, styles.btnFlex]}
+							onPress={() =>
+								onMarkDone(reservation._id, reservation.clientName)
+							}
+							activeOpacity={0.8}
 						>
-							<Ionicons
-								name="checkmark-circle-outline"
-								size={16}
-								color="#FFF"
-							/>
-							<Text style={styles.btnText}>Marquer comme préparé</Text>
-						</LinearGradient>
-					</TouchableOpacity>
-				) : (
-					<TouchableOpacity
-						style={styles.btnPending}
-						onPress={() => onMarkPending(reservation._id)}
-						activeOpacity={0.8}
-					>
-						<Ionicons name="refresh-outline" size={15} color="#94A3B8" />
-						<Text style={styles.btnPendingText}>Remettre en attente</Text>
-					</TouchableOpacity>
-				)}
+							<LinearGradient
+								colors={["#10B981", "#059669"]}
+								start={{ x: 0, y: 0 }}
+								end={{ x: 1, y: 0 }}
+								style={styles.btnGradient}
+							>
+								<Ionicons
+									name="checkmark-circle-outline"
+									size={15}
+									color="#FFF"
+								/>
+								<Text style={styles.btnText}>Préparé</Text>
+							</LinearGradient>
+						</TouchableOpacity>
+					) : (
+						<TouchableOpacity
+							style={[styles.btnPending, styles.btnFlex]}
+							onPress={() => onMarkPending(reservation._id)}
+							activeOpacity={0.8}
+						>
+							<Ionicons name="refresh-outline" size={14} color="#94A3B8" />
+							<Text style={styles.btnPendingText}>En attente</Text>
+						</TouchableOpacity>
+					)}
+					{/* Paiement */}
+					{!isPaid ? (
+						<TouchableOpacity
+							style={[styles.btnPay, styles.btnFlex]}
+							onPress={() =>
+								onMarkPaid(reservation._id, reservation.clientName)
+							}
+							activeOpacity={0.8}
+						>
+							<LinearGradient
+								colors={["#3B82F6", "#2563EB"]}
+								start={{ x: 0, y: 0 }}
+								end={{ x: 1, y: 0 }}
+								style={styles.btnGradient}
+							>
+								<Ionicons name="card-outline" size={15} color="#FFF" />
+								<Text style={styles.btnText}>Payer</Text>
+							</LinearGradient>
+						</TouchableOpacity>
+					) : (
+						<TouchableOpacity
+							style={[styles.btnReceipt, styles.btnFlex]}
+							onPress={() => onShowReceipt(reservation, orders)}
+							activeOpacity={0.8}
+						>
+							<LinearGradient
+								colors={["#8B5CF6", "#7C3AED"]}
+								start={{ x: 0, y: 0 }}
+								end={{ x: 1, y: 0 }}
+								style={styles.btnGradient}
+							>
+								<Ionicons name="receipt-outline" size={15} color="#FFF" />
+								<Text style={styles.btnText}>Imprimer / Reçu</Text>
+							</LinearGradient>
+						</TouchableOpacity>
+					)}
+				</View>
 			</View>
 		);
 	},
@@ -206,6 +309,43 @@ export default function FastFoodKitchen() {
 		(state) => state.fetchReservations,
 	);
 	const isLoading = useReservationStore((state) => state.isLoading);
+
+	// Map des orders par reservationId { [reservationId]: Order[] }
+	const [ordersMap, setOrdersMap] = useState({});
+	// IDs des réservations marquées payées localement (optimiste)
+	const [paidReservationIds, setPaidReservationIds] = useState(new Set());
+	// Réservation cible pour l'affichage du reçu
+	const [receiptTarget, setReceiptTarget] = useState(null);
+
+	// Charger les orders du restaurant pour aujourd'hui
+	const fetchOrders = useCallback(async () => {
+		try {
+			const restaurantId = await AsyncStorage.getItem("restaurantId");
+			if (!restaurantId) return;
+			const data = await authFetch(
+				`${API_CONFIG.baseURL}/orders?restaurantId=${restaurantId}`,
+				{ method: "GET" },
+			);
+			const list = Array.isArray(data) ? data : (data?.orders ?? []);
+			const map = {};
+			list.forEach((order) => {
+				const resaId =
+					order.reservationId?._id?.toString() ||
+					order.reservationId?.toString();
+				if (resaId) {
+					if (!map[resaId]) map[resaId] = [];
+					map[resaId].push(order);
+				}
+			});
+			setOrdersMap(map);
+		} catch (err) {
+			console.error("❌ [KITCHEN] Erreur fetch orders:", err);
+		}
+	}, [authFetch]);
+
+	useEffect(() => {
+		fetchOrders();
+	}, [fetchOrders]);
 
 	// Filtrer les réservations d'aujourd'hui (non-annulées), triées : non-terminées d'abord
 	const todayReservations = useMemo(() => {
@@ -235,6 +375,11 @@ export default function FastFoodKitchen() {
 
 	const pendingCount = useMemo(
 		() => todayReservations.filter((r) => r.dishStatus !== "Terminé").length,
+		[todayReservations],
+	);
+
+	const totalCount = useMemo(
+		() => todayReservations.length,
 		[todayReservations],
 	);
 
@@ -281,21 +426,84 @@ export default function FastFoodKitchen() {
 		[updateDishStatus],
 	);
 
+	// 💳 Marquer une réservation comme payée
+	const handleMarkPaid = useCallback(
+		(id, clientName) => {
+			Alert.alert(
+				"Confirmer le paiement",
+				`Marquer la commande de ${clientName || "ce client"} comme payée ?`,
+				[
+					{ text: "Annuler", style: "cancel" },
+					{
+						text: "Confirmer",
+						onPress: async () => {
+							try {
+								await authFetch(
+									`${API_CONFIG.baseURL}/reservations/${id}/payment`,
+									{ method: "PUT", body: {} },
+								);
+								setPaidReservationIds((prev) => new Set([...prev, id]));
+							} catch (err) {
+								console.error("❌ [KITCHEN] Erreur paiement:", err);
+								Alert.alert("Erreur", "Impossible de marquer comme payée");
+							}
+						},
+					},
+				],
+			);
+		},
+		[authFetch],
+	);
+
+	// 🧾 Afficher le reçu pour une réservation
+	const handleShowReceipt = useCallback((reservation, orders) => {
+		const merged = {};
+		(orders || []).forEach((order) => {
+			(order.items || []).forEach((item) => {
+				if (merged[item.name]) merged[item.name].quantity += item.quantity;
+				else merged[item.name] = { ...item };
+			});
+		});
+		setReceiptTarget({ reservation, items: Object.values(merged) });
+	}, []);
+
+
 	const handleRefresh = useCallback(() => {
 		fetchReservations(true);
-	}, [fetchReservations]);
+		fetchOrders();
+	}, [fetchReservations, fetchOrders]);
 
 	// ─── Render ────────────────────────────────────────────────
 	const renderItem = useCallback(
-		({ item }) => (
-			<KitchenReservationCard
-				reservation={item}
-				onMarkDone={handleMarkDone}
-				onMarkPending={handleMarkPending}
-				THEME={THEME}
-			/>
-		),
-		[handleMarkDone, handleMarkPending, THEME],
+		({ item }) => {
+			const resaOrders = ordersMap[item._id] || [];
+			const isPaid =
+				paidReservationIds.has(item._id) ||
+				item.status === "terminée" ||
+				(resaOrders.length > 0 &&
+					resaOrders.every((o) => o.paymentStatus === "paid"));
+			return (
+				<KitchenReservationCard
+					reservation={item}
+					orders={resaOrders}
+					isPaid={isPaid}
+					onMarkDone={handleMarkDone}
+					onMarkPending={handleMarkPending}
+					onMarkPaid={handleMarkPaid}
+					onShowReceipt={handleShowReceipt}
+					THEME={THEME}
+				/>
+			);
+		},
+		[
+			ordersMap,
+			paidReservationIds,
+			handleMarkDone,
+			handleMarkPending,
+			handleMarkPaid,
+			handleShowReceipt,
+			THEME,
+		],
 	);
 
 	const keyExtractor = useCallback((item) => item._id, []);
@@ -309,28 +517,23 @@ export default function FastFoodKitchen() {
 		>
 			{/* Header */}
 			<LinearGradient
-				colors={
-					THEME.mode === "dark"
-						? ["#111827", "#0C1220"]
-						: ["#F8FAFC", "#EFF6FF"]
-				}
+				colors={[THEME.colors.background.card, THEME.colors.background.card]}
 				style={styles.header}
 			>
 				<View style={styles.headerLeft}>
 					<Ionicons name="restaurant-outline" size={22} color="#F59E0B" />
 					<Text
-						style={[
-							styles.headerTitle,
-							{ color: THEME.mode === "dark" ? "#F8FAFC" : "#1A1A1A" },
-						]}
+						style={[styles.headerTitle, { color: THEME.colors.text.primary }]}
 					>
 						Cuisine
 					</Text>
 				</View>
 				<View style={styles.headerRight}>
-					{pendingCount > 0 && (
+					{totalCount > 0 && (
 						<View style={styles.pendingBadge}>
-							<Text style={styles.pendingBadgeText}>{pendingCount}</Text>
+							<Text style={styles.pendingBadgeText}>
+								{pendingCount}/{totalCount}
+							</Text>
 						</View>
 					)}
 					<TouchableOpacity onPress={handleRefresh} style={styles.refreshBtn}>
@@ -383,6 +586,18 @@ export default function FastFoodKitchen() {
 					maxToRenderPerBatch={10}
 					windowSize={5}
 					removeClippedSubviews={true}
+				/>
+			)}
+			{/* Modale reçu */}
+			{receiptTarget && (
+				<ReceiptModal
+					visible={!!receiptTarget}
+					onClose={() => setReceiptTarget(null)}
+					reservation={receiptTarget.reservation}
+					items={receiptTarget.items}
+					amount={receiptTarget.reservation.totalAmount}
+					paymentMethod={receiptTarget.reservation.paymentMethod || "Espèces"}
+					theme={THEME}
 				/>
 			)}
 		</View>
@@ -509,8 +724,23 @@ const styles = StyleSheet.create({
 		fontStyle: "italic",
 		lineHeight: 17,
 	},
-	btnDone: {
+	btnRow: {
+		flexDirection: "row",
+		gap: 8,
 		marginTop: 6,
+	},
+	btnFlex: {
+		flex: 1,
+	},
+	btnPay: {
+		borderRadius: 10,
+		overflow: "hidden",
+	},
+	btnReceipt: {
+		borderRadius: 10,
+		overflow: "hidden",
+	},
+	btnDone: {
 		borderRadius: 10,
 		overflow: "hidden",
 	},
@@ -528,7 +758,6 @@ const styles = StyleSheet.create({
 		fontWeight: "600",
 	},
 	btnPending: {
-		marginTop: 6,
 		flexDirection: "row",
 		alignItems: "center",
 		justifyContent: "center",
@@ -538,5 +767,43 @@ const styles = StyleSheet.create({
 	btnPendingText: {
 		color: "#94A3B8",
 		fontSize: 13,
+	},
+	// ─── Items commande ───
+	orderItemsContainer: {
+		marginBottom: 10,
+	},
+	orderItemsDivider: {
+		height: 1,
+		backgroundColor: "rgba(148,163,184,0.15)",
+		marginBottom: 8,
+	},
+	orderItemRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 8,
+		marginBottom: 4,
+	},
+	orderItemQtyBadge: {
+		minWidth: 28,
+		height: 22,
+		borderRadius: 6,
+		backgroundColor: "#F59E0B22",
+		alignItems: "center",
+		justifyContent: "center",
+		paddingHorizontal: 4,
+	},
+	orderItemQty: {
+		color: "#F59E0B",
+		fontSize: 12,
+		fontWeight: "700",
+	},
+	orderItemName: {
+		flex: 1,
+		fontSize: 13,
+		fontWeight: "500",
+	},
+	orderItemPrice: {
+		fontSize: 12,
+		fontWeight: "500",
 	},
 });

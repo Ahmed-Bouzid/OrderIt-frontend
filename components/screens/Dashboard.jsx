@@ -47,6 +47,8 @@ export default function Dashboard() {
 		hasCommandesExpress,
 		hasFabFastCommande,
 		hasAutoTables,
+		hasCuisine,
+		isMinimum,
 	} = useFeatureLevel();
 	const { themeMode } = useThemeStore();
 	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
@@ -74,6 +76,13 @@ export default function Dashboard() {
 			setSelectedDate(today);
 		}
 	}, [hasCalendrier]);
+
+	// 🍔 Cuisine activée : afficher directement la vue Kitchen au montage
+	useEffect(() => {
+		if (hasCuisine) {
+			setShowKitchen(true);
+		}
+	}, [hasCuisine]);
 
 	// 🚐 Commandes Express activées : afficher directement les Commandes Express au montage
 	useEffect(() => {
@@ -111,11 +120,6 @@ export default function Dashboard() {
 
 	// ─────────────── Callbacks ───────────────
 	const handleOpenSettings = useCallback((reservation) => {
-		console.log("🔍 Ouverture settings pour:", {
-			status: reservation?.status,
-			isPresent: reservation?.isPresent,
-			clientName: reservation?.clientName,
-		});
 		setSelectedReservation(reservation);
 		setShowSettingsModal(true);
 	}, []);
@@ -146,7 +150,6 @@ export default function Dashboard() {
 
 	// ⭐ Handler pour recréer une réservation
 	const handleRecreateReservation = useCallback((reservation) => {
-		console.log("🔄 Recréation réservation:", reservation.clientName);
 		setRecreateData({
 			clientName: reservation.clientName,
 			phone: reservation.phone,
@@ -409,7 +412,7 @@ export default function Dashboard() {
 
 			{/* Filtres */}
 			<Filters
-				activeFilter={filter}
+				activeFilter={showKitchen && hasCuisine ? "cuisine" : filter}
 				onFilterChange={handleFilterChange}
 				searchQuery={searchQuery}
 				onSearchChange={setSearchQuery}
@@ -423,29 +426,32 @@ export default function Dashboard() {
 				</View>
 			) : showKitchen ? (
 				<View style={{ flex: 1 }}>
-					<View style={localStyles.expressHeader}>
-						<TouchableOpacity
-							onPress={() => {
-								setShowKitchen(false);
-								changeFilter("actives");
-							}}
-							style={localStyles.backButton}
-						>
-							<Ionicons
-								name="arrow-back"
-								size={20}
-								color={THEME.colors.text.secondary}
-							/>
-							<Text
-								style={[
-									localStyles.backButtonText,
-									{ color: THEME.colors.text.secondary },
-								]}
+					{/* Bouton Retour — masqué en mode cuisine FastFood (vue unique) */}
+					{!hasCuisine && (
+						<View style={localStyles.expressHeader}>
+							<TouchableOpacity
+								onPress={() => {
+									setShowKitchen(false);
+									changeFilter("actives");
+								}}
+								style={localStyles.backButton}
 							>
-								Retour
-							</Text>
-						</TouchableOpacity>
-					</View>
+								<Ionicons
+									name="arrow-back"
+									size={20}
+									color={THEME.colors.text.secondary}
+								/>
+								<Text
+									style={[
+										localStyles.backButtonText,
+										{ color: THEME.colors.text.secondary },
+									]}
+								>
+									Retour
+								</Text>
+							</TouchableOpacity>
+						</View>
+					)}
 					<FastFoodKitchen />
 				</View>
 			) : (
@@ -482,46 +488,38 @@ export default function Dashboard() {
 			)}
 
 			{/* FAB Premium */}
-			<Animated.View
-				style={[
-					localStyles.fabContainer,
-					{ transform: [{ scale: fabScaleAnim }] },
-				]}
-			>
-				<TouchableOpacity
-					onPress={() => {
-						console.log(
-							"[Dashboard FAB] category depuis store:",
-							category,
-							"| hasFabFastCommande:",
-							hasFabFastCommande,
-						);
-						if (hasFabFastCommande) {
-							console.log(
-								"[Dashboard FAB] → ouverture CreateFastFoodOrderModal",
-							);
-							setShowFastFoodOrderModal(true);
-						} else {
-							console.log("[Dashboard FAB] → ouverture NewReservationModal");
-							setShowNewReservationModal(true);
-						}
-					}}
-					onPressIn={handleFabPressIn}
-					onPressOut={handleFabPressOut}
-					activeOpacity={0.95}
+			{!isMinimum && (
+				<Animated.View
+					style={[
+						localStyles.fabContainer,
+						{ transform: [{ scale: fabScaleAnim }] },
+					]}
 				>
-					<LinearGradient
-						colors={["#F59E0B", "#D97706"]}
-						style={localStyles.fab}
-						start={{ x: 0, y: 0 }}
-						end={{ x: 1, y: 1 }}
+					<TouchableOpacity
+						onPress={() => {
+							if (hasFabFastCommande) {
+								setShowFastFoodOrderModal(true);
+							} else {
+								setShowNewReservationModal(true);
+							}
+						}}
+						onPressIn={handleFabPressIn}
+						onPressOut={handleFabPressOut}
+						activeOpacity={0.95}
 					>
-						<Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
-							<Ionicons name="add" size={28} color="#FFFFFF" />
-						</Animated.View>
-					</LinearGradient>
-				</TouchableOpacity>
-			</Animated.View>
+						<LinearGradient
+							colors={["#F59E0B", "#D97706"]}
+							style={localStyles.fab}
+							start={{ x: 0, y: 0 }}
+							end={{ x: 1, y: 1 }}
+						>
+							<Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
+								<Ionicons name="add" size={28} color="#FFFFFF" />
+							</Animated.View>
+						</LinearGradient>
+					</TouchableOpacity>
+				</Animated.View>
+			)}
 
 			{/* Modales */}
 			<SettingsModal

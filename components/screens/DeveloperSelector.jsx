@@ -79,12 +79,26 @@ export default function DeveloperSelector() {
 					console.error("❌ Erreur fetch restaurants:", response.status);
 				}
 			} catch (error) {
-				console.error("❌ Erreur chargement restaurants:", error);
+				const errorMessage = error?.message || "";
+				const isExpectedSessionError =
+					error?.name === "AbortError" ||
+					errorMessage.includes("Session expirée") ||
+					errorMessage.includes("refresh échoué") ||
+					errorMessage.includes("Token manquant") ||
+					errorMessage.includes("Pas de token disponible");
+
+				if (isExpectedSessionError) {
+					console.warn("⚠️ Chargement restaurants interrompu:", errorMessage);
+				} else {
+					console.error("❌ Erreur chargement restaurants:", error);
+				}
+
 				// ⚠️ Si erreur de token (session expirée), rediriger vers login
 				if (
-					error.message.includes("Session expirée") ||
-					error.message.includes("refresh échoué") ||
-					error.message.includes("Token manquant")
+					errorMessage.includes("Session expirée") ||
+					errorMessage.includes("refresh échoué") ||
+					errorMessage.includes("Token manquant") ||
+					errorMessage.includes("Pas de token disponible")
 				) {
 					Alert.alert(
 						"Session expirée",

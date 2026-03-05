@@ -10,7 +10,7 @@ export default function App() {
 		<View style={{ flex: 1 }}>
 			{!userName ? (
 				<JoinOrCreateTable
-					tableId="686af692bb4cba684ff3b757"
+					tableId="6960d0037aca682cfc81925a"
 					onJoin={(name) => setUserName(name)}
 				/>
 			) : (
@@ -19,3 +19,9 @@ export default function App() {
 		</View>
 	);
 }
+
+//tableid: 6960d0037aca682cfc81925a grillz
+//
+//
+//
+//

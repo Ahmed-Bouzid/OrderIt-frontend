@@ -206,6 +206,12 @@ export async function fetchWithAuth(url, options = {}) {
 
 		return response;
 	} catch (error) {
+		// ⭐ Gérer les AbortError (timeouts) de manière gracieuse
+		if (error.name === "AbortError") {
+			console.warn("⏱️ Requête annulée (timeout ou abort):", url);
+			throw error; // Propager mais sans log ERROR
+		}
+
 		// Ne logger que les erreurs inattendues (pas les expirations de session)
 		if (
 			!error.message?.includes("Session expirée") &&

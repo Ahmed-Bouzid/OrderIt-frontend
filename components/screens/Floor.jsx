@@ -18,6 +18,7 @@ import {
 	Animated,
 	ScrollView,
 	ActivityIndicator,
+	Alert,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +32,7 @@ import useThemeStore from "../../src/stores/useThemeStore";
 import useReservationStore from "../../src/stores/useReservationStore";
 import { useTheme } from "../../hooks/useTheme";
 import useSocket from "../../hooks/useSocket";
+import { ReceiptModal } from "../receipt";
 
 // ─────────────── Menu Item Component ───────────────
 const MenuItem = React.memo(
@@ -146,11 +148,30 @@ export default function Floor({ onStart }) {
 
 	// ⭐ Récupérer les réservations du store pour la Caisse
 	const reservations = useReservationStore((state) => state.reservations);
+	const updateReservation = useReservationStore(
+		(state) => state.updateReservation,
+	);
 
-	// ⭐ Stats Caisse dynamiques + listes de réservations
+	// ⭐ Stats Caisse dynamiques + listes de réservations (jour actuel uniquement)
 	const caisseStats = useMemo(() => {
-		const enCours = reservations.filter((r) => r.status === "ouverte");
-		const payees = reservations.filter((r) => r.status === "terminée");
+		const today = new Date();
+		const todayStart = new Date(
+			today.getFullYear(),
+			today.getMonth(),
+			today.getDate(),
+		);
+		const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+		const isToday = (r) => {
+			const d = new Date(r.reservationDate || r.createdAt);
+			return d >= todayStart && d < todayEnd;
+		};
+
+		const enCours = reservations.filter(
+			(r) => r.status !== "terminée" && isToday(r),
+		);
+		const payees = reservations.filter(
+			(r) => r.status === "terminée" && isToday(r),
+		);
 
 		return {
 			enCoursCount: enCours.length,
@@ -164,7 +185,6 @@ export default function Floor({ onStart }) {
 
 	// Connecter le socket au montage
 	useEffect(() => {
-		console.log("📦 [STOCK] Initialisation socket...");
 		connect();
 	}, [connect]);
 
@@ -173,7 +193,6 @@ export default function Floor({ onStart }) {
 		const checkSocket = setInterval(() => {
 			const connected = isConnected();
 			if (connected !== socketReady) {
-				console.log("📦 [STOCK] Socket status changé:", connected);
 				setSocketReady(connected);
 			}
 		}, 1000);
@@ -193,6 +212,7 @@ export default function Floor({ onStart }) {
 
 	// 💰 Caisse - catégorie expandable
 	const [caisseExpanded, setCaisseExpanded] = useState(null); // "enCours" ou "payees"
+	const [receiptTargetCaisse, setReceiptTargetCaisse] = useState(null);
 
 	// 🏗️ Floor Plan Modal
 	const [showFloorPlan, setShowFloorPlan] = useState(false);
@@ -206,7 +226,6 @@ export default function Floor({ onStart }) {
 	const loadRestaurantId = async () => {
 		try {
 			const id = await AsyncStorage.getItem("restaurantId");
-			console.log("📦 [STOCK] RestaurantId chargé:", id);
 			if (id) {
 				setRestaurantId(id);
 			}
@@ -227,7 +246,6 @@ export default function Floor({ onStart }) {
 			const products = result?.lowStockProducts || {};
 			const total = result?.total || 0;
 
-			console.log("📦 [STOCK] Stocks bas récupérés:", total, "produits");
 
 			setLowStockProducts(products);
 		} catch (error) {
@@ -261,7 +279,6 @@ export default function Floor({ onStart }) {
 	useEffect(() => {
 		if (!restaurantId || !socketReady) return;
 
-		console.log("📦 [SOCKET] Attachement listeners orders");
 
 		const handleOrderCreated = (order) => {
 			if (order.restaurantId === restaurantId) {
@@ -308,23 +325,15 @@ export default function Floor({ onStart }) {
 		if (!restaurantId || !socketReady) return;
 
 		const handleStockUpdated = (data) => {
-			console.log("📦 [STOCK] WebSocket product:stock:updated");
 			fetchLowStock();
 		};
 
 		const handleProductUpdated = (data) => {
-			console.log(
-				"📦 [STOCK] WebSocket product:updated - ",
-				data.name,
-				"quantifiable:",
-				data.quantifiable,
-			);
 			if (data.quantifiable) {
 				fetchLowStock();
 			}
 		};
 
-		console.log("📦 [STOCK] ✅ Listeners WebSocket attachés");
 		on("product:stock:updated", handleStockUpdated);
 		on("product:updated", handleProductUpdated);
 
@@ -411,6 +420,62 @@ export default function Floor({ onStart }) {
 	const handleCategoryPress = useCallback((category) => {
 		setActiveCategory((prev) => (prev === category ? null : category));
 	}, []);
+
+	// 💰 Caisse : marquer comme payé avec confirmation
+	const handleCaisseMarkPaid = useCallback(
+		(reservation) => {
+			Alert.alert(
+				"Confirmer le paiement",
+				`Marquer ${reservation.clientName || "ce client"} comme payé ?`,
+				[
+					{ text: "Annuler", style: "cancel" },
+					{
+						text: "Confirmer",
+						style: "default",
+						onPress: async () => {
+							try {
+								const updated = await authFetch(
+									`/reservations/${reservation._id}/payment`,
+									{ method: "PUT", body: {} },
+								);
+								if (updated?._id) updateReservation(updated);
+							} catch (e) {
+								Alert.alert("Erreur", "Impossible de marquer comme payé.");
+							}
+						},
+					},
+				],
+			);
+		},
+		[authFetch, updateReservation],
+	);
+
+	// 💰 Caisse : afficher le ticket de caisse
+	const handleCaisseShowReceipt = useCallback(
+		(reservation) => {
+			const resaOrders = orders.filter(
+				(o) =>
+					(o.reservationId?._id?.toString() || o.reservationId?.toString()) ===
+					reservation._id?.toString(),
+			);
+			const merged = {};
+			resaOrders.forEach((order) => {
+				(order.items || []).forEach((item) => {
+					const key = item.productId?._id || item.productId || item.name;
+					if (merged[key]) {
+						merged[key].quantity += item.quantity || 1;
+					} else {
+						merged[key] = { ...item };
+					}
+				});
+			});
+			setReceiptTargetCaisse({
+				reservation,
+				items: Object.values(merged),
+			});
+		},
+		[orders],
+	);
 
 	// Mettre à jour le statut d'un item (optimiste + WebSocket)
 	const handleUpdateItemStatus = useCallback(
@@ -978,17 +1043,24 @@ export default function Floor({ onStart }) {
 											</Text>
 										) : (
 											caisseStats.enCoursList.map((r) => (
-												<View key={r._id} style={floorStyles.caisseDetailItem}>
+												<TouchableOpacity
+													key={r._id}
+													style={floorStyles.caisseDetailItem}
+													onPress={() => handleCaisseMarkPaid(r)}
+													activeOpacity={0.7}
+												>
 													<Text style={floorStyles.caisseDetailName}>
 														{r.clientName || "Client"}
 													</Text>
 													<Text style={floorStyles.caisseDetailAmount}>
 														{(r.totalAmount || 0).toFixed(2)}€
 													</Text>
-													<Text style={floorStyles.caisseDetailPers}>
-														{r.nbPersonnes || 1} pers
-													</Text>
-												</View>
+													<Ionicons
+														name="card-outline"
+														size={16}
+														color="#F59E0B"
+													/>
+												</TouchableOpacity>
 											))
 										)}
 									</View>
@@ -1016,17 +1088,24 @@ export default function Floor({ onStart }) {
 											</Text>
 										) : (
 											caisseStats.payeesList.map((r) => (
-												<View key={r._id} style={floorStyles.caisseDetailItem}>
+												<TouchableOpacity
+													key={r._id}
+													style={floorStyles.caisseDetailItem}
+													onPress={() => handleCaisseShowReceipt(r)}
+													activeOpacity={0.7}
+												>
 													<Text style={floorStyles.caisseDetailName}>
 														{r.clientName || "Client"}
 													</Text>
 													<Text style={floorStyles.caisseDetailAmount}>
 														{(r.totalAmount || 0).toFixed(2)}€
 													</Text>
-													<Text style={floorStyles.caisseDetailPers}>
-														{r.nbPersonnes || 1} pers
-													</Text>
-												</View>
+													<Ionicons
+														name="receipt-outline"
+														size={16}
+														color="#10B981"
+													/>
+												</TouchableOpacity>
 											))
 										)}
 									</View>
@@ -1055,6 +1134,17 @@ export default function Floor({ onStart }) {
 				restaurantId={restaurantId}
 				roomNumber={activeRoom}
 			/>
+			{receiptTargetCaisse && (
+				<ReceiptModal
+					visible={!!receiptTargetCaisse}
+					onClose={() => setReceiptTargetCaisse(null)}
+					reservation={receiptTargetCaisse.reservation}
+					items={receiptTargetCaisse.items}
+					paymentMethod={
+						receiptTargetCaisse.reservation.paymentMethod || "Autre"
+					}
+				/>
+			)}
 		</View>
 	);
 }
