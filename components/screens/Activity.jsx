@@ -21,8 +21,6 @@ import {
 	Alert,
 	FlatList,
 	StyleSheet,
-	Dimensions,
-	Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -164,94 +162,6 @@ export default function Activity() {
 	const [activeServer, setActiveServer] = useState(null);
 	// ⭐ État pour les allergènes structurés du client
 	const [clientAllergens, setClientAllergens] = useState([]);
-
-	// ═══════════════════════════════════════════════════════════════════════
-	// 🎬 Animation de transition Popup - Style Card Stack (React Native Animated)
-	// ═══════════════════════════════════════════════════════════════════════
-	const { height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-	// Animation de l'ancienne popup (sortie uniquement)
-	const exitAnimY = useRef(new Animated.Value(0)).current;
-	const exitAnimOpacity = useRef(new Animated.Value(1)).current;
-	const exitAnimScale = useRef(new Animated.Value(1)).current;
-
-	// Tracking
-	const previousActiveId = useRef(null);
-	const [exitingReservation, setExitingReservation] = useState(null);
-	const [showExitCard, setShowExitCard] = useState(false);
-	const currentAnimation = useRef(null);
-
-	const clearExitingCard = useCallback(() => {
-		setExitingReservation(null);
-		setShowExitCard(false);
-		// Remettre les valeurs à zéro pour la prochaine sortie
-		exitAnimY.setValue(0);
-		exitAnimOpacity.setValue(1);
-		exitAnimScale.setValue(1);
-	}, [exitAnimY, exitAnimOpacity, exitAnimScale]);
-
-	// Déclencher l'animation de SORTIE quand activeId change
-	useEffect(() => {
-		if (
-			previousActiveId.current !== null &&
-			activeId &&
-			previousActiveId.current !== activeId
-		) {
-			// Sauvegarder la réservation sortante
-			const exitingResa = openedReservations.find(
-				(r) => r._id === previousActiveId.current,
-			);
-
-			if (exitingResa) {
-				// Annuler animation en cours si elle existe
-				if (currentAnimation.current) {
-					currentAnimation.current.stop();
-					currentAnimation.current = null;
-				}
-
-				setExitingReservation(exitingResa);
-				setShowExitCard(true);
-
-				// Reset valeurs de sortie (JS uniquement, pas de désync natif)
-				exitAnimY.setValue(0);
-				exitAnimOpacity.setValue(1);
-				exitAnimScale.setValue(1);
-
-				// Animation de sortie uniquement — la nouvelle carte apparaît directement
-				currentAnimation.current = Animated.parallel([
-					Animated.timing(exitAnimY, {
-						toValue: SCREEN_HEIGHT * 0.8,
-						duration: 350,
-						useNativeDriver: true,
-					}),
-					Animated.timing(exitAnimOpacity, {
-						toValue: 0,
-						duration: 250,
-						useNativeDriver: true,
-					}),
-					Animated.timing(exitAnimScale, {
-						toValue: 0.85,
-						duration: 300,
-						useNativeDriver: true,
-					}),
-				]);
-
-				currentAnimation.current.start(({ finished }) => {
-					currentAnimation.current = null;
-					if (finished) clearExitingCard();
-				});
-			}
-		}
-		previousActiveId.current = activeId;
-	}, [
-		activeId,
-		openedReservations,
-		clearExitingCard,
-		SCREEN_HEIGHT,
-		exitAnimY,
-		exitAnimOpacity,
-		exitAnimScale,
-	]);
 
 	// Initialiser thème
 	useEffect(() => {
@@ -812,90 +722,9 @@ export default function Activity() {
 						</View>
 					)}
 
-				{/* Popup principal Premium avec animation Card Stack */}
+				{/* Popup principal Premium */}
 				{activeReservation && activeReservation.status === "ouverte" && (
 					<View style={activityStyles.popupMainWrapper}>
-						{/* 🎬 Carte sortante (exit animation) */}
-						{showExitCard && exitingReservation && (
-							<Animated.View
-								style={[
-									activityStyles.popupMain,
-									activityStyles.exitCard,
-									{
-										transform: [
-											{ translateY: exitAnimY },
-											{ scale: exitAnimScale },
-										],
-										opacity: exitAnimOpacity,
-									},
-								]}
-								pointerEvents="none"
-							>
-								<LinearGradient
-									colors={[
-										"rgba(245, 158, 11, 0.1)",
-										"rgba(245, 158, 11, 0.02)",
-									]}
-									style={activityStyles.headerRow}
-									start={{ x: 0, y: 0 }}
-									end={{ x: 1, y: 0 }}
-								>
-									<View style={activityStyles.headerLeft}>
-										<Text style={activityStyles.realTableText}>
-											{(() => {
-												const name = exitingReservation.clientName;
-												if (!name) return "Table";
-												const formattedName =
-													name.charAt(0).toUpperCase() +
-													name.slice(1).toLowerCase();
-												const vowels = [
-													"a",
-													"e",
-													"i",
-													"o",
-													"u",
-													"é",
-													"è",
-													"ê",
-													"à",
-													"â",
-													"î",
-													"ô",
-													"û",
-													"h",
-												];
-												const firstLetter = name.charAt(0).toLowerCase();
-												const prefix = vowels.includes(firstLetter)
-													? "Table d'"
-													: "Table de ";
-												return `${prefix}${formattedName}`;
-											})()}
-										</Text>
-										<Text style={activityStyles.internalText}>
-											{exitingReservation.realTable ||
-												`Table ${exitingReservation.tableId?.number || ""}`}
-										</Text>
-									</View>
-									<View
-										style={[
-											activityStyles.badge,
-											{ backgroundColor: "rgba(34, 197, 94, 0.1)" },
-										]}
-									>
-										<View style={activityStyles.badgeDot} />
-										<Text style={activityStyles.badgeText}>En cours</Text>
-									</View>
-								</LinearGradient>
-								{/* Contenu simplifié pour la carte de sortie */}
-								<View style={activityStyles.exitCardContent}>
-									<Ionicons
-										name="restaurant-outline"
-										size={48}
-										color="rgba(245, 158, 11, 0.3)"
-									/>
-								</View>
-							</Animated.View>
-						)}
 
 						{/* Carte principale */}
 						<View
@@ -1376,7 +1205,7 @@ export default function Activity() {
 									</View>
 								)}
 							</View>
-</View>
+						</View>
 					</View>
 				)}
 
