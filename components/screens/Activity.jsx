@@ -1364,8 +1364,8 @@ const createStyles = (THEME) =>
 		},
 		popupMainWrapper: {
 			flex: 1,
-			maxHeight: "90%",
 			padding: THEME.spacing.md,
+			paddingBottom: 110,
 		},
 		popupMain: {
 			flex: 1,
