@@ -2,7 +2,7 @@
  * 📅 DateNavigator - Composant de navigation par date
  * Affiche la date sélectionnée avec navigation jour par jour
  */
-import React, { useState } from "react";
+import React, { useState, useCallback } from "react";
 import {
 	View,
 	Text,
@@ -17,6 +17,7 @@ import { useTheme } from "../../hooks/useTheme";
 import DatePickerModal from "./DatePickerModal";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { API_CONFIG } from "../../src/config/apiConfig";
 
 export default function DateNavigator({
 	selectedDate,
@@ -25,9 +26,26 @@ export default function DateNavigator({
 }) {
 	const THEME = useTheme();
 	const [showDatePicker, setShowDatePicker] = useState(false);
+	const [monthlyReservationCounts, setMonthlyReservationCounts] = useState({});
 	const [showAssistantMenu, setShowAssistantMenu] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const authFetch = useAuthFetch();
+
+	const fetchMonthlyCounts = useCallback(
+		async (year, month) => {
+			try {
+				const restaurantId = await AsyncStorage.getItem("restaurantId");
+				if (!restaurantId) return;
+				const data = await authFetch(
+					`${API_CONFIG.baseURL}/reservations/restaurant/${restaurantId}/monthly-counts?year=${year}&month=${month}`,
+				);
+				if (data && typeof data === "object") setMonthlyReservationCounts(data);
+			} catch (e) {
+				// silencieux
+			}
+		},
+		[authFetch],
+	);
 
 	// Formater la date en français : "Lundi 5 janvier"
 	const formatDate = (date) => {
@@ -94,7 +112,7 @@ export default function DateNavigator({
 				{
 					method: "POST",
 					body: JSON.stringify({ restaurantId, date: dateString }),
-				}
+				},
 			);
 
 			if (result.status === "success") {
@@ -114,12 +132,12 @@ export default function DateNavigator({
 				if (totalSuccess > 0 && unassignedCount === 0) {
 					setTimeout(
 						() => Alert.alert("✅ Optimisation réussie", message.trim()),
-						100
+						100,
 					);
 				} else if (totalSuccess > 0 && unassignedCount > 0) {
 					setTimeout(
 						() => Alert.alert("⚠️ Optimisation partielle", message.trim()),
-						100
+						100,
 					);
 				}
 			} else {
@@ -161,7 +179,7 @@ export default function DateNavigator({
 										restaurantId,
 										date: dateString,
 									}),
-								}
+								},
 							);
 
 							if (result.status === "success") {
@@ -172,24 +190,24 @@ export default function DateNavigator({
 									Alert.alert(
 										"✅ Attributions supprimées",
 										result.message ||
-											`${result.clearedCount} attribution(s) supprimée(s)`
+											`${result.clearedCount} attribution(s) supprimée(s)`,
 									);
 								}, 100);
 							} else {
 								Alert.alert(
 									"Erreur",
-									result.message || "Suppression impossible"
+									result.message || "Suppression impossible",
 								);
 							}
 						} catch (error) {
 							Alert.alert(
 								"Erreur",
-								`Impossible de supprimer: ${error.message}`
+								`Impossible de supprimer: ${error.message}`,
 							);
 						}
 					},
 				},
-			]
+			],
 		);
 	};
 
@@ -221,7 +239,11 @@ export default function DateNavigator({
 
 				<TouchableOpacity
 					style={styles.dateButton}
-					onPress={() => setShowDatePicker(true)}
+					onPress={() => {
+						setShowDatePicker(true);
+						const d = selectedDate || new Date();
+						fetchMonthlyCounts(d.getFullYear(), d.getMonth() + 1);
+					}}
 					activeOpacity={0.7}
 				>
 					<Ionicons
@@ -312,6 +334,8 @@ export default function DateNavigator({
 					selectedDate={selectedDate}
 					onDateChange={onDateChange}
 					onClose={() => setShowDatePicker(false)}
+					reservationDays={monthlyReservationCounts}
+					onMonthChange={fetchMonthlyCounts}
 				/>
 			</View>
 		</>

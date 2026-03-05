@@ -21,6 +21,8 @@ export default function DatePickerModal({
 	selectedDate,
 	onDateChange,
 	onClose,
+	reservationDays = {},
+	onMonthChange,
 }) {
 	const THEME = useTheme();
 	const [viewDate, setViewDate] = useState(selectedDate);
@@ -77,12 +79,16 @@ export default function DatePickerModal({
 		const newDate = new Date(viewDate);
 		newDate.setMonth(newDate.getMonth() - 1);
 		setViewDate(newDate);
+		if (onMonthChange)
+			onMonthChange(newDate.getFullYear(), newDate.getMonth() + 1);
 	};
 
 	const handleNextMonth = () => {
 		const newDate = new Date(viewDate);
 		newDate.setMonth(newDate.getMonth() + 1);
 		setViewDate(newDate);
+		if (onMonthChange)
+			onMonthChange(newDate.getFullYear(), newDate.getMonth() + 1);
 	};
 
 	const handleSelectDate = (date) => {
@@ -109,6 +115,19 @@ export default function DatePickerModal({
 			date.getMonth() === selectedDate.getMonth() &&
 			date.getFullYear() === selectedDate.getFullYear()
 		);
+	};
+
+	// Clé "YYYY-MM-DD" pour un jour donné
+	const getDayKey = (date) => {
+		const y = date.getFullYear();
+		const m = String(date.getMonth() + 1).padStart(2, "0");
+		const d = String(date.getDate()).padStart(2, "0");
+		return `${y}-${m}-${d}`;
+	};
+
+	const getResaCount = (date) => {
+		if (!date) return 0;
+		return reservationDays[getDayKey(date)] || 0;
 	};
 
 	const styles = createStyles(THEME);
@@ -205,6 +224,13 @@ export default function DatePickerModal({
 										>
 											{item.date.getDate()}
 										</Text>
+										{getResaCount(item.date) > 0 && (
+											<View style={styles.dotWrapper}>
+												<View
+													style={[styles.dot, selected && styles.dotSelected]}
+												/>
+											</View>
+										)}
 									</TouchableOpacity>
 								);
 							})}
@@ -316,6 +342,21 @@ const createStyles = (THEME) =>
 		selectedText: {
 			fontWeight: "700",
 			color: "#000",
+		},
+		dotWrapper: {
+			position: "absolute",
+			bottom: 4,
+			alignItems: "center",
+			width: "100%",
+		},
+		dot: {
+			width: 5,
+			height: 5,
+			borderRadius: 3,
+			backgroundColor: THEME.colors.primary.amber,
+		},
+		dotSelected: {
+			backgroundColor: "#000",
 		},
 		closeButton: {
 			marginTop: 16,
