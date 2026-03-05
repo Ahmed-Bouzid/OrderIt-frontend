@@ -1235,7 +1235,7 @@ export default function Activity() {
 				{activeId && (
 					<View style={activityStyles.miniWrapper}>
 						<FlatList
-							style={{ overflow: "visible" }}
+							style={{ overflow: "visible", backgroundColor: "transparent" }}
 							data={[
 								...filteredReservations,
 								{ _id: "add-button", isAddButton: true },
@@ -1365,7 +1365,6 @@ const createStyles = (THEME) =>
 		popupMainWrapper: {
 			flex: 1,
 			padding: THEME.spacing.md,
-			paddingBottom: 110,
 		},
 		popupMain: {
 			flex: 1,
@@ -1481,6 +1480,7 @@ const createStyles = (THEME) =>
 			left: 0,
 			right: 0,
 			paddingHorizontal: THEME.spacing.md,
+			backgroundColor: "transparent",
 		},
 		miniListContent: {
 			flexGrow: 1,
