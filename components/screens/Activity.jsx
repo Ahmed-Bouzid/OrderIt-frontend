@@ -1363,6 +1363,7 @@ const createStyles = (THEME) =>
 			color: "#FFFFFF",
 		},
 		popupMainWrapper: {
+			flex: 1,
 			maxHeight: "90%",
 			padding: THEME.spacing.md,
 		},
