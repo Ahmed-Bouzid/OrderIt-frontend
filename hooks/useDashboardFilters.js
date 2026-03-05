@@ -130,14 +130,10 @@ export const useDashboardFilters = (
 					break;
 
 				case "ouverte":
-					// 📅 "Ouverte" seulement pour aujourd'hui
-					if (!isToday) {
-						result = [];
-					} else {
-						result = dateFilteredReservations.filter(
-							(r) => r?.status === "ouverte",
-						);
-					}
+					// 📅 "Ouverte" : toujours toutes les dates (une resa ouverte hier = encore active)
+					result = searchedReservations.filter(
+						(r) => r?.status === "ouverte",
+					);
 					break;
 
 				case "terminée":
@@ -162,7 +158,7 @@ export const useDashboardFilters = (
 			console.error("❌ Erreur filtrage réservations:", error);
 			return [];
 		}
-	}, [dateFilteredReservations, filter, searchQuery, selectedDate]);
+	}, [dateFilteredReservations, searchedReservations, filter, searchQuery, selectedDate]);
 
 	const changeFilter = useCallback(async (newFilter) => {
 		setFilter(newFilter);
