@@ -533,81 +533,82 @@ export default function AccountingScreen({ onClose }) {
 			backgroundColor: THEME.colors.background.card,
 			backgroundGradientFrom: THEME.colors.background.card,
 			backgroundGradientTo: THEME.colors.background.card,
-			decimalPlaces: 2,
-			color: (opacity = 1) =>
-				THEME.colors.primary.amber +
-				Math.floor(opacity * 255)
-					.toString(16)
-					.padStart(2, "0"),
-			labelColor: (opacity = 1) =>
-				THEME.colors.text.secondary +
-				Math.floor(opacity * 255)
-					.toString(16)
-					.padStart(2, "0"),
-			style: {
-				borderRadius: THEME.radius.lg,
-			},
-			propsForDots: {
-				r: "6",
-				strokeWidth: "2",
-				stroke: THEME.colors.primary.amber,
-			},
+			decimalPlaces: 0,
+			color: () => "#F59E0B",
+			labelColor: () => THEME.colors.text.secondary,
+			style: { borderRadius: THEME.radius.lg },
+			propsForDots: { r: "5", strokeWidth: "2", stroke: "#F59E0B" },
 		};
+
+		// Adapter les données selon la période
+		// Pour year/quarter : grouper par mois. Sinon : 7 derniers jours.
+		const MOIS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
+		const isLongPeriod = selectedPeriod === "year" || selectedPeriod === "quarter";
+
+		let chartPoints = [];
+		if (isLongPeriod && data.dailyRevenues?.length > 0) {
+			// Grouper par mois
+			const byMonth = {};
+			data.dailyRevenues.forEach((d) => {
+				const dt = new Date(d.date);
+				const key = `${dt.getFullYear()}-${dt.getMonth()}`;
+				if (!byMonth[key]) byMonth[key] = { label: MOIS[dt.getMonth()], revenue: 0, orders: 0 };
+				byMonth[key].revenue += d.revenue;
+				byMonth[key].orders += d.orders;
+			});
+			chartPoints = Object.values(byMonth);
+		} else if (data.dailyRevenues?.length > 0) {
+			// 7 derniers jours avec label JJ/MM
+			chartPoints = data.dailyRevenues.slice(-7).map((d) => {
+				const dt = new Date(d.date);
+				return {
+					label: `${dt.getDate()}/${dt.getMonth() + 1}`,
+					revenue: d.revenue,
+					orders: d.orders,
+				};
+			});
+		}
+
+		const hasChartData = chartPoints.length > 0;
+		const revenueData = chartPoints.map((p) => p.revenue || 0);
+		const ordersData = chartPoints.map((p) => p.orders || 0);
+		const chartLabels = chartPoints.map((p) => p.label);
 
 		return (
 			<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 				<View style={styles.scrollContent}>
 					{/* Évolution du CA */}
-					{data.dailyRevenues?.length > 0 && (
+					{hasChartData && (
 						<View style={styles.chartContainer}>
-							<Text style={styles.chartTitle}>
-								📈 Évolution du Chiffre d&apos;Affaires
+							<Text style={styles.chartTitle}>📈 Évolution du Chiffre d&apos;Affaires (€)</Text>
+							<Text style={{ color: THEME.colors.text.muted, fontSize: 12, marginBottom: 4 }}>
+								{isLongPeriod ? "Par mois · en euros TTC" : "7 derniers jours · en euros TTC"}
 							</Text>
 							<LineChart
-								data={{
-									labels: data.dailyRevenues
-										.slice(-7)
-										.map((d) => new Date(d.date).getDate().toString()),
-									datasets: [
-										{
-											data: data.dailyRevenues.slice(-7).map((d) => d.revenue),
-										},
-									],
-								}}
+								data={{ labels: chartLabels, datasets: [{ data: revenueData }] }}
 								width={screenWidth - 64}
 								height={220}
 								chartConfig={chartConfig}
 								bezier
-								style={{
-									marginVertical: 8,
-									borderRadius: THEME.radius.lg,
-								}}
+								style={{ marginVertical: 8, borderRadius: THEME.radius.lg }}
 							/>
 						</View>
 					)}
 
 					{/* Nombre de commandes */}
-					{data.dailyRevenues?.length > 0 && (
+					{hasChartData && (
 						<View style={styles.chartContainer}>
 							<Text style={styles.chartTitle}>📦 Nombre de Commandes</Text>
+							<Text style={{ color: THEME.colors.text.muted, fontSize: 12, marginBottom: 4 }}>
+								{isLongPeriod ? "Par mois · nombre de commandes" : "7 derniers jours · nombre de commandes"}
+							</Text>
 							<BarChart
-								data={{
-									labels: data.dailyRevenues
-										.slice(-7)
-										.map((d) => new Date(d.date).getDate().toString()),
-									datasets: [
-										{
-											data: data.dailyRevenues.slice(-7).map((d) => d.orders),
-										},
-									],
-								}}
+								data={{ labels: chartLabels, datasets: [{ data: ordersData }] }}
 								width={screenWidth - 64}
 								height={220}
 								chartConfig={chartConfig}
-								style={{
-									marginVertical: 8,
-									borderRadius: THEME.radius.lg,
-								}}
+								showValuesOnTopOfBars
+								style={{ marginVertical: 8, borderRadius: THEME.radius.lg }}
 							/>
 						</View>
 					)}
@@ -615,35 +616,44 @@ export default function AccountingScreen({ onClose }) {
 					{/* Répartition CA/Coûts/Marge */}
 					{data.revenueHT > 0 && (
 						<View style={styles.chartContainer}>
-							<Text style={styles.chartTitle}>💰 Répartition Financière</Text>
+							<Text style={styles.chartTitle}>💰 Répartition du CA HT</Text>
+							<Text style={{ color: THEME.colors.text.muted, fontSize: 12, marginBottom: 4 }}>
+								Estimation : marge brute vs coûts opérationnels (base 30%)
+							</Text>
 							<PieChart
 								data={[
 									{
-										name: "Marge",
-										population: data.grossMargin,
+										name: `Marge brute  ${data.marginPercent?.toFixed(0) ?? 70}%`,
+										population: Math.max(data.grossMargin, 0.01),
 										color: "#22C55E",
 										legendFontColor: THEME.colors.text.primary,
 										legendFontSize: 12,
 									},
 									{
-										name: "Coûts",
-										population: data.costs,
+										name: `Coûts estimés  ${(100 - (data.marginPercent ?? 70)).toFixed(0)}%`,
+										population: Math.max(data.costs, 0.01),
 										color: "#EF4444",
 										legendFontColor: THEME.colors.text.primary,
 										legendFontSize: 12,
 									},
 								]}
 								width={screenWidth - 64}
-								height={220}
+								height={200}
 								chartConfig={chartConfig}
 								accessor="population"
 								backgroundColor="transparent"
-								paddingLeft="15"
-								style={{
-									marginVertical: 8,
-									borderRadius: THEME.radius.lg,
-								}}
+								paddingLeft="10"
+								absolute
+								style={{ marginVertical: 8, borderRadius: THEME.radius.lg }}
 							/>
+							<View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 8 }}>
+								<Text style={{ color: "#22C55E", fontSize: 13, fontWeight: "600" }}>
+									✅ Marge : {data.grossMargin?.toFixed(2)}€
+								</Text>
+								<Text style={{ color: "#EF4444", fontSize: 13, fontWeight: "600" }}>
+									📉 Coûts : {data.costs?.toFixed(2)}€
+								</Text>
+							</View>
 						</View>
 					)}
 				</View>
