@@ -21,6 +21,8 @@ import {
 	Alert,
 	FlatList,
 	StyleSheet,
+	Image,
+	Animated,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -51,6 +53,47 @@ import {
 
 // 🔔 Notifications
 import Toast from "../ui/Toast";
+
+const HAND_IMAGE = require("../../assets/images/hand.png");
+
+/** Composant BlurIn – animation blur-in (opacité + scale) inspirée de magicUI */
+const BlurInText = ({ name, textStyle }) => {
+	const opacity = React.useRef(new Animated.Value(0)).current;
+	const scale = React.useRef(new Animated.Value(1.18)).current;
+
+	React.useEffect(() => {
+		Animated.parallel([
+			Animated.timing(opacity, {
+				toValue: 1,
+				duration: 750,
+				useNativeDriver: true,
+			}),
+			Animated.timing(scale, {
+				toValue: 1,
+				duration: 750,
+				useNativeDriver: true,
+			}),
+		]).start();
+	}, [name]);
+
+	return (
+		<Animated.View
+			style={{
+				flexDirection: "row",
+				alignItems: "center",
+				marginBottom: 20,
+				opacity,
+				transform: [{ scale }],
+			}}
+		>
+			<Text style={textStyle}>Bonjour {name}</Text>
+			<Image
+				source={HAND_IMAGE}
+				style={{ width: 28, height: 28, marginLeft: 8 }}
+			/>
+		</Animated.View>
+	);
+};
 
 /**
  * 8 couleurs distinctes, cohérentes avec le thème sombre.
@@ -792,10 +835,11 @@ export default function Activity() {
 					!activeId && (
 						<View style={activityStyles.startContainer}>
 							{displayGreeting ? (
-								<Text style={activityStyles.greetingText}>
-									Bonjour {displayGreeting} 👋
-								</Text>
-							) : null}
+							<BlurInText
+								name={displayGreeting.split(" ")[0]}
+								textStyle={activityStyles.greetingText}
+							/>
+						) : null}
 							<TouchableOpacity
 								onPress={async () => {
 									const nextResa = await openNextReservation();

@@ -12,6 +12,7 @@ import {
 	TouchableOpacity,
 	StyleSheet,
 	Animated,
+	Image,
 } from "react-native";
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
@@ -319,7 +320,11 @@ export default function TabsLayout() {
 							]}
 							style={tabStyles.brandIconBg}
 						>
-							<Ionicons name="sunny" size={40} color="#FFD600" />
+							<Image
+								source={require("../../assets/images/sunflower.png")}
+								style={{ width: 40, height: 40 }}
+								resizeMode="contain"
+							/>
 						</LinearGradient>
 						<Text
 							style={tabStyles.brandText}
