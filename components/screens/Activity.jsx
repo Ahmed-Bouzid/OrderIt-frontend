@@ -104,6 +104,16 @@ export default function Activity() {
 
 	const currentServerName = servers?.find((s) => s._id === serverId)?.name || null;
 
+	// Nom de l'utilisateur connecté (depuis AsyncStorage, stocké au login)
+	const [userName, setUserName] = useState(null);
+	useEffect(() => {
+		AsyncStorage.getItem("userName").then((n) => {
+			if (n) setUserName(n);
+		});
+	}, []);
+
+	const displayGreeting = userName || currentServerName;
+
 	// ⭐ Utiliser fetchReservations du store Zustand (synchro avec WebSocket)
 	const fetchReservationsFromStore = useReservationStore(
 		(state) => state.fetchReservations,
@@ -781,9 +791,9 @@ export default function Activity() {
 					openedReservations.length === 0 &&
 					!activeId && (
 						<View style={activityStyles.startContainer}>
-							{currentServerName ? (
+							{displayGreeting ? (
 								<Text style={activityStyles.greetingText}>
-									Bonjour {currentServerName} 👋
+									Bonjour {displayGreeting} 👋
 								</Text>
 							) : null}
 							<TouchableOpacity

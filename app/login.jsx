@@ -361,6 +361,13 @@ export default function Login() {
 					await AsyncStorage.removeItem("serverId");
 				}
 
+				// ✅ Stocker le nom de l'utilisateur connecté
+				if (data.name) {
+					await AsyncStorage.setItem("userName", data.name);
+				} else {
+					await AsyncStorage.removeItem("userName");
+				}
+
 				if (data.tableId) {
 					await AsyncStorage.setItem("tableId", data.tableId);
 				} else {
