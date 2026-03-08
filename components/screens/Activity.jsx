@@ -102,6 +102,8 @@ export default function Activity() {
 		servers,
 	} = useActivityData();
 
+	const currentServerName = servers?.find((s) => s._id === serverId)?.name || null;
+
 	// ⭐ Utiliser fetchReservations du store Zustand (synchro avec WebSocket)
 	const fetchReservationsFromStore = useReservationStore(
 		(state) => state.fetchReservations,
@@ -779,6 +781,11 @@ export default function Activity() {
 					openedReservations.length === 0 &&
 					!activeId && (
 						<View style={activityStyles.startContainer}>
+							{currentServerName ? (
+								<Text style={activityStyles.greetingText}>
+									Bonjour {currentServerName} 👋
+								</Text>
+							) : null}
 							<TouchableOpacity
 								onPress={async () => {
 									const nextResa = await openNextReservation();
@@ -1414,6 +1421,13 @@ const createStyles = (THEME) =>
 			flex: 1,
 			alignItems: "center",
 			justifyContent: "center",
+		},
+		greetingText: {
+			fontSize: 22,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginBottom: 20,
+			letterSpacing: 0.3,
 		},
 		startButton: {
 			flexDirection: "row",

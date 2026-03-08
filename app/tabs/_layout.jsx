@@ -16,6 +16,7 @@ import {
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
+import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import Activity from "../../components/screens/Activity";
 import FloorScreen from "../../components/screens/Floor";
@@ -82,6 +83,10 @@ const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
 TabButton.displayName = "TabButton";
 
 export default function TabsLayout() {
+	const [fontsLoaded] = useFonts({
+		"Melodrama-Bold": require("../../assets/fonts/Melodrama-Bold.otf"),
+	});
+
 	// 🎯 Récupérer les tabs disponibles depuis le Feature Level Store
 	const availableTabs = useFeatureLevelStore((state) => state.tabs);
 	const isFeatureLevelReady = useFeatureLevelStore(
@@ -465,7 +470,7 @@ const tabStyles = StyleSheet.create({
 	},
 	brandText: {
 		fontSize: 32,
-		fontWeight: "700",
+		fontFamily: "Melodrama-Bold",
 		flexShrink: 0,
 		alignSelf: "center",
 		color: THEME.colors.text.primary,
