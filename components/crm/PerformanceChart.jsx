@@ -121,7 +121,13 @@ const SvgLineChart = ({ chartData, color, gradientId, height = 140 }) => {
 	return (
 		<Svg width={chartW + PADDING_LEFT + PADDING_RIGHT} height={height}>
 			<Defs>
-				<SvgLinearGradient id={`area_${gradientId}`} x1="0" y1="0" x2="0" y2="1">
+				<SvgLinearGradient
+					id={`area_${gradientId}`}
+					x1="0"
+					y1="0"
+					x2="0"
+					y2="1"
+				>
 					<Stop offset="0" stopColor={color} stopOpacity="0.25" />
 					<Stop offset="1" stopColor={color} stopOpacity="0.02" />
 				</SvgLinearGradient>
@@ -132,15 +138,35 @@ const SvgLineChart = ({ chartData, color, gradientId, height = 140 }) => {
 					const val = maxV - (range / yTicks) * i;
 					return (
 						<G key={`grid_${i}`}>
-							<SvgLine x1={0} y1={y} x2={chartW} y2={y} stroke="rgba(0,0,0,0.06)" strokeWidth={1} />
-							<SvgText x={-6} y={y + 4} fontSize={10} fill="#9CA3AF" textAnchor="end">
+							<SvgLine
+								x1={0}
+								y1={y}
+								x2={chartW}
+								y2={y}
+								stroke="rgba(0,0,0,0.06)"
+								strokeWidth={1}
+							/>
+							<SvgText
+								x={-6}
+								y={y + 4}
+								fontSize={10}
+								fill="#9CA3AF"
+								textAnchor="end"
+							>
 								{formatY(val)}
 							</SvgText>
 						</G>
 					);
 				})}
 				<Path d={areaPath} fill={`url(#area_${gradientId})`} />
-				<Path d={linePath} fill="none" stroke={color} strokeWidth={2.5} strokeLinecap="round" strokeLinejoin="round" />
+				<Path
+					d={linePath}
+					fill="none"
+					stroke={color}
+					strokeWidth={2.5}
+					strokeLinecap="round"
+					strokeLinejoin="round"
+				/>
 				{points.map((p, i) => (
 					<G key={`dot_${i}`}>
 						<Circle cx={p.x} cy={p.y} r={5} fill="white" />
@@ -148,7 +174,14 @@ const SvgLineChart = ({ chartData, color, gradientId, height = 140 }) => {
 					</G>
 				))}
 				{xLabels.map((d) => (
-					<SvgText key={`xl_${d.i}`} x={d.x} y={chartH + 18} fontSize={10} fill="#9CA3AF" textAnchor="middle">
+					<SvgText
+						key={`xl_${d.i}`}
+						x={d.x}
+						y={chartH + 18}
+						fontSize={10}
+						fill="#9CA3AF"
+						textAnchor="middle"
+					>
 						{d.label}
 					</SvgText>
 				))}
@@ -179,7 +212,11 @@ const PerformanceChart = ({
 
 	React.useEffect(() => {
 		opacity.value = withTiming(1, { duration: 600, delay: animationDelay });
-		translateY.value = withSpring(0, { damping: 18, stiffness: 100, delay: animationDelay });
+		translateY.value = withSpring(0, {
+			damping: 18,
+			stiffness: 100,
+			delay: animationDelay,
+		});
 	}, [animationDelay, opacity, translateY]);
 
 	// ─────────────── Metric values ───────────────
@@ -216,7 +253,9 @@ const PerformanceChart = ({
 						<View style={styles.loadingSubtitle} />
 					</View>
 					<View style={styles.loadingMetrics}>
-						{[0, 1, 2, 3].map((i) => <View key={i} style={styles.loadingMetricCard} />)}
+						{[0, 1, 2, 3].map((i) => (
+							<View key={i} style={styles.loadingMetricCard} />
+						))}
 					</View>
 					<View style={styles.loadingChart} />
 				</LinearGradient>
@@ -242,14 +281,19 @@ const PerformanceChart = ({
 					{METRICS.map((metric) => {
 						const isActive = activeMetric === metric.key;
 						const rawValue = kpi[metric.kpiField];
-						const trendVal = metric.trendField ? trends[metric.trendField] : null;
+						const trendVal = metric.trendField
+							? trends[metric.trendField]
+							: null;
 						const trendUp = trendVal > 0;
 						return (
 							<TouchableOpacity
 								key={metric.key}
 								onPress={() => setActiveMetric(metric.key)}
 								activeOpacity={0.8}
-								style={[styles.metricCard, isActive && { borderColor: metric.color, borderWidth: 2 }]}
+								style={[
+									styles.metricCard,
+									isActive && { borderColor: metric.color, borderWidth: 2 },
+								]}
 							>
 								{isActive ? (
 									<LinearGradient
@@ -262,13 +306,27 @@ const PerformanceChart = ({
 										<Text style={[styles.metricValue, { color: "white" }]}>
 											{formatValue(metric, rawValue)}
 										</Text>
-										<Text style={[styles.metricLabel, { color: "rgba(255,255,255,0.85)" }]}>
+										<Text
+											style={[
+												styles.metricLabel,
+												{ color: "rgba(255,255,255,0.85)" },
+											]}
+										>
 											{metric.label}
 										</Text>
 										{trendVal !== null && trendVal !== undefined && (
 											<View style={styles.trendBadge}>
-												<Ionicons name={trendUp ? "arrow-up" : "arrow-down"} size={9} color={trendUp ? "#D1FAE5" : "#FEE2E2"} />
-												<Text style={[styles.trendText, { color: trendUp ? "#D1FAE5" : "#FEE2E2" }]}>
+												<Ionicons
+													name={trendUp ? "arrow-up" : "arrow-down"}
+													size={9}
+													color={trendUp ? "#D1FAE5" : "#FEE2E2"}
+												/>
+												<Text
+													style={[
+														styles.trendText,
+														{ color: trendUp ? "#D1FAE5" : "#FEE2E2" },
+													]}
+												>
 													{Math.abs(Math.round(trendVal))}%
 												</Text>
 											</View>
@@ -276,7 +334,11 @@ const PerformanceChart = ({
 									</LinearGradient>
 								) : (
 									<View style={styles.metricCardInner}>
-										<Ionicons name={metric.icon} size={14} color={metric.color} />
+										<Ionicons
+											name={metric.icon}
+											size={14}
+											color={metric.color}
+										/>
 										<Text style={[styles.metricValue, { color: "#1F2937" }]}>
 											{formatValue(metric, rawValue)}
 										</Text>
@@ -284,9 +346,27 @@ const PerformanceChart = ({
 											{metric.label}
 										</Text>
 										{trendVal !== null && trendVal !== undefined && (
-											<View style={[styles.trendBadge, { backgroundColor: trendUp ? "#D1FAE533" : "#FEE2E233" }]}>
-												<Ionicons name={trendUp ? "arrow-up" : "arrow-down"} size={9} color={trendUp ? "#10B981" : "#EF4444"} />
-												<Text style={[styles.trendText, { color: trendUp ? "#10B981" : "#EF4444" }]}>
+											<View
+												style={[
+													styles.trendBadge,
+													{
+														backgroundColor: trendUp
+															? "#D1FAE533"
+															: "#FEE2E233",
+													},
+												]}
+											>
+												<Ionicons
+													name={trendUp ? "arrow-up" : "arrow-down"}
+													size={9}
+													color={trendUp ? "#10B981" : "#EF4444"}
+												/>
+												<Text
+													style={[
+														styles.trendText,
+														{ color: trendUp ? "#10B981" : "#EF4444" },
+													]}
+												>
 													{Math.abs(Math.round(trendVal))}%
 												</Text>
 											</View>
@@ -322,7 +402,6 @@ const PerformanceChart = ({
 		</Animated.View>
 	);
 };
-
 
 // ─────────────── Styles ───────────────
 const styles = StyleSheet.create({

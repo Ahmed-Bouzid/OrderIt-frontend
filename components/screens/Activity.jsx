@@ -145,7 +145,8 @@ export default function Activity() {
 		servers,
 	} = useActivityData();
 
-	const currentServerName = servers?.find((s) => s._id === serverId)?.name || null;
+	const currentServerName =
+		servers?.find((s) => s._id === serverId)?.name || null;
 
 	// Nom de l'utilisateur connecté (depuis AsyncStorage, stocké au login)
 	const [userName, setUserName] = useState(null);
@@ -835,11 +836,11 @@ export default function Activity() {
 					!activeId && (
 						<View style={activityStyles.startContainer}>
 							{displayGreeting ? (
-							<BlurInText
-								name={displayGreeting.split(" ")[0]}
-								textStyle={activityStyles.greetingText}
-							/>
-						) : null}
+								<BlurInText
+									name={displayGreeting.split(" ")[0]}
+									textStyle={activityStyles.greetingText}
+								/>
+							) : null}
 							<TouchableOpacity
 								onPress={async () => {
 									const nextResa = await openNextReservation();

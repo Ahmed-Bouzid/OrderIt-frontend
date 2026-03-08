@@ -64,8 +64,15 @@ export default function CRMPerformance({ onClose }) {
 	const slideAnim = useRef(new Animated.Value(100)).current;
 
 	// Hooks CRM personnalisés
-	const { dashboard, servers, leaderboard, trends, isLoading, error, refreshData } =
-		useCRMData(selectedPeriod);
+	const {
+		dashboard,
+		servers,
+		leaderboard,
+		trends,
+		isLoading,
+		error,
+		refreshData,
+	} = useCRMData(selectedPeriod);
 
 	const { sendCoachingAlert } = useCRMActions();
 
@@ -420,16 +427,37 @@ export default function CRMPerformance({ onClose }) {
 					<Text style={styles.trendChartTitle}>{title}</Text>
 					<Svg width={chartW} height={chartH + 20}>
 						<G translateY={4}>
-							<SvgLine x1={0} y1={chartH} x2={chartW} y2={chartH} stroke="rgba(0,0,0,0.08)" strokeWidth={1} />
+							<SvgLine
+								x1={0}
+								y1={chartH}
+								x2={chartW}
+								y2={chartH}
+								stroke="rgba(0,0,0,0.08)"
+								strokeWidth={1}
+							/>
 							{data.map((d, i) => {
 								const barH = Math.max(4, (d.value / maxVal) * (chartH - 8));
 								const x = i * gap + (gap - barW) / 2;
 								const y = chartH - barH;
 								return (
 									<G key={i}>
-										<Rect x={x} y={y} width={barW} height={barH} rx={3} fill={color} opacity={0.9} />
+										<Rect
+											x={x}
+											y={y}
+											width={barW}
+											height={barH}
+											rx={3}
+											fill={color}
+											opacity={0.9}
+										/>
 										{i % step === 0 && (
-											<SvgText x={x + barW / 2} y={chartH + 14} fontSize={9} fill="#9CA3AF" textAnchor="middle">
+											<SvgText
+												x={x + barW / 2}
+												y={chartH + 14}
+												fontSize={9}
+												fill="#9CA3AF"
+												textAnchor="middle"
+											>
 												{d.label}
 											</SvgText>
 										)}
@@ -448,7 +476,8 @@ export default function CRMPerformance({ onClose }) {
 				<View style={[styles.trendGrowthCard, { borderColor: `${color}33` }]}>
 					<Ionicons name={icon} size={18} color={color} />
 					<Text style={[styles.trendGrowthValue, { color }]}>
-						{isPositive ? "+" : ""}{Math.round(value)}%
+						{isPositive ? "+" : ""}
+						{Math.round(value)}%
 					</Text>
 					<Text style={styles.trendGrowthLabel}>{label}</Text>
 				</View>
@@ -496,12 +525,18 @@ export default function CRMPerformance({ onClose }) {
 						<>
 							<TrendBarChart
 								title="📊 CA par semaine"
-								data={weeklyData.map((w) => ({ label: w.label, value: w.revenue }))}
+								data={weeklyData.map((w) => ({
+									label: w.label,
+									value: w.revenue,
+								}))}
 								color="#F59E0B"
 							/>
 							<TrendBarChart
 								title="🛒 Commandes par semaine"
-								data={weeklyData.map((w) => ({ label: w.label, value: w.orders }))}
+								data={weeklyData.map((w) => ({
+									label: w.label,
+									value: w.orders,
+								}))}
 								color="#3B82F6"
 							/>
 						</>
