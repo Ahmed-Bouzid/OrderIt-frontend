@@ -317,6 +317,7 @@ export default function AccountingScreen({ onClose }) {
 			borderRadius: 12,
 			padding: 12,
 			marginBottom: 12,
+			overflow: "hidden",
 		},
 		chartTitle: {
 			fontSize: 14,
@@ -586,10 +587,9 @@ export default function AccountingScreen({ onClose }) {
 							</Text>
 							<LineChart
 								data={{ labels: chartLabels, datasets: [{ data: revenueData }] }}
-								width={screenWidth - 64}
-								height={220}
-								chartConfig={chartConfig}
-								bezier
+							width={screenWidth - 96}
+							height={200}
+							chartConfig={chartConfig}
 								style={{ marginVertical: 8, borderRadius: THEME.radius.lg }}
 							/>
 						</View>
@@ -604,8 +604,8 @@ export default function AccountingScreen({ onClose }) {
 							</Text>
 							<BarChart
 								data={{ labels: chartLabels, datasets: [{ data: ordersData }] }}
-								width={screenWidth - 64}
-								height={220}
+							width={screenWidth - 96}
+							height={200}
 								chartConfig={chartConfig}
 								showValuesOnTopOfBars
 								style={{ marginVertical: 8, borderRadius: THEME.radius.lg }}
@@ -637,7 +637,7 @@ export default function AccountingScreen({ onClose }) {
 										legendFontSize: 12,
 									},
 								]}
-								width={screenWidth - 64}
+								width={screenWidth - 96}
 								height={200}
 								chartConfig={chartConfig}
 								accessor="population"
