@@ -75,6 +75,7 @@ export default function AccountingScreen({ onClose }) {
 		{ key: "today", label: "Aujourd'hui", icon: "today" },
 		{ key: "week", label: "Cette semaine", icon: "calendar" },
 		{ key: "month", label: "Ce mois", icon: "calendar-outline" },
+		{ key: "quarter", label: "Ce trimestre", icon: "calendar-number-outline" },
 		{ key: "year", label: "Cette année", icon: "calendar-sharp" },
 	];
 
