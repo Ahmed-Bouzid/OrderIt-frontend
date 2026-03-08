@@ -19,7 +19,6 @@ import Animated, {
 	useAnimatedStyle,
 	withSpring,
 	withTiming,
-	withSequence,
 	withDelay,
 } from "react-native-reanimated";
 
@@ -161,10 +160,7 @@ const LeaderboardSection = ({
 		React.useEffect(() => {
 			podiumScale.value = withDelay(
 				podiumDelay,
-				withSequence(
-					withSpring(1.1, { damping: 12 }),
-					withSpring(1, { damping: 15 }),
-				),
+				withSpring(1, { damping: 20, stiffness: 90 }),
 			);
 			podiumOpacity.value = withDelay(
 				podiumDelay,

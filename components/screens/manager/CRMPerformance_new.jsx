@@ -22,7 +22,14 @@ import {
 	ScrollView,
 	RefreshControl,
 	Modal,
+	Dimensions,
 } from "react-native";
+import Svg, {
+	Rect,
+	Text as SvgText,
+	Line as SvgLine,
+	G,
+} from "react-native-svg";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 
@@ -57,7 +64,7 @@ export default function CRMPerformance({ onClose }) {
 	const slideAnim = useRef(new Animated.Value(100)).current;
 
 	// Hooks CRM personnalisés
-	const { dashboard, servers, leaderboard, isLoading, error, refreshData } =
+	const { dashboard, servers, leaderboard, trends, isLoading, error, refreshData } =
 		useCRMData(selectedPeriod);
 
 	const { sendCoachingAlert } = useCRMActions();
@@ -305,12 +312,10 @@ export default function CRMPerformance({ onClose }) {
 				</Text>
 				<PerformanceChart
 					data={dashboard?.charts?.ordersTimeline || []}
-					type="line"
+					dashboard={dashboard}
 					title="Évolution des Commandes"
 					subtitle={`Période: ${getPeriodLabel(selectedPeriod)}`}
-					color="#F59E0B"
-					height={220}
-					showLegend={true}
+					height={280}
 					loading={isLoading}
 					animationDelay={400}
 				/>
@@ -395,29 +400,123 @@ export default function CRMPerformance({ onClose }) {
 		</ScrollView>
 	);
 
-	const renderTrends = () => (
-		<ScrollView
-			style={styles.tabContent}
-			refreshControl={
-				<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
-			}
-		>
-			<View style={styles.trendsSection}>
-				<Text
-					style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
-				>
-					📈 Tendances & Évolutions
-				</Text>
-				{/* TODO: Implémenter graphiques de tendances */}
-				<View style={styles.comingSoon}>
-					<Ionicons name="construct-outline" size={40} color="#9CA3AF" />
-					<Text style={styles.comingSoonText}>
-						Graphiques de tendances à venir
-					</Text>
+	const renderTrends = () => {
+		const weeklyData = trends?.weekly || [];
+		const ordersGrowth = dashboard?.trends?.ordersGrowth || 0;
+		const revenueGrowth = dashboard?.trends?.revenueGrowth || 0;
+		const serviceTimeGrowth = dashboard?.trends?.serviceTimeGrowth || 0;
+		const { width: screenW } = Dimensions.get("window");
+		const chartW = screenW - 64;
+		const chartH = 100;
+
+		const TrendBarChart = ({ title, data, color }) => {
+			if (!data || data.length === 0) return null;
+			const maxVal = Math.max(...data.map((d) => d.value), 1);
+			const barW = Math.max(4, (chartW / data.length) * 0.6);
+			const gap = chartW / data.length;
+			const step = Math.max(1, Math.floor(data.length / 6));
+			return (
+				<View style={styles.trendChartCard}>
+					<Text style={styles.trendChartTitle}>{title}</Text>
+					<Svg width={chartW} height={chartH + 20}>
+						<G translateY={4}>
+							<SvgLine x1={0} y1={chartH} x2={chartW} y2={chartH} stroke="rgba(0,0,0,0.08)" strokeWidth={1} />
+							{data.map((d, i) => {
+								const barH = Math.max(4, (d.value / maxVal) * (chartH - 8));
+								const x = i * gap + (gap - barW) / 2;
+								const y = chartH - barH;
+								return (
+									<G key={i}>
+										<Rect x={x} y={y} width={barW} height={barH} rx={3} fill={color} opacity={0.9} />
+										{i % step === 0 && (
+											<SvgText x={x + barW / 2} y={chartH + 14} fontSize={9} fill="#9CA3AF" textAnchor="middle">
+												{d.label}
+											</SvgText>
+										)}
+									</G>
+								);
+							})}
+						</G>
+					</Svg>
 				</View>
-			</View>
-		</ScrollView>
-	);
+			);
+		};
+
+		const TrendGrowthCard = ({ label, value, icon, color }) => {
+			const isPositive = value >= 0;
+			return (
+				<View style={[styles.trendGrowthCard, { borderColor: `${color}33` }]}>
+					<Ionicons name={icon} size={18} color={color} />
+					<Text style={[styles.trendGrowthValue, { color }]}>
+						{isPositive ? "+" : ""}{Math.round(value)}%
+					</Text>
+					<Text style={styles.trendGrowthLabel}>{label}</Text>
+				</View>
+			);
+		};
+
+		return (
+			<ScrollView
+				style={styles.tabContent}
+				refreshControl={
+					<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} />
+				}
+			>
+				<View style={styles.trendsSection}>
+					<Text
+						style={[styles.sectionTitle, { color: THEME.colors.text.primary }]}
+					>
+						📈 Tendances & Évolutions
+					</Text>
+
+					{/* Growth summary */}
+					<View style={styles.trendsGrowthRow}>
+						<TrendGrowthCard
+							label="Commandes"
+							value={ordersGrowth}
+							icon="receipt-outline"
+							color="#3B82F6"
+						/>
+						<TrendGrowthCard
+							label="CA"
+							value={revenueGrowth}
+							icon="cash-outline"
+							color="#F59E0B"
+						/>
+						<TrendGrowthCard
+							label="Rapidité"
+							value={serviceTimeGrowth}
+							icon="time-outline"
+							color="#10B981"
+						/>
+					</View>
+
+					{/* Charts */}
+					{weeklyData.length > 0 ? (
+						<>
+							<TrendBarChart
+								title="📊 CA par semaine"
+								data={weeklyData.map((w) => ({ label: w.label, value: w.revenue }))}
+								color="#F59E0B"
+							/>
+							<TrendBarChart
+								title="🛒 Commandes par semaine"
+								data={weeklyData.map((w) => ({ label: w.label, value: w.orders }))}
+								color="#3B82F6"
+							/>
+						</>
+					) : (
+						<View style={styles.comingSoon}>
+							<Ionicons name="analytics-outline" size={40} color="#D1D5DB" />
+							<Text style={styles.comingSoonText}>
+								Aucune donnée disponible pour la période sélectionnée
+							</Text>
+						</View>
+					)}
+				</View>
+			</ScrollView>
+		);
+	};
 
 	// ─────────────── Rendu principal ───────────────
 	return (
@@ -693,6 +792,49 @@ const createStyles = (THEME) =>
 		},
 		trendsSection: {
 			padding: 16,
+		},
+		trendsGrowthRow: {
+			flexDirection: "row",
+			gap: 10,
+			marginBottom: 16,
+		},
+		trendGrowthCard: {
+			flex: 1,
+			backgroundColor: "#F9FAFB",
+			borderRadius: 12,
+			borderWidth: 1.5,
+			padding: 12,
+			alignItems: "center",
+			gap: 4,
+		},
+		trendGrowthValue: {
+			fontSize: 18,
+			fontWeight: "700",
+		},
+		trendGrowthLabel: {
+			fontSize: 10,
+			color: "#6B7280",
+			fontWeight: "500",
+			textAlign: "center",
+		},
+		trendChartCard: {
+			backgroundColor: "#FFFFFF",
+			borderRadius: 16,
+			padding: 16,
+			marginBottom: 12,
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.06,
+			shadowRadius: 6,
+			elevation: 3,
+			borderWidth: 1,
+			borderColor: "rgba(0,0,0,0.05)",
+		},
+		trendChartTitle: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: "#1F2937",
+			marginBottom: 12,
 		},
 		comingSoon: {
 			alignItems: "center",
