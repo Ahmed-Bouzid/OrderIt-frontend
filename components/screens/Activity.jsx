@@ -86,7 +86,7 @@ const BlurInText = ({ name, textStyle }) => {
 				transform: [{ scale }],
 			}}
 		>
-			<Text style={textStyle}>Bonjour {name}</Text>
+			<Text style={[textStyle, { marginBottom: 0 }]}>Bonjour {name}</Text>
 			<Image
 				source={HAND_IMAGE}
 				style={{ width: 28, height: 28, marginLeft: 8 }}
@@ -1480,7 +1480,6 @@ const createStyles = (THEME) =>
 			fontSize: 22,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
-			marginBottom: 20,
 			letterSpacing: 0.3,
 		},
 		startButton: {
