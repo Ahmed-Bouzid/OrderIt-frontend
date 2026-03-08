@@ -623,14 +623,14 @@ export default function AccountingScreen({ onClose }) {
 							<PieChart
 								data={[
 									{
-										name: `Marge brute  ${data.marginPercent?.toFixed(0) ?? 70}%`,
+										name: "Marge",
 										population: Math.max(data.grossMargin, 0.01),
 										color: "#22C55E",
 										legendFontColor: THEME.colors.text.primary,
 										legendFontSize: 12,
 									},
 									{
-										name: `Coûts estimés  ${(100 - (data.marginPercent ?? 70)).toFixed(0)}%`,
+										name: "Coûts",
 										population: Math.max(data.costs, 0.01),
 										color: "#EF4444",
 										legendFontColor: THEME.colors.text.primary,
@@ -638,20 +638,20 @@ export default function AccountingScreen({ onClose }) {
 									},
 								]}
 								width={screenWidth - 96}
-								height={200}
+								height={180}
 								chartConfig={chartConfig}
 								accessor="population"
 								backgroundColor="transparent"
-								paddingLeft="10"
+								paddingLeft="15"
 								absolute
 								style={{ marginVertical: 8, borderRadius: THEME.radius.lg }}
 							/>
 							<View style={{ flexDirection: "row", justifyContent: "space-around", marginTop: 8 }}>
 								<Text style={{ color: "#22C55E", fontSize: 13, fontWeight: "600" }}>
-									✅ Marge : {data.grossMargin?.toFixed(2)}€
+									✅ Marge : {data.grossMargin?.toFixed(2)}€ ({data.marginPercent?.toFixed(0) ?? 70}%)
 								</Text>
 								<Text style={{ color: "#EF4444", fontSize: 13, fontWeight: "600" }}>
-									📉 Coûts : {data.costs?.toFixed(2)}€
+									📉 Coûts : {data.costs?.toFixed(2)}€ ({(100 - (data.marginPercent ?? 70)).toFixed(0)}%)
 								</Text>
 							</View>
 						</View>
