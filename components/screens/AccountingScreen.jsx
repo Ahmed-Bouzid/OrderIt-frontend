@@ -34,15 +34,31 @@ const { width: screenWidth } = Dimensions.get("window");
 // ════════════════════════════════════════════════════
 // 📊 COMPOSANTS SVG — Line Chart
 // ════════════════════════════════════════════════════
-const SvgLineChart = ({ data, labels, color, width, height, valueFormatter }) => {
+const SvgLineChart = ({
+	data,
+	labels,
+	color,
+	width,
+	height,
+	valueFormatter,
+}) => {
 	const PAD = { left: 44, right: 12, top: 16, bottom: 30 };
 	const cw = width - PAD.left - PAD.right;
 	const ch = height - PAD.top - PAD.bottom;
 
 	if (!data || data.length < 2) {
 		return (
-			<View style={{ width, height, alignItems: "center", justifyContent: "center" }}>
-				<Text style={{ color: "#666", fontSize: 12 }}>Données insuffisantes</Text>
+			<View
+				style={{
+					width,
+					height,
+					alignItems: "center",
+					justifyContent: "center",
+				}}
+			>
+				<Text style={{ color: "#666", fontSize: 12 }}>
+					Données insuffisantes
+				</Text>
 			</View>
 		);
 	}
@@ -123,7 +139,14 @@ const SvgLineChart = ({ data, labels, color, width, height, valueFormatter }) =>
 			{pts.map((p, i) => (
 				<G key={i}>
 					<Circle cx={p.x} cy={p.y} r="6" fill={color} opacity="0.15" />
-					<Circle cx={p.x} cy={p.y} r="3.5" fill={color} stroke="white" strokeWidth="1.5" />
+					<Circle
+						cx={p.x}
+						cy={p.y}
+						r="3.5"
+						fill={color}
+						stroke="white"
+						strokeWidth="1.5"
+					/>
 				</G>
 			))}
 
@@ -772,8 +795,22 @@ export default function AccountingScreen({ onClose }) {
 		const activeMetric = METRICS.find((m) => m.key === selectedMetric);
 
 		// ── Préparer données graphique ──
-		const MOIS = ["Jan","Fév","Mar","Avr","Mai","Jun","Jul","Aoû","Sep","Oct","Nov","Déc"];
-		const isLongPeriod = selectedPeriod === "year" || selectedPeriod === "quarter";
+		const MOIS = [
+			"Jan",
+			"Fév",
+			"Mar",
+			"Avr",
+			"Mai",
+			"Jun",
+			"Jul",
+			"Aoû",
+			"Sep",
+			"Oct",
+			"Nov",
+			"Déc",
+		];
+		const isLongPeriod =
+			selectedPeriod === "year" || selectedPeriod === "quarter";
 
 		let chartPoints = [];
 		if (isLongPeriod && data.dailyRevenues?.length > 0) {
@@ -800,15 +837,20 @@ export default function AccountingScreen({ onClose }) {
 
 		const getChartValues = () => {
 			switch (selectedMetric) {
-				case "revenue": return chartPoints.map((p) => p.revenue || 0);
-				case "orders": return chartPoints.map((p) => p.orders || 0);
-				case "avg": return chartPoints.map((p) =>
-					p.orders > 0 ? p.revenue / p.orders : 0
-				);
-				case "margin": return chartPoints.map((p) =>
-					(p.revenue || 0) * ((data.marginPercent || 70) / 100)
-				);
-				default: return chartPoints.map((p) => p.revenue || 0);
+				case "revenue":
+					return chartPoints.map((p) => p.revenue || 0);
+				case "orders":
+					return chartPoints.map((p) => p.orders || 0);
+				case "avg":
+					return chartPoints.map((p) =>
+						p.orders > 0 ? p.revenue / p.orders : 0,
+					);
+				case "margin":
+					return chartPoints.map(
+						(p) => (p.revenue || 0) * ((data.marginPercent || 70) / 100),
+					);
+				default:
+					return chartPoints.map((p) => p.revenue || 0);
 			}
 		};
 
@@ -841,7 +883,6 @@ export default function AccountingScreen({ onClose }) {
 		return (
 			<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 				<View style={styles.scrollContent}>
-
 					{/* ── METRIC SELECTOR CARDS ── */}
 					<View
 						style={{
@@ -867,7 +908,9 @@ export default function AccountingScreen({ onClose }) {
 										padding: 12,
 										marginBottom: 8,
 										borderWidth: 1.5,
-										borderColor: isActive ? m.color : THEME.colors.border.subtle,
+										borderColor: isActive
+											? m.color
+											: THEME.colors.border.subtle,
 									}}
 								>
 									<View
@@ -878,7 +921,9 @@ export default function AccountingScreen({ onClose }) {
 											marginBottom: 6,
 										}}
 									>
-										<View style={{ flexDirection: "row", alignItems: "center" }}>
+										<View
+											style={{ flexDirection: "row", alignItems: "center" }}
+										>
 											<View
 												style={{
 													width: 6,
@@ -909,50 +954,36 @@ export default function AccountingScreen({ onClose }) {
 										style={{
 											fontSize: 22,
 											fontWeight: "700",
-											color: isActive
-												? m.color
-												: THEME.colors.text.primary,
+											color: isActive ? m.color : THEME.colors.text.primary,
 											marginBottom: 2,
 										}}
 									>
 										{m.format(m.value || 0)}
 									</Text>
-									{m.key === "revenue" &&
-										data.growthRate !== undefined && (
-											<View
+									{m.key === "revenue" && data.growthRate !== undefined && (
+										<View
+											style={{
+												flexDirection: "row",
+												alignItems: "center",
+											}}
+										>
+											<Ionicons
+												name={data.growthRate >= 0 ? "arrow-up" : "arrow-down"}
+												size={10}
+												color={data.growthRate >= 0 ? "#22C55E" : "#EF4444"}
+											/>
+											<Text
 												style={{
-													flexDirection: "row",
-													alignItems: "center",
+													fontSize: 10,
+													color: data.growthRate >= 0 ? "#22C55E" : "#EF4444",
+													marginLeft: 2,
+													fontWeight: "600",
 												}}
 											>
-												<Ionicons
-													name={
-														data.growthRate >= 0
-															? "arrow-up"
-															: "arrow-down"
-													}
-													size={10}
-													color={
-														data.growthRate >= 0
-															? "#22C55E"
-															: "#EF4444"
-													}
-												/>
-												<Text
-													style={{
-														fontSize: 10,
-														color:
-															data.growthRate >= 0
-																? "#22C55E"
-																: "#EF4444",
-														marginLeft: 2,
-														fontWeight: "600",
-													}}
-												>
-													{Math.abs(data.growthRate).toFixed(1)}%
-												</Text>
-											</View>
-										)}
+												{Math.abs(data.growthRate).toFixed(1)}%
+											</Text>
+										</View>
+									)}
 								</TouchableOpacity>
 							);
 						})}
@@ -987,29 +1018,21 @@ export default function AccountingScreen({ onClose }) {
 											marginTop: 2,
 										}}
 									>
-										{isLongPeriod
-											? "Évolution par mois"
-											: "7 derniers jours"}
+										{isLongPeriod ? "Évolution par mois" : "7 derniers jours"}
 									</Text>
 								</View>
 								<View
 									style={{
 										flexDirection: "row",
 										alignItems: "center",
-										backgroundColor: trendPositive
-											? "#22C55E18"
-											: "#EF444418",
+										backgroundColor: trendPositive ? "#22C55E18" : "#EF444418",
 										borderRadius: 8,
 										paddingHorizontal: 8,
 										paddingVertical: 4,
 									}}
 								>
 									<Ionicons
-										name={
-											trendPositive
-												? "trending-up"
-												: "trending-down"
-										}
+										name={trendPositive ? "trending-up" : "trending-down"}
 										size={12}
 										color={trendPositive ? "#22C55E" : "#EF4444"}
 									/>
@@ -1079,9 +1102,7 @@ export default function AccountingScreen({ onClose }) {
 							>
 								Marge brute estimée vs coûts opérationnels
 							</Text>
-							<View
-								style={{ flexDirection: "row", alignItems: "center" }}
-							>
+							<View style={{ flexDirection: "row", alignItems: "center" }}>
 								<SvgDonut
 									segments={[
 										{
@@ -1106,22 +1127,16 @@ export default function AccountingScreen({ onClose }) {
 											color: "#22C55E",
 											label: "Marge brute",
 											value: Math.max(data.grossMargin, 0),
-											pct:
-												data.marginPercent?.toFixed(0) ?? "70",
+											pct: data.marginPercent?.toFixed(0) ?? "70",
 										},
 										{
 											color: "#EF4444",
 											label: "Coûts estimés",
 											value: Math.max(data.costs, 0),
-											pct: (
-												100 - (data.marginPercent ?? 70)
-											).toFixed(0),
+											pct: (100 - (data.marginPercent ?? 70)).toFixed(0),
 										},
 									].map((item, i) => (
-										<View
-											key={i}
-											style={{ marginBottom: i === 0 ? 20 : 0 }}
-										>
+										<View key={i} style={{ marginBottom: i === 0 ? 20 : 0 }}>
 											<View
 												style={{
 													flexDirection: "row",
@@ -1207,107 +1222,103 @@ export default function AccountingScreen({ onClose }) {
 									"#22C55E",
 									"#EF4444",
 								];
-								return data.topProducts
-									.slice(0, 5)
-									.map((product, idx) => {
-										const pct = (product.revenue || 0) / maxRev;
-										const col = BAR_COLORS[idx % BAR_COLORS.length];
-										const barMaxWidth = screenWidth - 160;
-										return (
-											<View key={idx} style={{ marginBottom: 14 }}>
+								return data.topProducts.slice(0, 5).map((product, idx) => {
+									const pct = (product.revenue || 0) / maxRev;
+									const col = BAR_COLORS[idx % BAR_COLORS.length];
+									const barMaxWidth = screenWidth - 160;
+									return (
+										<View key={idx} style={{ marginBottom: 14 }}>
+											<View
+												style={{
+													flexDirection: "row",
+													justifyContent: "space-between",
+													alignItems: "center",
+													marginBottom: 5,
+												}}
+											>
 												<View
 													style={{
 														flexDirection: "row",
-														justifyContent: "space-between",
 														alignItems: "center",
-														marginBottom: 5,
+														flex: 1,
 													}}
 												>
 													<View
 														style={{
-															flexDirection: "row",
+															width: 20,
+															height: 20,
+															borderRadius: 10,
+															backgroundColor: col + "25",
+															justifyContent: "center",
 															alignItems: "center",
-															flex: 1,
+															marginRight: 8,
 														}}
 													>
-														<View
-															style={{
-																width: 20,
-																height: 20,
-																borderRadius: 10,
-																backgroundColor: col + "25",
-																justifyContent: "center",
-																alignItems: "center",
-																marginRight: 8,
-															}}
-														>
-															<Text
-																style={{
-																	fontSize: 9,
-																	fontWeight: "700",
-																	color: col,
-																}}
-															>
-																{idx + 1}
-															</Text>
-														</View>
 														<Text
 															style={{
-																fontSize: 12,
-																color: THEME.colors.text.primary,
-																flex: 1,
-															}}
-															numberOfLines={1}
-														>
-															{product.name}
-														</Text>
-													</View>
-													<View style={{ alignItems: "flex-end" }}>
-														<Text
-															style={{
-																fontSize: 13,
+																fontSize: 9,
 																fontWeight: "700",
 																color: col,
 															}}
 														>
-															€{(product.revenue || 0).toFixed(2)}
-														</Text>
-														<Text
-															style={{
-																fontSize: 10,
-																color: THEME.colors.text.secondary,
-															}}
-														>
-															{product.quantity}x vendu
+															{idx + 1}
 														</Text>
 													</View>
+													<Text
+														style={{
+															fontSize: 12,
+															color: THEME.colors.text.primary,
+															flex: 1,
+														}}
+														numberOfLines={1}
+													>
+														{product.name}
+													</Text>
 												</View>
+												<View style={{ alignItems: "flex-end" }}>
+													<Text
+														style={{
+															fontSize: 13,
+															fontWeight: "700",
+															color: col,
+														}}
+													>
+														€{(product.revenue || 0).toFixed(2)}
+													</Text>
+													<Text
+														style={{
+															fontSize: 10,
+															color: THEME.colors.text.secondary,
+														}}
+													>
+														{product.quantity}x vendu
+													</Text>
+												</View>
+											</View>
+											<View
+												style={{
+													height: 6,
+													backgroundColor: THEME.colors.background.subtle,
+													borderRadius: 3,
+													overflow: "hidden",
+													marginLeft: 28,
+												}}
+											>
 												<View
 													style={{
 														height: 6,
-														backgroundColor:
-															THEME.colors.background.subtle,
+														width: barMaxWidth * pct,
+														backgroundColor: col,
 														borderRadius: 3,
-														overflow: "hidden",
-														marginLeft: 28,
 													}}
-												>
-													<View
-														style={{
-															height: 6,
-															width: barMaxWidth * pct,
-															backgroundColor: col,
-															borderRadius: 3,
-														}}
-													/>
-												</View>
+												/>
 											</View>
-										);
-									});
+										</View>
+									);
+								});
 							})()}
 						</View>
 					)}
-
 				</View>
 			</ScrollView>
 		);
