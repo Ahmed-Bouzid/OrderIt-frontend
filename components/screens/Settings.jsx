@@ -33,6 +33,7 @@ import {
 import FeedbackModal from "../modals/FeedbackModal";
 import feedbackService from "../../services/feedbackService";
 import AccountingScreen from "./AccountingScreen";
+import AnalyticsScreen from "./AnalyticsScreen";
 import MessagingScreen from "./MessagingScreen";
 import { useFeatures } from "../../hooks/useFeatures";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
@@ -64,6 +65,9 @@ export default function Settings() {
 	const [showInternalMessagingScreen, setShowInternalMessagingScreen] =
 		useState(false);
 
+	// ⭐ État Analytics IA
+	const [showAnalyticsScreen, setShowAnalyticsScreen] = useState(false);
+
 	// ⭐ État messagerie
 	const [isMessagingEnabled, setIsMessagingEnabled] = useState(true);
 	const [loadingMessaging, setLoadingMessaging] = useState(false);
@@ -77,7 +81,7 @@ export default function Settings() {
 	const { hasFeedback } = useFeatures();
 
 	// 🔧 Feature level (developer overrides) — source unique de vérité pour le portail manager
-	const { hasChatClient, hasStatistiques, hasAutoTables, isComplete } =
+	const { hasChatClient, hasStatistiques, hasAutoTables, isComplete, hasAiHeatmap, hasAiStrategicSlots } =
 		useFeatureLevel();
 
 	// ⭐ Styles dynamiques selon le thème
@@ -137,7 +141,6 @@ export default function Settings() {
 
 			if (response.ok) {
 				setIsMessagingEnabled(value);
-				console.log(`✅ Messagerie ${value ? "activée" : "désactivée"}`);
 			} else {
 				throw new Error(`Erreur ${response.status}`);
 			}
@@ -374,7 +377,6 @@ export default function Settings() {
 											settingsStyles.themeOptionActive,
 									]}
 									onPress={() => {
-										console.log("🔤 Setting font size to SMALL");
 										setFontSize(FONT_SIZES.SMALL);
 									}}
 									activeOpacity={0.7}
@@ -414,7 +416,6 @@ export default function Settings() {
 											settingsStyles.themeOptionActive,
 									]}
 									onPress={() => {
-										console.log("🔤 Setting font size to MEDIUM");
 										setFontSize(FONT_SIZES.MEDIUM);
 									}}
 									activeOpacity={0.7}
@@ -454,7 +455,6 @@ export default function Settings() {
 											settingsStyles.themeOptionActive,
 									]}
 									onPress={() => {
-										console.log("🔤 Setting font size to LARGE");
 										setFontSize(FONT_SIZES.LARGE);
 									}}
 									activeOpacity={0.7}
@@ -1150,6 +1150,106 @@ export default function Settings() {
 					</AccountingGuard>
 				);
 
+			case "analytics-ai":
+				return (
+					<>
+						{/* Titre principal */}
+						<Text style={settingsStyles.sectionHeaderText}>
+							✨ Analytics IA
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="sparkles"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Analyse intelligente des réservations
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Heatmap d’occupation par jour et créneau, identification
+										des périodes creuses et recommandations stratégiques
+										pour optimiser votre taux de remplissage.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Lancement de l'interface Analytics */}
+						<TouchableOpacity
+							style={[
+								settingsStyles.themeLabelRow,
+								{
+									backgroundColor: THEME.colors.background.elevated,
+									borderRadius: THEME.radius.lg,
+									padding: THEME.spacing.lg,
+									borderLeftWidth: 4,
+									borderLeftColor: THEME.colors.primary.amber,
+									shadowColor: THEME.colors.primary.amber,
+									shadowOffset: { width: 0, height: 2 },
+									shadowOpacity: 0.1,
+									shadowRadius: 8,
+									elevation: 3,
+								},
+							]}
+							onPress={() => setShowAnalyticsScreen(true)}
+							activeOpacity={0.8}
+						>
+							<Ionicons
+								name="grid"
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+								<Text style={settingsStyles.settingLabel}>
+									Ouvrir le module Analytics IA
+								</Text>
+								<Text style={settingsStyles.settingDescription}>
+									Heatmap d’occupation et créneaux stratégiques
+								</Text>
+							</View>
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
+
+						{/* Fonctionnalités disponibles */}
+						<View style={settingsStyles.themeSection}>
+							<Text style={settingsStyles.settingLabel}>
+								Fonctionnalités disponibles
+							</Text>
+							<View style={{ gap: 12, marginTop: 12 }}>
+								<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+									<Ionicons name="grid-outline" size={18} color={THEME.colors.primary.amber} />
+									<View style={{ flex: 1 }}>
+										<Text style={settingsStyles.settingLabel}>Heatmap d’occupation</Text>
+										<Text style={settingsStyles.settingDescription}>
+											Visualisation par jour et créneau horaire
+										</Text>
+									</View>
+								</View>
+								<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+									<Ionicons name="bulb-outline" size={18} color={THEME.colors.primary.amber} />
+									<View style={{ flex: 1 }}>
+										<Text style={settingsStyles.settingLabel}>Créneaux stratégiques</Text>
+										<Text style={settingsStyles.settingDescription}>
+											Identification des périodes sous-exploitées
+										</Text>
+									</View>
+								</View>
+							</View>
+						</View>
+					</>
+				);
+
 			default:
 				return null;
 		}
@@ -1292,6 +1392,13 @@ export default function Settings() {
 										section="messaging"
 									/>
 								)}
+								{(hasAiHeatmap || hasAiStrategicSlots) && (
+									<MenuItem
+										icon="sparkles-outline"
+										label="Analytics IA"
+										section="analytics-ai"
+									/>
+								)}
 							</>
 						)}
 
@@ -1367,6 +1474,11 @@ export default function Settings() {
 				<MessagingScreen
 					onClose={() => setShowInternalMessagingScreen(false)}
 				/>
+			)}
+
+			{/* Analytics IA Modal */}
+			{showAnalyticsScreen && (
+				<AnalyticsScreen onClose={() => setShowAnalyticsScreen(false)} />
 			)}
 
 			{/* Modale Feedback */}

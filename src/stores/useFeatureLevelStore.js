@@ -95,6 +95,35 @@ const SERVICE_FEATURES = {
 	COMPTABILITE: "comptabilite",
 	// ── Avis Google ──
 	AVIS_GOOGLE: "avis_google",
+
+	// ─────────────────────────────────────────────────────────────────
+	// ⭐ FONCTIONNALITÉS IA PREMIUM (réservation intelligente)
+	// Toutes actives par défaut pour COMPLET, toggleables depuis le mode dev
+	// ─────────────────────────────────────────────────────────────────
+
+	// 4. Assignation automatique de table (bouton "Auto" dans AssignTableModal)
+	AI_AUTO_ASSIGN: "ai_auto_assign",
+
+	// 6. Suggestions d'horaires alternatifs si créneau complet
+	AI_SLOT_SUGGESTIONS: "ai_slot_suggestions",
+
+	// 7. Heatmap d'occupation par jour/créneau (page Analytics)
+	AI_HEATMAP: "ai_heatmap",
+
+	// 8. Protection anti-trous entre réservations (badges AgendaView)
+	AI_ANTI_GAPS: "ai_anti_gaps",
+
+	// 9. Durée intelligente selon taille groupe (NewReservationModal)
+	AI_SMART_DURATION: "ai_smart_duration",
+
+	// 10. Liste d'attente intelligente + promotion automatique
+	AI_WAITING_LIST: "ai_waiting_list",
+
+	// 11. Prédiction de remplissage dans l'en-tête AgendaScreen
+	AI_PREDICTION: "ai_prediction",
+
+	// 12. Recommandations horaires stratégiques (page Analytics)
+	AI_STRATEGIC_SLOTS: "ai_strategic_slots",
 };
 
 const SERVICE_LEVEL_CONFIG = {
@@ -122,8 +151,17 @@ const SERVICE_LEVEL_CONFIG = {
 			SERVICE_FEATURES.NOTIFICATIONS_PUSH,
 			SERVICE_FEATURES.COMPTABILITE,
 			SERVICE_FEATURES.AVIS_GOOGLE,
+			// ⭐ IA Premium — actives par défaut, toggleables mode dev
+			SERVICE_FEATURES.AI_AUTO_ASSIGN,
+			SERVICE_FEATURES.AI_SLOT_SUGGESTIONS,
+			SERVICE_FEATURES.AI_HEATMAP,
+			SERVICE_FEATURES.AI_ANTI_GAPS,
+			SERVICE_FEATURES.AI_SMART_DURATION,
+			SERVICE_FEATURES.AI_WAITING_LIST,
+			SERVICE_FEATURES.AI_PREDICTION,
+			SERVICE_FEATURES.AI_STRATEGIC_SLOTS,
 		],
-		tabs: ["activity", "floor", "reglage"],
+		tabs: ["activity", "floor", "agenda", "reglage"],
 	},
 	[LEVELS.INTERMEDIAIRE]: {
 		label: "Intermédiaire",
@@ -203,7 +241,7 @@ export const useFeatureLevelStore = create((set, get) => ({
 	level: LEVELS.COMPLET,
 	category: "restaurant",
 	features: [],
-	tabs: ["activity", "floor", "reglage"],
+	tabs: ["activity", "floor", "agenda", "reglage"],
 	isInitialized: false,
 
 	// ============ ACTIONS ============
@@ -231,10 +269,6 @@ export const useFeatureLevelStore = create((set, get) => ({
 				if (overridesRaw) {
 					const overrides = JSON.parse(overridesRaw);
 					baseFeatures = applyFeatureOverrides(baseFeatures, overrides);
-					console.log(
-						`🔧 [SERVICE] Overrides appliqués:`,
-						Object.keys(overrides),
-					);
 				}
 			} catch (overrideErr) {
 				console.warn("⚠️ Erreur lecture featureOverrides:", overrideErr);
@@ -294,10 +328,6 @@ export const useFeatureLevelStore = create((set, get) => ({
 			await AsyncStorage.setItem("featureOverrides", JSON.stringify(overrides));
 
 			set({ features: updatedFeatures });
-
-			console.log(
-				`🔧 [SERVICE] applyOverrides → ${updatedFeatures.length} features actives`,
-			);
 		} catch (err) {
 			console.error("❌ Erreur applyOverrides:", err);
 		}
@@ -321,7 +351,7 @@ export const useFeatureLevelStore = create((set, get) => ({
 			level: LEVELS.COMPLET,
 			category: "restaurant",
 			features: [],
-			tabs: ["activity", "floor", "reglage"],
+			tabs: ["activity", "floor", "agenda", "reglage"],
 			isInitialized: false,
 		});
 	},
@@ -401,6 +431,19 @@ export const useFeatureLevelStore = create((set, get) => ({
 	// Avis Google
 	hasAvisGoogle: () => get().hasFeature(SERVICE_FEATURES.AVIS_GOOGLE),
 
+	// ── IA Premium ──
+	hasAiAutoAssign: () => get().hasFeature(SERVICE_FEATURES.AI_AUTO_ASSIGN),
+	hasAiSlotSuggestions: () =>
+		get().hasFeature(SERVICE_FEATURES.AI_SLOT_SUGGESTIONS),
+	hasAiHeatmap: () => get().hasFeature(SERVICE_FEATURES.AI_HEATMAP),
+	hasAiAntiGaps: () => get().hasFeature(SERVICE_FEATURES.AI_ANTI_GAPS),
+	hasAiSmartDuration: () =>
+		get().hasFeature(SERVICE_FEATURES.AI_SMART_DURATION),
+	hasAiWaitingList: () => get().hasFeature(SERVICE_FEATURES.AI_WAITING_LIST),
+	hasAiPrediction: () => get().hasFeature(SERVICE_FEATURES.AI_PREDICTION),
+	hasAiStrategicSlots: () =>
+		get().hasFeature(SERVICE_FEATURES.AI_STRATEGIC_SLOTS),
+
 	// Vérifications de niveau
 	isMinimum: () => get().level === LEVELS.MINIMUM,
 	isIntermediate: () => get().level === LEVELS.INTERMEDIAIRE,
@@ -454,6 +497,16 @@ export const useFeatureLevel = () => {
 		hasNotificationsPush: store.hasNotificationsPush(),
 		hasComptabilite: store.hasComptabilite(),
 		hasAvisGoogle: store.hasAvisGoogle(),
+
+		// ⭐ IA Premium (toggleables depuis le mode dev)
+		hasAiAutoAssign: store.hasAiAutoAssign(),
+		hasAiSlotSuggestions: store.hasAiSlotSuggestions(),
+		hasAiHeatmap: store.hasAiHeatmap(),
+		hasAiAntiGaps: store.hasAiAntiGaps(),
+		hasAiSmartDuration: store.hasAiSmartDuration(),
+		hasAiWaitingList: store.hasAiWaitingList(),
+		hasAiPrediction: store.hasAiPrediction(),
+		hasAiStrategicSlots: store.hasAiStrategicSlots(),
 
 		// Niveaux
 		isMinimum: store.isMinimum(),

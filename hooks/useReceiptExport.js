@@ -23,7 +23,6 @@ export const useReceiptExport = () => {
 				result: "tmpfile",
 			});
 
-			console.log("✅ Reçu capturé:", uri);
 
 			// Vérifier si le partage est disponible
 			const isAvailable = await Sharing.isAvailableAsync();
@@ -44,7 +43,6 @@ export const useReceiptExport = () => {
 				UTI: "public.png",
 			});
 
-			console.log("✅ Reçu partagé avec succès");
 		} catch (error) {
 			console.error("❌ Erreur lors de l'export du reçu:", error);
 			Alert.alert(

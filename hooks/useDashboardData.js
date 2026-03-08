@@ -93,14 +93,10 @@ export const useDashboardData = () => {
 		if (!socket) return;
 
 		const handleReservationUpdate = (event) => {
-			console.log("🔔 Dashboard reçoit mise à jour réservation:", event);
 
 			if (event.type === "updated" && event.data) {
 				// Mettre à jour la réservation dans le store
 				updateReservation(event.data);
-				console.log(
-					`✅ Réservation ${event.data._id} mise à jour avec totalAmount: ${event.data.totalAmount}€`,
-				);
 			}
 		};
 

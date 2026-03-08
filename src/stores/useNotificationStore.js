@@ -384,7 +384,6 @@ const useNotificationStore = create((set, get) => ({
 
 		// Message client
 		socket.on("client-message", (event) => {
-			console.log("📨 [NotificationStore] Message client reçu:", event);
 
 			if (event.type === "new-message" && event.data) {
 				get().addNotification({
@@ -404,7 +403,6 @@ const useNotificationStore = create((set, get) => ({
 
 		// Paiement reçu
 		socket.on("payment-completed", (event) => {
-			console.log("💳 [NotificationStore] Paiement reçu:", event);
 
 			if (event.data) {
 				get().addPaymentNotification({
@@ -423,7 +421,6 @@ const useNotificationStore = create((set, get) => ({
 			}
 		});
 
-		console.log("✅ [NotificationStore] Listeners WebSocket attachés");
 	},
 
 	/**

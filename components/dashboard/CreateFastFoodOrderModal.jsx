@@ -131,16 +131,13 @@ export default function CreateFastFoodOrderModal({
 				setFetchError(null);
 
 				const restaurantId = await AsyncStorage.getItem("restaurantId");
-				console.log("[FastFoodModal] restaurantId:", restaurantId);
 				if (!restaurantId)
 					throw new Error("restaurantId manquant en AsyncStorage");
 
 				const token = await getSecureItem("@access_token");
-				console.log("[FastFoodModal] token présent:", !!token);
 				if (!token) throw new Error("Token d'accès manquant");
 
 				const url = `${API_CONFIG.baseURL}/products/restaurant/${restaurantId}`;
-				console.log("[FastFoodModal] fetch →", url);
 				const response = await fetch(url, {
 					method: "GET",
 					headers: {
@@ -149,21 +146,15 @@ export default function CreateFastFoodOrderModal({
 					},
 				});
 
-				console.log("[FastFoodModal] status:", response.status);
 				if (!response.ok) {
 					const body = await response.text();
 					throw new Error(`Erreur ${response.status} : ${body}`);
 				}
 
 				const data = await response.json();
-				console.log(
-					"[FastFoodModal] produits reçus:",
-					Array.isArray(data) ? data.length : data,
-				);
 				const active = (Array.isArray(data) ? data : []).filter(
 					(p) => p.available !== false && !p.archived,
 				);
-				console.log("[FastFoodModal] produits actifs:", active.length);
 				setLocalProducts(active);
 			} catch (e) {
 				console.error("[FastFoodModal] ❌ Erreur:", e.message);

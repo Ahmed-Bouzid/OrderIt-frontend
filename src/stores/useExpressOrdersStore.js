@@ -12,44 +12,16 @@ const useExpressOrdersStore = create((set, get) => ({
 	// ⭐ Fonction pour attacher les listeners WebSocket
 	attachSocketListener: (socket) => {
 		if (!socket) {
-			console.log(
-				"❌ [EXPRESS ORDERS STORE] Socket null, impossible d'attacher listener",
-			);
 			return;
 		}
 
-		console.log(
-			"✅ [EXPRESS ORDERS STORE] Attachement listener WebSocket order",
-		);
-
 		// Écouter les événements de commande
 		socket.on("order", (event) => {
-			console.log("📡 [EXPRESS ORDERS STORE] WebSocket event reçu:", event);
 			const { type, data } = event;
 			const state = get();
 
 			switch (type) {
 				case "created": {
-					// Calculer le détail des items pour le log
-					const itemsDetail =
-						data.items
-							?.map((item) => `${item.quantity}x ${item.name} (${item.price}€)`)
-							.join(", ") || "Aucun item";
-					const totalItems =
-						data.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-
-					console.log(
-						"➕ [EXPRESS ORDERS STORE] Nouvelle commande:",
-						data._id,
-						"- Client:",
-						data.clientName || "Inconnu",
-						"- Items (",
-						totalItems,
-						"art.):",
-						itemsDetail,
-						"- Total:",
-						data.totalAmount + "€",
-					);
 					// ⭐ Ajouter SEULEMENT les commandes d'origine "client" (CLIENT-end)
 					if (data.origin === "client") {
 						const exists = state.expressOrders.some((o) => o._id === data._id);
@@ -57,11 +29,6 @@ const useExpressOrdersStore = create((set, get) => ({
 							set({
 								expressOrders: [...state.expressOrders, data],
 							});
-							console.log(
-								"✅ [EXPRESS ORDERS STORE] Commande ajoutée à la liste (",
-								state.expressOrders.length + 1,
-								")",
-							);
 						}
 					}
 					break;
@@ -69,14 +36,6 @@ const useExpressOrdersStore = create((set, get) => ({
 
 				case "statusUpdated":
 				case "updated": {
-					console.log(
-						"🔄 [EXPRESS ORDERS STORE] Mise à jour commande:",
-						data._id,
-						"- status:",
-						data.orderStatus || data.status,
-						"- paid:",
-						data.paid,
-					);
 					// Mettre à jour la commande existante
 					const updated = state.expressOrders.map((o) =>
 						o._id === data._id ? data : o,
@@ -86,7 +45,6 @@ const useExpressOrdersStore = create((set, get) => ({
 				}
 
 				case "dismissed": {
-					console.log("🗑️ [EXPRESS ORDERS STORE] Commande masquée:", data._id);
 					// Supprimer la commande de l'affichage (mais pas de la DB)
 					const filtered = state.expressOrders.filter(
 						(o) => o._id !== data._id,
@@ -96,10 +54,6 @@ const useExpressOrdersStore = create((set, get) => ({
 				}
 
 				case "deleted": {
-					console.log(
-						"🗑️ [EXPRESS ORDERS STORE] Commande supprimée:",
-						data._id,
-					);
 					// Supprimer la commande complètement
 					const filtered = state.expressOrders.filter(
 						(o) => o._id !== data._id,
@@ -115,15 +69,10 @@ const useExpressOrdersStore = create((set, get) => ({
 
 		// 💳 Écouter les paiements complétés pour mettre à jour les commandes
 		socket.on("payment-completed", ({ data }) => {
-			console.log("💳 [EXPRESS ORDERS STORE] Paiement reçu:", data);
-
 			if (data && data.orderId) {
 				const state = get();
 				const updated = state.expressOrders.map((order) => {
 					if (order._id === data.orderId) {
-						console.log(
-							`💳 [EXPRESS ORDERS STORE] Mise à jour statut paiement commande ${order._id}`,
-						);
 						return {
 							...order,
 							paid: true,
@@ -158,7 +107,6 @@ const useExpressOrdersStore = create((set, get) => ({
 
 		// Si pas de force et qu'on a déjà des données
 		if (!force && state.expressOrders.length > 0) {
-			console.log("📦 [EXPRESS ORDERS STORE] Données en cache utilisées");
 			return { success: true, data: state.expressOrders };
 		}
 
@@ -173,9 +121,6 @@ const useExpressOrdersStore = create((set, get) => ({
 				// ⭐ Fallback vers l'ID par défaut si aucun restaurant sélectionné
 				if (!restaurantId) {
 					restaurantId = API_CONFIG.RESTAURANT_ID;
-					console.log(
-						`📦 [EXPRESS ORDERS STORE] Utilisation restaurant par défaut: ${restaurantId}`,
-					);
 				}
 
 				if (!token || !restaurantId) {
@@ -188,14 +133,12 @@ const useExpressOrdersStore = create((set, get) => ({
 
 				// ⭐ Récupérer SEULEMENT les commandes d'origine "client"
 				const url = `${API_CONFIG.baseURL}/orders?restaurantId=${restaurantId}&origin=client`;
-				console.log(`📦 [EXPRESS ORDERS STORE] Fetching URL: ${url}`);
 				const response = await fetch(url, {
 					headers: { Authorization: `Bearer ${token}` },
 				});
 
 				// 🔹 si le token est invalide ou expiré
 				if (response.status === 401 || response.status === 403) {
-					console.log("🔒 Token expiré ou invalide");
 					throw new Error("Session expirée");
 				}
 
@@ -216,22 +159,8 @@ const useExpressOrdersStore = create((set, get) => ({
 				const data = await response.json();
 				const fetchedOrders = data.orders || data;
 
-				console.log(`📦 [EXPRESS ORDERS STORE] Réponse API reçue:`, {
-					nbOrders: fetchedOrders.length,
-					orders: fetchedOrders.map((o) => ({
-						id: o._id,
-						orderStatus: o.orderStatus,
-						origin: o.origin,
-						reservationId: o.reservationId?._id || "AUCUNE",
-						reservationStatus: o.reservationId?.status || "N/A",
-					})),
-				});
-
 				// ⭐ IMPORTANT: Fusionner au lieu d'écraser pour garder les commandes WebSocket
 				const currentOrders = get().expressOrders;
-				console.log(
-					`📦 [EXPRESS ORDERS STORE] Commandes actuelles en store: ${currentOrders.length}`,
-				);
 
 				const fetchedIds = new Set(fetchedOrders.map((o) => o._id));
 
@@ -244,46 +173,16 @@ const useExpressOrdersStore = create((set, get) => ({
 						new Date(o.createdAt) > new Date(Date.now() - 4 * 60 * 60 * 1000),
 				);
 
-				console.log(
-					`📦 [EXPRESS ORDERS STORE] Commandes WebSocket récentes gardées: ${newWebSocketOrders.length}`,
-				);
-
 				const allOrders = [...fetchedOrders, ...newWebSocketOrders];
-
-				console.log(
-					`📦 [EXPRESS ORDERS STORE] Total après fusion: ${allOrders.length}`,
-				);
 
 				// 🔹 Trier par date de création (plus récent en premier)
 				const sortedOrders = allOrders.sort(
 					(a, b) => new Date(b.createdAt) - new Date(a.createdAt),
 				);
 
-				console.log(
-					`✅ [EXPRESS ORDERS STORE] Envoi au state: ${sortedOrders.length} commandes`,
-				);
-
 				set({
 					expressOrders: sortedOrders,
 					isLoading: false,
-				});
-
-				console.log(
-					`📦 [EXPRESS ORDERS STORE] ${sortedOrders.length} commandes express chargées`,
-				);
-
-				// 📊 Log détaillé de chaque commande pour debug
-				sortedOrders.forEach((order, index) => {
-					const totalItems =
-						order.items?.reduce((sum, item) => sum + item.quantity, 0) || 0;
-					const itemsDetail =
-						order.items
-							?.map((item) => `${item.quantity}x ${item.name}`)
-							.join(", ") || "Aucun item";
-
-					console.log(
-						`  ${index + 1}. [${order._id.slice(-6)}] ${order.clientName} - ${totalItems} art. (${itemsDetail}) - ${order.totalAmount}€`,
-					);
 				});
 
 				return {
@@ -416,10 +315,6 @@ const useExpressOrdersStore = create((set, get) => ({
 			const filtered = state.expressOrders.filter((o) => o._id !== orderId);
 			set({ expressOrders: filtered });
 
-			console.log(
-				`✅ [EXPRESS ORDERS STORE] Commande ${orderId} marquée comme préparée`,
-			);
-
 			return { success: true };
 		} catch (error) {
 			console.error("❌ [EXPRESS ORDERS STORE] Erreur mark made:", error);
@@ -462,10 +357,6 @@ const useExpressOrdersStore = create((set, get) => ({
 				(o) => !orderIdsSet.has(o._id),
 			);
 			set({ expressOrders: filtered });
-
-			console.log(
-				`✅ [EXPRESS ORDERS STORE] ${orderIds.length} commandes marquées comme préparées`,
-			);
 
 			return { success: true, count: orderIds.length };
 		} catch (error) {

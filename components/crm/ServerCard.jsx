@@ -59,14 +59,19 @@ const ServerCard = ({
 	const performanceData = useMemo(() => {
 		if (!server) return null;
 
+		// Les stats viennent de server.performance (réponse API /crm/servers)
+		// Le backend retourne { ...serverDoc, performance: { totalOrders, totalSales, ... } }
+		const perf = server.performance || server; // fallback si aplati
+
 		const {
 			totalOrders = 0,
-			totalRevenue = 0,
+			totalSales = 0,
+			totalRevenue = totalSales, // compatibilité
 			averageServiceTime = 0,
 			customerRating = 0,
 			upsellRate = 0,
-			performanceScore = 0,
-		} = server;
+			efficiency: performanceScore = 0,
+		} = perf;
 
 		// Score de performance avec couleur
 		let scoreColor = "#EF4444"; // Rouge

@@ -17,12 +17,10 @@ const useProductStore = create((set, get) => ({
 			return;
 		}
 
-		console.log("🔌 Attachement des listeners WebSocket pour produits");
 		socketListenerAttached = true;
 
 		socket.on("product", (event) => {
 			const { type, data } = event;
-			console.log(`📡 Événement produit reçu: ${type}`, data);
 
 			const state = get();
 
@@ -67,13 +65,11 @@ const useProductStore = create((set, get) => ({
 
 		// ⭐ Si les produits existent déjà en cache, ne pas refetch
 		if (state.products.length > 0) {
-			console.log("📦 Produits déjà en cache, pas de fetch");
 			return state.products;
 		}
 
 		// ⭐ BLOQUER COMPLÈTEMENT les appels parallèles
 		if (isFetching || fetchPromise) {
-			console.log("⏳ Requête produits déjà en cours, attente...");
 			if (fetchPromise) return fetchPromise;
 			// Attendre que isFetching passe à false
 			while (isFetching) {

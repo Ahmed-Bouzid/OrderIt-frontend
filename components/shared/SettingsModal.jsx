@@ -92,10 +92,7 @@ export default function SettingsModal({
 												text: "Oui",
 												onPress: () => {
 													setShowSettings?.(false);
-													console.log(
-														"❌ Annuler réservation",
-														activeReservation?.id
-													);
+
 												},
 											},
 										]

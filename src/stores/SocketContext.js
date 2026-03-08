@@ -44,8 +44,6 @@ export const SocketProvider = ({ children }) => {
 		attachServerListener(socketInstance);
 		attachTableListener(socketInstance);
 		attachNotificationListeners(socketInstance);
-
-		console.log("✅ Listeners attachés (incluant notifications)");
 	}, []);
 
 	const setupSocket = useCallback(async () => {
@@ -54,9 +52,6 @@ export const SocketProvider = ({ children }) => {
 			const restaurantId = await AsyncStorage.getItem("restaurantId");
 
 			if (!restaurantId) {
-				console.log(
-					"ℹ️ Pas de restaurant sélectionné, socket non initialisé (mode développeur)",
-				);
 				setConnected(false);
 				return;
 			}
@@ -70,7 +65,6 @@ export const SocketProvider = ({ children }) => {
 				// ✅ Écouter les reconnexions (listeners survivent à la reconnexion)
 				socketInstance.on("connect", () => {
 					setConnected(true);
-					console.log("📡 Socket reconnecté");
 					// ✅ NE PAS réattacher : les listeners persistent entre reconnexions
 					// Réattacher causerait des doublons → memory leak
 				});

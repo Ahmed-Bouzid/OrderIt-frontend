@@ -44,13 +44,6 @@ const useUserStore = create((set, get) => ({
 				isManager,
 			});
 
-			console.log("✅ UserStore initialisé:", {
-				role,
-				userType,
-				category,
-				isManager,
-			});
-
 			// 🎯 Initialiser automatiquement le Feature Level Store
 			if (category) {
 				await useFeatureLevelStore.getState().init(category);
@@ -92,7 +85,6 @@ const useUserStore = create((set, get) => ({
 				isManager,
 			});
 
-			console.log("✅ UserStore mis à jour:", { role, userType, isManager });
 		} catch (error) {
 			console.error("❌ Erreur setUser:", error);
 		}
@@ -119,7 +111,6 @@ const useUserStore = create((set, get) => ({
 				isManager: false,
 			});
 
-			console.log("✅ UserStore réinitialisé");
 		} catch (error) {
 			console.error("❌ Erreur clear UserStore:", error);
 		}

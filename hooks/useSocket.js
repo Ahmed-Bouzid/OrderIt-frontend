@@ -59,19 +59,13 @@ const isSoftDisconnect = (reason) => {
 const scheduleFallbackExit = () => {
 	if (fallbackExitTimer) clearTimeout(fallbackExitTimer);
 
-	console.log(
-		`⏱️ Sortie du fallback planifiée dans ${FALLBACK_EXIT_DELAY / 60000}min`,
-	);
-
 	fallbackExitTimer = setTimeout(() => {
 		if (globalFallbackMode) {
-			console.log("🔄 Tentative de sortie du mode fallback...");
 			globalFallbackMode = false;
 			globalReconnectAttempts = 0;
 
 			// Tenter une reconnexion si le socket existe mais est déconnecté
 			if (socketInstance && !socketInstance.connected) {
-				console.log("🔌 Reconnexion automatique depuis le fallback");
 				socketInstance.connect();
 			}
 		}
@@ -90,13 +84,9 @@ const startHeartbeat = (socket) => {
 	}
 
 	if (!socket || !socket.connected) {
-		console.log("⏭️ Heartbeat ignoré: socket non connecté");
 		return;
 	}
 
-	console.log(
-		`💓 Démarrage du heartbeat (intervalle: ${HEARTBEAT_INTERVAL}ms)`,
-	);
 	lastPingTime = Date.now();
 
 	heartbeatTimer = setInterval(() => {
@@ -119,7 +109,6 @@ const startHeartbeat = (socket) => {
  */
 const stopHeartbeat = () => {
 	if (heartbeatTimer) {
-		console.log("🛑 Arrêt du heartbeat");
 		clearInterval(heartbeatTimer);
 		heartbeatTimer = null;
 		lastPingTime = null;
@@ -139,7 +128,6 @@ const notifyConnectionChange = (type, message) => {
 		// TODO: Intégrer Toast ici si disponible
 		// Toast.show({ type: "error", text1: "Connexion perdue", text2: message });
 	} else if (type === "restored" && connectionLostNotified) {
-		console.log("📡 " + message);
 		connectionLostNotified = false;
 		// TODO: Intégrer Toast ici si disponible
 		// Toast.show({ type: "success", text1: "Reconnecté", text2: message });
@@ -186,27 +174,23 @@ const useSocket = () => {
 			const refreshToken = await getSecureItem("refreshToken");
 
 			if (!token || !refreshToken) {
-				console.log("ℹ️ Socket: En attente de connexion utilisateur");
 				globalFallbackMode = true;
 				return null;
 			}
 
 			// Si déjà connecté, retourner l'instance existante
 			if (socketInstance && socketInstance.connected) {
-				console.log("🔌 Socket déjà connecté");
 				socketRef.current = socketInstance;
 				return socketInstance;
 			}
 
 			// Si une instance existe mais déconnectée, nettoyer les anciens listeners
 			if (socketInstance) {
-				console.log("🔌 Nettoyage des anciens listeners...");
 				cleanupInternalListeners(socketInstance);
 			}
 
 			// Créer ou récupérer l'instance
 			if (!socketInstance) {
-				console.log("🔌 Création d'une nouvelle connexion Socket.io...");
 				socketInstance = io(SOCKET_CONFIG.socketURL, {
 					...SOCKET_CONFIG.options,
 					auth: { token },
@@ -224,8 +208,6 @@ const useSocket = () => {
 			// ============ LISTENER: CONNEXION RÉUSSIE ============
 			socket.off("connect"); // Nettoyer l'ancien
 			socket.on("connect", () => {
-				console.log("✅ Socket connecté avec succès");
-
 				// Réinitialiser les compteurs
 				globalReconnectAttempts = 0;
 				globalFallbackMode = false;
@@ -259,9 +241,6 @@ const useSocket = () => {
 
 				// Différencier les types de déconnexion
 				if (isSoftDisconnect(reason)) {
-					console.log(
-						"💤 Déconnexion douce (timeout/inactivité) - reconnexion automatique...",
-					);
 					// Ne pas incrémenter le compteur pour les déconnexions douces
 					// Socket.io reconnectera automatiquement avec un délai court
 
@@ -281,7 +260,6 @@ const useSocket = () => {
 					);
 					socket.connect();
 				} else if (reason === "io client disconnect") {
-					console.log("ℹ️ Déconnexion manuelle par le client");
 					// Déconnexion volontaire, ne rien faire
 				} else {
 					console.error(`❌ Déconnexion critique: ${reason}`);
@@ -312,21 +290,12 @@ const useSocket = () => {
 						);
 					}
 				} else {
-					console.log(
-						"⏱️ Token expiré/invalide (normal après inactivité):",
-						errorMsg,
-					);
-
 					// ⭐ Vérifier si c'est une erreur d'authentification
 					if (
 						errorMsg.toLowerCase().includes("token invalide") ||
 						errorMsg.toLowerCase().includes("unauthorized") ||
 						errorMsg.toLowerCase().includes("authentification")
 					) {
-						console.log(
-							"🔐 Session expirée → Redirection login (comportement normal)",
-						);
-
 						// pour éviter la boucle infinie de reconnexion
 						stopHeartbeat();
 						if (socketInstance) {
@@ -352,9 +321,6 @@ const useSocket = () => {
 
 					// Calcul du backoff
 					const delay = calculateBackoffDelay(globalReconnectAttempts - 1);
-					console.log(
-						`🔄 Tentative ${globalReconnectAttempts}/${MAX_RECONNECT_ATTEMPTS} - Prochaine dans ${delay}ms`,
-					);
 
 					// Activer le fallback après max tentatives
 					if (globalReconnectAttempts >= MAX_RECONNECT_ATTEMPTS) {
@@ -375,9 +341,7 @@ const useSocket = () => {
 
 			// ============ LISTENER: TENTATIVE DE RECONNEXION ============
 			socket.off("reconnect_attempt");
-			socket.on("reconnect_attempt", (attemptNumber) => {
-				console.log(`🔄 Tentative de reconnexion #${attemptNumber}...`);
-			});
+			socket.on("reconnect_attempt", (attemptNumber) => {});
 
 			// ============ LISTENER: ÉCHEC DÉFINITIF ============
 			socket.off("reconnect_failed");
@@ -397,8 +361,6 @@ const useSocket = () => {
 	}, []);
 
 	const disconnect = useCallback(() => {
-		console.log("🔌 Déconnexion manuelle du socket...");
-
 		// Arrêter le heartbeat
 		stopHeartbeat();
 

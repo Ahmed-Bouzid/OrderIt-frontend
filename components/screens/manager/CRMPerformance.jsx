@@ -122,7 +122,6 @@ export default function CRMPerformance({ onClose }) {
 
 	const handleServerPress = useCallback((server) => {
 		// Navigation vers les détails du serveur
-		console.log("Afficher détails serveur:", server.name);
 	}, []);
 
 	const handleContactPress = useCallback((server) => {
@@ -130,7 +129,7 @@ export default function CRMPerformance({ onClose }) {
 			{ text: "Annuler", style: "cancel" },
 			{
 				text: "Message",
-				onPress: () => console.log("Envoyer message à", server.name),
+				onPress: () => {},
 			},
 		]);
 	}, []);
@@ -138,7 +137,6 @@ export default function CRMPerformance({ onClose }) {
 	const markCoachingCompleted = useCallback(
 		async (recommendationId, notes = "") => {
 			try {
-				console.log("Marqué comme complété:", recommendationId, notes);
 				Alert.alert("Succès", "Coaching marqué comme complété");
 			} catch (_error) {
 				Alert.alert("Erreur", "Impossible de marquer comme complété");

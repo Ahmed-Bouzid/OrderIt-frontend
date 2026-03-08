@@ -20,6 +20,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import useSocket from "../../hooks/useSocket";
 import useUserStore from "../../src/stores/useUserStore";
+import { getItem as getSecureItem } from "../../utils/secureStorage";
 
 const COLORS = {
 	primary: "#6366f1",
@@ -49,12 +50,13 @@ export default function ClientMessagesPanel({ visible, onClose, onOpen }) {
 	const [messages, setMessages] = useState([]);
 	const [loading, setLoading] = useState(false);
 	const { socket, isConnected } = useSocket();
-	const { restaurantId, token } = useUserStore();
+	const { restaurantId } = useUserStore();
 
 	// Charger les messages au montage et quand le panel s'ouvre
 	const loadMessages = async () => {
 		setLoading(true);
 		try {
+			const token = await getSecureItem("access_token");
 			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/restaurant/${restaurantId}?status=sent`;
 
 			const response = await fetch(url, {
@@ -90,7 +92,6 @@ export default function ClientMessagesPanel({ visible, onClose, onOpen }) {
 
 		const handleNewMessage = (event) => {
 			if (event.type === "new-message") {
-				console.log("📨 [Panel] Nouveau message reçu:", event.data);
 
 				const newMessage = {
 					_id: event.data.messageId,
@@ -120,6 +121,7 @@ export default function ClientMessagesPanel({ visible, onClose, onOpen }) {
 	// Marquer un message comme validé (lu)
 	const validateMessage = async (messageId) => {
 		try {
+			const token = await getSecureItem("access_token");
 			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/${messageId}/read`;
 
 			const response = await fetch(url, {

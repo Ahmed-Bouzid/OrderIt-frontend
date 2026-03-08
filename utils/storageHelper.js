@@ -29,15 +29,12 @@ export async function clearAllUserData() {
 	try {
 		// Nettoyer SecureStore + AsyncStorage via wrapper
 		await multiRemove(keys);
-		console.log("✅ SecureStore + AsyncStorage nettoyés");
 
 		// Vider le store Zustand
 		useUserStore.getState().clear();
-		console.log("✅ UserStore vidé");
 
 		// 🛡️ SÉCURITÉ CRITIQUE: Reset DeveloperStore pour éviter faille
 		await useDeveloperStore.getState().reset();
-		console.log("✅ DeveloperStore réinitialisé (sécurité)");
 	} catch (error) {
 		console.error("❌ Erreur clearAllUserData:", error);
 		throw error;

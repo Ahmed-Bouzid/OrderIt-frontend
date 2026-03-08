@@ -30,6 +30,7 @@ import { useAuthFetch } from "../../hooks/useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../src/stores/useThemeStore";
 import useReservationStore from "../../src/stores/useReservationStore";
+import useUserStore from "../../src/stores/useUserStore";
 import { useTheme } from "../../hooks/useTheme";
 import useSocket from "../../hooks/useSocket";
 import { ReceiptModal } from "../receipt";
@@ -152,6 +153,63 @@ export default function Floor({ onStart }) {
 		(state) => state.updateReservation,
 	);
 
+	// 🔒 Récupérer le rôle et l'ID du serveur connecté
+	const userId = useUserStore((state) => state.userId);
+	const userRole = useUserStore((state) => state.role);
+	const isManager = useUserStore((state) => state.isManager);
+	const isServerOnly = userRole === "server" && !isManager;
+
+	// 🔒 Tables des réservations ouvertes du serveur connecté
+	const myOpenTableIds = useMemo(() => {
+		if (!isServerOnly) return null; // admin/manager → pas de filtre
+		const today = new Date();
+		const todayStart = new Date(
+			today.getFullYear(),
+			today.getMonth(),
+			today.getDate(),
+		);
+		const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
+
+		const myResas = reservations.filter((r) => {
+			const serverId = String(r.serverId?._id || r.serverId || "");
+			const d = new Date(r.reservationDate || r.createdAt);
+			return (
+				serverId === userId &&
+				r.status === "ouverte" &&
+				d >= todayStart &&
+				d < todayEnd
+			);
+		});
+
+		const tableIds = myResas
+			.map((r) => String(r.tableId?._id || r.tableId || ""))
+			.filter(Boolean);
+
+		return new Set(tableIds);
+	}, [isServerOnly, userId, reservations]);
+
+	// Helper : vérifie si une commande appartient aux tables ouvertes du serveur
+	const isMyOrder = useCallback(
+		(order) => {
+			if (!myOpenTableIds) return true; // admin/manager voit tout
+			const tableId = String(order.tableId?._id || order.tableId || "");
+			return myOpenTableIds.has(tableId);
+		},
+		[myOpenTableIds],
+	);
+
+	// Helper : vérifie si une réservation appartient au serveur connecté
+	const isMyReservation = useCallback(
+		(reservation) => {
+			if (!isServerOnly) return true; // admin/manager voit tout
+			const serverId = String(
+				reservation.serverId?._id || reservation.serverId || "",
+			);
+			return serverId === userId;
+		},
+		[isServerOnly, userId],
+	);
+
 	// ⭐ Stats Caisse dynamiques + listes de réservations (jour actuel uniquement)
 	const caisseStats = useMemo(() => {
 		const today = new Date();
@@ -167,10 +225,10 @@ export default function Floor({ onStart }) {
 		};
 
 		const enCours = reservations.filter(
-			(r) => r.status !== "terminée" && isToday(r),
+			(r) => r.status !== "terminée" && isToday(r) && isMyReservation(r),
 		);
 		const payees = reservations.filter(
-			(r) => r.status === "terminée" && isToday(r),
+			(r) => r.status === "terminée" && isToday(r) && isMyReservation(r),
 		);
 
 		return {
@@ -181,7 +239,7 @@ export default function Floor({ onStart }) {
 			payeesMontant: payees.reduce((sum, r) => sum + (r.totalAmount || 0), 0),
 			payeesList: payees,
 		};
-	}, [reservations]);
+	}, [reservations, isMyReservation]);
 
 	// Connecter le socket au montage
 	useEffect(() => {
@@ -246,7 +304,6 @@ export default function Floor({ onStart }) {
 			const products = result?.lowStockProducts || {};
 			const total = result?.total || 0;
 
-
 			setLowStockProducts(products);
 		} catch (error) {
 			console.error("❌ [STOCK] Erreur chargement stocks:", error);
@@ -278,7 +335,6 @@ export default function Floor({ onStart }) {
 	// WebSocket listeners pour updates instantanées
 	useEffect(() => {
 		if (!restaurantId || !socketReady) return;
-
 
 		const handleOrderCreated = (order) => {
 			if (order.restaurantId === restaurantId) {
@@ -354,8 +410,10 @@ export default function Floor({ onStart }) {
 	}, [restaurantId, fetchOrders, fetchLowStock]);
 
 	// Extraire tous les items avec métadonnées (exclure "autre")
+	// 🔒 Serveur : uniquement les items de SES commandes
 	const allItems = useMemo(() => {
 		const items = orders
+			.filter(isMyOrder)
 			.flatMap((order) =>
 				order.items.map((item) => ({
 					...item,
@@ -368,7 +426,7 @@ export default function Floor({ onStart }) {
 			)
 			.filter((item) => item.category && item.category !== "autre");
 		return items;
-	}, [orders]);
+	}, [orders, isMyOrder]);
 
 	// Compter items par catégorie (exclure servis/annulés)
 	const getCategoryCount = useCallback(

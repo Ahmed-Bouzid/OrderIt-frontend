@@ -19,6 +19,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Activity from "../../components/screens/Activity";
 import FloorScreen from "../../components/screens/Floor";
+import AgendaScreen from "../../components/screens/AgendaScreen";
 import Settings from "../../components/screens/Settings";
 import useSocket from "../../hooks/useSocket";
 import { getItem } from "../../utils/secureStorage";
@@ -33,6 +34,7 @@ import ClientMessagesPanel from "../../components/ui/ClientMessagesPanel";
 const ALL_TABS = [
 	{ name: "activity", label: "Activité", icon: "calendar-outline" },
 	{ name: "floor", label: "Floor", icon: "map-outline" },
+	{ name: "agenda", label: "Agenda", icon: "time-outline" },
 	{ name: "reglage", label: "Réglages", icon: "settings-outline" },
 ];
 
@@ -122,10 +124,8 @@ export default function TabsLayout() {
 
 				// Cache invalide ou absent → fetch API
 
-				const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${restaurantId}`;
-				const response = await fetch(url, {
-					headers: { Authorization: `Bearer ${token}` },
-				});
+				const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${restaurantId}/info`;
+				const response = await fetch(url);
 
 				if (response.ok) {
 					const data = await response.json();
@@ -287,6 +287,8 @@ export default function TabsLayout() {
 				return <Activity onStart={handleStart} />;
 			case "floor":
 				return <FloorScreen />;
+			case "agenda":
+				return <AgendaScreen />;
 			case "reglage":
 				return <Settings />;
 			default:
@@ -326,11 +328,8 @@ export default function TabsLayout() {
 					{/* Bouton Messages avec badge */}
 					{/* <TouchableOpacity
 						onPress={() => {
-							console.log("🔔 Bouton Messages cliqué");
-							console.log("showMessagesPanel avant:", showMessagesPanel);
 							setShowMessagesPanel(true);
 							setUnreadMessagesCount(0);
-							console.log("showMessagesPanel après:", true);
 						}}
 						style={tabStyles.messagesButton}
 						activeOpacity={0.7}

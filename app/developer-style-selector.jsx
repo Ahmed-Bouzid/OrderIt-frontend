@@ -44,7 +44,6 @@ export default function DeveloperStyleSelector() {
 	};
 
 	const loadData = useCallback(async () => {
-		console.log("🔄 [StyleSelector] Chargement des données...");
 		setLoading(true);
 		try {
 			const [restaurantsData, stylesData] = await Promise.all([
@@ -52,8 +51,6 @@ export default function DeveloperStyleSelector() {
 				authFetch("/developer/styles", { method: "GET" }),
 			]);
 
-			console.log("📥 Restaurants:", restaurantsData?.count || 0);
-			console.log("📥 Styles:", stylesData?.count || 0);
 
 			if (restaurantsData?.restaurants) {
 				setRestaurants(restaurantsData.restaurants);

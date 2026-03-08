@@ -5,6 +5,7 @@ import { useAuthFetch, redirectToLogin } from "./useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../src/config/apiConfig";
 import useReservationStore from "../src/stores/useReservationStore";
+import { useServerStore } from "../src/stores/useRestaurantStaffStore";
 import { getItem as getSecureItem } from "../utils/secureStorage";
 
 /**
@@ -23,7 +24,9 @@ export const useActivityData = () => {
 	const [reservationsError, setReservationsError] = useState(null);
 	const [products, setProducts] = useState([]); // Ajout produits
 	const [productsError, setProductsError] = useState(null);
-	const [servers, setServers] = useState([]); // ⭐ Ajout serveurs
+	// ⭐ Serveurs gérés par le store Zustand (pour réactivité WebSocket)
+	const storeServers = useServerStore((state) => state.servers);
+	const setStoreServers = useServerStore((state) => state.setServers);
 	const [tableId, setTableId] = useState(null); // ⭐ Ajout tableId
 	const [serverId, setServerId] = useState(null); // ⭐ Ajout serverId
 	const authFetch = useAuthFetch();
@@ -54,6 +57,12 @@ export const useActivityData = () => {
 				category &&
 				NON_ACTIVITY_CATEGORIES.includes(category.toLowerCase().trim())
 			) {
+				// ⚡ Charger restaurantId même en early return pour éviter l'alerte
+				// "restaurantId manquant" dans Activity.jsx (montée par Expo Router avant le filtrage des tabs)
+				const ridFallback =
+					(await AsyncStorage.getItem("restaurantId")) ||
+					API_CONFIG.RESTAURANT_ID;
+				setRestaurantId(ridFallback);
 				setIsLoading(false);
 				return;
 			}
@@ -77,15 +86,6 @@ export const useActivityData = () => {
 				setRestaurantId(finalRestaurantId);
 				setTableId(tidValue); // ⭐ Charger tableId
 				setServerId(sidValue); // ⭐ Charger serverId
-
-				console.log(
-					"🔑 useActivityData chargé - restaurantId:",
-					finalRestaurantId,
-					"| tableId:",
-					tidValue,
-					"| serverId:",
-					sidValue,
-				);
 
 				// ⭐ Fetch des réservations via le store Zustand (force refresh au chargement)
 				if (tokenValue && finalRestaurantId) {
@@ -125,10 +125,9 @@ export const useActivityData = () => {
 							: Array.isArray(responseServers?.servers)
 								? responseServers.servers
 								: [];
-						setServers(serversData);
-						console.log("✅ Serveurs chargés:", serversData.length);
+						setStoreServers(serversData);
 					} catch (serverErr) {
-						setServers([]);
+						setStoreServers([]);
 						console.error("❌ Erreur fetch serveurs:", serverErr);
 					}
 					hasFetchedRef.current = true; // Marquer comme chargé pour éviter le double-fetch
@@ -154,7 +153,7 @@ export const useActivityData = () => {
 		reservationsError,
 		products,
 		productsError,
-		servers, // ⭐ Ajout serveurs
+		servers: storeServers, // ⭐ Depuis le store Zustand (synchro WebSocket)
 		tableId, // ⭐ Ajout tableId
 		serverId, // ⭐ Ajout serverId
 	};

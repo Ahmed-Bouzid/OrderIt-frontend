@@ -11,7 +11,6 @@ export function useFetchWithAuth() {
 
 			if (!token) {
 				// Token manquant - redirection immédiate
-				console.log("❌ Aucun token disponible");
 				throw new Error("NO_TOKEN");
 			}
 
@@ -32,7 +31,6 @@ export function useFetchWithAuth() {
 
 			// 🔥 CRITIQUE : Gérer les erreurs de token SANS créer de boucle
 			if (response.status === 401 || response.status === 403) {
-				console.log("🔒 Token invalide/expiré, nettoyage...");
 				await AsyncStorage.removeItem("@access_token");
 
 				// NE PAS appeler Alert.alert ou router.replace ici
@@ -44,7 +42,6 @@ export function useFetchWithAuth() {
 			if (response.status === 429) {
 				if (retryCount < 3) {
 					const delay = Math.pow(2, retryCount) * 1000;
-					console.log(`⏳ 429 - Retry dans ${delay}ms`);
 					await new Promise((resolve) => setTimeout(resolve, delay));
 					return fetchWithAuth(url, {
 						method,

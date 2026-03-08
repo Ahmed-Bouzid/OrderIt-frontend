@@ -3,7 +3,13 @@
  * Interface de sélection de table avec design spatial et animations
  * Support Mode Clair/Sombre
  */
-import React, { useEffect, useRef, useMemo, useState } from "react";
+import React, {
+	useEffect,
+	useRef,
+	useMemo,
+	useState,
+	useCallback,
+} from "react";
 import {
 	Modal,
 	View,
@@ -13,12 +19,15 @@ import {
 	StyleSheet,
 	Animated,
 	ScrollView,
+	ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
+import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
+import { useReservationAI } from "../../hooks/useReservationAI";
 
 // ─────────────── Table Button Component ───────────────
 const TableButton = React.memo(
@@ -109,7 +118,7 @@ const TableButton = React.memo(
 				</TouchableOpacity>
 			</Animated.View>
 		);
-	}
+	},
 );
 
 TableButton.displayName = "TableButton";
@@ -127,9 +136,21 @@ const AssignTableModal = React.memo(
 		const tableStyles = useMemo(() => createTableStyles(THEME), [THEME]);
 		const authFetch = useAuthFetch();
 
+		// ── IA ──────────────────────────────────────────────────────────────
+		const { hasAiAutoAssign } = useFeatureLevel();
+		const { autoAssign, loading: aiLoading } = useReservationAI();
+		const [aiSuggestion, setAiSuggestion] = useState(null);
+
+		const handleAutoAssign = useCallback(async () => {
+			if (!activeReservation?._id) return;
+			setAiSuggestion(null);
+			const result = await autoAssign(activeReservation._id);
+			if (result) setAiSuggestion(result);
+		}, [autoAssign, activeReservation]);
+
 		// ⭐ Tables avec disponibilité calculée
 		const [tablesWithAvailability, setTablesWithAvailability] = useState(
-			tables || []
+			tables || [],
 		);
 		const [loadingTables, setLoadingTables] = useState(false);
 
@@ -161,18 +182,10 @@ const AssignTableModal = React.memo(
 						.split("T")[0];
 					const time = activeReservation.reservationTime;
 
-					console.log("🔄 [ASSIGN] Chargement disponibilité:", {
-						date: dateISO,
-						time,
-						restaurantId,
-						excludeReservationId: activeReservation._id,
-					});
-
 					const enrichedTables = await authFetch(
-						`/tables/restaurant/${restaurantId}/available?date=${dateISO}&time=${time}&excludeReservationId=${activeReservation._id}`
+						`/tables/restaurant/${restaurantId}/available?date=${dateISO}&time=${time}&excludeReservationId=${activeReservation._id}`,
 					);
 
-					console.log("✅ [ASSIGN] Tables avec disponibilité:", enrichedTables);
 					setTablesWithAvailability(enrichedTables || tables || []);
 				} catch (error) {
 					console.error("❌ [ASSIGN] Erreur chargement disponibilité:", error);
@@ -216,10 +229,10 @@ const AssignTableModal = React.memo(
 
 		// Séparer les tables par disponibilité
 		const availableTables = safeTables.filter(
-			(t) => t.isAvailable || t._id === activeReservation?.tableId
+			(t) => t.isAvailable || t._id === activeReservation?.tableId,
 		);
 		const occupiedTables = safeTables.filter(
-			(t) => !t.isAvailable && t._id !== activeReservation?.tableId
+			(t) => !t.isAvailable && t._id !== activeReservation?.tableId,
 		);
 
 		return (
@@ -322,7 +335,67 @@ const AssignTableModal = React.memo(
 										<Text style={modalStyles.legendText}>Occupée</Text>
 									</View>
 								</View>
+								{/* ── IA Auto-Assign ─────────────────────────────────────────── */}
+								{hasAiAutoAssign && (
+									<View style={modalStyles.aiBar}>
+										<TouchableOpacity
+											style={[
+												modalStyles.aiButton,
+												aiLoading.autoAssign && { opacity: 0.6 },
+											]}
+											onPress={handleAutoAssign}
+											disabled={!!aiLoading.autoAssign}
+										>
+											{aiLoading.autoAssign ? (
+												<ActivityIndicator size="small" color="#F59E0B" />
+											) : (
+												<Ionicons
+													name="color-wand-outline"
+													size={15}
+													color="#F59E0B"
+												/>
+											)}
+											<Text style={modalStyles.aiButtonText}>
+												{aiLoading.autoAssign
+													? "Analyse en cours…"
+													: "Assigner automatiquement"}
+											</Text>
+										</TouchableOpacity>
 
+										{aiSuggestion && (
+											<TouchableOpacity
+												style={modalStyles.aiResultCard}
+												onPress={() =>
+													onAssignTable?.(
+														activeReservation._id,
+														aiSuggestion.tableId,
+													)
+												}
+											>
+												<View style={modalStyles.aiResultLeft}>
+													<Ionicons name="sparkles" size={14} color="#F59E0B" />
+													<Text style={modalStyles.aiResultTable}>
+														Table {aiSuggestion.tableName}
+													</Text>
+													<Text style={modalStyles.aiResultCapacity}>
+														{aiSuggestion.capacity} pers.
+													</Text>
+												</View>
+												<View style={modalStyles.aiResultRight}>
+													<Text
+														style={modalStyles.aiResultReason}
+														numberOfLines={1}
+													>
+														{aiSuggestion.reason}
+													</Text>
+													<Text style={modalStyles.aiResultConfirm}>
+														Confirmer →
+													</Text>
+												</View>
+											</TouchableOpacity>
+										)}
+									</View>
+								)}
 								{/* Tables Grid */}
 								<ScrollView
 									style={modalStyles.tablesScroll}
@@ -353,7 +426,7 @@ const AssignTableModal = React.memo(
 																if (onAssignTable && activeReservation?._id) {
 																	onAssignTable(
 																		activeReservation._id,
-																		table._id
+																		table._id,
 																	);
 																}
 															}}
@@ -413,7 +486,7 @@ const AssignTableModal = React.memo(
 				</TouchableWithoutFeedback>
 			</Modal>
 		);
-	}
+	},
 );
 
 AssignTableModal.displayName = "AssignTableModal";
@@ -556,6 +629,70 @@ const createModalStyles = (THEME) =>
 			fontSize: THEME.typography.sizes.md,
 			color: THEME.colors.text.secondary,
 			fontWeight: THEME.typography.weights.medium,
+		},
+		// ── IA Styles ──────────────────────────────────────────────────────
+		aiBar: {
+			paddingHorizontal: THEME.spacing.lg,
+			paddingBottom: THEME.spacing.sm,
+			gap: THEME.spacing.sm,
+		},
+		aiButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			backgroundColor: "rgba(245, 158, 11, 0.10)",
+			borderWidth: 1,
+			borderColor: "rgba(245, 158, 11, 0.28)",
+			borderRadius: THEME.radius.md,
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			alignSelf: "flex-start",
+		},
+		aiButtonText: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: "#F59E0B",
+		},
+		aiResultCard: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
+			backgroundColor: "rgba(245, 158, 11, 0.08)",
+			borderWidth: 1,
+			borderColor: "rgba(245, 158, 11, 0.22)",
+			borderRadius: THEME.radius.md,
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+		},
+		aiResultLeft: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+		},
+		aiResultTable: {
+			fontSize: 14,
+			fontWeight: "700",
+			color: "#F59E0B",
+		},
+		aiResultCapacity: {
+			fontSize: 11,
+			color: THEME.colors.text.muted,
+		},
+		aiResultRight: {
+			flex: 1,
+			marginLeft: THEME.spacing.sm,
+			alignItems: "flex-end",
+		},
+		aiResultReason: {
+			fontSize: 11,
+			color: THEME.colors.text.muted,
+			textAlign: "right",
+		},
+		aiResultConfirm: {
+			fontSize: 12,
+			fontWeight: "600",
+			color: "#F59E0B",
+			marginTop: 2,
 		},
 	});
 

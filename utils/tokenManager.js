@@ -37,14 +37,12 @@ export async function getValidToken() {
 		}
 
 		// Token expiré → refresh
-		console.log("🔄 Token expiré, refresh en cours...");
 		const newTokens = await refreshAccessToken(refreshToken);
 
 		if (newTokens) {
 			// Sauvegarder de manière sécurisée (SecureStore)
 			await setItem("@access_token", newTokens.accessToken);
 			await setItem("refreshToken", newTokens.refreshToken);
-			console.log("✅ Token rafraîchi avec succès");
 			return newTokens.accessToken;
 		}
 
@@ -180,7 +178,6 @@ export async function fetchWithAuth(url, options = {}) {
 				throw new Error("Session expirée, veuillez vous reconnecter");
 			}
 
-			console.log("🔄 401/403 détecté sur GET, tentative de refresh...");
 
 			const refreshToken = await getItem("refreshToken");
 			const newTokens = await refreshAccessToken(refreshToken);

@@ -14,12 +14,10 @@ export const useServerStore = create((set, get) => ({
 			return;
 		}
 
-		console.log("🔌 Attachement des listeners WebSocket pour serveurs");
 		socketListenerAttached = true;
 
 		socket.on("server", (event) => {
 			const { type, data } = event;
-			console.log(`📡 Événement serveur reçu: ${type}`, data);
 
 			const state = get();
 
@@ -36,7 +34,7 @@ export const useServerStore = create((set, get) => ({
 
 				case "updated": {
 					const updated = state.servers.map((s) =>
-						s._id === data._id ? data : s
+						s._id === data._id ? data : s,
 					);
 					set({ servers: updated });
 					break;
@@ -53,9 +51,22 @@ export const useServerStore = create((set, get) => ({
 			}
 		});
 
+		// ⭐ Écouter les mises à jour de statut en ligne des serveurs
+		socket.on("staff-online-update", (data) => {
+			const { onlineUserIds } = data;
+			if (!Array.isArray(onlineUserIds)) return;
+			const state = get();
+			const updated = state.servers.map((s) => ({
+				...s,
+				isOnline: onlineUserIds.includes(s._id),
+			}));
+			set({ servers: updated });
+		});
+
 		return () => {
 			if (socket) {
 				socket.off("server");
+				socket.off("staff-online-update");
 				socketListenerAttached = false;
 			}
 		};
@@ -71,7 +82,6 @@ export const useServerStore = create((set, get) => ({
 
 		// ⭐ Si les serveurs existent déjà en cache, ne pas refetch
 		if (state.servers.length > 0) {
-			console.log("📦 Serveurs déjà en cache, pas de fetch");
 			return { success: true, data: state.servers };
 		}
 
@@ -83,7 +93,6 @@ export const useServerStore = create((set, get) => ({
 
 			const token = await getSecureItem("@access_token");
 			if (!token) {
-				console.log("⚠️ Aucun token trouvé");
 				return { success: false, error: "NO_TOKEN" };
 			}
 
@@ -98,7 +107,6 @@ export const useServerStore = create((set, get) => ({
 
 			// Token invalide - throw error
 			if (response.status === 401 || response.status === 403) {
-				console.log("🔒 Token expiré ou invalide");
 				throw new Error("Session expirée");
 			}
 
@@ -115,7 +123,6 @@ export const useServerStore = create((set, get) => ({
 			const data = await response.json();
 			// ⭐ Sauvegarder l'objet complet (id + name) au lieu de juste le nom
 			set({ servers: data });
-			console.log("✅ Serveurs chargés :", data.length);
 
 			return { success: true, data };
 		} catch (err) {

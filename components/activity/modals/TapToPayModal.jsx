@@ -18,7 +18,6 @@ let Audio = null;
 try {
 	Audio = require("expo-av").Audio;
 } catch (_e) {
-	console.log("📢 expo-av non installé - sons désactivés");
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -75,7 +74,6 @@ export const TapToPayModal = ({
 	// ═══════════════════════════════════════════════════════════════════════
 	const playSuccessSound = async () => {
 		if (!Audio) {
-			console.log("🔇 expo-av non installé - son ignoré");
 			return;
 		}
 		try {
@@ -87,7 +85,6 @@ export const TapToPayModal = ({
 			await sound.playAsync();
 		} catch (error) {
 			// Fallback: pas de son si fichier absent
-			console.log("🔇 Son non disponible:", error.message);
 		}
 	};
 

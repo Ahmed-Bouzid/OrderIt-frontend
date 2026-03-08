@@ -372,7 +372,6 @@ export default function ExpressOrders() {
 	// Handler pour changer l'urgence d'une commande
 	const handleToggleOrderStatus = useCallback(
 		async (orderId) => {
-			console.log("[TOGGLE] Urgence commande", orderId);
 			const result = await toggleOrderUrgency(orderId);
 			if (!result.success) {
 				Alert.alert("Erreur", "Impossible de changer le statut");
@@ -384,7 +383,6 @@ export default function ExpressOrders() {
 	// Suppression Handler pour supprimer une commande
 	const handleDeleteOrder = useCallback(
 		async (orderId) => {
-			console.log("[DELETE] Suppression commande", orderId);
 			const result = await dismissOrder(orderId);
 			if (!result.success) {
 				Alert.alert("Erreur", "Impossible de supprimer la commande");

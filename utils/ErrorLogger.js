@@ -119,7 +119,6 @@ class ErrorLogger {
 	static async clearErrorLogs() {
 		try {
 			await AsyncStorage.removeItem(ERROR_STORAGE_KEY);
-			console.log("[ErrorLogger] Logs d'erreurs effacés");
 		} catch (error) {
 			console.error(
 				"[ErrorLogger] Erreur lors de l'effacement des logs:",
@@ -154,9 +153,6 @@ class ErrorLogger {
 	static async cleanupOldLogs() {
 		try {
 			await this.getErrorLogs(); // Cette fonction nettoie automatiquement les vieux logs
-			console.log(
-				"[ErrorLogger] Nettoyage automatique des vieux logs effectué"
-			);
 		} catch (error) {
 			console.error("[ErrorLogger] Erreur lors du nettoyage:", error);
 		}

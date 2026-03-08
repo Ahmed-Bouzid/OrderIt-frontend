@@ -37,6 +37,8 @@ import { useReservationManager } from "../../hooks/useReservationManager";
 
 // Modales
 import { SettingsModal, ProductModal, PaymentModal } from "../activity/modals";
+import AuditLogModal from "../activity/modals/AuditLogModal";
+import { DEFAULT_ALLERGENS } from "../activity/modals/ClientAllergenModal";
 
 // Composants
 import {
@@ -167,6 +169,7 @@ export default function Activity() {
 	// États locaux UI
 	const [showRestrictionsOptions, setShowRestrictionsOptions] = useState(false);
 	const [showSettings, setShowSettings] = useState(false);
+	const [showAuditLog, setShowAuditLog] = useState(false);
 	const [showServerOptions, setShowServerOptions] = useState(false);
 	const [showProductModal, setShowProductModal] = useState(false);
 	const [showPayment, setShowPayment] = useState(false);
@@ -185,6 +188,38 @@ export default function Activity() {
 	// ⭐ État pour les allergènes structurés du client
 	const [clientAllergens, setClientAllergens] = useState([]);
 
+	// ⭐ Restaurer les allergènes structurés depuis le champ texte de la réservation
+
+	// ⭐ Numéro de table réactif (souscrit au store)
+	const allTables = useTableStore((s) => s.tables) || [];
+	const activeTableLabel = useMemo(() => {
+		if (!activeReservation) return "Table";
+		if (activeReservation.realTable) return activeReservation.realTable;
+		const rid = activeReservation.tableId;
+		const tidStr = typeof rid === "object" ? rid?._id : rid;
+		const found = allTables.find((t) => t._id === tidStr);
+		if (found?.number) return `Table ${found.number}`;
+		if (typeof rid === "object" && rid?.number) return `Table ${rid.number}`;
+		if (tidStr) return `Table ${tidStr.slice(-4)}`;
+		return "Table";
+	}, [activeReservation, allTables]);
+
+	useEffect(() => {
+		if (!activeReservation?.allergies) {
+			setClientAllergens([]);
+			return;
+		}
+		// Reconstruire les objets allergènes depuis le texte sauvegardé ("Gluten, Lait, ...")
+		const allergyNames = activeReservation.allergies
+			.split(",")
+			.map((s) => s.trim().toLowerCase())
+			.filter(Boolean);
+		const restored = DEFAULT_ALLERGENS.filter((a) =>
+			allergyNames.includes(a.name.toLowerCase()),
+		);
+		setClientAllergens(restored);
+	}, [activeReservation?._id, activeReservation?.allergies]);
+
 	// Initialiser thème
 	useEffect(() => {
 		initTheme();
@@ -197,16 +232,12 @@ export default function Activity() {
 		// Note: tableId n'est pas utilisé par l'API /orders/reservation/:id
 		const resaTableId =
 			activeReservation.tableId?._id || activeReservation.tableId || tableId;
-		console.log("🔄 Fetching orders for reservation:", activeReservation._id);
 		fetchOrders(resaTableId, activeReservation._id, true);
 	}, [activeReservation?._id, tableId, fetchOrders]);
 
 	// ✅ Réinitialiser started quand il n'y a plus de réservation active
 	useEffect(() => {
 		if (!activeId && started) {
-			console.log(
-				"🔄 Réinitialisation: activeId null, reset de started et orders",
-			);
 			setStarted(false);
 			setOrders([]); // ⭐ Nettoyer les commandes aussi
 		}
@@ -274,8 +305,6 @@ export default function Activity() {
 			serverId,
 		};
 
-		console.log("📤 Envoi commande:", JSON.stringify(orderData, null, 2));
-
 		try {
 			await authFetch(`${API_CONFIG.baseURL}/orders/`, {
 				method: "POST",
@@ -328,6 +357,23 @@ export default function Activity() {
 
 	const handleUpdateStatus = useCallback(
 		async (reservationId, newStatus) => {
+			// ⭐ Bloquer l'ouverture d'une réservation qui n'est pas pour aujourd'hui
+			if (newStatus === "ouverte" && activeReservation?.reservationDate) {
+				const today = new Date();
+				today.setHours(0, 0, 0, 0);
+				const resaDate = new Date(activeReservation.reservationDate);
+				resaDate.setHours(0, 0, 0, 0);
+
+				if (resaDate.getTime() !== today.getTime()) {
+					Alert.alert(
+						"Réservation pas pour aujourd'hui",
+						"Cette réservation n'est pas prévue pour aujourd'hui. Rendez-vous sur le Dashboard pour créer une réservation pour aujourd'hui.",
+						[{ text: "OK" }],
+					);
+					return false;
+				}
+			}
+
 			try {
 				await authFetch(
 					`${API_CONFIG.baseURL}/reservations/${reservationId}/status`,
@@ -344,7 +390,7 @@ export default function Activity() {
 				return false;
 			}
 		},
-		[authFetch, fetchReservations],
+		[authFetch, fetchReservations, activeReservation],
 	);
 
 	// ⭐ Helper pour finaliser les items d'une réservation
@@ -357,9 +403,6 @@ export default function Activity() {
 						method: "PUT",
 						body: JSON.stringify({ status }),
 					},
-				);
-				console.log(
-					`✅ Items de la réservation ${reservationId} mis en "${status}"`,
 				);
 			} catch (error) {
 				console.warn(`⚠️ Impossible de finaliser les items:`, error.message);
@@ -578,9 +621,20 @@ export default function Activity() {
 		],
 	);
 
+	// ⭐ Couleurs subtiles pour différencier les miniatures (fonds foncés compatibles dark theme)
+	const MINI_COLORS = [
+		{ bg: "#162033", border: "#63b3ed" }, // bleu ciel
+		{ bg: "#14261a", border: "#68d391" }, // vert menthe
+		{ bg: "#261e14", border: "#f6ad55" }, // orange doux
+		{ bg: "#1f1629", border: "#b794f4" }, // violet lavande
+		{ bg: "#261420", border: "#fc819b" }, // rose
+		{ bg: "#132623", border: "#81e6d9" }, // turquoise
+	];
+
 	// Render miniatures Premium avec FlatList
 	const renderMiniature = useCallback(
-		({ item: r }) => {
+		({ item: r, index: miniIndex }) => {
+			const colorSet = MINI_COLORS[miniIndex % MINI_COLORS.length];
 			const allTables = useTableStore.getState().tables || [];
 			const table = allTables.find(
 				(t) =>
@@ -613,7 +667,14 @@ export default function Activity() {
 
 			return (
 				<TouchableOpacity
-					style={activityStyles.popupMini}
+					style={[
+						activityStyles.popupMini,
+						{
+							backgroundColor: colorSet.bg,
+							borderLeftWidth: 3,
+							borderLeftColor: colorSet.border,
+						},
+					]}
 					onPress={() => {
 						setActiveId(r._id);
 						// ⭐ Forcer le refresh des orders quand on clique sur une réservation
@@ -747,7 +808,6 @@ export default function Activity() {
 				{/* Popup principal Premium */}
 				{activeReservation && activeReservation.status === "ouverte" && (
 					<View style={activityStyles.popupMainWrapper}>
-
 						{/* Carte principale */}
 						<View
 							style={[
@@ -774,7 +834,6 @@ export default function Activity() {
 											const formattedName =
 												name.charAt(0).toUpperCase() +
 												name.slice(1).toLowerCase();
-											// Élision devant voyelle ou h muet
 											const vowels = [
 												"a",
 												"e",
@@ -798,49 +857,54 @@ export default function Activity() {
 											return `${prefix}${formattedName}`;
 										})()}
 									</Text>
-									<Text style={activityStyles.internalText}>
-										{activeReservation.realTable ||
-											`Table ${activeReservation.tableId?.number || ""}`}
-									</Text>
 								</View>
-
-								{/* Badge Status Premium */}
-								<LinearGradient
-									colors={[
-										"rgba(16, 185, 129, 0.2)",
-										"rgba(16, 185, 129, 0.1)",
-									]}
-									style={activityStyles.badge}
-								>
-									<View style={activityStyles.badgeDot} />
-									<Text style={activityStyles.badgeText}>Occupée</Text>
-								</LinearGradient>
 
 								{/* Infos réservation */}
 								<View style={activityStyles.headerInfo}>
 									<Text style={activityStyles.headerInfoText}>
 										<Ionicons
-											name="time-outline"
-											size={14}
-											color={THEME.colors.text.muted}
-										/>
-										{activeReservation.reservationTime || "N/A"}
-										{new Date(
-											activeReservation.reservationDate,
-										).toLocaleDateString("fr-FR")}
-									</Text>
-									<Text style={activityStyles.headerInfoText}>
-										<Ionicons
 											name="people-outline"
 											size={14}
 											color={THEME.colors.text.muted}
-										/>
-										{activeReservation.nbPersonnes || 0} personnes
+										/>{" "}
+										{activeReservation.nbPersonnes || 0} pers.
+									</Text>
+									<Text style={activityStyles.headerInfoText}>
+										<Ionicons
+											name={
+												activeReservation.reservationSource === "À distance"
+													? "call-outline"
+													: activeReservation.reservationSource ===
+														  "Sans réservation"
+														? "walk-outline"
+														: "location-outline"
+											}
+											size={14}
+											color={THEME.colors.text.muted}
+										/>{" "}
+										{activeReservation.reservationSource || "Sur place"}
 									</Text>
 								</View>
 
-								{/* Header Actions */}
+								{/* Table N° + Audit + Settings à droite */}
 								<View style={activityStyles.headerActions}>
+									<Text style={activityStyles.headerTableText}>
+										{activeTableLabel}
+									</Text>
+									<TouchableOpacity
+										style={activityStyles.settingsButton}
+										onPress={() => {
+											// ⭐ Rafraîchir la réservation pour avoir l'auditLog à jour
+											if (activeId) refreshReservation(activeId);
+											setShowAuditLog(true);
+										}}
+									>
+										<Ionicons
+											name="time-outline"
+											size={20}
+											color={THEME.colors.text.muted}
+										/>
+									</TouchableOpacity>
 									<TouchableOpacity
 										style={activityStyles.settingsButton}
 										onPress={() => setShowSettings(true)}
@@ -1240,7 +1304,7 @@ export default function Activity() {
 								...filteredReservations,
 								{ _id: "add-button", isAddButton: true },
 							]}
-							renderItem={({ item }) => {
+							renderItem={({ item, index }) => {
 								if (item.isAddButton) {
 									return (
 										<TouchableOpacity
@@ -1269,7 +1333,7 @@ export default function Activity() {
 										</TouchableOpacity>
 									);
 								}
-								return renderMiniature({ item });
+								return renderMiniature({ item, index });
 							}}
 							keyExtractor={(item) => item._id}
 							horizontal
@@ -1290,6 +1354,13 @@ export default function Activity() {
 				onUpdateStatus={handleUpdateStatus}
 				onCancel={handleCancelReservation}
 				theme={theme}
+			/>
+
+			<AuditLogModal
+				visible={showAuditLog}
+				onClose={() => setShowAuditLog(false)}
+				reservation={activeReservation}
+				theme={THEME}
 			/>
 
 			<ProductModal
@@ -1382,7 +1453,7 @@ const createStyles = (THEME) =>
 		headerRow: {
 			flexDirection: "row",
 			alignItems: "center",
-			paddingVertical: THEME.spacing.md,
+			paddingVertical: THEME.spacing.sm,
 			paddingHorizontal: THEME.spacing.lg,
 			borderBottomWidth: 1,
 			borderBottomColor: THEME.colors.border.subtle,
@@ -1428,6 +1499,11 @@ const createStyles = (THEME) =>
 			fontSize: THEME.typography.sizes.sm,
 			color: THEME.colors.text.secondary,
 			marginBottom: 2,
+		},
+		headerTableText: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.muted,
+			marginRight: THEME.spacing.sm,
 		},
 		headerActions: {
 			flexDirection: "row",
@@ -1475,11 +1551,8 @@ const createStyles = (THEME) =>
 			borderColor: THEME.colors.border.subtle,
 		},
 		miniWrapper: {
-			position: "absolute",
-			bottom: THEME.spacing.lg,
-			left: 0,
-			right: 0,
 			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.xs,
 			backgroundColor: "transparent",
 		},
 		miniListContent: {

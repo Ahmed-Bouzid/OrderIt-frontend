@@ -21,7 +21,6 @@ export default function App() {
 	const [userLoggedIn, setUserLoggedIn] = useState(false);
 	const [token, setToken] = useState(null);
 	const { connect, socket } = useSocket();
-	console.log("BONJOUR");
 
 	useEffect(() => {
 		const checkToken = async () => {

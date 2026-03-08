@@ -9,12 +9,12 @@ import {
 	TouchableOpacity,
 	StyleSheet,
 	Platform,
-	Alert,
 	ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import DatePickerModal from "./DatePickerModal";
+import AutoAssignModal from "./AutoAssignModal";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../../src/config/apiConfig";
@@ -23,12 +23,14 @@ export default function DateNavigator({
 	selectedDate,
 	onDateChange,
 	onAssignmentComplete,
+	onMonthlyCountsChange,
 }) {
 	const THEME = useTheme();
 	const [showDatePicker, setShowDatePicker] = useState(false);
 	const [monthlyReservationCounts, setMonthlyReservationCounts] = useState({});
 	const [showAssistantMenu, setShowAssistantMenu] = useState(false);
 	const [loading, setLoading] = useState(false);
+	const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
 	const authFetch = useAuthFetch();
 
 	const fetchMonthlyCounts = useCallback(
@@ -39,12 +41,15 @@ export default function DateNavigator({
 				const data = await authFetch(
 					`${API_CONFIG.baseURL}/reservations/restaurant/${restaurantId}/monthly-counts?year=${year}&month=${month}`,
 				);
-				if (data && typeof data === "object") setMonthlyReservationCounts(data);
+				if (data && typeof data === "object") {
+					setMonthlyReservationCounts(data);
+					onMonthlyCountsChange?.(data);
+				}
 			} catch (e) {
 				// silencieux
 			}
 		},
-		[authFetch],
+		[authFetch, onMonthlyCountsChange],
 	);
 
 	// Formater la date en français : "Lundi 5 janvier"
@@ -94,121 +99,10 @@ export default function DateNavigator({
 		onDateChange(newDate);
 	};
 
-	// Attribution automatique des tables
-	const handleAutoAssign = async () => {
-		setLoading(true);
+	// Ouvrir le modal d'attribution automatique
+	const handleAutoAssign = () => {
 		setShowAssistantMenu(false);
-
-		try {
-			const restaurantId = await AsyncStorage.getItem("restaurantId");
-			if (!restaurantId) {
-				Alert.alert("Erreur", "Restaurant non trouvé");
-				return;
-			}
-
-			const dateString = selectedDate.toISOString().split("T")[0];
-			const result = await authFetch(
-				`${process.env.EXPO_PUBLIC_API_URL}/assistant/auto-assign-tables`,
-				{
-					method: "POST",
-					body: JSON.stringify({ restaurantId, date: dateString }),
-				},
-			);
-
-			if (result.status === "success") {
-				const {
-					assignedCount = 0,
-					reassignedCount = 0,
-					unassignedCount = 0,
-				} = result;
-				const totalSuccess = assignedCount + reassignedCount;
-
-				let message = "";
-				if (assignedCount > 0)
-					message += `✅ ${assignedCount} table(s) attribuée(s)\n`;
-				if (reassignedCount > 0)
-					message += `🔄 ${reassignedCount} table(s) réassignée(s)\n`;
-
-				if (totalSuccess > 0 && unassignedCount === 0) {
-					setTimeout(
-						() => Alert.alert("✅ Optimisation réussie", message.trim()),
-						100,
-					);
-				} else if (totalSuccess > 0 && unassignedCount > 0) {
-					setTimeout(
-						() => Alert.alert("⚠️ Optimisation partielle", message.trim()),
-						100,
-					);
-				}
-			} else {
-				Alert.alert("Erreur", result.message || "Attribution impossible");
-			}
-		} catch (error) {
-			Alert.alert("Erreur", `Impossible d'attribuer: ${error.message}`);
-		} finally {
-			setLoading(false);
-			if (onAssignmentComplete) onAssignmentComplete();
-		}
-	};
-
-	// Supprimer toutes les attributions de la date
-	const handleClearAssignments = async () => {
-		Alert.alert(
-			"⚠️ Confirmer la suppression",
-			"Supprimer toutes les attributions de tables pour cette date ?",
-			[
-				{ text: "Annuler", style: "cancel" },
-				{
-					text: "Supprimer",
-					style: "destructive",
-					onPress: async () => {
-						try {
-							const restaurantId = await AsyncStorage.getItem("restaurantId");
-							if (!restaurantId) {
-								Alert.alert("Erreur", "Restaurant non trouvé");
-								return;
-							}
-
-							const dateString = selectedDate.toISOString().split("T")[0];
-
-							const result = await authFetch(
-								`${process.env.EXPO_PUBLIC_API_URL}/assistant/clear-assignments`,
-								{
-									method: "POST",
-									body: JSON.stringify({
-										restaurantId,
-										date: dateString,
-									}),
-								},
-							);
-
-							if (result.status === "success") {
-								if (onAssignmentComplete) {
-									onAssignmentComplete();
-								}
-								setTimeout(() => {
-									Alert.alert(
-										"✅ Attributions supprimées",
-										result.message ||
-											`${result.clearedCount} attribution(s) supprimée(s)`,
-									);
-								}, 100);
-							} else {
-								Alert.alert(
-									"Erreur",
-									result.message || "Suppression impossible",
-								);
-							}
-						} catch (error) {
-							Alert.alert(
-								"Erreur",
-								`Impossible de supprimer: ${error.message}`,
-							);
-						}
-					},
-				},
-			],
-		);
+		setShowAutoAssignModal(true);
 	};
 
 	const styles = createStyles(THEME);
@@ -306,24 +200,21 @@ export default function DateNavigator({
 								activeOpacity={0.7}
 							>
 								<Ionicons
-									name="radio-button-on"
+									name="sparkles"
 									size={18}
 									color={THEME.colors.primary.amber}
 								/>
-								<Text style={styles.menuText}>🪄 Attribution automatique</Text>
-							</TouchableOpacity>
-
-							<View style={styles.menuSeparator} />
-
-							<TouchableOpacity
-								style={[styles.menuItem, styles.menuItemDanger]}
-								onPress={handleClearAssignments}
-								activeOpacity={0.7}
-							>
-								<Ionicons name="trash-outline" size={18} color="#EF4444" />
-								<Text style={styles.menuTextDanger}>
-									🗑️ Supprimer les attributions
-								</Text>
+								<View style={styles.menuItemContent}>
+									<Text style={styles.menuText}>Attribution automatique</Text>
+									<Text style={styles.menuTextSub}>
+										Visualiser et attribuer les tables
+									</Text>
+								</View>
+								<Ionicons
+									name="chevron-forward"
+									size={16}
+									color={THEME.colors.text.muted}
+								/>
 							</TouchableOpacity>
 						</View>
 					)}
@@ -338,6 +229,15 @@ export default function DateNavigator({
 					onMonthChange={fetchMonthlyCounts}
 				/>
 			</View>
+
+			<AutoAssignModal
+				visible={showAutoAssignModal}
+				onClose={() => setShowAutoAssignModal(false)}
+				selectedDate={selectedDate}
+				onComplete={() => {
+					if (onAssignmentComplete) onAssignmentComplete();
+				}}
+			/>
 		</>
 	);
 }
@@ -465,9 +365,17 @@ const createStyles = (THEME) =>
 		},
 		menuText: {
 			fontSize: THEME.typography.sizes.sm,
-			fontWeight: "500",
+			fontWeight: "600",
 			color: THEME.colors.text.primary,
+		},
+		menuItemContent: {
 			flex: 1,
+		},
+		menuTextSub: {
+			fontSize: 11,
+			fontWeight: "400",
+			color: THEME.colors.text.muted,
+			marginTop: 1,
 		},
 		menuSeparator: {
 			height: 1,

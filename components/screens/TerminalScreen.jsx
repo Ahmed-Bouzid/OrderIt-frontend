@@ -51,7 +51,6 @@ const TerminalScreen = ({ route, navigation }) => {
 			const subscription = eventEmitter.addListener(
 				"TapToPayStatusChanged",
 				(event) => {
-					console.log("📡 Tap-to-Pay status:", event.status);
 					setTapToPayStatus(event.status);
 
 					if (event.status === "success") {
@@ -71,14 +70,12 @@ const TerminalScreen = ({ route, navigation }) => {
 	 */
 	const checkTapToPayAvailability = async () => {
 		if (Platform.OS !== "ios" || !TapToPayModule) {
-			console.log("❌ Tap-to-Pay non disponible (pas iOS ou module absent)");
 			return;
 		}
 
 		try {
 			const isAvailable = await TapToPayModule.isTapToPayAvailable();
 			setTapToPayAvailable(isAvailable);
-			console.log("📱 Tap-to-Pay disponible:", isAvailable);
 
 			if (!isAvailable) {
 				Alert.alert(
@@ -114,7 +111,6 @@ const TerminalScreen = ({ route, navigation }) => {
 			setLoading(true);
 			setTapToPayStatus("waiting");
 
-			console.log("🚀 Démarrage Tap-to-Pay...");
 
 			// 1. Créer le PaymentIntent côté serveur
 			const result = await stripeService.createPaymentIntent({
@@ -128,7 +124,6 @@ const TerminalScreen = ({ route, navigation }) => {
 
 			setPaymentIntentId(result.paymentIntentId);
 
-			console.log("✅ PaymentIntent créé:", result.paymentIntentId);
 
 			// 2. Démarrer la session Tap-to-Pay native
 			await TapToPayModule.startTapToPaySession({
@@ -139,7 +134,6 @@ const TerminalScreen = ({ route, navigation }) => {
 				restaurantName: order.restaurantId?.name || "Restaurant",
 			});
 
-			console.log("⏳ En attente de la carte/device du client...");
 		} catch (error) {
 			console.error("❌ Erreur démarrage Tap-to-Pay:", error);
 			Alert.alert(
@@ -161,7 +155,6 @@ const TerminalScreen = ({ route, navigation }) => {
 		try {
 			await TapToPayModule.cancelTapToPaySession();
 			setTapToPayStatus("idle");
-			console.log("🚫 Session Tap-to-Pay annulée");
 
 			// Annuler le PaymentIntent côté serveur si créé
 			if (paymentIntentId) {
@@ -201,7 +194,6 @@ const TerminalScreen = ({ route, navigation }) => {
 							tipCents
 						);
 
-						console.log("✅ Paiement fake réussi");
 						handlePaymentSuccess({ fake: true });
 					} catch (error) {
 						console.error("❌ Erreur paiement fake:", error);
@@ -219,7 +211,6 @@ const TerminalScreen = ({ route, navigation }) => {
 	 */
 	const handlePaymentSuccess = useCallback(
 		(paymentData = {}) => {
-			console.log("✅ Paiement réussi:", paymentData);
 
 			Alert.alert(
 				"Paiement réussi ! 🎉",

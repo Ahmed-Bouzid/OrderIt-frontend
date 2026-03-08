@@ -91,10 +91,6 @@ export default function AccountingScreen({ onClose }) {
 		const getToken = async () => {
 			try {
 				const storedToken = await SecureStore.getItemAsync("access_token");
-				console.log(
-					"🔐 [AccountingScreen] Token depuis SecureStore:",
-					!!storedToken,
-				);
 				setToken(storedToken);
 			} catch (error) {
 				console.error(
@@ -108,9 +104,6 @@ export default function AccountingScreen({ onClose }) {
 
 	useEffect(() => {
 		if (token && !dataLoaded) {
-			console.log(
-				"🔑 [AccountingScreen] Token disponible, chargement des données...",
-			);
 			setDataLoaded(true);
 			loadData();
 			if (selectedTab === "charts") {
@@ -131,10 +124,6 @@ export default function AccountingScreen({ onClose }) {
 	const loadData = async () => {
 		setIsLoading(true);
 		try {
-			console.log(
-				`💰 [AccountingScreen] Chargement données période: ${selectedPeriod}`,
-			);
-
 			const controller = new AbortController();
 			const timeoutId = setTimeout(() => controller.abort(), 10000);
 
@@ -158,7 +147,6 @@ export default function AccountingScreen({ onClose }) {
 			}
 
 			const apiData = await response.json();
-			console.log("✅ [AccountingScreen] Données reçues:", apiData.data);
 
 			if (apiData.success && apiData.data) {
 				setData(apiData.data);
@@ -173,7 +161,6 @@ export default function AccountingScreen({ onClose }) {
 
 	const loadChartData = async () => {
 		try {
-			console.log("📊 [AccountingScreen] Chargement des données graphiques...");
 			// Pour l'instant, on utilise juste les données dailyRevenues
 		} catch (error) {
 			console.error(

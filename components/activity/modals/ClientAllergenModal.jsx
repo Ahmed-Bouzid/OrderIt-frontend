@@ -28,7 +28,7 @@ import { useTheme } from "../../../hooks/useTheme";
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Liste des allergènes standards (14 allergènes obligatoires UE)
-const DEFAULT_ALLERGENS = [
+export const DEFAULT_ALLERGENS = [
 	{
 		_id: "gluten",
 		name: "Gluten",
@@ -135,32 +135,25 @@ export const ClientAllergenModal = React.memo(
 
 		// Charger les allergènes depuis l'API (fallback sur les défauts)
 		const loadAllergens = useCallback(async () => {
-			console.log("🔄 Chargement des allergènes...");
 			setLoading(true);
 			try {
 				const token = await getSecureItem("@access_token");
 				const baseUrl =
 					process.env.EXPO_PUBLIC_API_URL ||
 					"https://orderit-backend-6y1m.onrender.com";
-				console.log("🌐 URL:", `${baseUrl}/allergens`);
 
 				const response = await fetch(`${baseUrl}/allergens`, {
 					headers: { Authorization: `Bearer ${token}` },
 				});
 
-				console.log("📡 Response status:", response.status);
-
 				if (response.ok) {
 					const data = await response.json();
-					console.log("✅ Allergènes reçus:", data?.length || 0, data);
 					if (Array.isArray(data) && data.length > 0) {
 						setAllergens(data);
 					}
 				} else {
-					console.log("❌ Erreur API:", response.status);
 				}
 			} catch (error) {
-				console.log("⚠️ Utilisation des allergènes par défaut:", error.message);
 			} finally {
 				setLoading(false);
 			}

@@ -49,9 +49,11 @@ export const useDashboardFilters = (
 		if (!searchQuery.trim()) return reservations;
 
 		const query = searchQuery.toLowerCase().trim();
+		const queryNoSpaces = query.replace(/\s/g, "");
 		return reservations.filter((r) => {
 			const clientName = (r?.clientName || "").toLowerCase();
-			return clientName.includes(query);
+			const phone = (r?.phone || "").replace(/\s/g, "");
+			return clientName.includes(query) || phone.includes(queryNoSpaces);
 		});
 	}, [reservations, searchQuery]);
 

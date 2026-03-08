@@ -58,17 +58,12 @@ export default function ServerManagement({ theme: parentTheme }) {
 	// Récupérer la liste des serveurs
 	const fetchServers = useCallback(async () => {
 		if (!restaurantId) {
-			console.log("⚠️ fetchServers: restaurantId manquant");
 			return;
 		}
 
 		try {
 			setLoading(true);
 			const token = await getSecureItem("@access_token");
-			console.log(
-				"🔑 Token récupéré:",
-				token ? `${token.substring(0, 20)}...` : "NULL",
-			);
 			const url = `${API_URL}/restaurants/${restaurantId}/servers`;
 			const response = await fetch(url, {
 				headers: {
@@ -77,8 +72,6 @@ export default function ServerManagement({ theme: parentTheme }) {
 				},
 			});
 
-			console.log("📊 Response status:", response.status);
-
 			if (!response.ok) {
 				const errorText = await response.text();
 				console.error("❌ Erreur API:", response.status, errorText);
@@ -86,7 +79,6 @@ export default function ServerManagement({ theme: parentTheme }) {
 			}
 
 			const data = await response.json();
-			console.log("✅ Serveurs récupérés:", data?.length || 0);
 			setServers(data || []);
 		} catch (error) {
 			console.error("Erreur récupération serveurs:", error);

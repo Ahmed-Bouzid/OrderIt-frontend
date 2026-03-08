@@ -29,13 +29,9 @@ export function useAuthFetch() {
 			const refreshToken = await getSecureItem("refreshToken");
 
 			if (!refreshToken) {
-				console.log("⚠️ ATTENTION: Pas de refresh token en AsyncStorage");
-				console.log("Tentative de récupération depuis le login...");
 				// Ne pas jeter d'erreur immédiatement, attendre que le login repasse
 				throw new Error("Pas de refresh token - session perdue");
 			}
-
-			console.log("🔑 Refresh token trouvé, tentative de refresh...");
 
 			// ⭐ Faire la requête de refresh
 			const response = await fetch(`${API_BASE_URL}/auth/refresh`, {
@@ -62,7 +58,6 @@ export function useAuthFetch() {
 					await setSecureItem("refreshToken", data.refreshToken);
 				}
 
-				console.log("✅ Token rafraîchi avec succès (anticipé)");
 				return data.accessToken;
 			}
 
@@ -82,7 +77,6 @@ export function useAuthFetch() {
 	const setupAutoRefresh = useCallback(() => {
 		// ⭐ Vérifier si le refresh est déjà configuré globalement
 		if (isRefreshSetup) {
-			console.log("⏭️ Auto-refresh déjà configuré, skip");
 			return;
 		}
 
@@ -97,18 +91,8 @@ export function useAuthFetch() {
 				const token = await getSecureItem("@access_token");
 				const refreshToken = await getSecureItem("refreshToken");
 
-				console.log(
-					"🔍 Vérification auto-refresh: token=",
-					!!token,
-					"refreshToken=",
-					!!refreshToken,
-				);
-
 				// Si on a les deux tokens, rafraîchir le token d'accès
 				if (token && refreshToken) {
-					console.log(
-						"🔄 Rafraîchissement automatique du token (avant expiration)...",
-					);
 					await refreshAccessToken();
 				} else {
 					console.warn("⚠️ Impossible de rafraîchir: tokens manquants");
@@ -190,8 +174,7 @@ export function useAuthFetch() {
 
 				// ⭐ Si 401, essayer de rafraîchir le token
 				if (response.status === 401 || response.status === 403) {
-					console.log("🔄 Token expiré, tentative de refresh...");
-
+					console.warn(`⚠️ ${response.status} sur ${fullUrl} → tentative refresh...`);
 					try {
 						// ⭐ Utiliser une seule promesse de refresh si plusieurs requêtes en parallèle
 						if (!refreshPromiseRef.current) {
@@ -206,7 +189,10 @@ export function useAuthFetch() {
 						response = await fetch(fullUrl, fetchOptions);
 
 						if (response.status === 401 || response.status === 403) {
-							// ⭐ Refresh a échoué, token vraiment expiré
+							// ⭐ Debug: voir quelle URL et quel status exact
+							let errBody = "";
+							try { errBody = await response.text(); } catch (_) {}
+							console.error(`❌ Retry échoué après refresh: ${response.status} sur ${fullUrl}`, errBody);
 							throw new Error("Refresh failed");
 						}
 					} catch (refreshError) {
@@ -268,7 +254,6 @@ export async function startTokenRefresh() {
 		const refreshToken = await getSecureItem("refreshToken");
 
 		if (token && refreshToken) {
-			console.log("🚀 Démarrage forcé du refresh automatique après login");
 			// Le refresh sera géré par useAuthFetch dans le composant principal
 			return true;
 		}

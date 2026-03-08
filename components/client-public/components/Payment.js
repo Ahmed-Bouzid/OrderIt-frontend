@@ -40,7 +40,6 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 
 	// Debug pour comprendre pourquoi NaN
 	useEffect(() => {
-		console.log(
 			"💰 Payment - Total calculé:",
 			total,
 			"€ | Orders:",
@@ -94,7 +93,6 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 	const handlePay = async () => {
 		// ⭐ Protection contre double soumission
 		if (paymentState !== "idle") {
-			console.log("⚠️ Paiement déjà en cours ou terminé, ignoré");
 			return;
 		}
 
@@ -113,7 +111,6 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 				process.env.EXPO_PUBLIC_API_URL ||
 				"https://orderit-backend-6y1m.onrender.com";
 
-			console.log("💳 Création PaymentIntent...");
 
 			const createResponse = await fetch(`${baseUrl}/payments/create-intent`, {
 				method: "POST",
@@ -143,10 +140,8 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 			const { clientSecret, paymentIntentId, paymentId } =
 				await createResponse.json();
 
-			console.log("✅ PaymentIntent créé:", paymentIntentId);
 
 			// 2. Confirmer le paiement avec la carte test Stripe 4242 4242 4242 4242
-			console.log("🧪 Confirmation avec carte test 4242...");
 
 			const confirmResponse = await fetch(`${baseUrl}/payments/confirm-test`, {
 				method: "POST",
@@ -167,7 +162,6 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 			}
 
 			const confirmData = await confirmResponse.json();
-			console.log("✅ Paiement confirmé avec Stripe:", confirmData.status);
 
 			// 3. Vérifier le statut via backend (doit être "succeeded" maintenant)
 			const checkResponse = await fetch(
@@ -182,7 +176,6 @@ export default function Payment({ orders, onSuccess, onBack, orderId }) {
 			const paymentStatus = await checkResponse.json();
 
 			// Bip sonore simulé (console log en test)
-			console.log("🔔 BIP ! Paiement accepté");
 
 			// 4. Préparer le reçu
 			const receipt = {

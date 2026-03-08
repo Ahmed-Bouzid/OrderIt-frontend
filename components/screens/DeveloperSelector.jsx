@@ -59,7 +59,6 @@ export default function DeveloperSelector() {
 		const loadRestaurants = async () => {
 			// Si on a déjà des restaurants dans le store, pas besoin de refetch
 			if (restaurants && restaurants.length > 0) {
-				console.log("✅ Restaurants déjà chargés:", restaurants.length);
 				return;
 			}
 
@@ -73,7 +72,6 @@ export default function DeveloperSelector() {
 					const data = await response.json();
 					if (data.restaurants) {
 						await initDeveloper(data.restaurants);
-						console.log("✅ Restaurants chargés:", data.restaurants.length);
 					}
 				} else {
 					console.error("❌ Erreur fetch restaurants:", response.status);
@@ -249,6 +247,47 @@ export default function DeveloperSelector() {
 				icon: "chatbubbles-outline",
 			},
 			STAT_FEATURE,
+			// ─── IA Premium ───────────────────────────────────────────────────
+			{
+				key: "ai_auto_assign",
+				label: "IA — Assignation automatique de table",
+				icon: "color-wand-outline",
+			},
+			{
+				key: "ai_slot_suggestions",
+				label: "IA — Suggestions si créneau complet",
+				icon: "git-branch-outline",
+			},
+			{
+				key: "ai_heatmap",
+				label: "IA — Heatmap d'occupation",
+				icon: "grid-outline",
+			},
+			{
+				key: "ai_anti_gaps",
+				label: "IA — Protection anti-trous",
+				icon: "shield-checkmark-outline",
+			},
+			{
+				key: "ai_smart_duration",
+				label: "IA — Durée intelligente (groupe)",
+				icon: "timer-outline",
+			},
+			{
+				key: "ai_waiting_list",
+				label: "IA — Liste d'attente intelligente",
+				icon: "people-circle-outline",
+			},
+			{
+				key: "ai_prediction",
+				label: "IA — Prédiction de remplissage",
+				icon: "trending-up-outline",
+			},
+			{
+				key: "ai_strategic_slots",
+				label: "IA — Créneaux stratégiques",
+				icon: "bulb-outline",
+			},
 		],
 		"fast-food": [
 			{
@@ -342,7 +381,18 @@ export default function DeveloperSelector() {
 		// La valeur courante : si override explicite → utiliser, sinon laisser undefined (= matrice par défaut)
 		// On calcule la valeur de base selon la catégorie pour déterminer ce qu'on va toggler
 		const BASE_ON_FEATURES = {
-			restaurant: { chat_client: true, statistiques: true },
+			restaurant: {
+				chat_client: true,
+				statistiques: true,
+				ai_auto_assign: true,
+				ai_slot_suggestions: true,
+				ai_heatmap: true,
+				ai_anti_gaps: true,
+				ai_smart_duration: true,
+				ai_waiting_list: true,
+				ai_prediction: true,
+				ai_strategic_slots: true,
+			},
 			"fast-food": { gestion_stocks: true, statistiques: false },
 			snack: { gestion_stocks: true, statistiques: false },
 			cafe: { gestion_stocks: true, statistiques: false },

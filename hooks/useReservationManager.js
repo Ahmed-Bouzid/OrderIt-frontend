@@ -6,6 +6,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 
 import { API_CONFIG } from "../src/config/apiConfig";
 import { useAuthFetch } from "./useAuthFetch";
+import useUserStore from "../src/stores/useUserStore";
 
 /**
  * Hook custom pour gérer la logique des réservations
@@ -15,6 +16,17 @@ const clearCachedActiveId = () => {
 	AsyncStorage.removeItem("activeReservationId").catch(console.error);
 };
 
+/**
+ * Vérifie si une réservation appartient à l'utilisateur courant.
+ * serverId peut être un objet populé { _id, name } ou une string brute.
+ */
+const isMyReservation = (reservation, userId) => {
+	if (!userId) return true; // Pas de userId = pas de filtre
+	const resaServerId = reservation.serverId?._id || reservation.serverId;
+	if (!resaServerId) return false; // Pas de serveur assigné
+	return resaServerId.toString() === userId.toString();
+};
+
 export const useReservationManager = (reservations, fetchReservations) => {
 	const authFetch = useAuthFetch();
 	const { socket } = useSocket();
@@ -22,10 +34,25 @@ export const useReservationManager = (reservations, fetchReservations) => {
 	const hasLoadedReservationsRef = useRef(false);
 	const hasAutoSelectedRef = useRef(false);
 
+	// ⭐ Récupérer le userId et le rôle pour filtrer les réservations par serveur
+	const userId = useUserStore((state) => state.userId);
+	const role = useUserStore((state) => state.role);
+	const isAdmin = role === "admin";
+
+	// ⭐ Filtre : admin voit tout, serveur voit uniquement SES réservations
+	const filterMyReservations = useCallback(
+		(resas) => {
+			const opened = resas.filter((r) => r.status === "ouverte");
+			if (isAdmin) return opened; // Admin voit toutes les réservations ouvertes
+			return opened.filter((r) => isMyReservation(r, userId));
+		},
+		[isAdmin, userId],
+	);
+
 	// ⭐ Initialiser directement avec les réservations ouvertes si disponibles (protection contre undefined)
 	const initialOpenedResas =
 		Array.isArray(reservations) && reservations
-			? reservations.filter((r) => r.status === "ouverte")
+			? filterMyReservations(reservations)
 			: [];
 	const [openedReservations, setOpenedReservations] =
 		useState(initialOpenedResas);
@@ -51,14 +78,13 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			const saved = await AsyncStorage.getItem("activeReservationId");
 
 			if (saved) {
-				// ⭐ Valider que la réservation existe ET est ouverte
+				// ⭐ Valider que la réservation existe ET est ouverte ET m'appartient
 				const savedResa = reservations.find((r) => r._id === saved);
-				if (savedResa && savedResa.status === "ouverte") {
+				if (savedResa && savedResa.status === "ouverte" && (isAdmin || isMyReservation(savedResa, userId))) {
 					setActiveId(saved);
 					// updateCachedActiveId supprimé (inutile)
 				} else {
 					// ⭐ Réservation fermée ou inexistante - nettoyer
-					console.log("🧹 Réservation sauvegardée invalide, nettoyage");
 					await AsyncStorage.removeItem("activeReservationId");
 					clearCachedActiveId();
 				}
@@ -87,7 +113,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		}
 
 		if (Array.isArray(reservations) && reservations.length > 0) {
-			const openedResas = reservations.filter((r) => r.status === "ouverte");
+			const openedResas = filterMyReservations(reservations);
 			setOpenedReservations(openedResas);
 
 			if (activeId) {
@@ -121,7 +147,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			clearCachedActiveId(); // ⭐ Nettoyer le cache global
 			AsyncStorage.removeItem("activeReservationId").catch(console.error);
 		}
-	}, [reservations, activeId]);
+	}, [reservations, activeId, filterMyReservations]);
 
 	// Ajouter réservation active si manquante
 	useEffect(() => {
@@ -230,9 +256,6 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				setOpenedReservations((prev) =>
 					prev.map((r) => (r._id === event.data._id ? event.data : r)),
 				);
-				console.log(
-					`✅ Activity: Réservation ${event.data._id} mise à jour, totalAmount: ${event.data.totalAmount}€`,
-				);
 			}
 		};
 
@@ -254,7 +277,6 @@ export const useReservationManager = (reservations, fetchReservations) => {
 
 			// ⭐ Ne pas refetch si c'est la même réservation (sauf si force=true)
 			if (!force && lastFetchedReservationRef.current === reservationId) {
-				console.log(`⏭️ Commandes déjà chargées pour ${reservationId}, skip`);
 				return;
 			}
 
@@ -264,10 +286,6 @@ export const useReservationManager = (reservations, fetchReservations) => {
 					`${API_CONFIG.baseURL}/orders/reservation/${reservationId}`,
 				);
 
-				console.log(
-					`📦 Commandes récupérées pour réservation ${reservationId}:`,
-					(data || []).length,
-				);
 				setOrders(data || []);
 				lastFetchedReservationRef.current = reservationId;
 			} catch (error) {
@@ -326,7 +344,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		[authFetch],
 	);
 
-	// ⭐ Rafraîchir une réservation (pour récupérer totalAmount mis à jour)
+	// ⭐ Rafraîchir une réservation (totalAmount, auditLog, etc.)
 	const refreshReservation = useCallback(
 		async (reservationId) => {
 			try {
@@ -343,11 +361,19 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				setOpenedReservations((prev) =>
 					prev.map((r) => (r._id === reservationId ? updatedResa : r)),
 				);
+
+				// ⭐ Mettre à jour activeReservation directement (auditLog frais)
+				if (activeId === reservationId) {
+					setActiveReservation((prev) => ({
+						...updatedResa,
+						orderItems: prev?.orderItems || updatedResa.orderItems || [],
+					}));
+				}
 			} catch (error) {
 				console.error("❌ refreshReservation error:", error);
 			}
 		},
-		[authFetch],
+		[authFetch, activeId],
 	);
 
 	// Ouvrir prochaine réservation
@@ -364,6 +390,15 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		// ⭐ Debug : afficher les réservations ouvrables (isPresent=true ET status="en attente")
 		// UTILISER freshReservations au lieu de reservations
 		// ⭐ CORRECTION: Comparer avec les bons formats d'ID (openedReservations utilise 'id' court)
+		// ⭐ Helper : vérifier si la date est aujourd'hui
+		const isToday = (dateStr) => {
+			const today = new Date();
+			today.setHours(0, 0, 0, 0);
+			const d = new Date(dateStr);
+			d.setHours(0, 0, 0, 0);
+			return d.getTime() === today.getTime();
+		};
+
 		const openableReservations = freshReservations.filter((r) => {
 			const shortId = getShortId(r._id);
 			const isAlreadyOpened = openedReservations.some(
@@ -371,7 +406,10 @@ export const useReservationManager = (reservations, fetchReservations) => {
 					o._id === r._id || o.id === shortId || getShortId(o._id) === shortId,
 			);
 			return (
-				r.isPresent === true && r.status === "en attente" && !isAlreadyOpened
+				r.isPresent === true &&
+				r.status === "en attente" &&
+				!isAlreadyOpened &&
+				isToday(r.reservationDate)
 			);
 		});
 		// ⭐ RÈGLE MÉTIER: Chercher UNIQUEMENT les réservations présentes EN ATTENTE
@@ -382,11 +420,27 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		)[0];
 
 		if (!nextResa) {
-			Alert.alert(
-				"Aucune réservation",
-				"Il n'y a pas de réservation présente en attente à ouvrir.\n\nAssurez-vous qu'un client est marqué comme présent.",
-				[{ text: "OK" }],
+			// Vérifier s'il y a des réservations présentes mais pour un autre jour
+			const nonTodayPresent = freshReservations.filter(
+				(r) =>
+					r.isPresent === true &&
+					r.status === "en attente" &&
+					!isToday(r.reservationDate),
 			);
+
+			if (nonTodayPresent.length > 0) {
+				Alert.alert(
+					"Aucune réservation pour aujourd'hui",
+					`${nonTodayPresent.length} réservation(s) présente(s) en attente trouvée(s) mais pas pour aujourd'hui.\n\nSeules les réservations du jour peuvent être ouvertes.`,
+					[{ text: "OK" }],
+				);
+			} else {
+				Alert.alert(
+					"Aucune réservation",
+					"Il n'y a pas de réservation présente en attente à ouvrir.\n\nAssurez-vous qu'un client est marqué comme présent.",
+					[{ text: "OK" }],
+				);
+			}
 			return null;
 		}
 

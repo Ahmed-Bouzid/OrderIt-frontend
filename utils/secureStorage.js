@@ -176,10 +176,8 @@ export async function removeItem(key) {
 		if (isSecureKey(key)) {
 			const secureKey = normalizeKey(key);
 			await SecureStore.deleteItemAsync(secureKey);
-			console.log(`🔐 SecureStore.removeItem("${secureKey}"): ✅`);
 		} else {
 			await AsyncStorage.removeItem(key);
-			console.log(`📦 AsyncStorage.removeItem("${key}"): ✅`);
 		}
 	} catch (error) {
 		console.error(`❌ Error removeItem("${key}"):`, error.message);
@@ -226,7 +224,6 @@ export async function multiRemove(keys) {
 				: Promise.resolve(),
 		]);
 
-		console.log(`🗑️ multiRemove([${keys.join(", ")}]): ✅`);
 	} catch (error) {
 		console.error(`❌ Error multiRemove:`, error.message);
 		throw error;
@@ -251,9 +248,6 @@ export async function hasItem(key) {
 export async function getAllKeys() {
 	try {
 		const keys = await AsyncStorage.getAllKeys();
-		console.log(
-			`📦 AsyncStorage.getAllKeys(): ${keys.length} keys (SecureStore keys not listed)`,
-		);
 		return keys;
 	} catch (error) {
 		console.error(`❌ Error getAllKeys:`, error.message);
@@ -277,20 +271,15 @@ export async function migrateToSecureStore(key) {
 		// 1. Lire depuis AsyncStorage (ancienne clé avec @)
 		const value = await AsyncStorage.getItem(key);
 		if (!value) {
-			console.log(`ℹ️ "${key}" n'existe pas dans AsyncStorage, rien à migrer`);
 			return false;
 		}
 
 		// 2. Écrire dans SecureStore (nouvelle clé sans @)
 		const secureKey = normalizeKey(key);
 		await SecureStore.setItemAsync(secureKey, value);
-		console.log(
-			`🔐 Migration "${key}" → "${secureKey}": AsyncStorage → SecureStore ✅`,
-		);
 
 		// 3. Supprimer d'AsyncStorage
 		await AsyncStorage.removeItem(key);
-		console.log(`🗑️ Migration "${key}": nettoyage AsyncStorage ✅`);
 
 		return true;
 	} catch (error) {
@@ -308,8 +297,6 @@ export async function migrateAllSecureKeys() {
 	const migrated = [];
 	const failed = [];
 
-	console.log("🔄 Début migration automatique AsyncStorage → SecureStore...");
-
 	// Migrer les anciennes clés (avec @)
 	for (const [oldKey, newKey] of Object.entries(KEY_MIGRATION_MAP)) {
 		const success = await migrateToSecureStore(oldKey);
@@ -320,12 +307,6 @@ export async function migrateAllSecureKeys() {
 		}
 	}
 
-	console.log(
-		`✅ Migration terminée: ${migrated.length} migrées, ${failed.length} échecs`,
-	);
-	if (migrated.length > 0) {
-		console.log("✅ Migrées:", migrated.join(", "));
-	}
 	if (failed.length > 0) {
 		console.warn("⚠️ Échecs:", failed.join(", "));
 	}
@@ -337,7 +318,6 @@ export async function migrateAllSecureKeys() {
  */
 export function clearCache() {
 	memoryCache.clear();
-	console.log("🧹 Cache mémoire vidé");
 }
 
 // Export par défaut pour compatibilité

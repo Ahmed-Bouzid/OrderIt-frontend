@@ -71,7 +71,6 @@ const ServerResponseModal = ({
 			const token = await useUserStore.getState().getToken();
 			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/server-responses/predefined/${restaurantId}`;
 
-			console.log("📥 Chargement réponses prédéfinies...");
 
 			const response = await fetch(url, {
 				method: "GET",
@@ -86,7 +85,6 @@ const ServerResponseModal = ({
 			}
 
 			const data = await response.json();
-			console.log(`✅ ${data.responses?.length || 0} réponses chargées`);
 			setResponses(data.responses || []);
 		} catch (err) {
 			console.error("❌ Erreur chargement réponses:", err);
@@ -114,7 +112,6 @@ const ServerResponseModal = ({
 			const token = await useUserStore.getState().getToken();
 			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/server-responses/send`;
 
-			console.log("📤 Envoi réponse:", selectedResponse.text);
 
 			const response = await fetch(url, {
 				method: "POST",
@@ -137,7 +134,6 @@ const ServerResponseModal = ({
 			}
 
 			const data = await response.json();
-			console.log("✅ Réponse envoyée:", data);
 
 			// Vibration succès
 			if (Platform.OS !== "web") {

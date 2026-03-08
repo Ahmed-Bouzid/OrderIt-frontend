@@ -22,10 +22,8 @@ export default function Index() {
 						"secureStoreMigrated",
 					);
 					if (!alreadyMigrated) {
-						console.log("🔄 Première exécution, migration SecureStore...");
 						await migrateAllSecureKeys();
 						await AsyncStorage.setItem("secureStoreMigrated", "true");
-						console.log("✅ Migration SecureStore terminée");
 					}
 				} catch (migrationError) {
 					console.warn(
@@ -47,7 +45,6 @@ export default function Index() {
 					// ⭐ Valider que le token est encore valide (refresh auto si besoin)
 					try {
 						await getValidToken();
-						console.log("✅ Token valide, redirection...");
 					} catch (error) {
 						// Token invalide/expiré et refresh échoué → comportement normal
 						console.warn(

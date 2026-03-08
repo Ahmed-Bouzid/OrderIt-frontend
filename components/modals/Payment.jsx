@@ -75,10 +75,8 @@ export default function Payment({
 				const saved = await AsyncStorage.getItem(storageKey);
 				if (saved) {
 					const parsed = JSON.parse(saved);
-					console.log("📂 Articles déjà payés chargés:", parsed.length);
 					setPaidItems(new Set(parsed));
 				} else {
-					console.log("📂 Aucun article payé précédemment");
 				}
 			} catch (error) {
 				console.error("❌ Erreur chargement paidItems:", error);
@@ -141,15 +139,6 @@ export default function Payment({
 		(sum, item) => sum + (item?.quantity || 1),
 		0,
 	);
-
-	// 🐛 DEBUG: Log des items disponibles
-	useEffect(() => {
-		console.log(
-			"📊 Articles disponibles pour paiement:",
-			availableItems.length,
-		);
-		console.log("💳 Articles déjà payés:", paidItems.size);
-	}, [availableItems.length, paidItems.size]);
 
 	// 🎯 Sélectionner/désélectionner un article
 	const toggleItem = (item) => {
@@ -221,7 +210,6 @@ export default function Payment({
 			);
 
 			// 6. Marquer les commandes comme payées (CRITIQUE pour éviter les doublons)
-			console.log("💳 Marquage des commandes comme payées...");
 			try {
 				// Récupérer les IDs uniques des commandes à marquer comme payées
 				const orderIdsToMarkPaid = new Set();
@@ -240,7 +228,6 @@ export default function Payment({
 								method: "POST",
 							},
 						);
-						console.log(`✅ Commande ${orderId} marquée comme payée`);
 					} catch (error) {
 						console.error(`❌ Erreur marquage commande ${orderId}:`, error);
 					}
@@ -250,7 +237,6 @@ export default function Payment({
 			}
 
 			// 7. Mise à jour de la réservation via route dédiée
-			console.log("💳 Mise à jour de la réservation après paiement");
 			try {
 				const newPaidAmount = Number(reservation.paidAmount || 0) + amountPaid;
 
@@ -266,7 +252,6 @@ export default function Payment({
 						},
 					},
 				);
-				console.log("✅ Réservation mise à jour avec paiement");
 
 				// Rafraîchir le store
 				await fetchReservations(true);

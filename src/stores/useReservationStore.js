@@ -13,23 +13,16 @@ const useReservationStore = create((set, get) => ({
 	// ⭐ Fonction pour attacher les listeners WebSocket
 	attachSocketListener: (socket) => {
 		if (!socket) {
-			console.log(
-				"❌ [RESA STORE] Socket null, impossible d'attacher listener",
-			);
 			return;
 		}
 
-		console.log("✅ [RESA STORE] Attachement listener WebSocket reservation");
-
 		// Écouter les événements de réservation
 		socket.on("reservation", (event) => {
-			console.log("📡 [RESA STORE] WebSocket event reçu:", event);
 			const { type, data } = event;
 			const state = get();
 
 			switch (type) {
 				case "created": {
-					console.log("➕ [RESA STORE] Nouvelle réservation:", data._id);
 					// Ajouter la nouvelle réservation si elle n'existe pas
 					const exists = state.reservations.some((r) => r._id === data._id);
 					if (!exists) {
@@ -44,12 +37,6 @@ const useReservationStore = create((set, get) => ({
 				case "presentToggled":
 				case "tableAssigned":
 				case "updated": {
-					console.log(
-						"🔄 [RESA STORE] Mise à jour réservation:",
-						data._id,
-						"- status:",
-						data.status,
-					);
 					// Mettre à jour la réservation existante
 					const updated = state.reservations.map((r) =>
 						r._id === data._id ? data : r,
@@ -59,7 +46,6 @@ const useReservationStore = create((set, get) => ({
 				}
 
 				case "deleted": {
-					console.log("🗑️ [RESA STORE] Suppression réservation:", data._id);
 					// Supprimer la réservation
 					const filtered = state.reservations.filter((r) => r._id !== data._id);
 					set({ reservations: filtered });
@@ -85,13 +71,11 @@ const useReservationStore = create((set, get) => ({
 
 		// ⭐ Si pas de force et cache existe, retourner le cache
 		if (!force && state.reservations.length > 0) {
-			console.log("📦 Réservations déjà en cache, pas de fetch");
 			return { success: true, data: state.reservations };
 		}
 
 		// ✅ Si fetch déjà en cours, attendre la promise existante
 		if (fetchPromise) {
-			console.log("⏳ Requête réservations déjà en cours, attente...");
 			return fetchPromise;
 		}
 
@@ -114,7 +98,6 @@ const useReservationStore = create((set, get) => ({
 
 				// 🔹 si le token est invalide ou expiré
 				if (response.status === 401 || response.status === 403) {
-					console.log("🔒 Token expiré ou invalide");
 					throw new Error("Session expirée");
 				}
 

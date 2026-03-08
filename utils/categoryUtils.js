@@ -95,15 +95,11 @@ export const shouldShowFullReservationForm = (category) => {
  */
 export const isFastFoodOrder = (category) => {
 	if (!category) {
-		console.log("[isFastFoodOrder] ❌ category est null/undefined");
 		return false;
 	}
 	const normalized = category.toLowerCase().trim();
 	const result = ["fastfood", "fast-food", "fast food", "fast_food"].includes(
 		normalized,
-	);
-	console.log(
-		`[isFastFoodOrder] category="${category}" → normalized="${normalized}" → ${result ? "✅ FAST-FOOD" : "❌ pas fast-food"}`,
 	);
 	return result;
 };

@@ -28,7 +28,6 @@ export default function Dashboard() {
 
 	useEffect(() => {
 		if (selectedRestaurant) {
-			console.log("Données du restaurant sélectionné :", selectedRestaurant);
 			setRestaurantInfo({
 				id: selectedRestaurant._id,
 				name: selectedRestaurant.name,
@@ -70,7 +69,6 @@ export default function Dashboard() {
 			}
 
 			const updatedRestaurant = await response.json();
-			console.log("Mise à jour réussie :", updatedRestaurant);
 			setIsEditing(false);
 		} catch (error) {
 			console.error("Erreur lors de la mise à jour :", error);

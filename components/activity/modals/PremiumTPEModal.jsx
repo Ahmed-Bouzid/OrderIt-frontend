@@ -24,7 +24,6 @@ try {
 	const ExpoAV = require("expo-av");
 	Audio = ExpoAV.Audio;
 } catch (_e) {
-	console.log("📢 expo-av non installé - son désactivé");
 }
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
@@ -124,7 +123,6 @@ export const PremiumTPEModal = ({
 			);
 			soundRef.current = sound;
 		} catch (_e) {
-			console.log("🔇 Son non disponible");
 		}
 	};
 
@@ -309,7 +307,6 @@ export const PremiumTPEModal = ({
 	// � HANDLE TIP SELECTION
 	// ═══════════════════════════════════════════════════════════════════════
 	const handleTipSelection = (percentage) => {
-		console.log("💰 Pourboire sélectionné:", percentage + "%");
 		setIsCustomInput(false);
 		setCustomAmount("");
 		setSelectedTip(percentage);
@@ -318,7 +315,6 @@ export const PremiumTPEModal = ({
 	};
 
 	const handleCustomTip = () => {
-		console.log("💶 Mode montant custom activé");
 		setIsCustomInput(true);
 		setSelectedTip("custom");
 		setCustomAmount("");
@@ -330,15 +326,8 @@ export const PremiumTPEModal = ({
 
 		if (value === "C") {
 			// Remet le pourboire custom à 0
-			console.log(
-				"🔄 C pressé - baseAmount:",
-				baseAmount,
-				"finalAmount avant:",
-				finalAmount,
-			);
 			setCustomAmount("");
 			setFinalAmount(baseAmount);
-			console.log("🔄 Après reset - finalAmount devrait être:", baseAmount);
 		} else if (value === "X") {
 			// Retour au mode pourcentage
 			setIsCustomInput(false);
@@ -354,7 +343,6 @@ export const PremiumTPEModal = ({
 	};
 
 	const handleConfirmTip = () => {
-		console.log("✅ Confirmation pourboire - Passage en phase idle");
 		setPhase("idle");
 	};
 
@@ -364,7 +352,6 @@ export const PremiumTPEModal = ({
 	const handlePay = async () => {
 		// Si en phase tip-selection, passer en idle pour montrer l'écran de confirmation
 		if (phase === "tip-selection") {
-			console.log("✅ Confirmation pourboire - Passage en phase idle");
 			setPhase("idle");
 			return;
 		}
@@ -392,10 +379,6 @@ export const PremiumTPEModal = ({
 			const token = await getToken();
 			const API_BASE = getApiUrl();
 
-			console.log("🔑 Token:", token ? "OK" : "MISSING");
-			console.log("🌐 API_BASE:", API_BASE);
-			console.log("💰 Amount (cents):", Math.round(amount * 100));
-			console.log("📋 OrderId:", orderId);
 
 			// Créer PaymentIntent (utiliser finalAmount avec pourboire)
 			const createResponse = await fetch(`${API_BASE}/payments/create-intent`, {
@@ -411,7 +394,6 @@ export const PremiumTPEModal = ({
 				}),
 			});
 
-			console.log("📬 Response status:", createResponse.status);
 
 			if (!createResponse.ok) {
 				const errorData = await createResponse.json().catch(() => ({}));

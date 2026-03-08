@@ -33,15 +33,6 @@ const ReservationAssistantModal = ({
 	const fadeAnim = useRef(new Animated.Value(0)).current;
 	const scaleAnim = useRef(new Animated.Value(0.9)).current;
 
-	console.log(
-		"🎨 [MODAL ASSISTANT] visible:",
-		visible,
-		"loading:",
-		loading,
-		"result:",
-		result
-	);
-
 	useEffect(() => {
 		if (visible) {
 			// Animer l'entrée

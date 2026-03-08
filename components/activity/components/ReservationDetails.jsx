@@ -47,7 +47,7 @@ export const ReservationDetails = React.memo(
 				editField?.("allergies", allergenNames, true);
 				setAllergiesValue?.(allergenNames);
 			},
-			[setClientAllergens, editField, setAllergiesValue]
+			[setClientAllergens, editField, setAllergiesValue],
 		);
 
 		const formattedArrivalTime = useMemo(() => {
@@ -103,11 +103,6 @@ export const ReservationDetails = React.memo(
 				</View>
 
 				{/* Info Rows */}
-				<View style={localStyles.row}>
-					<Text style={localStyles.label}>Nom</Text>
-					<Text style={localStyles.value}>{formattedClientName}</Text>
-				</View>
-
 				<View style={localStyles.row}>
 					<Text style={localStyles.label}>Heure d&apos;arrivée</Text>
 					<View style={localStyles.rowRight}>
@@ -224,7 +219,7 @@ export const ReservationDetails = React.memo(
 				</View>
 			</View>
 		);
-	}
+	},
 );
 
 ReservationDetails.displayName = "ReservationDetails";
@@ -362,5 +357,22 @@ const createStyles = (THEME) =>
 			fontWeight: "600",
 			color: THEME.colors.status.error,
 			marginLeft: THEME.spacing.xs,
+		},
+		// ⭐ Styles pour le serveur assigné
+		serverBadge: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.xs,
+			backgroundColor: `${THEME.colors.primary.amber}15`,
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.xs,
+			borderRadius: THEME.radius.sm,
+			borderWidth: 1,
+			borderColor: `${THEME.colors.primary.amber}30`,
+		},
+		serverName: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "600",
+			color: THEME.colors.primary.amber,
 		},
 	});

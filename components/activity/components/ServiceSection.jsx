@@ -27,8 +27,18 @@ export const ServiceSection = React.memo(
 
 		const safeServers = useMemo(
 			() => (Array.isArray(servers) ? servers : []),
-			[servers]
+			[servers],
 		);
+
+		// ⭐ Filtrer : uniquement les serveurs en ligne
+		const onlineServers = useMemo(() => {
+			return safeServers
+				.filter((s) => s.isOnline === true)
+				.sort((a, b) => (a.name || "").localeCompare(b.name || ""));
+		}, [safeServers]);
+
+		// Nombre de serveurs en ligne
+		const onlineCount = onlineServers.length;
 
 		const serverDisplayName = useMemo(() => {
 			if (activeServer?.name) {
@@ -37,8 +47,15 @@ export const ServiceSection = React.memo(
 			if (activeReservation?.serverId?.name) {
 				return activeReservation.serverId.name;
 			}
+			if (activeReservation?.openedBy) {
+				return activeReservation.openedBy;
+			}
 			return "Non assigné";
-		}, [activeServer, activeReservation?.serverId]);
+		}, [
+			activeServer,
+			activeReservation?.serverId,
+			activeReservation?.openedBy,
+		]);
 
 		if (!activeReservation) {
 			return null;
@@ -116,123 +133,115 @@ export const ServiceSection = React.memo(
 								style={localStyles.modalScrollView}
 								contentContainerStyle={localStyles.modalScrollContent}
 							>
-								{safeServers.length === 0 ? (
+								{onlineServers.length === 0 ? (
 									<View style={localStyles.emptyState}>
 										<Ionicons
-											name="people-outline"
+											name="wifi-outline"
 											size={48}
 											color={THEME.colors.text.muted}
 										/>
 										<Text style={localStyles.emptyText}>
-											Aucun serveur disponible
+											Aucun serveur en ligne
 										</Text>
 										<Text style={localStyles.emptySubtext}>
-											Ajoutez des serveurs dans les paramètres
+											Les serveurs apparaissent ici lorsqu&apos;ils sont
+											connectés à l&apos;application
 										</Text>
 									</View>
 								) : (
-									safeServers.map((srv, index) => {
-										if (!srv) return null;
-										// ⭐ Priorité à activeServer si défini, sinon fallback sur serverId de la réservation
-										const isSelected = activeServer
-											? activeServer._id === srv._id
-											: activeReservation?.serverId?._id === srv._id;
-										// 🔮 Fake status - à remplacer par srv.isActive quand dispo en BDD
-										const isActive = srv.isActive ?? index % 3 !== 2;
-										return (
-											<TouchableOpacity
-												key={srv._id || Math.random().toString()}
-												style={[
-													localStyles.modalItem,
-													isSelected && localStyles.modalItemSelected,
-												]}
-												onPress={() => {
-													console.log(
-														"🎯 Serveur sélectionné:",
-														srv.name,
-														srv._id
-													);
-													editField?.("serverId", srv._id, true);
-													setActiveServer?.(srv);
-													setShowServerOptions?.(false);
-												}}
-											>
-												<View style={localStyles.modalItemLeft}>
-													<View
-														style={[
-															localStyles.modalAvatar,
-															isSelected && localStyles.modalAvatarSelected,
-														]}
-													>
-														<Ionicons
-															name="person"
-															size={18}
-															color={
-																isSelected
-																	? THEME.colors.primary.amber
-																	: THEME.colors.text.secondary
-															}
-														/>
-													</View>
-													<View>
-														<Text
-															style={[
-																localStyles.modalName,
-																isSelected && localStyles.modalNameSelected,
-															]}
-														>
-															{srv.name || "Serveur"}
-														</Text>
-														{srv.email && (
-															<Text style={localStyles.modalEmail}>
-																{srv.email}
-															</Text>
-														)}
+									<>
+										{/* Indicateur du nombre en ligne */}
+										<View style={localStyles.onlineIndicator}>
+											<View style={localStyles.onlineDotLarge} />
+											<Text style={localStyles.onlineCountText}>
+												{onlineCount} en ligne
+											</Text>
+										</View>
+										{onlineServers.map((srv) => {
+											if (!srv) return null;
+											const isSelected = activeServer
+												? activeServer._id === srv._id
+												: activeReservation?.serverId?._id === srv._id;
+											return (
+												<TouchableOpacity
+													key={srv._id || Math.random().toString()}
+													style={[
+														localStyles.modalItem,
+														isSelected && localStyles.modalItemSelected,
+													]}
+													onPress={() => {
+														editField?.("serverId", srv._id, true);
+														setActiveServer?.(srv);
+														setShowServerOptions?.(false);
+													}}
+												>
+													<View style={localStyles.modalItemLeft}>
 														<View
 															style={[
-																localStyles.statusTag,
-																isActive
-																	? localStyles.statusTagActive
-																	: localStyles.statusTagInactive,
+																localStyles.modalAvatar,
+																isSelected && localStyles.modalAvatarSelected,
 															]}
 														>
-															<View
-																style={[
-																	localStyles.statusDotSmall,
-																	{
-																		backgroundColor: isActive
-																			? "#22C55E"
-																			: THEME.colors.text.muted,
-																	},
-																]}
+															<Ionicons
+																name="person"
+																size={18}
+																color={
+																	isSelected
+																		? THEME.colors.primary.amber
+																		: THEME.colors.text.secondary
+																}
 															/>
+														</View>
+														<View>
 															<Text
 																style={[
-																	localStyles.statusTagText,
-																	{
-																		color: isActive
-																			? "#22C55E"
-																			: THEME.colors.text.muted,
-																	},
+																	localStyles.modalName,
+																	isSelected && localStyles.modalNameSelected,
 																]}
 															>
-																{isActive ? "Actif" : "Inactif"}
+																{srv.name || "Serveur"}
 															</Text>
+															{srv.email && (
+																<Text style={localStyles.modalEmail}>
+																	{srv.email}
+																</Text>
+															)}
+															<View
+																style={[
+																	localStyles.statusTag,
+																	localStyles.statusTagActive,
+																]}
+															>
+																<View
+																	style={[
+																		localStyles.statusDotSmall,
+																		{ backgroundColor: "#22C55E" },
+																	]}
+																/>
+																<Text
+																	style={[
+																		localStyles.statusTagText,
+																		{ color: "#22C55E" },
+																	]}
+																>
+																	En ligne
+																</Text>
+															</View>
 														</View>
 													</View>
-												</View>
-												{isSelected && (
-													<View style={localStyles.modalBadge}>
-														<Ionicons
-															name="checkmark-circle"
-															size={18}
-															color={THEME.colors.primary.amber}
-														/>
-													</View>
-												)}
-											</TouchableOpacity>
-										);
-									})
+													{isSelected && (
+														<View style={localStyles.modalBadge}>
+															<Ionicons
+																name="checkmark-circle"
+																size={18}
+																color={THEME.colors.primary.amber}
+															/>
+														</View>
+													)}
+												</TouchableOpacity>
+											);
+										})}
+									</>
 								)}
 							</ScrollView>
 						</View>
@@ -261,7 +270,7 @@ export const ServiceSection = React.memo(
 				</View>
 			</View>
 		);
-	}
+	},
 );
 
 ServiceSection.displayName = "ServiceSection";
@@ -508,9 +517,6 @@ const createStyles = (THEME) =>
 		statusTagActive: {
 			backgroundColor: "rgba(34, 197, 94, 0.1)",
 		},
-		statusTagInactive: {
-			backgroundColor: "rgba(100, 116, 139, 0.1)",
-		},
 		statusDotSmall: {
 			width: 6,
 			height: 6,
@@ -520,5 +526,26 @@ const createStyles = (THEME) =>
 		statusTagText: {
 			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "500",
+		},
+		// ⭐ Styles serveurs en ligne
+		onlineIndicator: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.xs,
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.sm,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		onlineDotLarge: {
+			width: 8,
+			height: 8,
+			borderRadius: 4,
+			backgroundColor: "#22C55E",
+		},
+		onlineCountText: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: "600",
+			color: "#22C55E",
 		},
 	});

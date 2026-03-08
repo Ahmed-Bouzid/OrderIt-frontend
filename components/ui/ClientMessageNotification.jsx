@@ -111,12 +111,10 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 
 	// Écouter les messages WebSocket
 	useEffect(() => {
-		console.log("🔌 ClientMessageNotification - Socket connecté:", isConnected);
 
 		if (!socket || !isConnected) return;
 
 		const handleClientMessage = (event) => {
-			console.log("📨 [ClientMessageNotification] Message client reçu:", event);
 
 			if (event.type === "new-message") {
 				const notification = {
@@ -142,7 +140,6 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 		};
 
 		const handleServerResponse = (event) => {
-			console.log("📨 Réponse serveur reçue:", event);
 			// Retirer la notification correspondante
 			if (event.data?.clientMessageId) {
 				setNotifications((prev) =>
@@ -185,7 +182,6 @@ const ClientMessageNotification = ({ onMessagePress }) => {
 
 	// Callback après envoi réponse
 	const handleResponseSent = useCallback((message) => {
-		console.log("✅ Réponse envoyée pour message:", message.id);
 		// Retirer de la file d'attente
 		setNotifications((prev) => prev.filter((n) => n.id !== message.id));
 		setShowResponseModal(false);

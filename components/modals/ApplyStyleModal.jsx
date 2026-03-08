@@ -35,17 +35,13 @@ export default function ApplyStyleModal({ visible, onClose }) {
 
 	// Charger restaurants et styles
 	const loadData = async () => {
-		console.log("🔄 [ApplyStyleModal] Chargement des données...");
 		setLoading(true);
 		try {
-			console.log("📡 [ApplyStyleModal] Appel API restaurants et styles...");
 			const [restaurantsData, stylesData] = await Promise.all([
 				authFetch("/developer/restaurants", { method: "GET" }),
 				authFetch("/developer/styles", { method: "GET" }),
 			]);
 
-			console.log("📥 [ApplyStyleModal] Restaurants reçus:", restaurantsData);
-			console.log("📥 [ApplyStyleModal] Styles reçus:", stylesData);
 
 			// Gestion robuste : authFetch peut retourner [] en cas d'erreur
 			if (Array.isArray(restaurantsData) && restaurantsData.length === 0) {
@@ -57,9 +53,6 @@ export default function ApplyStyleModal({ visible, onClose }) {
 					"Impossible de charger les restaurants. Vérifiez votre connexion.",
 				);
 			} else if (restaurantsData?.restaurants) {
-				console.log(
-					`✅ [ApplyStyleModal] ${restaurantsData.restaurants.length} restaurants chargés`,
-				);
 				setRestaurants(restaurantsData.restaurants);
 			} else {
 				console.warn(
@@ -77,9 +70,6 @@ export default function ApplyStyleModal({ visible, onClose }) {
 					"Impossible de charger les styles. Vérifiez votre connexion.",
 				);
 			} else if (stylesData?.styles) {
-				console.log(
-					`✅ [ApplyStyleModal] ${stylesData.styles.length} styles chargés`,
-				);
 				setStyles(stylesData.styles);
 			} else {
 				console.warn(
@@ -92,7 +82,6 @@ export default function ApplyStyleModal({ visible, onClose }) {
 			Alert.alert("Erreur", "Impossible de charger les données");
 		} finally {
 			setLoading(false);
-			console.log("✅ [ApplyStyleModal] Chargement terminé");
 		}
 	};
 

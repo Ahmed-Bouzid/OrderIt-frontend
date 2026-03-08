@@ -476,16 +476,27 @@ const SettingsModal = React.memo(
 
 											{/* Annulée */}
 											{effectiveStatus === "annulée" && (
-												<ActionButton
-													icon="add-circle"
-													label="Recréer la réservation"
-													colors={["#F59E0B", "#D97706"]}
-													onPress={() => {
-														onClose?.();
-														onRecreate?.(reservation);
-													}}
-													styles={modalStyles}
-												/>
+												<>
+													<ActionButton
+														icon="add-circle"
+														label="Recréer la réservation"
+														colors={["#F59E0B", "#D97706"]}
+														onPress={() => {
+															onClose?.();
+															onRecreate?.(reservation);
+														}}
+														styles={modalStyles}
+													/>
+													{onDelete && (
+														<ActionButton
+															icon="trash"
+															label="Supprimer définitivement"
+															colors={["#7F1D1D", "#450A0A"]}
+															onPress={() => onDelete(reservation._id)}
+															styles={modalStyles}
+														/>
+													)}
+												</>
 											)}
 										</>
 									)}

@@ -93,9 +93,6 @@ export default function FloorPlanModal({
 		const handleTableEvent = (event) => {
 			const { type, data } = event;
 			if (type === "deleted") {
-				console.log(
-					`🗑️ [FLOOR] Table supprimée via WS, retrait visuel: ${data._id}`,
-				);
 				setTables((prev) => prev.filter((t) => t._id !== data._id));
 				setModifiedTableIds((prev) => {
 					const next = new Set(prev);
@@ -167,17 +164,14 @@ export default function FloorPlanModal({
 	const fetchTables = useCallback(async () => {
 		if (isSimulation) return; // Pas de fetch pour les salles simulées
 		if (!restaurantId) {
-			console.log("⚠️ Pas de restaurantId, skip fetchTables");
 			return;
 		}
 
 		try {
-			console.log("🔄 Chargement tables pour restaurant:", restaurantId);
 			const data = await authFetch(`/tables/restaurant/${restaurantId}`, {
 				method: "GET",
 			});
 
-			console.log("📊 Tables chargées:", data?.length || 0);
 			if (Array.isArray(data)) {
 				setTables(data);
 			}
@@ -270,19 +264,12 @@ export default function FloorPlanModal({
 				updateData.capacity = capacity;
 			}
 
-			console.log("💾 [FLOOR] Sauvegarde table:", {
-				tableId: editingTable._id,
-				editMode,
-				updateData,
-			});
-
 			const updatedTable = await authFetch(`/tables/${editingTable._id}`, {
 				method: "PUT",
 				body: updateData, // ✅ authFetch gère JSON.stringify automatiquement
 			});
 
 			if (updatedTable) {
-				console.log("✅ [FLOOR] Table mise à jour:", updatedTable);
 				setTables((prev) =>
 					prev.map((t) => (t._id === editingTable._id ? updatedTable : t)),
 				);
@@ -318,8 +305,6 @@ export default function FloorPlanModal({
 				status: "available",
 			};
 
-			console.log("➕ [FLOOR] Création table:", newTable);
-
 			// authFetch retourne directement les données parsées (pas un objet Response)
 			const createdTable = await authFetch("/tables", {
 				method: "POST",
@@ -327,7 +312,6 @@ export default function FloorPlanModal({
 			});
 
 			if (createdTable && createdTable._id) {
-				console.log("✅ [FLOOR] Table créée:", createdTable);
 				setTables((prev) => [...prev, createdTable]);
 			} else {
 				console.error("❌ [FLOOR] Réponse invalide:", createdTable);
@@ -353,7 +337,6 @@ export default function FloorPlanModal({
 						// authFetch retourne [] en cas d'erreur, ou les données en cas de succès
 						await authFetch(`/tables/${tableId}`, { method: "DELETE" });
 						// Retrait immédiat du state local (le WS confirmera aussi)
-						console.log(`✅ [FLOOR] Table ${tableId} supprimée, retrait local`);
 						setTables((prev) => prev.filter((t) => t._id !== tableId));
 						setModifiedTableIds((prev) => {
 							const next = new Set(prev);
@@ -420,8 +403,6 @@ export default function FloorPlanModal({
 				Alert.alert("Info", "Aucune modification à sauvegarder");
 				return;
 			}
-
-			console.log("💾 Sauvegarde des positions:", updates);
 
 			// Appel API pour sauvegarder toutes les positions et tailles
 			let savedCount = 0;
@@ -1014,12 +995,6 @@ const TableCard = ({
 				}
 
 				const newPosition = { x, y };
-				console.log(
-					"🎯 Table déplacée:",
-					table.number,
-					"Position:",
-					newPosition,
-				);
 				if (onPositionChange) {
 					onPositionChange(table._id, newPosition);
 				}

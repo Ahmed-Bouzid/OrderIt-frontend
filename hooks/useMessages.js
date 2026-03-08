@@ -240,7 +240,6 @@ export const useMessages = () => {
 
 	// ⭐ Forcer un nouvel essai (appelé manuellement par l'utilisateur)
 	const retryConnection = useCallback(() => {
-		console.log("🔄 Réinitialisation de la connexion messagerie...");
 		store.setFeatureAvailable(true);
 		store.setError(null);
 	}, [store]);

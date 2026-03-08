@@ -29,7 +29,7 @@ import SettingsModal from "../dashboard/SettingsModal";
 import NewReservationModal from "../dashboard/NewReservationModal";
 import CreateFastFoodOrderModal from "../dashboard/CreateFastFoodOrderModal";
 import AssignTableModal from "../dashboard/AssignTableModal";
-import AuditModal from "../dashboard/AuditModal"; // ⭐ NOUVEAU
+import AuditLogModal from "../activity/modals/AuditLogModal";
 import LoadingSkeleton from "../dashboard/LoadingSkeleton";
 import ExpressOrders from "./ExpressOrders"; // 🏃 NOUVEAU
 import FastFoodKitchen from "./FastFoodKitchen"; // 🍔 NOUVEAU
@@ -61,10 +61,11 @@ export default function Dashboard() {
 	const [showSettingsModal, setShowSettingsModal] = useState(false);
 	const [showNewReservationModal, setShowNewReservationModal] = useState(false);
 	const [showAssignTableModal, setShowAssignTableModal] = useState(false);
-	const [showAuditModal, setShowAuditModal] = useState(false); // ⭐ NOUVEAU
 	const [showExpressOrders, setShowExpressOrders] = useState(false); // 🏃 NOUVEAU pour Le Grillz
 	const [showKitchen, setShowKitchen] = useState(false); // 🍔 Vue cuisine fast-food
 	const [showFastFoodOrderModal, setShowFastFoodOrderModal] = useState(false);
+	const [showAuditLog, setShowAuditLog] = useState(false);
+	const [auditReservation, setAuditReservation] = useState(null);
 	const [selectedReservation, setSelectedReservation] = useState(null);
 	const [recreateData, setRecreateData] = useState(null); // ⭐ Données pour recréer une réservation
 	const [selectedDate, setSelectedDate] = useState(new Date()); // 📅 Date sélectionnée pour le filtrage
@@ -104,6 +105,7 @@ export default function Dashboard() {
 		togglePresent,
 		updateStatus,
 		cancelReservation,
+		deleteReservation,
 		assignTable,
 		updateReservationField,
 		createReservation,
@@ -180,12 +182,52 @@ export default function Dashboard() {
 
 	const handleUpdateStatus = useCallback(
 		async (id, status, reservation) => {
+			// ⭐ Vérifier que la réservation est pour aujourd'hui avant d'ouvrir
+			if (status === "ouverte" && reservation?.reservationDate) {
+				const today = new Date();
+				today.setHours(0, 0, 0, 0);
+				const resaDate = new Date(reservation.reservationDate);
+				resaDate.setHours(0, 0, 0, 0);
+
+				if (resaDate.getTime() !== today.getTime()) {
+					const formattedDate = new Date(
+						reservation.reservationDate,
+					).toLocaleDateString("fr-FR", {
+						weekday: "long",
+						day: "numeric",
+						month: "long",
+					});
+
+					return new Promise((resolve) => {
+						Alert.alert(
+							"Réservation pas pour aujourd'hui",
+							`Cette réservation est prévue pour le ${formattedDate}.\n\nSouhaitez-vous créer une réservation pour aujourd'hui avec les informations de ce client ?`,
+							[
+								{
+									text: "Non",
+									style: "cancel",
+									onPress: () => resolve(false),
+								},
+								{
+									text: "Oui, créer pour aujourd'hui",
+									onPress: () => {
+										handleCloseSettings();
+										handleRecreateReservation(reservation);
+										resolve(false);
+									},
+								},
+							],
+						);
+					});
+				}
+			}
+
 			const success = await updateStatus(id, status, reservation);
 			if (success) {
 				handleCloseSettings();
 			}
 		},
-		[updateStatus, handleCloseSettings],
+		[updateStatus, handleCloseSettings, handleRecreateReservation],
 	);
 
 	const handleCancel = useCallback(
@@ -194,6 +236,14 @@ export default function Dashboard() {
 			handleCloseSettings();
 		},
 		[cancelReservation, handleCloseSettings],
+	);
+
+	const handleDelete = useCallback(
+		async (id) => {
+			await deleteReservation(id);
+			handleCloseSettings();
+		},
+		[deleteReservation, handleCloseSettings],
 	);
 
 	const handlePayReservation = useCallback(
@@ -306,16 +356,6 @@ export default function Dashboard() {
 		[createReservation],
 	);
 
-	// ⭐ Handler pour ouvrir l'audit
-	const handleOpenAudit = useCallback((reservation) => {
-		setSelectedReservation(reservation);
-		setShowAuditModal(true);
-	}, []);
-
-	const handleCloseAudit = useCallback(() => {
-		setShowAuditModal(false);
-	}, []);
-
 	// ─────────────── Render Item FlatList ───────────────
 	const renderReservationCard = useCallback(
 		({ item }) => (
@@ -325,7 +365,10 @@ export default function Dashboard() {
 				onAssignTablePress={hasAutoTables ? handleOpenAssignTable : undefined}
 				onEditNbPersonnes={handleEditNbPersonnes}
 				onEditPhone={handleEditPhone}
-				onAuditPress={handleOpenAudit} // ⭐ NOUVEAU
+				onAuditPress={(resa) => {
+					setAuditReservation(resa);
+					setShowAuditLog(true);
+				}}
 				theme={theme}
 			/>
 		),
@@ -334,7 +377,6 @@ export default function Dashboard() {
 			handleOpenAssignTable,
 			handleEditNbPersonnes,
 			handleEditPhone,
-			handleOpenAudit, // ⭐ NOUVEAU
 			theme,
 			hasAutoTables,
 		],
@@ -466,7 +508,7 @@ export default function Dashboard() {
 						/>
 					)}
 
-					{/* Liste des réservations avec FlatList */}
+					{/* Liste des réservations */}
 					{loading ? (
 						<LoadingSkeleton theme={theme} count={6} />
 					) : (
@@ -532,6 +574,7 @@ export default function Dashboard() {
 				onCancel={handleCancel}
 				onRecreate={handleRecreateReservation}
 				onPayReservation={handlePayReservation}
+				onDelete={handleDelete}
 			/>
 
 			<NewReservationModal
@@ -552,13 +595,6 @@ export default function Dashboard() {
 				theme={theme}
 			/>
 
-			{/* ⭐ Modal d'audit */}
-			<AuditModal
-				visible={showAuditModal}
-				onClose={handleCloseAudit}
-				reservation={selectedReservation}
-			/>
-
 			{/* 🍔 Modale commande fast-food */}
 			<CreateFastFoodOrderModal
 				visible={showFastFoodOrderModal}
@@ -567,6 +603,17 @@ export default function Dashboard() {
 					setShowFastFoodOrderModal(false);
 					fetchReservations(true);
 				}}
+			/>
+
+			{/* ⭐ Modale audit */}
+			<AuditLogModal
+				visible={showAuditLog}
+				onClose={() => {
+					setShowAuditLog(false);
+					setAuditReservation(null);
+				}}
+				reservation={auditReservation}
+				theme={THEME}
 			/>
 		</View>
 	);

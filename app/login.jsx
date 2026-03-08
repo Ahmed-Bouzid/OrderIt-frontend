@@ -325,14 +325,11 @@ export default function Login() {
 				// ✅ Stocker le refresh token (SecureStore - TRÈS IMPORTANT pour la continuité de session)
 				if (data.refreshToken) {
 					await setSecureItem("refreshToken", data.refreshToken);
-					console.log("✅ RefreshToken sauvegardé en SecureStore");
 
 					// ⭐ Vérifier immédiatement que c'est bien sauvegardé
 					const saved = await getSecureItem("refreshToken");
 					if (saved) {
-						console.log(
-							"✅✅ Vérification: RefreshToken présent en SecureStore",
-						);
+						// RefreshToken vérifié en SecureStore
 					} else {
 						console.error(
 							"❌ ERREUR: RefreshToken n'a pas pu être sauvegardé!",
@@ -360,14 +357,12 @@ export default function Login() {
 				// ✅ Stocker serverId et tableId si présents (serveur uniquement)
 				if (data.serverId) {
 					await AsyncStorage.setItem("serverId", data.serverId);
-					console.log("✅ serverId sauvegardé:", data.serverId);
 				} else {
 					await AsyncStorage.removeItem("serverId");
 				}
 
 				if (data.tableId) {
 					await AsyncStorage.setItem("tableId", data.tableId);
-					console.log("✅ tableId sauvegardé:", data.tableId);
 				} else {
 					await AsyncStorage.removeItem("tableId");
 				}
@@ -375,7 +370,6 @@ export default function Login() {
 				// 🍔 Stocker la catégorie du restaurant (foodtruck, restaurant, etc.)
 				if (data.category) {
 					await AsyncStorage.setItem("category", data.category);
-					console.log("✅ category sauvegardée:", data.category);
 				} else {
 					await AsyncStorage.removeItem("category");
 				}
@@ -389,7 +383,6 @@ export default function Login() {
 						"featureOverrides",
 						JSON.stringify(data.featureOverrides),
 					);
-					console.log("✅ featureOverrides sauvegardés");
 				} else {
 					await AsyncStorage.removeItem("featureOverrides");
 				}
@@ -403,11 +396,6 @@ export default function Login() {
 					restaurantId: restaurantId,
 					category: data.category || "restaurant",
 				});
-				console.log("✅ User info stocké:", {
-					role: data.role,
-					userType: data.userType,
-					category: data.category,
-				});
 				// ⏳ Attendre que TOUS les tokens soient bien écrits avant de naviguer
 				const verifyToken = await getSecureItem("@access_token");
 				if (!verifyToken) {
@@ -415,7 +403,6 @@ export default function Login() {
 					Alert.alert("Erreur", "Problème de sauvegarde des identifiants");
 					return;
 				}
-				console.log("✅ Token vérifié présent, navigation...");
 				// 🧭 Redirection vers index qui gérera la vraie navigation
 				router.replace("/");
 			} else {

@@ -73,7 +73,7 @@ const ReservationCard = React.memo(
 		onAssignTablePress,
 		onEditNbPersonnes,
 		onEditPhone,
-		onAuditPress, // ⭐ NOUVEAU: callback pour ouvrir l'audit
+		onAuditPress,
 	}) => {
 		// Thème dynamique (avant tout)
 		const { themeMode } = useThemeStore();
@@ -233,36 +233,63 @@ const ReservationCard = React.memo(
 								<Text style={styles.clientName} numberOfLines={1}>
 									{String(reservation?.clientName || "Client").toUpperCase()}
 								</Text>
-								<View
-									style={[
-										styles.statusBadge,
-										{ backgroundColor: statusConfig.bg },
-									]}
-								>
+								<View style={styles.badgeRow}>
 									<View
 										style={[
-											styles.statusDot,
-											{ backgroundColor: statusConfig.color },
+											styles.statusBadge,
+											{ backgroundColor: statusConfig.bg },
 										]}
-									/>
-									<Text
-										style={[styles.statusText, { color: statusConfig.color }]}
 									>
-										{effectiveStatus}
-									</Text>
+										<View
+											style={[
+												styles.statusDot,
+												{ backgroundColor: statusConfig.color },
+											]}
+										/>
+										<Text
+											style={[styles.statusText, { color: statusConfig.color }]}
+										>
+											{effectiveStatus}
+										</Text>
+									</View>
+									{/* Badge sans table */}
+									{!isSnackMode &&
+										!reservation.tableId &&
+										effectiveStatus !== "terminée" &&
+										effectiveStatus !== "annulée" && (
+											<View style={styles.noTableBadge}>
+												<Ionicons name="warning" size={10} color="#EF4444" />
+												<Text style={styles.noTableBadgeText}>Sans table</Text>
+											</View>
+										)}
 								</View>
 							</View>
-							<TouchableOpacity
-								onPress={() => onSettingsPress?.(reservation)}
-								style={styles.settingsButton}
-								activeOpacity={0.7}
+							<View
+								style={{ flexDirection: "row", alignItems: "center", gap: 4 }}
 							>
-								<Ionicons
-									name="ellipsis-vertical"
-									size={20}
-									color={THEME.colors.text.muted}
-								/>
-							</TouchableOpacity>
+								<TouchableOpacity
+									onPress={() => onAuditPress?.(reservation)}
+									style={styles.settingsButton}
+									activeOpacity={0.7}
+								>
+									<Ionicons
+										name="time-outline"
+										size={18}
+										color={THEME.colors.text.muted}
+									/>
+								</TouchableOpacity>
+								<TouchableOpacity
+									onPress={() => onSettingsPress?.(reservation)}
+									style={styles.settingsButton}
+									activeOpacity={0.7}
+								>
+									<Ionicons
+										name="ellipsis-vertical"
+										size={20}
+										color={THEME.colors.text.muted}
+									/>
+								</TouchableOpacity>
+							</View>
 						</View>
 
 						{/* Info grid - 3 colonnes */}
@@ -376,20 +403,44 @@ const ReservationCard = React.memo(
 						</View>
 					</View>
 
-					{/* ⭐ Bouton Audit (i) en bas à droite */}
-					{onAuditPress && (
-						<TouchableOpacity
-							onPress={() => onAuditPress?.(reservation)}
-							style={styles.auditButton}
-							activeOpacity={0.7}
-						>
-							<Ionicons
-								name="information-circle-outline"
-								size={20}
-								color={THEME.colors.primary.indigo}
-							/>
-						</TouchableOpacity>
-					)}
+					{/* Notes / Allergies preview */}
+					{!isSnackMode &&
+						(reservation.allergies ||
+							reservation.restrictions ||
+							reservation.notes) && (
+							<View style={styles.notesPreview}>
+								{reservation.allergies ? (
+									<View style={styles.noteTag}>
+										<Ionicons name="alert-circle" size={10} color="#F59E0B" />
+										<Text style={styles.noteTagText} numberOfLines={1}>
+											{reservation.allergies}
+										</Text>
+									</View>
+								) : null}
+								{reservation.restrictions ? (
+									<View style={styles.noteTag}>
+										<Ionicons name="leaf" size={10} color="#10B981" />
+										<Text style={styles.noteTagText} numberOfLines={1}>
+											{reservation.restrictions}
+										</Text>
+									</View>
+								) : null}
+								{reservation.notes &&
+								!reservation.allergies &&
+								!reservation.restrictions ? (
+									<View style={styles.noteTag}>
+										<Ionicons
+											name="chatbubble"
+											size={10}
+											color={THEME.colors.text.muted}
+										/>
+										<Text style={styles.noteTagText} numberOfLines={1}>
+											{reservation.notes}
+										</Text>
+									</View>
+								) : null}
+							</View>
+						)}
 				</View>
 			</Animated.View>
 		);
@@ -496,16 +547,7 @@ const createStyles = (THEME) =>
 			padding: 4,
 			marginLeft: 8,
 		},
-		auditButton: {
-			position: "absolute",
-			bottom: 8,
-			right: 8,
-			padding: 6,
-			backgroundColor: `${THEME.colors.primary.indigo}15`,
-			borderRadius: 16,
-			borderWidth: 1,
-			borderColor: `${THEME.colors.primary.indigo}30`,
-		},
+
 		infoGrid: {
 			flexDirection: "row",
 			padding: 12,
@@ -533,6 +575,52 @@ const createStyles = (THEME) =>
 		infoTextHighlight: {
 			color: "#F59E0B",
 			fontWeight: "600",
+		},
+		badgeRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			flexWrap: "wrap",
+		},
+		noTableBadge: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: "rgba(239, 68, 68, 0.12)",
+			paddingHorizontal: 8,
+			paddingVertical: 3,
+			borderRadius: 12,
+			gap: 3,
+		},
+		noTableBadgeText: {
+			color: "#EF4444",
+			fontSize: 9,
+			fontWeight: "700",
+			textTransform: "uppercase",
+			letterSpacing: 0.3,
+		},
+		notesPreview: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			gap: 4,
+			paddingHorizontal: 12,
+			paddingBottom: 10,
+			paddingTop: 0,
+		},
+		noteTag: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: `${THEME.colors.background.elevated}`,
+			paddingHorizontal: 6,
+			paddingVertical: 2,
+			borderRadius: 8,
+			gap: 3,
+			maxWidth: "90%",
+		},
+		noteTagText: {
+			color: THEME.colors.text.muted,
+			fontSize: 10,
+			fontWeight: "500",
+			flexShrink: 1,
 		},
 	});
 

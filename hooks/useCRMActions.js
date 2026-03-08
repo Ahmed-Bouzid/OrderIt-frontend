@@ -32,7 +32,6 @@ export const useCRMActions = () => {
 			setIsExporting(true);
 
 			try {
-				console.log(`📊 [CRM] Export rapport ${format} pour période ${period}`);
 
 				const response = await authFetch(
 					`/crm/reports/export?period=${period}&format=${format}`,
@@ -75,7 +74,6 @@ export const useCRMActions = () => {
 					);
 				}
 
-				console.log("✅ [CRM] Export terminé avec succès");
 				return { success: true, fileUri };
 			} catch (error) {
 				console.error("❌ [CRM] Erreur export:", error);
@@ -99,7 +97,6 @@ export const useCRMActions = () => {
 			setIsExporting(true);
 
 			try {
-				console.log(`📄 [CRM] Génération PDF pour période ${period}`);
 
 				// TODO: Installer expo-print pour activer la génération PDF
 				/*
@@ -193,7 +190,6 @@ export const useCRMActions = () => {
 					"Export PDF non disponible - installer expo-print si nécessaire",
 				);
 
-				console.log("✅ [CRM] PDF génération préparée (nécessite expo-print)");
 				return { success: false, message: "Export PDF non disponible" };
 			} catch (error) {
 				console.error("❌ [CRM] Erreur génération PDF:", error);
@@ -216,10 +212,6 @@ export const useCRMActions = () => {
 		setIsSendingAlert(true);
 
 		try {
-			console.log(
-				`💬 [CRM] Envoi alerte coaching pour ${recommendation.serverName}`,
-			);
-
 			// TODO: Implémenter l'envoi d'alerte via API backend
 			// Pour l'instant, simulation
 			await new Promise((resolve) => setTimeout(resolve, 1000));
@@ -230,7 +222,6 @@ export const useCRMActions = () => {
 			// 3. Envoyer un email/SMS
 			// 4. Créer un message dans le chat interne
 
-			console.log("✅ [CRM] Alerte envoyée avec succès");
 			return { success: true };
 		} catch (error) {
 			console.error("❌ [CRM] Erreur envoi alerte:", error);
@@ -256,10 +247,6 @@ export const useCRMActions = () => {
 			setIsUpdatingServer(true);
 
 			try {
-				console.log(
-					`👥 [CRM] Mise à jour rôle serveur ${serverId} → ${newRole}`,
-				);
-
 				const response = await authFetch(`/servers/${serverId}`, {
 					method: "PUT",
 					body: { role: newRole },
@@ -269,7 +256,6 @@ export const useCRMActions = () => {
 					throw new Error(response.message || "Erreur lors de la mise à jour");
 				}
 
-				console.log("✅ [CRM] Rôle mis à jour avec succès");
 				return { success: true, server: response.server };
 			} catch (error) {
 				console.error("❌ [CRM] Erreur mise à jour rôle:", error);
@@ -287,12 +273,10 @@ export const useCRMActions = () => {
 	const markCoachingCompleted = useCallback(
 		async (recommendationId, notes = "") => {
 			try {
-				console.log(`🎯 [CRM] Marquage coaching complété ${recommendationId}`);
 
 				// TODO: Implémenter via API backend
 				await new Promise((resolve) => setTimeout(resolve, 500));
 
-				console.log("✅ [CRM] Coaching marqué comme complété");
 				return { success: true };
 			} catch (error) {
 				console.error("❌ [CRM] Erreur marquage coaching:", error);
@@ -310,7 +294,6 @@ export const useCRMActions = () => {
 			setIsExporting(true);
 
 			try {
-				console.log(`📊 [CRM] Création rapport personnalisé`);
 
 				const {
 					dateRange,
@@ -337,7 +320,6 @@ export const useCRMActions = () => {
 					);
 				}
 
-				console.log("✅ [CRM] Rapport personnalisé créé");
 				return response.data;
 			} catch (error) {
 				console.error("❌ [CRM] Erreur rapport personnalisé:", error);
@@ -354,7 +336,6 @@ export const useCRMActions = () => {
 	 */
 	const syncData = useCallback(async () => {
 		try {
-			console.log(`🔄 [CRM] Synchronisation des données`);
 
 			// Force un refresh complet via un timestamp
 			const response = await authFetch(`/crm/sync?timestamp=${Date.now()}`, {
@@ -366,7 +347,6 @@ export const useCRMActions = () => {
 				throw new Error(response.message || "Erreur de synchronisation");
 			}
 
-			console.log("✅ [CRM] Synchronisation réussie");
 			return { success: true, syncedAt: new Date() };
 		} catch (error) {
 			console.error("❌ [CRM] Erreur sync:", error);
@@ -381,14 +361,12 @@ export const useCRMActions = () => {
 		setIsExporting(true);
 
 		try {
-			console.log(`🎨 [CRM] Export graphique ${chartType}`);
 
 			// TODO: Implémenter la génération d'images de graphiques
 			// Peut utiliser react-native-svg pour convertir en image
 
 			await new Promise((resolve) => setTimeout(resolve, 1000));
 
-			console.log("✅ [CRM] Graphique exporté");
 			return { success: true };
 		} catch (error) {
 			console.error("❌ [CRM] Erreur export graphique:", error);

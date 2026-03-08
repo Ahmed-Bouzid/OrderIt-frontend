@@ -22,6 +22,7 @@ import {
 	Animated,
 	Dimensions,
 	Alert,
+	ActivityIndicator,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -31,6 +32,8 @@ import useUserStore from "../../src/stores/useUserStore";
 import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import { isFastService } from "../../utils/categoryUtils";
+import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
+import { useReservationAI } from "../../hooks/useReservationAI";
 
 const { width: SCREEN_WIDTH } = Dimensions.get("window");
 
@@ -210,6 +213,16 @@ const NewReservationModal = React.memo(
 		const category = useUserStore((state) => state.category);
 		const isSnackMode = isFastService(category);
 
+		// ── IA ─────────────────────────────────────────────────────────────
+		const { hasAiSmartDuration, hasAiSlotSuggestions } = useFeatureLevel();
+		const {
+			getSmartDuration,
+			getAlternatives,
+			loading: aiLoading,
+		} = useReservationAI();
+		const [smartDuration, setSmartDuration] = useState(null);
+		const [aiAlternatives, setAiAlternatives] = useState(null);
+
 		const [step, setStep] = useState(1);
 		const [clientName, setClientName] = useState("");
 		const [phone, setPhone] = useState("");
@@ -233,6 +246,14 @@ const NewReservationModal = React.memo(
 		const [assistantResult, setAssistantResult] = useState(null);
 		const [assistantLoading, setAssistantLoading] = useState(false);
 
+		// ⭐ Créneaux disponibles
+		const [availableSlots, setAvailableSlots] = useState([]);
+		const [loadingSlots, setLoadingSlots] = useState(false);
+
+		// ✨ Assistant suggestion de créneaux
+		const [suggestionResult, setSuggestionResult] = useState(null);
+		const [suggestionLoading, setSuggestionLoading] = useState(false);
+
 		// ⭐ Charger les tables avec disponibilité quand date/heure change
 		useEffect(() => {
 			const fetchTablesWithAvailability = async () => {
@@ -255,17 +276,10 @@ const NewReservationModal = React.memo(
 					// Formater la date en ISO
 					const dateISO = new Date(reservationDate).toISOString().split("T")[0];
 
-					console.log("🔄 [TABLES] Chargement disponibilité:", {
-						date: dateISO,
-						time: reservationTime,
-						restaurantId,
-					});
-
 					const enrichedTables = await authFetch(
 						`/tables/restaurant/${restaurantId}/available?date=${dateISO}&time=${reservationTime}`,
 					);
 
-					console.log("✅ [TABLES] Tables avec disponibilité:", enrichedTables);
 					setTablesWithAvailability(enrichedTables || tables || []);
 				} catch (error) {
 					console.error("❌ [TABLES] Erreur chargement disponibilité:", error);
@@ -280,7 +294,6 @@ const NewReservationModal = React.memo(
 
 		useEffect(() => {
 			if (visible && initialData) {
-				console.log("📋 Pré-remplissage avec données:", initialData.clientName);
 				setClientName(initialData.clientName || "");
 				setPhone(initialData.phone || "");
 				setNbPersonnes(initialData.nbPersonnes || 2);
@@ -296,6 +309,57 @@ const NewReservationModal = React.memo(
 				setStep(1);
 			}
 		}, [visible, initialData]);
+
+		// ⭐ Charger les créneaux disponibles quand la date ou le nb de personnes change (step 2, hors snack)
+		useEffect(() => {
+			if (!reservationDate || step !== 2 || isSnackMode) {
+				setAvailableSlots([]);
+				setSuggestionResult(null);
+				return;
+			}
+			const restaurantId = tables?.[0]?.restaurantId;
+			if (!restaurantId) return;
+			setLoadingSlots(true);
+			authFetch(
+				`/reservations/restaurant/${restaurantId}/available-slots?date=${reservationDate}&guests=${nbPersonnes}`,
+			)
+				.then((data) => {
+					if (Array.isArray(data)) setAvailableSlots(data);
+					else setAvailableSlots([]);
+				})
+				.catch(() => setAvailableSlots([]))
+				.finally(() => setLoadingSlots(false));
+		}, [reservationDate, nbPersonnes, step, isSnackMode, tables, authFetch]);
+
+		// ⭐ IA Smart Duration : recalcul quand nbPersonnes change
+		useEffect(() => {
+			if (!visible || !hasAiSmartDuration || nbPersonnes < 1) {
+				setSmartDuration(null);
+				return;
+			}
+			let cancelled = false;
+			getSmartDuration(nbPersonnes).then((result) => {
+				if (!cancelled) setSmartDuration(result);
+			});
+			return () => {
+				cancelled = true;
+			};
+		}, [nbPersonnes, visible, hasAiSmartDuration, getSmartDuration]);
+
+		// Effacer alternatives IA si l'heure ou la date change
+		useEffect(() => {
+			setAiAlternatives(null);
+		}, [reservationDate, reservationTime]);
+
+		const handleGetAlternatives = useCallback(async () => {
+			if (!reservationDate || !reservationTime) return;
+			const result = await getAlternatives(
+				reservationDate,
+				reservationTime,
+				nbPersonnes,
+			);
+			setAiAlternatives(Array.isArray(result) ? result : []);
+		}, [reservationDate, reservationTime, nbPersonnes, getAlternatives]);
 
 		const modalStyles = useMemo(() => createStyles(THEME), [THEME]);
 
@@ -351,11 +415,6 @@ const NewReservationModal = React.memo(
 		}, [reservationDate, reservationTime, isSnackMode]);
 		// ⭐ Vérifier la disponibilité avec l'assistant
 		const handleCheckAvailability = useCallback(async () => {
-			console.log("✨ [ASSISTANT] Début vérification disponibilité");
-			console.log("📅 Date:", reservationDate);
-			console.log("⏰ Heure:", reservationTime);
-			console.log("👥 Personnes:", nbPersonnes);
-
 			if (!reservationDate || !reservationTime) {
 				Alert.alert(
 					"Informations manquantes",
@@ -377,13 +436,9 @@ const NewReservationModal = React.memo(
 				const restaurantId =
 					tables[0]?.restaurantId || localStorage.getItem("restaurantId");
 
-				console.log("🏪 Restaurant ID:", restaurantId);
-
 				if (!restaurantId) {
 					throw new Error("Restaurant ID manquant");
 				}
-
-				console.log("📡 Appel API /assistant/check-availability...");
 
 				const response = await authFetch("/assistant/check-availability", {
 					method: "POST",
@@ -395,7 +450,6 @@ const NewReservationModal = React.memo(
 					},
 				});
 
-				console.log("✅ Réponse assistant:", response);
 				setAssistantResult(response);
 			} catch (error) {
 				console.error("❌ Erreur assistant:", error);
@@ -411,9 +465,41 @@ const NewReservationModal = React.memo(
 				});
 			} finally {
 				setAssistantLoading(false);
-				console.log("✨ [ASSISTANT] Fin vérification");
 			}
 		}, [reservationDate, reservationTime, nbPersonnes, tables, authFetch]);
+
+		// ✨ Demande de suggestion intelligente à l'assistant
+		const handleSuggest = useCallback(async () => {
+			if (!reservationDate) {
+				Alert.alert(
+					"Date manquante",
+					"Sélectionnez d'abord une date pour obtenir des suggestions.",
+				);
+				return;
+			}
+			const restaurantId = tables?.[0]?.restaurantId;
+			if (!restaurantId) return;
+			setSuggestionLoading(true);
+			setSuggestionResult(null);
+			try {
+				const data = await authFetch("/assistant/suggest", {
+					method: "POST",
+					body: {
+						restaurantId,
+						date: reservationDate,
+						people: nbPersonnes,
+					},
+				});
+				setSuggestionResult(data);
+			} catch (e) {
+				setSuggestionResult({
+					summary: "Impossible d'analyser les créneaux pour ce jour.",
+					suggestions: [],
+				});
+			} finally {
+				setSuggestionLoading(false);
+			}
+		}, [reservationDate, nbPersonnes, tables, authFetch]);
 
 		// ⭐ Sélectionner une alternative proposée par l'assistant
 		const handleSelectAlternative = useCallback((time) => {
@@ -585,6 +671,24 @@ const NewReservationModal = React.memo(
 												/>
 											</InputField>
 
+											{/* ⭐ IA Smart Duration hint — mode snack */}
+											{hasAiSmartDuration && smartDuration && (
+												<View style={modalStyles.smartDurationHint}>
+													<Ionicons
+														name="time-outline"
+														size={13}
+														color="#F59E0B"
+													/>
+													<Text style={modalStyles.smartDurationText}>
+														IA · {smartDuration.recommendedMinutes} min
+														recommandées
+														{smartDuration.reason
+															? ` — ${smartDuration.reason}`
+															: ""}
+													</Text>
+												</View>
+											)}
+
 											{/* Notes optionnelles */}
 											<InputField
 												label="Notes (optionnel)"
@@ -663,6 +767,24 @@ const NewReservationModal = React.memo(
 															modalStyles={modalStyles}
 														/>
 													</InputField>
+
+													{/* ⭐ IA Smart Duration hint — step 1 restaurant */}
+													{hasAiSmartDuration && smartDuration && (
+														<View style={modalStyles.smartDurationHint}>
+															<Ionicons
+																name="time-outline"
+																size={13}
+																color="#F59E0B"
+															/>
+															<Text style={modalStyles.smartDurationText}>
+																IA · {smartDuration.recommendedMinutes} min
+																recommandées
+																{smartDuration.reason
+																	? ` — ${smartDuration.reason}`
+																	: ""}
+															</Text>
+														</View>
+													)}
 												</View>
 											)}
 
@@ -721,48 +843,164 @@ const NewReservationModal = React.memo(
 																THEME={THEME}
 																modalStyles={modalStyles}
 															>
-																<View style={modalStyles.timeAssistantRow}>
-																	<View style={modalStyles.datePickerWrapper}>
-																		<DateTimePicker
-																			mode="time"
-																			value={
-																				reservationTime
-																					? new Date(
-																							`1970-01-01T${reservationTime}:00`,
-																						)
-																					: new Date()
-																			}
-																			is24Hour={true}
-																			display="compact"
-																			onChange={(event, selectedTime) => {
-																				if (selectedTime) {
-																					let hh = selectedTime.getHours();
-																					let mm = selectedTime.getMinutes();
-																					mm = mm < 30 ? 0 : 30;
-																					setReservationTime(
-																						`${String(hh).padStart(
-																							2,
-																							"0",
-																						)}:${String(mm).padStart(2, "0")}`,
-																					);
-																				}
-																			}}
-																			themeVariant="dark"
-																			style={{ flex: 1 }}
+																{/* ✨ Bouton assistant suggestion */}
+																{reservationDate && (
+																	<TouchableOpacity
+																		style={modalStyles.suggestButton}
+																		onPress={handleSuggest}
+																		disabled={suggestionLoading}
+																	>
+																		{suggestionLoading ? (
+																			<ActivityIndicator
+																				size="small"
+																				color={THEME.colors.primary.amber}
+																			/>
+																		) : (
+																			<>
+																				<Ionicons
+																					name="sparkles-outline"
+																					size={13}
+																					color={THEME.colors.primary.amber}
+																				/>
+																				<Text
+																					style={modalStyles.suggestButtonText}
+																				>
+																					Suggérer un créneau
+																				</Text>
+																			</>
+																		)}
+																	</TouchableOpacity>
+																)}
+																{/* Résultats suggestion */}
+																{suggestionResult && (
+																	<View style={modalStyles.suggestionPanel}>
+																		<Text style={modalStyles.suggestionSummary}>
+																			{suggestionResult.summary}
+																		</Text>
+																		{suggestionResult.suggestions?.map(
+																			(s, i) => (
+																				<TouchableOpacity
+																					key={i}
+																					style={modalStyles.suggestionItem}
+																					onPress={() => {
+																						setReservationTime(s.time);
+																						setSuggestionResult(null);
+																					}}
+																				>
+																					<View style={{ flex: 1 }}>
+																						<Text
+																							style={
+																								modalStyles.suggestionLabel
+																							}
+																						>
+																							{s.label} · {s.time}
+																						</Text>
+																						<Text
+																							style={
+																								modalStyles.suggestionReason
+																							}
+																						>
+																							{s.reason}
+																						</Text>
+																					</View>
+																					<View
+																						style={modalStyles.suggestionBadge}
+																					>
+																						<Text
+																							style={
+																								modalStyles.suggestionBadgeText
+																							}
+																						>
+																							{`${s.availableTables} table${s.availableTables > 1 ? "s" : ""}`}
+																						</Text>
+																					</View>
+																				</TouchableOpacity>
+																			),
+																		)}
+																	</View>
+																)}
+																{loadingSlots ? (
+																	<View
+																		style={{
+																			alignItems: "center",
+																			paddingVertical: 12,
+																		}}
+																	>
+																		<ActivityIndicator
+																			size="small"
+																			color={THEME.colors.primary.amber}
 																		/>
 																	</View>
-																	{/* Bouton Info Assistant */}
-																	<TouchableOpacity
-																		style={modalStyles.infoButton}
-																		onPress={handleCheckAvailability}
-																	>
-																		<Ionicons
-																			name="information-circle-outline"
-																			size={24}
-																			color={THEME.colors.text.secondary}
-																		/>
-																	</TouchableOpacity>
-																</View>
+																) : availableSlots.length > 0 ? (
+																	<View style={modalStyles.slotsContainer}>
+																		{availableSlots.map((slot) => (
+																			<TouchableOpacity
+																				key={slot.time}
+																				style={[
+																					modalStyles.slotChip,
+																					reservationTime === slot.time &&
+																						modalStyles.slotChipSelected,
+																				]}
+																				onPress={() =>
+																					setReservationTime(slot.time)
+																				}
+																			>
+																				<Text
+																					style={[
+																						modalStyles.slotChipText,
+																						reservationTime === slot.time &&
+																							modalStyles.slotChipTextSelected,
+																					]}
+																				>
+																					{slot.time}
+																				</Text>
+																			</TouchableOpacity>
+																		))}
+																	</View>
+																) : (
+																	<View style={modalStyles.timeAssistantRow}>
+																		<View style={modalStyles.datePickerWrapper}>
+																			<DateTimePicker
+																				mode="time"
+																				value={
+																					reservationTime
+																						? new Date(
+																								`1970-01-01T${reservationTime}:00`,
+																							)
+																						: new Date()
+																				}
+																				is24Hour={true}
+																				display="compact"
+																				onChange={(event, selectedTime) => {
+																					if (selectedTime) {
+																						let hh = selectedTime.getHours();
+																						let mm = selectedTime.getMinutes();
+																						mm = mm < 30 ? 0 : 30;
+																						setReservationTime(
+																							`${String(hh).padStart(
+																								2,
+																								"0",
+																							)}:${String(mm).padStart(2, "0")}`,
+																						);
+																					}
+																				}}
+																				themeVariant="dark"
+																				style={{ flex: 1 }}
+																			/>
+																		</View>
+																		{/* Bouton Info Assistant */}
+																		<TouchableOpacity
+																			style={modalStyles.infoButton}
+																			onPress={handleCheckAvailability}
+																		>
+																			<Ionicons
+																				name="information-circle-outline"
+																				size={24}
+																				color={THEME.colors.text.secondary}
+																			/>
+																		</TouchableOpacity>
+																	</View>
+																)}
 																{/* Résultats Assistant inline */}
 																{assistantResult && (
 																	<View
@@ -861,6 +1099,70 @@ const NewReservationModal = React.memo(
 															</InputField>
 														</View>
 													</View>
+
+													{/* ⭐ IA Alternatives créneaux */}
+													{hasAiSlotSuggestions &&
+														reservationDate &&
+														reservationTime && (
+															<TouchableOpacity
+																style={[
+																	modalStyles.aiAltButton,
+																	aiLoading.alternatives && { opacity: 0.6 },
+																]}
+																onPress={handleGetAlternatives}
+																disabled={!!aiLoading.alternatives}
+															>
+																{aiLoading.alternatives ? (
+																	<ActivityIndicator
+																		size="small"
+																		color="#F59E0B"
+																	/>
+																) : (
+																	<>
+																		<Ionicons
+																			name="git-branch-outline"
+																			size={13}
+																			color="#F59E0B"
+																		/>
+																		<Text style={modalStyles.aiAltButtonText}>
+																			Créneaux alternatifs IA
+																		</Text>
+																	</>
+																)}
+															</TouchableOpacity>
+														)}
+													{aiAlternatives && aiAlternatives.length > 0 && (
+														<View style={modalStyles.aiAltPanel}>
+															<Text style={modalStyles.aiAltTitle}>
+																Suggestions IA
+															</Text>
+															<View style={modalStyles.aiAltRow}>
+																{aiAlternatives.slice(0, 6).map((alt, idx) => (
+																	<TouchableOpacity
+																		key={idx}
+																		style={modalStyles.aiAltChip}
+																		onPress={() => {
+																			if (alt.date)
+																				setReservationDate(alt.date);
+																			setReservationTime(alt.time);
+																			setAiAlternatives(null);
+																		}}
+																	>
+																		<Text style={modalStyles.aiAltChipTime}>
+																			{alt.dayOffset
+																				? `+${alt.dayOffset}j `
+																				: ""}
+																			{alt.time}
+																		</Text>
+																		<Text style={modalStyles.aiAltChipSub}>
+																			{alt.availableTables}T
+																		</Text>
+																	</TouchableOpacity>
+																))}
+															</View>
+														</View>
+													)}
+
 													{/* Table */}
 													<InputField
 														label="Table (optionnel)"
@@ -1243,6 +1545,97 @@ const createStyles = (THEME) =>
 			borderWidth: 1,
 			borderColor: `${THEME.colors.text.secondary}30`,
 		},
+		slotsContainer: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			gap: THEME.spacing.sm,
+			paddingVertical: THEME.spacing.sm,
+		},
+		slotChip: {
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			borderRadius: THEME.radius.full || 99,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			backgroundColor: THEME.colors.background.elevated,
+		},
+		slotChipSelected: {
+			borderColor: THEME.colors.primary.amber,
+			backgroundColor: `${THEME.colors.primary.amber}20`,
+		},
+		slotChipText: {
+			fontSize: 13,
+			fontWeight: "500",
+			color: THEME.colors.text.secondary,
+		},
+		slotChipTextSelected: {
+			color: THEME.colors.primary.amber,
+			fontWeight: "700",
+		},
+		suggestButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			marginBottom: THEME.spacing.sm,
+			borderRadius: THEME.radius.full || 99,
+			backgroundColor: `${THEME.colors.primary.amber}12`,
+			borderWidth: 1,
+			borderColor: `${THEME.colors.primary.amber}30`,
+			alignSelf: "flex-start",
+		},
+		suggestButtonText: {
+			fontSize: 12,
+			fontWeight: "600",
+			color: THEME.colors.primary.amber,
+		},
+		suggestionPanel: {
+			marginTop: THEME.spacing.sm,
+			marginBottom: THEME.spacing.sm,
+			padding: THEME.spacing.md,
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: `${THEME.colors.primary.amber}25`,
+		},
+		suggestionSummary: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			marginBottom: THEME.spacing.sm,
+		},
+		suggestionItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			padding: THEME.spacing.md,
+			marginBottom: THEME.spacing.xs,
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: THEME.radius.sm,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		suggestionLabel: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginBottom: 2,
+		},
+		suggestionReason: {
+			fontSize: 11,
+			color: THEME.colors.text.secondary,
+		},
+		suggestionBadge: {
+			paddingVertical: 4,
+			paddingHorizontal: 8,
+			backgroundColor: `${THEME.colors.primary.amber}20`,
+			borderRadius: THEME.radius.full || 99,
+			marginLeft: THEME.spacing.sm,
+		},
+		suggestionBadgeText: {
+			fontSize: 11,
+			fontWeight: "700",
+			color: THEME.colors.primary.amber,
+		},
 		tableGrid: {
 			flexDirection: "row",
 			flexWrap: "wrap",
@@ -1318,6 +1711,79 @@ const createStyles = (THEME) =>
 			fontWeight: "600",
 			color: "#FFF",
 			marginRight: THEME.spacing.sm,
+		},
+		// ── IA Styles ──────────────────────────────────────────────────
+		smartDurationHint: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			backgroundColor: "rgba(245, 158, 11, 0.08)",
+			borderRadius: THEME.radius.sm,
+			paddingVertical: 6,
+			paddingHorizontal: THEME.spacing.sm,
+			marginTop: THEME.spacing.sm,
+		},
+		smartDurationText: {
+			flex: 1,
+			fontSize: 12,
+			color: "#F59E0B",
+			fontWeight: "500",
+		},
+		// ── IA Alternatives Créneaux ───────────────────────────────────
+		aiAltButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+			backgroundColor: "rgba(245, 158, 11, 0.10)",
+			borderWidth: 1,
+			borderColor: "rgba(245, 158, 11, 0.25)",
+			borderRadius: THEME.radius.md,
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.md,
+			alignSelf: "flex-start",
+			marginBottom: THEME.spacing.sm,
+		},
+		aiAltButtonText: {
+			fontSize: 12,
+			fontWeight: "600",
+			color: "#F59E0B",
+		},
+		aiAltPanel: {
+			marginBottom: THEME.spacing.md,
+			paddingVertical: THEME.spacing.sm,
+			paddingHorizontal: THEME.spacing.sm,
+			backgroundColor: "rgba(245, 158, 11, 0.06)",
+			borderRadius: THEME.radius.md,
+			borderWidth: 1,
+			borderColor: "rgba(245, 158, 11, 0.18)",
+		},
+		aiAltTitle: {
+			fontSize: 11,
+			fontWeight: "600",
+			color: "#F59E0B",
+			marginBottom: 4,
+		},
+		aiAltRow: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			gap: 6,
+		},
+		aiAltChip: {
+			alignItems: "center",
+			backgroundColor: "rgba(245, 158, 11, 0.12)",
+			borderRadius: THEME.radius.sm,
+			paddingVertical: 5,
+			paddingHorizontal: 10,
+		},
+		aiAltChipTime: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: "#F59E0B",
+		},
+		aiAltChipSub: {
+			fontSize: 10,
+			color: THEME.colors.text.muted,
+			marginTop: 1,
 		},
 	});
 

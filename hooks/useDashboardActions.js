@@ -307,6 +307,36 @@ export const useDashboardActions = (fetchReservations) => {
 		[authFetch, fetchReservations],
 	);
 
+	// ⭐ Supprimer définitivement une réservation (uniquement annulées)
+	const deleteReservation = useCallback(
+		async (id) => {
+			Alert.alert(
+				"Suppression définitive",
+				"Cette réservation sera supprimée définitivement. Continuer ?",
+				[
+					{ text: "Annuler", style: "cancel" },
+					{
+						text: "Supprimer",
+						style: "destructive",
+						onPress: async () => {
+							try {
+								await authFetch(`${API_CONFIG.baseURL}/reservations/${id}`, {
+									method: "DELETE",
+								});
+								Alert.alert("Succès", "Réservation supprimée");
+								await fetchReservations(true);
+							} catch (error) {
+								console.error("❌ Erreur suppression:", error);
+								Alert.alert("Erreur", "Impossible de supprimer la réservation");
+							}
+						},
+					},
+				],
+			);
+		},
+		[authFetch, fetchReservations],
+	);
+
 	// Enregistrer le paiement d'une réservation
 	const payReservation = useCallback(
 		async (id, paidAmount, paymentMethod) => {
@@ -346,6 +376,7 @@ export const useDashboardActions = (fetchReservations) => {
 		togglePresent,
 		updateStatus,
 		cancelReservation,
+		deleteReservation,
 		assignTable,
 		updateReservationField,
 		createReservation,

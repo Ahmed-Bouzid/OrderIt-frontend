@@ -348,44 +348,31 @@ export const ProductSelection = React.memo(
 						process.env.EXPO_PUBLIC_API_URL ||
 						"https://orderit-backend-6y1m.onrender.com"
 					}/products/${productId}/options`;
-					console.log(
-						"🔍 Vérification options pour:",
-						product?.name,
-						"URL:",
-						url,
-					);
 
 					const response = await fetch(url, {
 						headers: {
 							Authorization: `Bearer ${token}`,
 						},
 					});
-					console.log("📡 Response status:", response.status, response.ok);
 
 					if (response.ok) {
 						const options = await response.json();
-						console.log("✅ Options reçues:", options);
 
 						if (Array.isArray(options) && options.length > 0) {
 							// Ouvrir la modale d'options
-							console.log("🎯 Ouverture modale pour:", product?.name);
 							setProductForOptions(
 								product || safeProducts.find((p) => p._id === productId),
 							);
 							setOptionsModalVisible(true);
 							return;
 						} else {
-							console.log("⚠️ Aucune option trouvée ou tableau vide");
 						}
 					} else {
-						console.log("❌ Response non-ok:", response.status);
 					}
 				} catch (error) {
-					console.log("❌ Erreur fetch options:", error.message);
 				}
 
 				// Pas d'options, ajouter directement
-				console.log("➕ Ajout direct sans options");
 				editField?.("orderItems", (prev = []) => {
 					const safePrev = Array.isArray(prev) ? prev : [];
 					const existing = safePrev.find((i) => i?.productId === productId);
@@ -538,11 +525,6 @@ export const ProductSelection = React.memo(
 		);
 
 		const handleNext = useCallback(() => {
-			console.log("🎯 handleNext appelé!", {
-				hasSelectedItems,
-				step,
-				nextStep: hasSelectedItems ? (step || 1) + 1 : 3,
-			});
 			setStep?.(hasSelectedItems ? (step || 1) + 1 : 3);
 		}, [hasSelectedItems, step, setStep]);
 

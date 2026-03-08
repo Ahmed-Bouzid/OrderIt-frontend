@@ -210,7 +210,6 @@ const NotificationInbox = () => {
 				markAsRead(notification.id);
 			}
 			// TODO: Ouvrir le détail ou naviguer vers la table
-			console.log("📬 Notification clicked:", notification.id);
 		},
 		[markAsRead],
 	);
@@ -357,7 +356,6 @@ const NotificationInbox = () => {
 							style={styles.viewAllButton}
 							onPress={() => {
 								// TODO: Naviguer vers l'historique complet
-								console.log("📜 View all messages");
 							}}
 							activeOpacity={0.7}
 						>

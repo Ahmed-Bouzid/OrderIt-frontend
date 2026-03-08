@@ -39,7 +39,6 @@ export const useCRMData = (period = "week") => {
 		}
 
 		try {
-			console.log(`📊 [CRM] Fetching dashboard data for period: ${period}`);
 
 			const response = await authFetch(
 				`/crm/dashboard?period=${period}&restaurantId=${restaurantId}`,
@@ -87,7 +86,6 @@ export const useCRMData = (period = "week") => {
 			}
 
 			try {
-				console.log(`👥 [CRM] Fetching servers data for period: ${period}`);
 
 				const response = await authFetch(
 					`/crm/servers?period=${period}&detailed=${detailed}`,
@@ -135,7 +133,6 @@ export const useCRMData = (period = "week") => {
 			}
 
 			try {
-				console.log(`🏆 [CRM] Fetching leaderboard data for metric: ${metric}`);
 
 				const response = await authFetch(
 					`/crm/leaderboard?period=${period}&metric=${metric}`,
@@ -183,7 +180,6 @@ export const useCRMData = (period = "week") => {
 		}
 
 		try {
-			console.log(`📈 [CRM] Fetching trends data`);
 
 			const response = await authFetch(`/crm/trends`, {
 				method: "GET",
@@ -304,7 +300,6 @@ export const useCRMData = (period = "week") => {
 			// Auto-refresh seulement si pas de fetch récent
 			if (timeSinceLastFetch > 300000) {
 				// 5 minutes
-				console.log("🔄 [CRM] Auto-refresh des données");
 				fetchDashboard(); // Refresh discret du dashboard seulement
 			}
 		}, 300000); // Vérification toutes les 5 minutes

@@ -65,17 +65,9 @@ export const SettingsModal = ({
 	};
 
 	const handleFinish = () => {
-		console.log("🔘 [SettingsModal] handleFinish appelé");
-		console.log(
-			"🔘 [SettingsModal] activeReservation:",
-			activeReservation?._id?.slice(-6),
-			"status:",
-			activeReservation?.status
-		);
-
 		if (!activeReservation?._id || !onFinishReservation) {
 			console.error(
-				"❌ [SettingsModal] Pas de reservationId ou onFinishReservation"
+				"❌ [SettingsModal] Pas de reservationId ou onFinishReservation",
 			);
 			return;
 		}
@@ -87,15 +79,11 @@ export const SettingsModal = ({
 				{
 					text: "Oui",
 					onPress: async () => {
-						console.log(
-							"🔘 [SettingsModal] Confirmation OK, appel onFinishReservation..."
-						);
 						safeOnClose();
 						await onFinishReservation(activeReservation._id);
-						console.log("🔘 [SettingsModal] onFinishReservation terminé");
 					},
 				},
-			]
+			],
 		);
 	};
 
@@ -113,7 +101,7 @@ export const SettingsModal = ({
 						safeOnClose();
 					},
 				},
-			]
+			],
 		);
 	};
 

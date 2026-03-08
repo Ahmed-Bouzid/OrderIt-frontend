@@ -16,12 +16,10 @@ const useTableStore = create((set, get) => ({
 			return;
 		}
 
-		console.log("🔌 Attachement des listeners WebSocket pour tables");
 		socketListenerAttached = true;
 
 		socket.on("table", (event) => {
 			const { type, data } = event;
-			console.log(`📡 Événement table reçu: ${type}`, data);
 
 			const state = get();
 
@@ -67,12 +65,10 @@ const useTableStore = create((set, get) => ({
 		const state = get();
 
 		if (state.isLoading) {
-			console.log("⏳ Fetch tables déjà en cours...");
 			return;
 		}
 
 		if (state.lastFetch && Date.now() - state.lastFetch < 30000) {
-			console.log("♻️ Tables déjà en cache");
 			return;
 		}
 
@@ -81,7 +77,6 @@ const useTableStore = create((set, get) => ({
 
 			const token = await getSecureItem("@access_token");
 			if (!token) {
-				console.log("⚠️ Aucun token trouvé — redirection vers Login");
 				set({ isLoading: false });
 				RootNavigation.navigate("Login");
 				return;
@@ -94,7 +89,6 @@ const useTableStore = create((set, get) => ({
 			);
 
 			if (response.status === 401 || response.status === 403) {
-				console.log("🔒 Token expiré ou invalide");
 				throw new Error("Session expirée");
 			}
 
