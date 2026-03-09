@@ -18,7 +18,7 @@ import { useTheme } from "../../hooks/useTheme";
 import useUserStore from "../../src/stores/useUserStore";
 import * as SecureStore from "expo-secure-store";
 import { API_CONFIG } from "../../src/config/apiConfig";
-import ScreenProtectionWrapper from "../ScreenProtectionWrapper";
+
 import Svg, {
 	Path,
 	Defs,
@@ -1417,8 +1417,7 @@ export default function AccountingScreen({ onClose }) {
 	// ═══════════════════════════════════════════════════════════════════════
 	return (
 		<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-			<ScreenProtectionWrapper protectionKey="accounting">
-				<View style={styles.modalContainer}>
+			<View style={styles.modalContainer}>
 					{/* Header */}
 					<View style={styles.header}>
 						<Text style={styles.title}>💰 Comptabilité</Text>
@@ -1505,8 +1504,7 @@ export default function AccountingScreen({ onClose }) {
 					{selectedTab === "overview" && renderOverviewTab()}
 					{selectedTab === "charts" && renderChartsTab()}
 					{selectedTab === "details" && renderDetailsTab()}
-				</View>
-			</ScreenProtectionWrapper>
+			</View>
 		</Modal>
 	);
 }

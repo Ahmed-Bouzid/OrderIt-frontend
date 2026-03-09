@@ -33,7 +33,6 @@ import AuditLogModal from "../activity/modals/AuditLogModal";
 import LoadingSkeleton from "../dashboard/LoadingSkeleton";
 import ExpressOrders from "./ExpressOrders"; // 🏃 NOUVEAU
 import FastFoodKitchen from "./FastFoodKitchen"; // 🍔 NOUVEAU
-import ScreenProtectionWrapper from "../ScreenProtectionWrapper";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { useDashboardActions } from "../../hooks/useDashboardActions";
 import { useDashboardFilters } from "../../hooks/useDashboardFilters";
@@ -440,8 +439,7 @@ export default function Dashboard() {
 
 	// ─────────────── Render ───────────────
 	return (
-		<ScreenProtectionWrapper protectionKey="dashboard">
-			<View style={localStyles.container}>
+		<View style={localStyles.container}>
 				{/* Background ambient effects */}
 				<View style={StyleSheet.absoluteFill}>
 					<LinearGradient
@@ -618,7 +616,6 @@ export default function Dashboard() {
 					theme={THEME}
 				/>
 			</View>
-		</ScreenProtectionWrapper>
 	);
 }
 

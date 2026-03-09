@@ -20,7 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 import { useReservationAI } from "../../hooks/useReservationAI";
-import ScreenProtectionWrapper from "../ScreenProtectionWrapper";
+
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const WEEK_DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -228,236 +228,252 @@ export default function AnalyticsScreen({ onClose }) {
 
 	return (
 		<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-			<ScreenProtectionWrapper protectionKey="analytics">
-			<View style={styles.container} onLayout={onContainerLayout}>
-				{/* Bouton fermer */}
-				{onClose && (
-					<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-						<Ionicons
-							name="close"
-							size={24}
-							color={THEME.colors.text.primary}
+
+				<View style={styles.container} onLayout={onContainerLayout}>
+					{/* Bouton fermer */}
+					{onClose && (
+						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
+							<Ionicons
+								name="close"
+								size={24}
+								color={THEME.colors.text.primary}
+							/>
+						</TouchableOpacity>
+					)}
+					{/* ── Header ── */}
+					<View style={styles.header}>
+						<LinearGradient
+							colors={["rgba(245,158,11,0.15)", "transparent"]}
+							style={styles.headerGlow}
 						/>
-					</TouchableOpacity>
-				)}
-				{/* ── Header ── */}
-				<View style={styles.header}>
-					<LinearGradient
-						colors={["rgba(245,158,11,0.15)", "transparent"]}
-						style={styles.headerGlow}
-					/>
-					<View style={styles.headerContent}>
-						<Ionicons name="sparkles" size={20} color="#F59E0B" />
-						<Text style={styles.headerTitle}>Analytics IA</Text>
+						<View style={styles.headerContent}>
+							<Ionicons name="sparkles" size={20} color="#F59E0B" />
+							<Text style={styles.headerTitle}>Analytics IA</Text>
+						</View>
+
+						{/* ── Sélecteur de section ── */}
+						<View style={styles.sectionTabs}>
+							{hasAiHeatmap && (
+								<TouchableOpacity
+									style={[
+										styles.sectionTab,
+										section === "heatmap" && styles.sectionTabActive,
+									]}
+									onPress={() => setSection("heatmap")}
+								>
+									<Ionicons
+										name="grid-outline"
+										size={14}
+										color={
+											section === "heatmap"
+												? "#F59E0B"
+												: THEME.colors.text.muted
+										}
+									/>
+									<Text
+										style={[
+											styles.sectionTabText,
+											section === "heatmap" && styles.sectionTabTextActive,
+										]}
+									>
+										Heatmap
+									</Text>
+								</TouchableOpacity>
+							)}
+							{hasAiStrategicSlots && (
+								<TouchableOpacity
+									style={[
+										styles.sectionTab,
+										section === "strategic" && styles.sectionTabActive,
+									]}
+									onPress={() => setSection("strategic")}
+								>
+									<Ionicons
+										name="bulb-outline"
+										size={14}
+										color={
+											section === "strategic"
+												? "#F59E0B"
+												: THEME.colors.text.muted
+										}
+									/>
+									<Text
+										style={[
+											styles.sectionTabText,
+											section === "strategic" && styles.sectionTabTextActive,
+										]}
+									>
+										Stratégie
+									</Text>
+								</TouchableOpacity>
+							)}
+						</View>
 					</View>
 
-					{/* ── Sélecteur de section ── */}
-					<View style={styles.sectionTabs}>
-						{hasAiHeatmap && (
-							<TouchableOpacity
-								style={[
-									styles.sectionTab,
-									section === "heatmap" && styles.sectionTabActive,
-								]}
-								onPress={() => setSection("heatmap")}
-							>
-								<Ionicons
-									name="grid-outline"
-									size={14}
-									color={
-										section === "heatmap" ? "#F59E0B" : THEME.colors.text.muted
-									}
-								/>
-								<Text
-									style={[
-										styles.sectionTabText,
-										section === "heatmap" && styles.sectionTabTextActive,
-									]}
-								>
-									Heatmap
-								</Text>
-							</TouchableOpacity>
-						)}
-						{hasAiStrategicSlots && (
-							<TouchableOpacity
-								style={[
-									styles.sectionTab,
-									section === "strategic" && styles.sectionTabActive,
-								]}
-								onPress={() => setSection("strategic")}
-							>
-								<Ionicons
-									name="bulb-outline"
-									size={14}
-									color={
-										section === "strategic"
-											? "#F59E0B"
-											: THEME.colors.text.muted
-									}
-								/>
-								<Text
-									style={[
-										styles.sectionTabText,
-										section === "strategic" && styles.sectionTabTextActive,
-									]}
-								>
-									Stratégie
-								</Text>
-							</TouchableOpacity>
-						)}
-					</View>
-				</View>
-
-				<ScrollView
-					style={styles.scroll}
-					contentContainerStyle={styles.scrollContent}
-					showsVerticalScrollIndicator={false}
-				>
-					{/* ═══════════════ HEATMAP ═══════════════ */}
-					{section === "heatmap" && hasAiHeatmap && (
-						<View style={styles.section}>
-							{loading.heatmap ? (
-								<ActivityIndicator color="#F59E0B" style={{ marginTop: 40 }} />
-							) : heatmap ? (
-								<>
-									{/* ── Résumé picto ── */}
-									<View style={styles.heatSummary}>
-										<View style={styles.heatStat}>
-											<Text style={styles.heatStatValue}>
-												{heatmap.peakDayName || "—"}
-											</Text>
-											<Text style={styles.heatStatLabel}>Jour de pointe</Text>
+					<ScrollView
+						style={styles.scroll}
+						contentContainerStyle={styles.scrollContent}
+						showsVerticalScrollIndicator={false}
+					>
+						{/* ═══════════════ HEATMAP ═══════════════ */}
+						{section === "heatmap" && hasAiHeatmap && (
+							<View style={styles.section}>
+								{loading.heatmap ? (
+									<ActivityIndicator
+										color="#F59E0B"
+										style={{ marginTop: 40 }}
+									/>
+								) : heatmap ? (
+									<>
+										{/* ── Résumé picto ── */}
+										<View style={styles.heatSummary}>
+											<View style={styles.heatStat}>
+												<Text style={styles.heatStatValue}>
+													{heatmap.peakDayName || "—"}
+												</Text>
+												<Text style={styles.heatStatLabel}>Jour de pointe</Text>
+											</View>
+											<View style={styles.heatStatDivider} />
+											<View style={styles.heatStat}>
+												<Text style={styles.heatStatValue}>
+													{heatmap.peakTime || "—"}
+												</Text>
+												<Text style={styles.heatStatLabel}>
+													Heure de pointe
+												</Text>
+											</View>
+											<View style={styles.heatStatDivider} />
+											<View style={styles.heatStat}>
+												<Text style={styles.heatStatValue}>
+													{heatmap.totalResas || 0}
+												</Text>
+												<Text style={styles.heatStatLabel}>
+													Résas analysées
+												</Text>
+											</View>
 										</View>
-										<View style={styles.heatStatDivider} />
-										<View style={styles.heatStat}>
-											<Text style={styles.heatStatValue}>
-												{heatmap.peakTime || "—"}
-											</Text>
-											<Text style={styles.heatStatLabel}>Heure de pointe</Text>
-										</View>
-										<View style={styles.heatStatDivider} />
-										<View style={styles.heatStat}>
-											<Text style={styles.heatStatValue}>
-												{heatmap.totalResas || 0}
-											</Text>
-											<Text style={styles.heatStatLabel}>Résas analysées</Text>
-										</View>
-									</View>
 
-									{/* ── Légende couleurs ── */}
-									<View style={styles.heatLegend}>
-										<Text style={styles.heatLegendLabel}>Vide</Text>
-										{[0, 0.3, 0.6, 0.85, 1].map((r) => (
-											<View
-												key={r}
-												style={[
-													styles.heatLegendCell,
-													{ backgroundColor: heatColor(r) },
-												]}
-											/>
-										))}
-										<Text style={styles.heatLegendLabel}>Saturé</Text>
-									</View>
+										{/* ── Légende couleurs ── */}
+										<View style={styles.heatLegend}>
+											<Text style={styles.heatLegendLabel}>Vide</Text>
+											{[0, 0.3, 0.6, 0.85, 1].map((r) => (
+												<View
+													key={r}
+													style={[
+														styles.heatLegendCell,
+														{ backgroundColor: heatColor(r) },
+													]}
+												/>
+											))}
+											<Text style={styles.heatLegendLabel}>Saturé</Text>
+										</View>
 
-									{/* ── Grille ── */}
-									<View>
-										{/* En-têtes jours */}
-										<View style={styles.heatRow}>
-											<View style={styles.heatTimeLabel} />
-											{WEEK_DAYS.map((d) => {
-												const peakShort = FULL_TO_SHORT[heatmap.peakDayName];
-												return (
-													<View
-														key={d}
-														style={[styles.heatDayHeader, { width: cellW + 4 }]}
-													>
-														<Text
+										{/* ── Grille ── */}
+										<View>
+											{/* En-têtes jours */}
+											<View style={styles.heatRow}>
+												<View style={styles.heatTimeLabel} />
+												{WEEK_DAYS.map((d) => {
+													const peakShort = FULL_TO_SHORT[heatmap.peakDayName];
+													return (
+														<View
+															key={d}
 															style={[
-																styles.heatDayText,
-																d === peakShort && {
-																	color: "#F59E0B",
-																	fontWeight: "800",
-																},
+																styles.heatDayHeader,
+																{ width: cellW + 4 },
 															]}
 														>
-															{d}
-														</Text>
-													</View>
-												);
-											})}
-										</View>
-										{/* Lignes créneaux */}
-										{timeSlots.map((time) => (
-											<View key={time} style={styles.heatRow}>
-												<View style={styles.heatTimeLabel}>
-													<Text style={styles.heatTimeText}>{time}</Text>
-												</View>
-												{WEEK_DAYS.map((d, idx) => {
-													const key = DAY_KEY_MAP[idx];
-													const cell = heatmap.matrix[key]?.[time];
-													const count =
-														typeof cell === "object"
-															? cell?.count || 0
-															: cell || 0;
-													const rate = maxCount > 0 ? count / maxCount : 0;
-													return (
-														<HeatCell
-															key={d}
-															rate={rate}
-															count={count}
-															cellW={cellW}
-														/>
+															<Text
+																style={[
+																	styles.heatDayText,
+																	d === peakShort && {
+																		color: "#F59E0B",
+																		fontWeight: "800",
+																	},
+																]}
+															>
+																{d}
+															</Text>
+														</View>
 													);
 												})}
 											</View>
-										))}
-									</View>
-								</>
-							) : (
-								<Text style={styles.emptyData}>
-									Aucune donnée historique disponible.
-								</Text>
-							)}
-						</View>
-					)}
+											{/* Lignes créneaux */}
+											{timeSlots.map((time) => (
+												<View key={time} style={styles.heatRow}>
+													<View style={styles.heatTimeLabel}>
+														<Text style={styles.heatTimeText}>{time}</Text>
+													</View>
+													{WEEK_DAYS.map((d, idx) => {
+														const key = DAY_KEY_MAP[idx];
+														const cell = heatmap.matrix[key]?.[time];
+														const count =
+															typeof cell === "object"
+																? cell?.count || 0
+																: cell || 0;
+														const rate = maxCount > 0 ? count / maxCount : 0;
+														return (
+															<HeatCell
+																key={d}
+																rate={rate}
+																count={count}
+																cellW={cellW}
+															/>
+														);
+													})}
+												</View>
+											))}
+										</View>
+									</>
+								) : (
+									<Text style={styles.emptyData}>
+										Aucune donnée historique disponible.
+									</Text>
+								)}
+							</View>
+						)}
 
-					{/* ═══════════════ CRÉNEAUX STRATÉGIQUES ═══════════════ */}
-					{section === "strategic" && hasAiStrategicSlots && (
-						<View style={styles.section}>
-							{loading.strategicSlots ? (
-								<ActivityIndicator color="#F59E0B" style={{ marginTop: 40 }} />
-							) : strategic && strategic.length > 0 ? (
-								<>
-									<Text style={styles.stratIntro}>
-										Créneaux sous-exploités à valoriser — triés par priorité.
-									</Text>
-									{strategic.map((item, idx) => (
-										<StrategicCard
-											key={idx}
-											item={item}
-											THEME={THEME}
-											styles={styles}
-										/>
-									))}
-								</>
-							) : (
-								<View style={styles.emptyContainer}>
-									<Ionicons
-										name="checkmark-circle-outline"
-										size={40}
-										color="#10B981"
+						{/* ═══════════════ CRÉNEAUX STRATÉGIQUES ═══════════════ */}
+						{section === "strategic" && hasAiStrategicSlots && (
+							<View style={styles.section}>
+								{loading.strategicSlots ? (
+									<ActivityIndicator
+										color="#F59E0B"
+										style={{ marginTop: 40 }}
 									/>
-									<Text style={styles.emptyTitle}>Aucun créneau critique</Text>
-									<Text style={styles.emptySubtitle}>
-										Votre planning est bien optimisé !
-									</Text>
-								</View>
-							)}
-						</View>
-					)}
-				</ScrollView>
-			</View>
-			</ScreenProtectionWrapper>
+								) : strategic && strategic.length > 0 ? (
+									<>
+										<Text style={styles.stratIntro}>
+											Créneaux sous-exploités à valoriser — triés par priorité.
+										</Text>
+										{strategic.map((item, idx) => (
+											<StrategicCard
+												key={idx}
+												item={item}
+												THEME={THEME}
+												styles={styles}
+											/>
+										))}
+									</>
+								) : (
+									<View style={styles.emptyContainer}>
+										<Ionicons
+											name="checkmark-circle-outline"
+											size={40}
+											color="#10B981"
+										/>
+										<Text style={styles.emptyTitle}>
+											Aucun créneau critique
+										</Text>
+										<Text style={styles.emptySubtitle}>
+											Votre planning est bien optimisé !
+										</Text>
+									</View>
+								)}
+							</View>
+						)}
+					</ScrollView>
+				</View>
 		</Modal>
 	);
 }
