@@ -18,6 +18,7 @@ import { useTheme } from "../../hooks/useTheme";
 import useUserStore from "../../src/stores/useUserStore";
 import * as SecureStore from "expo-secure-store";
 import { API_CONFIG } from "../../src/config/apiConfig";
+import ScreenProtectionWrapper from "../ScreenProtectionWrapper";
 import Svg, {
 	Path,
 	Defs,
@@ -1416,94 +1417,96 @@ export default function AccountingScreen({ onClose }) {
 	// ═══════════════════════════════════════════════════════════════════════
 	return (
 		<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
-			<View style={styles.modalContainer}>
-				{/* Header */}
-				<View style={styles.header}>
-					<Text style={styles.title}>💰 Comptabilité</Text>
-					{onClose && (
-						<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-							<Ionicons
-								name="close"
-								size={24}
-								color={THEME.colors.text.primary}
-							/>
-						</TouchableOpacity>
-					)}
-				</View>
+			<ScreenProtectionWrapper protectionKey="accounting">
+				<View style={styles.modalContainer}>
+					{/* Header */}
+					<View style={styles.header}>
+						<Text style={styles.title}>💰 Comptabilité</Text>
+						{onClose && (
+							<TouchableOpacity onPress={onClose} style={styles.closeButton}>
+								<Ionicons
+									name="close"
+									size={24}
+									color={THEME.colors.text.primary}
+								/>
+							</TouchableOpacity>
+						)}
+					</View>
 
-				{/* Sélecteur de période */}
-				<View style={styles.periodSelector}>
-					{PERIODS.map((period) => (
-						<TouchableOpacity
-							key={period.key}
-							style={[
-								styles.periodButton,
-								selectedPeriod === period.key && styles.periodButtonActive,
-							]}
-							onPress={() => {
-								setSelectedPeriod(period.key);
-								setDataLoaded(false); // Forcer le rechargement
-							}}
-						>
-							<Ionicons
-								name={period.icon}
-								size={16}
-								color={
-									selectedPeriod === period.key
-										? "#fff"
-										: THEME.colors.text.secondary
-								}
-							/>
-							<Text
+					{/* Sélecteur de période */}
+					<View style={styles.periodSelector}>
+						{PERIODS.map((period) => (
+							<TouchableOpacity
+								key={period.key}
 								style={[
-									styles.periodButtonText,
-									selectedPeriod === period.key &&
-										styles.periodButtonTextActive,
+									styles.periodButton,
+									selectedPeriod === period.key && styles.periodButtonActive,
 								]}
+								onPress={() => {
+									setSelectedPeriod(period.key);
+									setDataLoaded(false); // Forcer le rechargement
+								}}
 							>
-								{period.label}
-							</Text>
-						</TouchableOpacity>
-					))}
-				</View>
+								<Ionicons
+									name={period.icon}
+									size={16}
+									color={
+										selectedPeriod === period.key
+											? "#fff"
+											: THEME.colors.text.secondary
+									}
+								/>
+								<Text
+									style={[
+										styles.periodButtonText,
+										selectedPeriod === period.key &&
+											styles.periodButtonTextActive,
+									]}
+								>
+									{period.label}
+								</Text>
+							</TouchableOpacity>
+						))}
+					</View>
 
-				{/* Sélecteur d'onglets */}
-				<View style={styles.tabSelector}>
-					{TABS.map((tab) => (
-						<TouchableOpacity
-							key={tab.key}
-							style={[
-								styles.tabButton,
-								selectedTab === tab.key && styles.tabButtonActive,
-							]}
-							onPress={() => setSelectedTab(tab.key)}
-						>
-							<Ionicons
-								name={tab.icon}
-								size={18}
-								color={
-									selectedTab === tab.key
-										? THEME.colors.primary.amber
-										: THEME.colors.text.secondary
-								}
-							/>
-							<Text
+					{/* Sélecteur d'onglets */}
+					<View style={styles.tabSelector}>
+						{TABS.map((tab) => (
+							<TouchableOpacity
+								key={tab.key}
 								style={[
-									styles.tabButtonText,
-									selectedTab === tab.key && styles.tabButtonTextActive,
+									styles.tabButton,
+									selectedTab === tab.key && styles.tabButtonActive,
 								]}
+								onPress={() => setSelectedTab(tab.key)}
 							>
-								{tab.label}
-							</Text>
-						</TouchableOpacity>
-					))}
-				</View>
+								<Ionicons
+									name={tab.icon}
+									size={18}
+									color={
+										selectedTab === tab.key
+											? THEME.colors.primary.amber
+											: THEME.colors.text.secondary
+									}
+								/>
+								<Text
+									style={[
+										styles.tabButtonText,
+										selectedTab === tab.key && styles.tabButtonTextActive,
+									]}
+								>
+									{tab.label}
+								</Text>
+							</TouchableOpacity>
+						))}
+					</View>
 
-				{/* Contenu des onglets */}
-				{selectedTab === "overview" && renderOverviewTab()}
-				{selectedTab === "charts" && renderChartsTab()}
-				{selectedTab === "details" && renderDetailsTab()}
-			</View>
+					{/* Contenu des onglets */}
+					{selectedTab === "overview" && renderOverviewTab()}
+					{selectedTab === "charts" && renderChartsTab()}
+					{selectedTab === "details" && renderDetailsTab()}
+				</View>
+			</ScreenProtectionWrapper>
 		</Modal>
 	);
 }

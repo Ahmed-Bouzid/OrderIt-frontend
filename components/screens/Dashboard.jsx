@@ -33,6 +33,7 @@ import AuditLogModal from "../activity/modals/AuditLogModal";
 import LoadingSkeleton from "../dashboard/LoadingSkeleton";
 import ExpressOrders from "./ExpressOrders"; // 🏃 NOUVEAU
 import FastFoodKitchen from "./FastFoodKitchen"; // 🍔 NOUVEAU
+import ScreenProtectionWrapper from "../ScreenProtectionWrapper";
 import { useDashboardData } from "../../hooks/useDashboardData";
 import { useDashboardActions } from "../../hooks/useDashboardActions";
 import { useDashboardFilters } from "../../hooks/useDashboardFilters";
@@ -439,183 +440,185 @@ export default function Dashboard() {
 
 	// ─────────────── Render ───────────────
 	return (
-		<View style={localStyles.container}>
-			{/* Background ambient effects */}
-			<View style={StyleSheet.absoluteFill}>
-				<LinearGradient
-					colors={["rgba(245, 158, 11, 0.08)", "transparent"]}
-					style={localStyles.ambientGlow1}
+		<ScreenProtectionWrapper protectionKey="dashboard">
+			<View style={localStyles.container}>
+				{/* Background ambient effects */}
+				<View style={StyleSheet.absoluteFill}>
+					<LinearGradient
+						colors={["rgba(245, 158, 11, 0.08)", "transparent"]}
+						style={localStyles.ambientGlow1}
+					/>
+					<LinearGradient
+						colors={["rgba(14, 165, 233, 0.06)", "transparent"]}
+						style={localStyles.ambientGlow2}
+					/>
+				</View>
+
+				{/* Filtres */}
+				<Filters
+					activeFilter={showKitchen && hasCuisine ? "cuisine" : filter}
+					onFilterChange={handleFilterChange}
+					searchQuery={searchQuery}
+					onSearchChange={setSearchQuery}
+					theme={theme}
 				/>
-				<LinearGradient
-					colors={["rgba(14, 165, 233, 0.06)", "transparent"]}
-					style={localStyles.ambientGlow2}
+
+				{/* 🏃 Screen ExpressOrders (foodtruck = vue par défaut, autre = filtre express) */}
+				{showExpressOrders ? (
+					<View style={{ flex: 1 }}>
+						<ExpressOrders />
+					</View>
+				) : showKitchen ? (
+					<View style={{ flex: 1 }}>
+						{/* Bouton Retour — masqué en mode cuisine FastFood (vue unique) */}
+						{!hasCuisine && (
+							<View style={localStyles.expressHeader}>
+								<TouchableOpacity
+									onPress={() => {
+										setShowKitchen(false);
+										changeFilter("actives");
+									}}
+									style={localStyles.backButton}
+								>
+									<Ionicons
+										name="arrow-back"
+										size={20}
+										color={THEME.colors.text.secondary}
+									/>
+									<Text
+										style={[
+											localStyles.backButtonText,
+											{ color: THEME.colors.text.secondary },
+										]}
+									>
+										Retour
+									</Text>
+								</TouchableOpacity>
+							</View>
+						)}
+						<FastFoodKitchen />
+					</View>
+				) : (
+					<>
+						{/* 📅 Navigateur de date */}
+						{/* Afficher le DateNavigator seulement pour restaurants classiques */}
+						{hasCalendrier && (
+							<DateNavigator
+								selectedDate={selectedDate}
+								onDateChange={setSelectedDate}
+								onAssignmentComplete={() => fetchReservations(true)}
+							/>
+						)}
+
+						{/* Liste des réservations */}
+						{loading ? (
+							<LoadingSkeleton theme={theme} count={6} />
+						) : (
+							<FlatList
+								data={filteredReservations}
+								renderItem={renderReservationCard}
+								keyExtractor={keyExtractor}
+								numColumns={2}
+								contentContainerStyle={localStyles.listContent}
+								ListEmptyComponent={ListEmptyComponent}
+								initialNumToRender={10}
+								maxToRenderPerBatch={10}
+								windowSize={5}
+								removeClippedSubviews={true}
+								showsVerticalScrollIndicator={false}
+							/>
+						)}
+					</>
+				)}
+
+				{/* FAB Premium */}
+				{!isMinimum && (
+					<Animated.View
+						style={[
+							localStyles.fabContainer,
+							{ transform: [{ scale: fabScaleAnim }] },
+						]}
+					>
+						<TouchableOpacity
+							onPress={() => {
+								if (hasFabFastCommande) {
+									setShowFastFoodOrderModal(true);
+								} else {
+									setShowNewReservationModal(true);
+								}
+							}}
+							onPressIn={handleFabPressIn}
+							onPressOut={handleFabPressOut}
+							activeOpacity={0.95}
+						>
+							<LinearGradient
+								colors={["#F59E0B", "#D97706"]}
+								style={localStyles.fab}
+								start={{ x: 0, y: 0 }}
+								end={{ x: 1, y: 1 }}
+							>
+								<Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
+									<Ionicons name="add" size={28} color="#FFFFFF" />
+								</Animated.View>
+							</LinearGradient>
+						</TouchableOpacity>
+					</Animated.View>
+				)}
+
+				{/* Modales */}
+				<SettingsModal
+					visible={showSettingsModal}
+					onClose={handleCloseSettings}
+					reservation={selectedReservation}
+					theme={theme}
+					onTogglePresent={handleTogglePresent}
+					onUpdateStatus={handleUpdateStatus}
+					onCancel={handleCancel}
+					onRecreate={handleRecreateReservation}
+					onPayReservation={handlePayReservation}
+					onDelete={handleDelete}
+				/>
+
+				<NewReservationModal
+					visible={showNewReservationModal}
+					onClose={handleCloseNewReservation}
+					onCreate={handleCreateReservation}
+					tables={tables}
+					theme={theme}
+					initialData={recreateData}
+				/>
+
+				<AssignTableModal
+					visible={showAssignTableModal && hasAutoTables}
+					onClose={handleCloseAssignTable}
+					tables={tables}
+					activeReservation={activeReservation}
+					onAssignTable={handleAssignTable}
+					theme={theme}
+				/>
+
+				{/* 🍔 Modale commande fast-food */}
+				<CreateFastFoodOrderModal
+					visible={showFastFoodOrderModal}
+					onClose={() => setShowFastFoodOrderModal(false)}
+					onCreated={() => {
+						setShowFastFoodOrderModal(false);
+						fetchReservations(true);
+					}}
+				/>
+
+				{/* ⭐ Modale audit */}
+				<AuditLogModal
+					visible={showAuditLog}
+					onClose={() => {
+						setShowAuditLog(false);
+						setAuditReservation(null);
+					}}
+					reservation={auditReservation}
+					theme={THEME}
 				/>
 			</View>
-
-			{/* Filtres */}
-			<Filters
-				activeFilter={showKitchen && hasCuisine ? "cuisine" : filter}
-				onFilterChange={handleFilterChange}
-				searchQuery={searchQuery}
-				onSearchChange={setSearchQuery}
-				theme={theme}
-			/>
-
-			{/* 🏃 Screen ExpressOrders (foodtruck = vue par défaut, autre = filtre express) */}
-			{showExpressOrders ? (
-				<View style={{ flex: 1 }}>
-					<ExpressOrders />
-				</View>
-			) : showKitchen ? (
-				<View style={{ flex: 1 }}>
-					{/* Bouton Retour — masqué en mode cuisine FastFood (vue unique) */}
-					{!hasCuisine && (
-						<View style={localStyles.expressHeader}>
-							<TouchableOpacity
-								onPress={() => {
-									setShowKitchen(false);
-									changeFilter("actives");
-								}}
-								style={localStyles.backButton}
-							>
-								<Ionicons
-									name="arrow-back"
-									size={20}
-									color={THEME.colors.text.secondary}
-								/>
-								<Text
-									style={[
-										localStyles.backButtonText,
-										{ color: THEME.colors.text.secondary },
-									]}
-								>
-									Retour
-								</Text>
-							</TouchableOpacity>
-						</View>
-					)}
-					<FastFoodKitchen />
-				</View>
-			) : (
-				<>
-					{/* 📅 Navigateur de date */}
-					{/* Afficher le DateNavigator seulement pour restaurants classiques */}
-					{hasCalendrier && (
-						<DateNavigator
-							selectedDate={selectedDate}
-							onDateChange={setSelectedDate}
-							onAssignmentComplete={() => fetchReservations(true)}
-						/>
-					)}
-
-					{/* Liste des réservations */}
-					{loading ? (
-						<LoadingSkeleton theme={theme} count={6} />
-					) : (
-						<FlatList
-							data={filteredReservations}
-							renderItem={renderReservationCard}
-							keyExtractor={keyExtractor}
-							numColumns={2}
-							contentContainerStyle={localStyles.listContent}
-							ListEmptyComponent={ListEmptyComponent}
-							initialNumToRender={10}
-							maxToRenderPerBatch={10}
-							windowSize={5}
-							removeClippedSubviews={true}
-							showsVerticalScrollIndicator={false}
-						/>
-					)}
-				</>
-			)}
-
-			{/* FAB Premium */}
-			{!isMinimum && (
-				<Animated.View
-					style={[
-						localStyles.fabContainer,
-						{ transform: [{ scale: fabScaleAnim }] },
-					]}
-				>
-					<TouchableOpacity
-						onPress={() => {
-							if (hasFabFastCommande) {
-								setShowFastFoodOrderModal(true);
-							} else {
-								setShowNewReservationModal(true);
-							}
-						}}
-						onPressIn={handleFabPressIn}
-						onPressOut={handleFabPressOut}
-						activeOpacity={0.95}
-					>
-						<LinearGradient
-							colors={["#F59E0B", "#D97706"]}
-							style={localStyles.fab}
-							start={{ x: 0, y: 0 }}
-							end={{ x: 1, y: 1 }}
-						>
-							<Animated.View style={{ transform: [{ rotate: fabRotation }] }}>
-								<Ionicons name="add" size={28} color="#FFFFFF" />
-							</Animated.View>
-						</LinearGradient>
-					</TouchableOpacity>
-				</Animated.View>
-			)}
-
-			{/* Modales */}
-			<SettingsModal
-				visible={showSettingsModal}
-				onClose={handleCloseSettings}
-				reservation={selectedReservation}
-				theme={theme}
-				onTogglePresent={handleTogglePresent}
-				onUpdateStatus={handleUpdateStatus}
-				onCancel={handleCancel}
-				onRecreate={handleRecreateReservation}
-				onPayReservation={handlePayReservation}
-				onDelete={handleDelete}
-			/>
-
-			<NewReservationModal
-				visible={showNewReservationModal}
-				onClose={handleCloseNewReservation}
-				onCreate={handleCreateReservation}
-				tables={tables}
-				theme={theme}
-				initialData={recreateData}
-			/>
-
-			<AssignTableModal
-				visible={showAssignTableModal && hasAutoTables}
-				onClose={handleCloseAssignTable}
-				tables={tables}
-				activeReservation={activeReservation}
-				onAssignTable={handleAssignTable}
-				theme={theme}
-			/>
-
-			{/* 🍔 Modale commande fast-food */}
-			<CreateFastFoodOrderModal
-				visible={showFastFoodOrderModal}
-				onClose={() => setShowFastFoodOrderModal(false)}
-				onCreated={() => {
-					setShowFastFoodOrderModal(false);
-					fetchReservations(true);
-				}}
-			/>
-
-			{/* ⭐ Modale audit */}
-			<AuditLogModal
-				visible={showAuditLog}
-				onClose={() => {
-					setShowAuditLog(false);
-					setAuditReservation(null);
-				}}
-				reservation={auditReservation}
-				theme={THEME}
-			/>
-		</View>
+		</ScreenProtectionWrapper>
 	);
 }
 
