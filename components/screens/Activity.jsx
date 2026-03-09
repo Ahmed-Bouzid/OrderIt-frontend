@@ -53,6 +53,7 @@ import {
 
 // 🔔 Notifications
 import Toast from "../ui/Toast";
+import { useScreenProtection } from "../../hooks/useScreenProtection";
 
 const HAND_IMAGE = require("../../assets/images/hand.png");
 
@@ -230,6 +231,10 @@ export default function Activity() {
 	const [showProductModal, setShowProductModal] = useState(false);
 	const [showPayment, setShowPayment] = useState(false);
 	const [started, setStarted] = useState(false);
+
+	// 🔐 Protection anti-screenshot sur l'écran de paiement
+	useScreenProtection({ enabled: showPayment, protectionKey: "payment" });
+
 	const [step, setStep] = useState(1);
 
 	// États formulaire

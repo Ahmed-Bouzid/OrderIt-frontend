@@ -20,6 +20,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 import { useReservationAI } from "../../hooks/useReservationAI";
+import ScreenProtectionWrapper from "../ScreenProtectionWrapper";
 
 // ─── Constantes ───────────────────────────────────────────────────────────────
 const WEEK_DAYS = ["Lun", "Mar", "Mer", "Jeu", "Ven", "Sam", "Dim"];
@@ -227,6 +228,7 @@ export default function AnalyticsScreen({ onClose }) {
 
 	return (
 		<Modal visible={true} animationType="slide" presentationStyle="pageSheet">
+			<ScreenProtectionWrapper protectionKey="analytics">
 			<View style={styles.container} onLayout={onContainerLayout}>
 				{/* Bouton fermer */}
 				{onClose && (
@@ -455,6 +457,7 @@ export default function AnalyticsScreen({ onClose }) {
 					)}
 				</ScrollView>
 			</View>
+			</ScreenProtectionWrapper>
 		</Modal>
 	);
 }
