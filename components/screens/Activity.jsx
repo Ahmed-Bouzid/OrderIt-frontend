@@ -381,7 +381,7 @@ export default function Activity() {
 
 				// 🖨️ Impression ticket cuisine (Chez Ahmed uniquement, non bloquant)
 				if (isChezAhmed) {
-					authFetch(`${API_CONFIG.baseURL}/print/ticket`, {
+					authFetch(`${API_CONFIG.localPrintURL}/print/ticket`, {
 						method: "POST",
 						body: {
 							restaurantId,
