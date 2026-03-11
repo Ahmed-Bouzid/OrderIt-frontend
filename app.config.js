@@ -32,8 +32,9 @@ export default {
 			},
 			apiUrl: "https://orderit-backend-6y1m.onrender.com",
 			socketUrl: "https://orderit-backend-6y1m.onrender.com",
-			// 🖨️ URL du backend LOCAL (Mac avec l'imprimante GEZHI) — mettre à jour si l'IP change
-			localPrintUrl: "http://192.168.1.162:3000",
+			// 🖨️ URL du print daemon LOCAL (Mac avec l'imprimante GEZHI) — mettre à jour si l'IP change
+			// Démarrer avec : cd backend && node printDaemon.js
+			localPrintUrl: "http://192.168.1.162:5555",
 			stripePublishableKey:
 				"pk_test_51Ski7zH5JuPQb6uBXm8NJZxdZ6JOXtMMvr7hBfODwDp2Q5rYjM4bKfEQE1vSsNCcVvN6wKJq8Ls6hPcfqrUxSN6S00qyP6vp7q",
 		},
