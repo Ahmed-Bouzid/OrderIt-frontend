@@ -362,25 +362,69 @@ export default function Activity() {
 			serverId,
 		};
 
-		try {
-			await authFetch(`${API_CONFIG.baseURL}/orders/`, {
-				method: "POST",
-				body: orderData,
-			});
+		// Numéro de table pour le ticket
+		const tableNum =
+			typeof activeReservation.tableId === "object"
+				? (activeReservation.tableId?.number ?? "?")
+				: (activeReservation.tableId ?? "?");
 
-			editField(
-				"orderItems",
-				activeReservation.orderItems.map((i) => ({ ...i, quantity: 0 })),
+		const CHEZ_AHMED_ID = "686af511bb4cba684ff3b72e";
+		const isChezAhmed = restaurantId === CHEZ_AHMED_ID;
+
+		// ── Logique d'envoi (commande + impression éventuelle) ───────────────────
+		const executeOrder = async () => {
+			try {
+				await authFetch(`${API_CONFIG.baseURL}/orders/`, {
+					method: "POST",
+					body: orderData,
+				});
+
+				// 🖨️ Impression ticket cuisine (Chez Ahmed uniquement, non bloquant)
+				if (isChezAhmed) {
+					authFetch(`${API_CONFIG.baseURL}/print/ticket`, {
+						method: "POST",
+						body: {
+							restaurantId,
+							tableNumber: tableNum,
+							items,
+							total,
+						},
+					}).catch((err) =>
+						console.warn(
+							"[PRINT] Erreur impression (non bloquant) :",
+							err.message,
+						),
+					);
+				}
+
+				editField(
+					"orderItems",
+					activeReservation.orderItems.map((i) => ({ ...i, quantity: 0 })),
+				);
+
+				setStep(3);
+
+				// ⭐ Rafraîchir les commandes ET la réservation pour avoir le totalAmount mis à jour
+				await fetchOrders(tableId, activeReservation._id, true);
+				await refreshReservation(activeReservation._id);
+			} catch (error) {
+				console.error("Erreur création commande :", error);
+				alert(error.message || "Erreur création commande");
+			}
+		};
+
+		// ── Popup de confirmation (Chez Ahmed uniquement) ────────────────────────
+		if (isChezAhmed) {
+			Alert.alert(
+				"Envoi en cuisine",
+				`Table ${tableNum} — ${items.length} article${items.length > 1 ? "s" : ""} · ${total.toFixed(2)} €\n\nConfirmer l'envoi ?`,
+				[
+					{ text: "Annuler", style: "cancel" },
+					{ text: "Envoyer ✓", onPress: executeOrder },
+				],
 			);
-
-			setStep(3);
-
-			// ⭐ Rafraîchir les commandes ET la réservation pour avoir le totalAmount mis à jour
-			await fetchOrders(tableId, activeReservation._id, true);
-			await refreshReservation(activeReservation._id);
-		} catch (error) {
-			console.error("Erreur création commande :", error);
-			alert(error.message || "Erreur création commande");
+		} else {
+			await executeOrder();
 		}
 	}, [
 		activeReservation,
