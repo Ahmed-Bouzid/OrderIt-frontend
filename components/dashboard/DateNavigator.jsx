@@ -175,19 +175,11 @@ export default function DateNavigator({
 								color={THEME.colors.primary.amber}
 							/>
 						) : (
-							<>
-								<Ionicons
-									name="sparkles"
-									size={20}
-									color={THEME.colors.primary.amber}
-								/>
-								<Text style={styles.assistantText}>Assistant</Text>
-								<Ionicons
-									name={showAssistantMenu ? "chevron-up" : "chevron-down"}
-									size={16}
-									color={THEME.colors.primary.amber}
-								/>
-							</>
+							<Ionicons
+								name="sparkles"
+								size={20}
+								color={THEME.colors.primary.amber}
+							/>
 						)}
 					</TouchableOpacity>
 
