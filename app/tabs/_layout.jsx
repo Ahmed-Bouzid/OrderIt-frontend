@@ -71,6 +71,7 @@ const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
 			onLayout={onLayout}
 			style={[tabStyles.tabButton]}
 			hitSlop={hitSlop}
+			delayPressIn={0}
 		>
 			<Ionicons
 				name={tab.icon}

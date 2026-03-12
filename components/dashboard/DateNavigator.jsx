@@ -296,7 +296,7 @@ const createStyles = (THEME) =>
 		},
 		assistantContainer: {
 			position: "relative",
-			marginLeft: 12,
+			marginLeft: 8,
 		},
 		assistantButton: {
 			flexDirection: "row",
