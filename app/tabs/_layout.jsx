@@ -10,6 +10,7 @@ import {
 	View,
 	Text,
 	TouchableOpacity,
+	Pressable,
 	StyleSheet,
 	Animated,
 	Image,
@@ -65,13 +66,11 @@ const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
 			: { top: 10, bottom: 10, left: 10, right: 10 };
 
 	return (
-		<TouchableOpacity
+		<Pressable
 			onPress={onPress}
-			activeOpacity={0.7}
 			onLayout={onLayout}
 			style={[tabStyles.tabButton]}
 			hitSlop={hitSlop}
-			delayPressIn={0}
 		>
 			<Ionicons
 				name={tab.icon}
@@ -82,7 +81,7 @@ const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
 			<Text style={[tabStyles.tabText, isActive && tabStyles.tabTextActive]}>
 				{tab.label}
 			</Text>
-		</TouchableOpacity>
+		</Pressable>
 	);
 });
 
@@ -349,7 +348,10 @@ export default function TabsLayout() {
 						<ScrollView
 							horizontal
 							showsHorizontalScrollIndicator={false}
-							contentContainerStyle={{ flexDirection: "row", alignItems: "center" }}
+							contentContainerStyle={{
+								flexDirection: "row",
+								alignItems: "center",
+							}}
 							style={tabStyles.tabsScrollPhone}
 						>
 							<View style={tabStyles.tabsContainer}>

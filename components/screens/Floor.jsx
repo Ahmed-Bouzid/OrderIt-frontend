@@ -23,7 +23,7 @@ import {
 } from "react-native";
 
 const IS_PHONE = Dimensions.get("window").width < 600;
-const SIDEBAR_W = IS_PHONE ? 230 : 380;
+const SIDEBAR_W = IS_PHONE ? 230 : 220;
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Dashboard from "./Dashboard";
@@ -282,10 +282,12 @@ export default function Floor({ onStart }) {
 
 	// 📱 Sidebar toggle (iPhone uniquement — masquée par défaut)
 	const [sidebarVisible, setSidebarVisible] = useState(!IS_PHONE);
-	const sidebarAnim = useRef(new Animated.Value(IS_PHONE ? -SIDEBAR_W : 0)).current;
+	const sidebarAnim = useRef(
+		new Animated.Value(IS_PHONE ? -(SIDEBAR_W + 44) : 0),
+	).current;
 
 	const toggleSidebar = useCallback(() => {
-		const toValue = sidebarVisible ? -SIDEBAR_W : 0;
+		const toValue = sidebarVisible ? -(SIDEBAR_W + 44) : 44;
 		Animated.timing(sidebarAnim, {
 			toValue,
 			duration: 260,
@@ -293,6 +295,20 @@ export default function Floor({ onStart }) {
 		}).start();
 		setSidebarVisible((v) => !v);
 	}, [sidebarVisible, sidebarAnim]);
+
+	// 💻 Sidebar collapse (tablette uniquement — déployée par défaut)
+	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
+	const collapseAnim = useRef(new Animated.Value(SIDEBAR_W)).current;
+
+	const toggleCollapse = useCallback(() => {
+		const toValue = sidebarCollapsed ? SIDEBAR_W : 52;
+		Animated.timing(collapseAnim, {
+			toValue,
+			duration: 240,
+			useNativeDriver: false,
+		}).start();
+		setSidebarCollapsed((v) => !v);
+	}, [sidebarCollapsed, collapseAnim]);
 
 	useEffect(() => {
 		initTheme();
@@ -601,66 +617,77 @@ export default function Floor({ onStart }) {
 
 			{/* Container principal */}
 			<View style={floorStyles.mainContainer}>
-			{/* Bouton hamburger — iPhone uniquement */}
-			{IS_PHONE && !isMinimum && (
-				<TouchableOpacity
-					style={floorStyles.hamburgerBtn}
-					onPress={toggleSidebar}
-					activeOpacity={0.7}
-				>
-					<Ionicons
-						name="menu"
-						size={22}
-						color={THEME.colors.text.primary}
-					/>
-				</TouchableOpacity>
-			)}
-
-			{/* Sidebar Premium : masquer pour niveau Minimum (foodtruck) */}
-			{!isMinimum && (
-				<Animated.View
-					style={[
-						floorStyles.sidebar,
-						IS_PHONE && {
-							position: "absolute",
-							top: 0,
-							bottom: 0,
-							left: 44,
-							zIndex: 50,
-							transform: [{ translateX: sidebarAnim }],
-						},
-					]}
-				>
-					{/* Header Sidebar */}
-					<View style={floorStyles.sidebarHeader}>
-						<LinearGradient
-							colors={[
-								"rgba(245, 158, 11, 0.15)",
-								"rgba(245, 158, 11, 0.05)",
-							]}
-							style={[floorStyles.headerIconBg, { width: 32, height: 32 }]}
-						>
-							<Ionicons
-								name="restaurant-outline"
-								size={15}
-								color={THEME.colors.primary.amber}
-							/>
-						</LinearGradient>
-						<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
-						{/* Bouton fermer sur iPhone */}
-						{IS_PHONE && (
-							<TouchableOpacity
-								onPress={toggleSidebar}
-								style={{ marginLeft: "auto", padding: 4 }}
-							>
-								<Ionicons name="close" size={20} color={THEME.colors.text.muted} />
-							</TouchableOpacity>
-						)}
-					</View>
-					<ScrollView
-						showsVerticalScrollIndicator={false}
-						contentContainerStyle={floorStyles.sidebarContent}
+				{/* Bouton hamburger — iPhone uniquement */}
+				{IS_PHONE && !isMinimum && (
+					<TouchableOpacity
+						style={floorStyles.hamburgerBtn}
+						onPress={toggleSidebar}
+						activeOpacity={0.7}
 					>
+						<Ionicons name="menu" size={22} color={THEME.colors.text.primary} />
+					</TouchableOpacity>
+				)}
+
+				{/* Sidebar Premium : masquer pour niveau Minimum (foodtruck) */}
+				{!isMinimum && (
+					<Animated.View
+						style={[
+							floorStyles.sidebar,
+							IS_PHONE && {
+								position: "absolute",
+								top: 0,
+								bottom: 0,
+								left: 0,
+								zIndex: 50,
+								transform: [{ translateX: sidebarAnim }],
+							},
+							!IS_PHONE && { width: collapseAnim },
+						]}
+					>
+						{/* Header Sidebar */}
+						<View style={floorStyles.sidebarHeader}>
+							<TouchableOpacity
+								onPress={!IS_PHONE ? toggleCollapse : undefined}
+								activeOpacity={IS_PHONE ? 1 : 0.7}
+							>
+								<LinearGradient
+									colors={[
+										"rgba(245, 158, 11, 0.15)",
+										"rgba(245, 158, 11, 0.05)",
+									]}
+									style={[floorStyles.headerIconBg, { width: 32, height: 32 }]}
+								>
+									<Ionicons
+										name="restaurant-outline"
+										size={15}
+										color={THEME.colors.primary.amber}
+									/>
+								</LinearGradient>
+							</TouchableOpacity>
+							{!IS_PHONE && !sidebarCollapsed && (
+								<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
+							)}
+							{IS_PHONE && (
+								<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
+							)}
+							{/* Bouton fermer sur iPhone */}
+							{IS_PHONE && (
+								<TouchableOpacity
+									onPress={toggleSidebar}
+									style={{ marginLeft: "auto", padding: 4 }}
+								>
+									<Ionicons
+										name="close"
+										size={20}
+										color={THEME.colors.text.muted}
+									/>
+								</TouchableOpacity>
+							)}
+						</View>
+						<ScrollView
+							showsVerticalScrollIndicator={false}
+							contentContainerStyle={floorStyles.sidebarContent}
+						>
 							{/* Cuisine Section — restaurant classique uniquement */}
 							{hasSalleCuisine && (
 								<>
@@ -1222,8 +1249,8 @@ export default function Floor({ onStart }) {
 									</View>
 								)}
 							</GroupBox>
-					</ScrollView>
-				</Animated.View>
+						</ScrollView>
+					</Animated.View>
 				)}
 
 				{/* Séparateur Premium */}
@@ -1294,10 +1321,14 @@ const createFloorStyles = (THEME) =>
 			backgroundColor: THEME.colors.background.card,
 			borderRightWidth: 1,
 			borderRightColor: THEME.colors.border.subtle,
+			overflow: "hidden",
 		},
 		sidebarOverlay: {
 			position: "absolute",
-			top: 0, left: 0, right: 0, bottom: 0,
+			top: 0,
+			left: 0,
+			right: 0,
+			bottom: 0,
 			zIndex: 49,
 			backgroundColor: "rgba(0,0,0,0.35)",
 		},
@@ -1329,7 +1360,7 @@ const createFloorStyles = (THEME) =>
 			marginRight: THEME.spacing.md,
 		},
 		headerTitle: {
-			fontSize: IS_PHONE ? 14 : 22,
+			fontSize: IS_PHONE ? 14 : THEME.typography.sizes.md,
 			fontWeight: "800",
 			color: THEME.colors.text.primary,
 		},
@@ -1346,7 +1377,7 @@ const createFloorStyles = (THEME) =>
 			marginTop: THEME.spacing.md,
 		},
 		sectionTitle: {
-			fontSize: IS_PHONE ? 11 : THEME.typography.sizes.md,
+			fontSize: IS_PHONE ? 11 : THEME.typography.sizes.sm,
 			fontWeight: THEME.typography.weights.semibold,
 			color: THEME.colors.text.primary,
 			marginLeft: THEME.spacing.md,
@@ -1374,7 +1405,7 @@ const createFloorStyles = (THEME) =>
 		},
 		menuItemText: {
 			flex: 1,
-			fontSize: IS_PHONE ? 11 : THEME.typography.sizes.md,
+			fontSize: IS_PHONE ? 11 : THEME.typography.sizes.sm,
 			fontWeight: THEME.typography.weights.medium,
 			color: THEME.colors.text.secondary,
 		},
