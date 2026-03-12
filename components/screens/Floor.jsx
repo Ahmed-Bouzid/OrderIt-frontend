@@ -1223,6 +1223,7 @@ export default function Floor({ onStart }) {
 							</GroupBox>
 						</ScrollView>
 					</View>
+				</Animated.View>
 				)}
 
 				{/* Séparateur Premium */}
