@@ -13,7 +13,10 @@ import {
 	StyleSheet,
 	Animated,
 	Image,
+	Dimensions,
 } from "react-native";
+
+const IS_PHONE = Dimensions.get("window").width < 600;
 import { SafeAreaView } from "react-native-safe-area-context";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { LinearGradient } from "expo-linear-gradient";
@@ -312,6 +315,7 @@ export default function TabsLayout() {
 			<View style={{ flex: 1 }}>
 				{/* Premium Navbar */}
 				<View style={tabStyles.navbar}>
+					{/* Bloc logo + nom */}
 					<View style={tabStyles.brandContainer}>
 						<LinearGradient
 							colors={[
@@ -322,7 +326,7 @@ export default function TabsLayout() {
 						>
 							<Image
 								source={require("../../assets/images/sunflower.png")}
-								style={{ width: 40, height: 40 }}
+								style={{ width: IS_PHONE ? 32 : 40, height: IS_PHONE ? 32 : 40 }}
 								resizeMode="contain"
 							/>
 						</LinearGradient>
@@ -335,31 +339,8 @@ export default function TabsLayout() {
 						</Text>
 					</View>
 
-					{/* Bouton Messages avec badge */}
-					{/* <TouchableOpacity
-						onPress={() => {
-							setShowMessagesPanel(true);
-							setUnreadMessagesCount(0);
-						}}
-						style={tabStyles.messagesButton}
-						activeOpacity={0.7}
-					>
-						<Ionicons
-							name="chatbubbles"
-							size={22}
-							color={THEME.colors.text.secondary}
-						/>
-						{unreadMessagesCount > 0 && (
-							<View style={tabStyles.badge}>
-								<Text style={tabStyles.badgeText}>
-									{unreadMessagesCount > 9 ? "9+" : unreadMessagesCount}
-								</Text>
-							</View>
-						)}
-					</TouchableOpacity> */}
-
+					{/* Onglets */}
 					<View style={tabStyles.tabsContainer}>
-						{/* Slider animé (comme Filters.jsx) */}
 						{isSliderReady && (
 							<Animated.View
 								pointerEvents="none"
@@ -383,7 +364,8 @@ export default function TabsLayout() {
 						))}
 					</View>
 
-					<View style={{ width: 100 }} />
+					{/* Spacer droite (tablette uniquement, pour centrer les tabs) */}
+					{!IS_PHONE && <View style={{ width: 100 }} />}
 				</View>
 
 				<LinearGradient
@@ -451,30 +433,34 @@ const tabStyles = StyleSheet.create({
 		color: THEME.colors.text.secondary,
 	},
 	navbar: {
-		flexDirection: "row",
-		justifyContent: "space-between",
+		// Phone : colonne (nom resto en haut, tabs en dessous)
+		// Tablette : ligne (nom à gauche, tabs au centre)
+		flexDirection: IS_PHONE ? "column" : "row",
+		justifyContent: IS_PHONE ? "center" : "space-between",
 		alignItems: "center",
 		paddingVertical: THEME.spacing.md,
 		paddingHorizontal: THEME.spacing.xl,
 		backgroundColor: `${THEME.colors.background.card}95`,
 		borderBottomWidth: 1,
 		borderBottomColor: THEME.colors.border.subtle,
+		gap: IS_PHONE ? THEME.spacing.sm : 0,
 	},
 	brandContainer: {
 		flexDirection: "row",
 		alignItems: "center",
-		width: "auto",
+		width: IS_PHONE ? "100%" : "auto",
+		justifyContent: IS_PHONE ? "center" : "flex-start",
 	},
 	brandIconBg: {
-		width: 50,
-		height: 50,
+		width: IS_PHONE ? 36 : 50,
+		height: IS_PHONE ? 36 : 50,
 		borderRadius: THEME.radius.md,
 		justifyContent: "center",
 		alignItems: "center",
 		marginRight: THEME.spacing.sm,
 	},
 	brandText: {
-		fontSize: 32,
+		fontSize: IS_PHONE ? 22 : 32,
 		fontFamily: "Melodrama-Bold",
 		flexShrink: 0,
 		alignSelf: "center",
