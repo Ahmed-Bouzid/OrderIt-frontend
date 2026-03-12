@@ -19,7 +19,11 @@ import {
 	ScrollView,
 	ActivityIndicator,
 	Alert,
+	Dimensions,
 } from "react-native";
+
+const IS_PHONE = Dimensions.get("window").width < 600;
+const SIDEBAR_W = IS_PHONE ? 230 : 380;
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Dashboard from "./Dashboard";
@@ -275,6 +279,20 @@ export default function Floor({ onStart }) {
 	// 🏗️ Floor Plan Modal
 	const [showFloorPlan, setShowFloorPlan] = useState(false);
 	const [activeRoom, setActiveRoom] = useState(1); // 1, 2 ou 3
+
+	// 📱 Sidebar toggle (iPhone uniquement — masquée par défaut)
+	const [sidebarVisible, setSidebarVisible] = useState(!IS_PHONE);
+	const sidebarAnim = useRef(new Animated.Value(IS_PHONE ? -SIDEBAR_W : 0)).current;
+
+	const toggleSidebar = useCallback(() => {
+		const toValue = sidebarVisible ? -SIDEBAR_W : 0;
+		Animated.timing(sidebarAnim, {
+			toValue,
+			duration: 260,
+			useNativeDriver: true,
+		}).start();
+		setSidebarVisible((v) => !v);
+	}, [sidebarVisible, sidebarAnim]);
 
 	useEffect(() => {
 		initTheme();
@@ -583,27 +601,61 @@ export default function Floor({ onStart }) {
 
 			{/* Container principal */}
 			<View style={floorStyles.mainContainer}>
-				{/* Sidebar Premium : masquer pour niveau Minimum (foodtruck) */}
-				{!isMinimum && (
-					<View style={floorStyles.sidebar}>
-						{/* Header Sidebar */}
-						<View style={floorStyles.sidebarHeader}>
-							<LinearGradient
-								colors={[
-									"rgba(245, 158, 11, 0.15)",
-									"rgba(245, 158, 11, 0.05)",
-								]}
-								style={[floorStyles.headerIconBg, { width: 38, height: 38 }]}
-							>
-								<Ionicons
-									name="restaurant-outline"
-									size={18}
-									color={THEME.colors.primary.amber}
-								/>
-							</LinearGradient>
-							<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
-						</View>
+			{/* Bouton hamburger — iPhone uniquement */}
+			{IS_PHONE && !isMinimum && (
+				<TouchableOpacity
+					style={floorStyles.hamburgerBtn}
+					onPress={toggleSidebar}
+					activeOpacity={0.7}
+				>
+					<Ionicons
+						name="menu"
+						size={22}
+						color={THEME.colors.text.primary}
+					/>
+				</TouchableOpacity>
+			)}
 
+			{/* Sidebar Premium : masquer pour niveau Minimum (foodtruck) */}
+			{!isMinimum && (
+				<Animated.View
+					style={[
+						floorStyles.sidebar,
+						IS_PHONE && {
+							position: "absolute",
+							top: 0,
+							bottom: 0,
+							left: 0,
+							zIndex: 50,
+							transform: [{ translateX: sidebarAnim }],
+						},
+					]}
+				>
+					{/* Header Sidebar */}
+					<View style={floorStyles.sidebarHeader}>
+						<LinearGradient
+							colors={[
+								"rgba(245, 158, 11, 0.15)",
+								"rgba(245, 158, 11, 0.05)",
+							]}
+							style={[floorStyles.headerIconBg, { width: 32, height: 32 }]}
+						>
+							<Ionicons
+								name="restaurant-outline"
+								size={15}
+								color={THEME.colors.primary.amber}
+							/>
+						</LinearGradient>
+						<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
+						{/* Bouton fermer sur iPhone */}
+						{IS_PHONE && (
+							<TouchableOpacity
+								onPress={toggleSidebar}
+								style={{ marginLeft: "auto", padding: 4 }}
+							>
+								<Ionicons name="close" size={20} color={THEME.colors.text.muted} />
+							</TouchableOpacity>
+						)}
 						<ScrollView
 							showsVerticalScrollIndicator={false}
 							contentContainerStyle={floorStyles.sidebarContent}
@@ -1237,10 +1289,27 @@ const createFloorStyles = (THEME) =>
 			flexDirection: "row",
 		},
 		sidebar: {
-			width: 380,
+			width: SIDEBAR_W,
 			backgroundColor: THEME.colors.background.card,
 			borderRightWidth: 1,
 			borderRightColor: THEME.colors.border.subtle,
+		},
+		sidebarOverlay: {
+			position: "absolute",
+			top: 0, left: 0, right: 0, bottom: 0,
+			zIndex: 49,
+			backgroundColor: "rgba(0,0,0,0.35)",
+		},
+		hamburgerBtn: {
+			position: "absolute",
+			top: 8,
+			left: 8,
+			zIndex: 60,
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: 8,
+			padding: 6,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
 		},
 		sidebarHeader: {
 			flexDirection: "row",
@@ -1259,7 +1328,7 @@ const createFloorStyles = (THEME) =>
 			marginRight: THEME.spacing.md,
 		},
 		headerTitle: {
-			fontSize: 22,
+			fontSize: IS_PHONE ? 14 : 22,
 			fontWeight: "800",
 			color: THEME.colors.text.primary,
 		},
@@ -1276,7 +1345,7 @@ const createFloorStyles = (THEME) =>
 			marginTop: THEME.spacing.md,
 		},
 		sectionTitle: {
-			fontSize: THEME.typography.sizes.md,
+			fontSize: IS_PHONE ? 11 : THEME.typography.sizes.md,
 			fontWeight: THEME.typography.weights.semibold,
 			color: THEME.colors.text.primary,
 			marginLeft: THEME.spacing.md,
@@ -1304,7 +1373,7 @@ const createFloorStyles = (THEME) =>
 		},
 		menuItemText: {
 			flex: 1,
-			fontSize: THEME.typography.sizes.md,
+			fontSize: IS_PHONE ? 11 : THEME.typography.sizes.md,
 			fontWeight: THEME.typography.weights.medium,
 			color: THEME.colors.text.secondary,
 		},

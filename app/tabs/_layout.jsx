@@ -14,6 +14,7 @@ import {
 	Animated,
 	Image,
 	Dimensions,
+	ScrollView,
 } from "react-native";
 
 const IS_PHONE = Dimensions.get("window").width < 600;
@@ -326,7 +327,10 @@ export default function TabsLayout() {
 						>
 							<Image
 								source={require("../../assets/images/sunflower.png")}
-								style={{ width: IS_PHONE ? 32 : 40, height: IS_PHONE ? 32 : 40 }}
+								style={{
+									width: IS_PHONE ? 32 : 40,
+									height: IS_PHONE ? 32 : 40,
+								}}
 								resizeMode="contain"
 							/>
 						</LinearGradient>
@@ -339,30 +343,57 @@ export default function TabsLayout() {
 						</Text>
 					</View>
 
-					{/* Onglets */}
-					<View style={tabStyles.tabsContainer}>
-						{isSliderReady && (
-							<Animated.View
-								pointerEvents="none"
-								style={[
-									tabStyles.tabSlider,
-									{
-										left: sliderTranslateX,
-										width: sliderWidth,
-									},
-								]}
-							/>
-						)}
-						{TABS.map((tab) => (
-							<TabButton
-								key={tab.name}
-								tab={tab}
-								isActive={activeTab === tab.name}
-								onPress={() => handleTabPress(tab.name)}
-								onLayout={(e) => handleTabLayout(tab.name, e)}
-							/>
-						))}
-					</View>
+					{/* Onglets — scroll horizontal sur iPhone */}
+					{IS_PHONE ? (
+						<ScrollView
+							horizontal
+							showsHorizontalScrollIndicator={false}
+							contentContainerStyle={{ flexDirection: "row", alignItems: "center" }}
+							style={tabStyles.tabsScrollPhone}
+						>
+							<View style={tabStyles.tabsContainer}>
+								{isSliderReady && (
+									<Animated.View
+										pointerEvents="none"
+										style={[
+											tabStyles.tabSlider,
+											{ left: sliderTranslateX, width: sliderWidth },
+										]}
+									/>
+								)}
+								{TABS.map((tab) => (
+									<TabButton
+										key={tab.name}
+										tab={tab}
+										isActive={activeTab === tab.name}
+										onPress={() => handleTabPress(tab.name)}
+										onLayout={(e) => handleTabLayout(tab.name, e)}
+									/>
+								))}
+							</View>
+						</ScrollView>
+					) : (
+						<View style={tabStyles.tabsContainer}>
+							{isSliderReady && (
+								<Animated.View
+									pointerEvents="none"
+									style={[
+										tabStyles.tabSlider,
+										{ left: sliderTranslateX, width: sliderWidth },
+									]}
+								/>
+							)}
+							{TABS.map((tab) => (
+								<TabButton
+									key={tab.name}
+									tab={tab}
+									isActive={activeTab === tab.name}
+									onPress={() => handleTabPress(tab.name)}
+									onLayout={(e) => handleTabLayout(tab.name, e)}
+								/>
+							))}
+						</View>
+					)}
 
 					{/* Spacer droite (tablette uniquement, pour centrer les tabs) */}
 					{!IS_PHONE && <View style={{ width: 100 }} />}
@@ -466,6 +497,11 @@ const tabStyles = StyleSheet.create({
 		alignSelf: "center",
 		color: THEME.colors.text.primary,
 		letterSpacing: 0.8,
+	},
+	tabsScrollPhone: {
+		// wrapper ScrollView horizontal sur iPhone
+		alignSelf: "center",
+		maxWidth: "100%",
 	},
 	tabsContainer: {
 		flexDirection: "row",
