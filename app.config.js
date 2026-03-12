@@ -3,7 +3,7 @@ export default {
 		name: "SunnyGo",
 		slug: "sunnygo",
 		version: "1.0.0",
-		orientation: "landscape", // Tablette en paysage
+		orientation: "default", // Portrait + paysage
 		scheme: "sunnygo", // Ajout pour corriger le warning Expo Linking
 		icon: "./assets/images/icon.png",
 		splash: {
