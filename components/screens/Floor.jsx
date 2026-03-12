@@ -656,10 +656,11 @@ export default function Floor({ onStart }) {
 								<Ionicons name="close" size={20} color={THEME.colors.text.muted} />
 							</TouchableOpacity>
 						)}
-						<ScrollView
-							showsVerticalScrollIndicator={false}
-							contentContainerStyle={floorStyles.sidebarContent}
-						>
+					</View>
+					<ScrollView
+						showsVerticalScrollIndicator={false}
+						contentContainerStyle={floorStyles.sidebarContent}
+					>
 							{/* Cuisine Section — restaurant classique uniquement */}
 							{hasSalleCuisine && (
 								<>
@@ -1221,8 +1222,7 @@ export default function Floor({ onStart }) {
 									</View>
 								)}
 							</GroupBox>
-						</ScrollView>
-					</View>
+					</ScrollView>
 				</Animated.View>
 				)}
 

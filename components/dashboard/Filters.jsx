@@ -8,6 +8,8 @@ import {
 	UIManager,
 	StyleSheet,
 	TextInput,
+	ScrollView,
+	Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import useThemeStore from "../../src/stores/useThemeStore";
@@ -21,6 +23,8 @@ if (
 ) {
 	UIManager.setLayoutAnimationEnabledExperimental(true);
 }
+
+const IS_PHONE = Dimensions.get("window").width < 600;
 
 const ALL_FILTERS = [
 	{
@@ -91,6 +95,7 @@ const Filters = React.memo(
 
 		const [layouts, setLayouts] = useState({});
 		const [isReady, setIsReady] = useState(false);
+		const [searchExpanded, setSearchExpanded] = useState(false);
 		const translateX = useRef(new Animated.Value(0)).current;
 		const translateY = useRef(new Animated.Value(0)).current;
 		const width = useRef(new Animated.Value(120)).current;
@@ -144,7 +149,47 @@ const Filters = React.memo(
 		return (
 			<View style={filterStyles.container}>
 				<View style={filterStyles.row}>
-					{/* 🔍 Champ de recherche */}
+{/* 🔍 Recherche */}
+				{IS_PHONE ? (
+					searchExpanded ? (
+						<View style={[filterStyles.searchContainer, { flex: 1, maxWidth: 180, minWidth: 0 }]}>
+							<Ionicons
+								name="search-outline"
+								size={18}
+								color={THEME.colors.primary.amber}
+								style={filterStyles.searchIcon}
+							/>
+							<TextInput
+								style={filterStyles.searchInput}
+								placeholder="Rechercher..."
+								placeholderTextColor={THEME.colors.text.muted}
+								value={searchQuery}
+								onChangeText={onSearchChange}
+								autoCapitalize="none"
+								autoCorrect={false}
+								autoFocus
+							/>
+							<TouchableOpacity
+								onPress={() => { setSearchExpanded(false); onSearchChange(""); }}
+								style={filterStyles.clearButton}
+							>
+								<Ionicons name="close-circle" size={18} color={THEME.colors.text.muted} />
+							</TouchableOpacity>
+						</View>
+					) : (
+						<TouchableOpacity
+							onPress={() => setSearchExpanded(true)}
+							style={filterStyles.searchIconBtn}
+							activeOpacity={0.7}
+						>
+							<Ionicons
+								name="search-outline"
+								size={20}
+								color={THEME.colors.text.muted}
+							/>
+						</TouchableOpacity>
+					)
+				) : (
 					<View style={filterStyles.searchContainer}>
 						<Ionicons
 							name="search-outline"
@@ -178,66 +223,114 @@ const Filters = React.memo(
 							</TouchableOpacity>
 						) : null}
 					</View>
+				)}
 
 					{/* Filtres de statut */}
-					<View style={filterStyles.inner}>
-						{/* Background slider (désactivé pour foodtruck) */}
-						{isReady && FILTERS.length > 1 && (
-							<Animated.View
-								style={[
-									filterStyles.slider,
-									{
-										left: translateX,
-										top: translateY,
-										width: width,
-										backgroundColor: searchQuery
-											? "transparent"
-											: `${activeColor}25`,
-										borderColor: searchQuery
-											? "transparent"
-											: `${activeColor}60`,
-									},
-								]}
-							/>
-						)}
-
-						{/* Boutons */}
-						{FILTERS.map(({ key, label, icon, color }) => {
-							const isActive = activeFilter === key && !searchQuery;
-
-							return (
-								<TouchableOpacity
-									key={key}
-									onPress={() => {
-										onSearchChange(""); // Reset search when clicking a filter
-										onFilterChange(key);
-									}}
-									activeOpacity={0.7}
-									onLayout={(e) => handleLayout(key, e)}
-								>
-									<View style={filterStyles.item}>
-										<Ionicons
-											name={icon}
-											size={16}
-											color={isActive ? color : THEME.colors.text.secondary}
-											style={{ marginRight: 6 }}
-										/>
-										<Text
-											style={[
-												filterStyles.label,
-												{
-													color: isActive ? color : THEME.colors.text.secondary,
-													fontWeight: isActive ? "700" : "500",
-												},
-											]}
+					{IS_PHONE ? (
+						<ScrollView
+							horizontal
+							showsHorizontalScrollIndicator={false}
+							style={filterStyles.filtersScrollPhone}
+							contentContainerStyle={{ paddingHorizontal: 2 }}
+						>
+							<View style={[filterStyles.inner, { flex: 0 }]}>
+								{isReady && FILTERS.length > 1 && (
+									<Animated.View
+										style={[
+											filterStyles.slider,
+											{
+												left: translateX,
+												top: translateY,
+												width: width,
+												backgroundColor: searchQuery ? "transparent" : `${activeColor}25`,
+												borderColor: searchQuery ? "transparent" : `${activeColor}60`,
+											},
+										]}
+									/>
+								)}
+								{FILTERS.map(({ key, label, icon, color }) => {
+									const isActive = activeFilter === key && !searchQuery;
+									return (
+										<TouchableOpacity
+											key={key}
+											onPress={() => {
+												onSearchChange("");
+												setSearchExpanded(false);
+												onFilterChange(key);
+											}}
+											activeOpacity={0.7}
+											onLayout={(e) => handleLayout(key, e)}
 										>
-											{label}
-										</Text>
-									</View>
-								</TouchableOpacity>
-							);
-						})}
-					</View>
+											<View style={filterStyles.item}>
+												<Ionicons
+													name={icon}
+													size={16}
+													color={isActive ? color : THEME.colors.text.secondary}
+													style={{ marginRight: 6 }}
+												/>
+												<Text
+													style={[
+														filterStyles.label,
+														{ color: isActive ? color : THEME.colors.text.secondary, fontWeight: isActive ? "700" : "500" },
+													]}
+												>
+													{label}
+												</Text>
+											</View>
+										</TouchableOpacity>
+									);
+								})}
+							</View>
+						</ScrollView>
+					) : (
+						<View style={filterStyles.inner}>
+							{isReady && FILTERS.length > 1 && (
+								<Animated.View
+									style={[
+										filterStyles.slider,
+										{
+											left: translateX,
+											top: translateY,
+											width: width,
+											backgroundColor: searchQuery ? "transparent" : `${activeColor}25`,
+											borderColor: searchQuery ? "transparent" : `${activeColor}60`,
+										},
+									]}
+								/>
+							)}
+							{FILTERS.map(({ key, label, icon, color }) => {
+								const isActive = activeFilter === key && !searchQuery;
+								return (
+									<TouchableOpacity
+										key={key}
+										onPress={() => {
+											onSearchChange("");
+											onFilterChange(key);
+										}}
+										activeOpacity={0.7}
+										onLayout={(e) => handleLayout(key, e)}
+									>
+										<View style={filterStyles.item}>
+											<Ionicons
+												name={icon}
+												size={16}
+												color={isActive ? color : THEME.colors.text.secondary}
+												style={{ marginRight: 6 }}
+											/>
+											<Text
+												style={[
+													filterStyles.label,
+													{ color: isActive ? color : THEME.colors.text.secondary, fontWeight: isActive ? "700" : "500" },
+												]}
+											>
+												{label}
+											</Text>
+										</View>
+									</TouchableOpacity>
+								);
+							})}
+						</View>
+					)}
 				</View>
 			</View>
 		);
@@ -281,6 +374,19 @@ const createFilterStyles = (THEME) =>
 		},
 		clearButton: {
 			padding: THEME.spacing.xs,
+		},
+		searchIconBtn: {
+			width: 38,
+			height: 38,
+			borderRadius: THEME.radius.xl,
+			backgroundColor: THEME.colors.background.card,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.default,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		filtersScrollPhone: {
+			flex: 1,
 		},
 		inner: {
 			flex: 1,
