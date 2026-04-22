@@ -23,7 +23,7 @@ import {
 } from "react-native";
 
 const IS_PHONE = Dimensions.get("window").width < 600;
-const SIDEBAR_W = IS_PHONE ? 230 : 220;
+const SIDEBAR_W = IS_PHONE ? 230 : 280;
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import Dashboard from "./Dashboard";
@@ -279,6 +279,50 @@ export default function Floor({ onStart }) {
 	// 🏗️ Floor Plan Modal
 	const [showFloorPlan, setShowFloorPlan] = useState(false);
 	const [activeRoom, setActiveRoom] = useState(1); // 1, 2 ou 3
+	const [focusTableId, setFocusTableId] = useState(null);
+
+	// 📊 Stats d'occupation des tables (sidebar Salles)
+	const [salleTables, setSalleTables] = useState([]);
+	const availBarAnim = useRef(new Animated.Value(0)).current;
+	const occupBarAnim = useRef(new Animated.Value(0)).current;
+	const unavailBarAnim = useRef(new Animated.Value(0)).current;
+
+	const tableStats = useMemo(() => {
+		const available = salleTables.filter((t) => t.status === "available").length;
+		const occupied = salleTables.filter((t) => t.status === "occupied").length;
+		const unavailable = salleTables.filter((t) => t.status === "unavailable").length;
+		const total = salleTables.length || 1;
+		const totalSeats = salleTables.reduce((sum, t) => sum + (t.capacity || 0), 0);
+		return { available, occupied, unavailable, total, totalSeats };
+	}, [salleTables]);
+
+	useEffect(() => {
+		if (!restaurantId || !hasPlanSalle) return;
+		authFetch(`/tables/restaurant/${restaurantId}`, { method: "GET" }).then((data) => {
+			if (Array.isArray(data)) setSalleTables(data);
+		});
+	}, [restaurantId, hasPlanSalle, authFetch]);
+
+	useEffect(() => {
+		const { available, occupied, unavailable, total } = tableStats;
+		Animated.parallel([
+			Animated.timing(availBarAnim, {
+				toValue: available / total,
+				duration: 400,
+				useNativeDriver: false,
+			}),
+			Animated.timing(occupBarAnim, {
+				toValue: occupied / total,
+				duration: 400,
+				useNativeDriver: false,
+			}),
+			Animated.timing(unavailBarAnim, {
+				toValue: unavailable / total,
+				duration: 400,
+				useNativeDriver: false,
+			}),
+		]).start();
+	}, [tableStats, availBarAnim, occupBarAnim, unavailBarAnim]);
 
 	// 📱 Sidebar toggle (iPhone uniquement — masquée par défaut)
 	const [sidebarVisible, setSidebarVisible] = useState(!IS_PHONE);
@@ -295,20 +339,6 @@ export default function Floor({ onStart }) {
 		}).start();
 		setSidebarVisible((v) => !v);
 	}, [sidebarVisible, sidebarAnim]);
-
-	// 💻 Sidebar collapse (tablette uniquement — déployée par défaut)
-	const [sidebarCollapsed, setSidebarCollapsed] = useState(false);
-	const collapseAnim = useRef(new Animated.Value(SIDEBAR_W)).current;
-
-	const toggleCollapse = useCallback(() => {
-		const toValue = sidebarCollapsed ? SIDEBAR_W : 52;
-		Animated.timing(collapseAnim, {
-			toValue,
-			duration: 240,
-			useNativeDriver: false,
-		}).start();
-		setSidebarCollapsed((v) => !v);
-	}, [sidebarCollapsed, collapseAnim]);
 
 	useEffect(() => {
 		initTheme();
@@ -370,15 +400,72 @@ export default function Floor({ onStart }) {
 	useEffect(() => {
 		if (!restaurantId || !socketReady) return;
 
+		const getRestaurantIdFromOrder = (order, fallbackRestaurantId = null) => {
+			return String(
+				order?.restaurantId?._id ||
+					order?.restaurantId ||
+					fallbackRestaurantId ||
+					"",
+			);
+		};
+
 		const handleOrderCreated = (order) => {
-			if (order.restaurantId === restaurantId) {
-				setOrders((prev) => [...prev, order]);
+			if (getRestaurantIdFromOrder(order) === String(restaurantId)) {
+				setOrders((prev) => {
+					const exists = prev.some((existingOrder) => existingOrder._id === order._id);
+					return exists ? prev : [...prev, order];
+				});
 			}
 		};
 
 		const handleOrderUpdated = (order) => {
-			if (order.restaurantId === restaurantId) {
-				setOrders((prev) => prev.map((o) => (o._id === order._id ? order : o)));
+			if (getRestaurantIdFromOrder(order) === String(restaurantId)) {
+				setOrders((prev) => {
+					const exists = prev.some((existingOrder) => existingOrder._id === order._id);
+					if (!exists) {
+						return [...prev, order];
+					}
+
+					return prev.map((existingOrder) =>
+						existingOrder._id === order._id
+							? { ...existingOrder, ...order }
+							: existingOrder,
+					);
+				});
+			}
+		};
+
+		const handleOrderEvent = (event) => {
+			if (!event?.type || !event?.data) return;
+
+			const eventRestaurantId = String(event.restaurant_id || "");
+			const orderRestaurantId = getRestaurantIdFromOrder(
+				event.data,
+				eventRestaurantId,
+			);
+
+			if (orderRestaurantId !== String(restaurantId)) return;
+
+			switch (event.type) {
+				case "created":
+					handleOrderCreated(event.data);
+					break;
+
+				case "statusUpdated":
+				case "updated":
+				case "payment_succeeded":
+					handleOrderUpdated(event.data);
+					break;
+
+				case "deleted":
+				case "dismissed":
+					setOrders((prev) =>
+						prev.filter((existingOrder) => existingOrder._id !== event.data._id),
+					);
+					break;
+
+				default:
+					break;
 			}
 		};
 
@@ -399,11 +486,13 @@ export default function Floor({ onStart }) {
 			);
 		};
 
+		on("order", handleOrderEvent);
 		on("order:created", handleOrderCreated);
 		on("order:updated", handleOrderUpdated);
 		on("order:item:status:updated", handleSunnyGoemStatusUpdated);
 
 		return () => {
+			off("order", handleOrderEvent);
 			off("order:created", handleOrderCreated);
 			off("order:updated", handleOrderUpdated);
 			off("order:item:status:updated", handleSunnyGoemStatusUpdated);
@@ -569,6 +658,45 @@ export default function Floor({ onStart }) {
 		[orders],
 	);
 
+	// ⭐ BLOC3/C1 — Réinitialiser une table manuellement (fermer session)
+	const handleResetTable = useCallback(
+		(reservation) => {
+			const tableId = String(reservation.tableId?._id || reservation.tableId || "");
+			const tableNum = reservation.tableId?.number || "?";
+			if (!tableId) {
+				Alert.alert("Erreur", "Table introuvable pour cette réservation.");
+				return;
+			}
+			Alert.alert(
+				"Réinitialiser la table ?",
+				`Fermer la session de la table ${tableNum} (${reservation.clientName || "client"}) ?\n\nLa réservation sera marquée terminée et la table libérée.`,
+				[
+					{ text: "Annuler", style: "cancel" },
+					{
+						text: "Réinitialiser",
+						style: "destructive",
+						onPress: async () => {
+							try {
+								await authFetch(`/tables/${tableId}/reset`, { method: "POST" });
+								// Rafraîchir réservations + tables caisse
+								await fetchReservations();
+								if (restaurantId && hasPlanSalle) {
+									authFetch(`/tables/restaurant/${restaurantId}`, { method: "GET" }).then(
+										(data) => { if (Array.isArray(data)) setSalleTables(data); },
+									);
+								}
+								Alert.alert("✅", `Table ${tableNum} réinitialisée.`);
+							} catch (e) {
+								Alert.alert("Erreur", "Impossible de réinitialiser la table.");
+							}
+						},
+					},
+				],
+			);
+		},
+		[authFetch, fetchReservations, restaurantId, hasPlanSalle, setSalleTables],
+	);
+
 	// Mettre à jour le statut d'un item (optimiste + WebSocket)
 	const handleUpdateItemStatus = useCallback(
 		async (orderId, itemId, newStatus) => {
@@ -641,36 +769,24 @@ export default function Floor({ onStart }) {
 								zIndex: 50,
 								transform: [{ translateX: sidebarAnim }],
 							},
-							!IS_PHONE && { width: collapseAnim },
 						]}
 					>
 						{/* Header Sidebar */}
 						<View style={floorStyles.sidebarHeader}>
-							<TouchableOpacity
-								onPress={!IS_PHONE ? toggleCollapse : undefined}
-								activeOpacity={IS_PHONE ? 1 : 0.7}
+							<LinearGradient
+								colors={[
+									"rgba(245, 158, 11, 0.15)",
+									"rgba(245, 158, 11, 0.05)",
+								]}
+								style={[floorStyles.headerIconBg, { width: 32, height: 32 }]}
 							>
-								<LinearGradient
-									colors={[
-										"rgba(245, 158, 11, 0.15)",
-										"rgba(245, 158, 11, 0.05)",
-									]}
-									style={[floorStyles.headerIconBg, { width: 32, height: 32 }]}
-								>
-									<Ionicons
-										name="restaurant-outline"
-										size={15}
-										color={THEME.colors.primary.amber}
-									/>
-								</LinearGradient>
-							</TouchableOpacity>
-							{!IS_PHONE && !sidebarCollapsed && (
-								<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
-							)}
-							{IS_PHONE && (
-								<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
-							)}
-							{/* Bouton fermer sur iPhone */}
+								<Ionicons
+									name="restaurant-outline"
+									size={15}
+									color={THEME.colors.primary.amber}
+								/>
+							</LinearGradient>
+							<Text style={floorStyles.headerTitle}>Gestion de salle</Text>
 							{IS_PHONE && (
 								<TouchableOpacity
 									onPress={toggleSidebar}
@@ -901,12 +1017,88 @@ export default function Floor({ onStart }) {
 										icon="grid-outline"
 										label="Salles"
 										gradientColors={[
-											"rgba(14, 165, 233, 0.15)",
-											"rgba(14, 165, 233, 0.05)",
+											"rgba(245, 158, 11, 0.15)",
+											"rgba(245, 158, 11, 0.05)",
 										]}
 										floorStyles={floorStyles}
 										THEME={THEME}
 									/>
+									{/* 📊 Barre d'occupation + KPIs */}
+									{salleTables.length > 0 && (
+										<View style={{ paddingHorizontal: 12, paddingBottom: 10 }}>
+											<View
+												style={{
+													flexDirection: "row",
+													height: 8,
+													borderRadius: 4,
+													overflow: "hidden",
+													backgroundColor: THEME.colors.border.default,
+													marginBottom: 10,
+												}}
+											>
+												<Animated.View
+													style={{
+														width: availBarAnim.interpolate({
+															inputRange: [0, 1],
+															outputRange: ["0%", "100%"],
+														}),
+														backgroundColor: "#10B981",
+													}}
+												/>
+												<Animated.View
+													style={{
+														width: occupBarAnim.interpolate({
+															inputRange: [0, 1],
+															outputRange: ["0%", "100%"],
+														}),
+														backgroundColor: "#EF4444",
+													}}
+												/>
+												<Animated.View
+													style={{
+														width: unavailBarAnim.interpolate({
+															inputRange: [0, 1],
+															outputRange: ["0%", "100%"],
+														}),
+														backgroundColor: "#9E9E9E",
+													}}
+												/>
+											</View>
+											<View style={{ flexDirection: "row", gap: 6 }}>
+												{[
+													{ label: "Libres", count: tableStats.available, color: "#10B981" },
+													{ label: "Occupées", count: tableStats.occupied, color: "#EF4444" },
+													{ label: "Indisp.", count: tableStats.unavailable, color: "#9E9E9E" },
+													{ label: "Couverts", count: tableStats.totalSeats, color: THEME.colors.primary.amber },
+												].map(({ label, count, color }) => (
+													<View
+														key={label}
+														style={{
+															flex: 1,
+															backgroundColor: THEME.colors.background.card,
+															borderRadius: 8,
+															paddingVertical: 6,
+															alignItems: "center",
+														}}
+													>
+														<Text style={{ fontSize: 16, fontWeight: "700", color }}>
+															{count}
+														</Text>
+														<Text
+															style={{
+																fontSize: 8,
+																color: THEME.colors.text.muted,
+																textAlign: "center",
+																marginTop: 1,
+															}}
+														>
+															{label}
+														</Text>
+													</View>
+												))}
+											</View>
+										</View>
+									)}
 									<GroupBox floorStyles={floorStyles}>
 										<MenuItem
 											icon="restaurant-outline"
@@ -1185,6 +1377,27 @@ export default function Floor({ onStart }) {
 													key={r._id}
 													style={floorStyles.caisseDetailItem}
 													onPress={() => handleCaisseMarkPaid(r)}
+													onLongPress={() => {
+														const tid = String(r.tableId?._id || r.tableId || "");
+														// Menu contextuel : plan de salle + reset table
+														Alert.alert(
+															r.clientName || "Client",
+															`Table ${r.tableId?.number || "?"}`,
+															[
+																hasPlanSalle && tid ? {
+																	text: "Voir sur plan",
+																	onPress: () => { setActiveRoom(1); setFocusTableId(tid); setShowFloorPlan(true); },
+																} : null,
+																{
+																	text: "Réinitialiser table",
+																	style: "destructive",
+																	onPress: () => handleResetTable(r),
+																},
+																{ text: "Annuler", style: "cancel" },
+															].filter(Boolean),
+														);
+													}}
+													delayLongPress={400}
 													activeOpacity={0.7}
 												>
 													<Text style={floorStyles.caisseDetailName}>
@@ -1194,9 +1407,9 @@ export default function Floor({ onStart }) {
 														{(r.totalAmount || 0).toFixed(2)}€
 													</Text>
 													<Ionicons
-														name="card-outline"
+														name="map-outline"
 														size={16}
-														color="#F59E0B"
+														color="#C9A84C"
 													/>
 												</TouchableOpacity>
 											))
@@ -1268,9 +1481,10 @@ export default function Floor({ onStart }) {
 			{/* 🏗️ Floor Plan Modal */}
 			<FloorPlanModal
 				visible={showFloorPlan}
-				onClose={() => setShowFloorPlan(false)}
+				onClose={() => { setShowFloorPlan(false); setFocusTableId(null); }}
 				restaurantId={restaurantId}
 				roomNumber={activeRoom}
+				focusTableId={focusTableId}
 			/>
 			{receiptTargetCaisse && (
 				<ReceiptModal
@@ -1321,7 +1535,6 @@ const createFloorStyles = (THEME) =>
 			backgroundColor: THEME.colors.background.card,
 			borderRightWidth: 1,
 			borderRightColor: THEME.colors.border.subtle,
-			overflow: "hidden",
 		},
 		sidebarOverlay: {
 			position: "absolute",

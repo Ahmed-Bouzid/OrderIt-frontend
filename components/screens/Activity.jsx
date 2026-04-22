@@ -609,6 +609,44 @@ export default function Activity() {
 		],
 	);
 
+	// ⭐ BLOC3/C2 — Annuler une commande individuelle depuis le manager
+	const handleCancelOrder = useCallback(
+		(order) => {
+			if (!order?._id) return;
+			if (order.paid || order.paymentStatus === "paid") {
+				Alert.alert("Impossible", "Cette commande est déjà payée.");
+				return;
+			}
+			if (order.orderStatus === "cancelled") {
+				Alert.alert("Déjà annulée", "Cette commande est déjà annulée.");
+				return;
+			}
+			Alert.alert(
+				"Annuler la commande ?",
+				`Annuler la commande du ${new Date(order.createdAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })} ?`,
+				[
+					{ text: "Non", style: "cancel" },
+					{
+						text: "Annuler la commande",
+						style: "destructive",
+						onPress: async () => {
+							try {
+								await authFetch(
+									`${API_CONFIG.baseURL}/orders/${order._id}/cancel`,
+									{ method: "PATCH" },
+								);
+								await fetchReservations();
+							} catch (e) {
+								Alert.alert("Erreur", "Impossible d'annuler la commande.");
+							}
+						},
+					},
+				],
+			);
+		},
+		[authFetch, fetchReservations],
+	);
+
 	const handleFinishReservation = useCallback(
 		async (reservationId) => {
 			try {
@@ -1320,6 +1358,24 @@ export default function Activity() {
 																			€
 																		</Text>
 																	</View>
+
+																	{/* Bouton annuler (BLOC3/C2) — masqué si déjà annulé/payé */}
+																	{order.orderStatus !== "cancelled" && !order.paid && order.paymentStatus !== "paid" && (
+																		<TouchableOpacity
+																			onPress={() => handleCancelOrder(order)}
+																			style={{ alignSelf: "flex-end", marginTop: 6, paddingHorizontal: 10, paddingVertical: 4, borderRadius: 6, borderWidth: 1, borderColor: "#EF4444" }}
+																			activeOpacity={0.7}
+																		>
+																			<Text style={{ color: "#EF4444", fontSize: 12, fontWeight: "600" }}>
+																				Annuler
+																			</Text>
+																		</TouchableOpacity>
+																	)}
+																	{order.orderStatus === "cancelled" && (
+																		<Text style={{ alignSelf: "flex-end", marginTop: 4, fontSize: 11, color: "#9CA3AF" }}>
+																			Annulée
+																		</Text>
+																	)}
 																</View>
 															);
 														})}
