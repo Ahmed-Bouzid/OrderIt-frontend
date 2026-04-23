@@ -1,18 +1,17 @@
 import React, { useState, useEffect } from "react";
 import { View, Text, Button, StyleSheet } from "react-native";
-import { BarCodeScanner } from "expo-barcode-scanner";
+import { CameraView, useCameraPermissions } from "expo-camera";
 
 export default function QRCodeScanner({ onScan }) {
-	const [hasPermission, setHasPermission] = useState(null);
+	const [permission, requestPermission] = useCameraPermissions();
 	const [scanned, setScanned] = useState(false);
 	const [tableId, setTableId] = useState(null);
 
 	useEffect(() => {
 		(async () => {
-			const { status } = await BarCodeScanner.requestPermissionsAsync();
-			setHasPermission(status === "granted");
+			await requestPermission();
 		})();
-	}, []);
+	}, [requestPermission]);
 
 	const handleBarCodeScanned = ({ data }) => {
 		setScanned(true);
@@ -20,18 +19,18 @@ export default function QRCodeScanner({ onScan }) {
 		if (onScan) onScan(data); // callback pour passer l'ID au parent
 	};
 
-	if (hasPermission === null) {
+	if (!permission) {
 		return <Text>Demande de permission pour la caméra...</Text>;
 	}
-	if (hasPermission === false) {
+	if (!permission.granted) {
 		return <Text>Pas d`accès à la caméra</Text>;
 	}
 
 	return (
 		<View style={styles.container}>
 			{!scanned && (
-				<BarCodeScanner
-					onBarCodeScanned={handleBarCodeScanned}
+				<CameraView
+					onBarcodeScanned={handleBarCodeScanned}
 					style={StyleSheet.absoluteFillObject}
 				/>
 			)}

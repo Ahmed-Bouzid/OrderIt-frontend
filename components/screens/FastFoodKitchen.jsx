@@ -22,6 +22,9 @@ import useReservationStore from "../../src/stores/useReservationStore";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import { API_CONFIG } from "../../src/config/apiConfig";
 import { ReceiptModal } from "../receipt";
+import useKitchenOrdersStore from "../../src/stores/useKitchenOrdersStore"; // ✨ NOUVEAU
+import useUserStore from "../../src/stores/useUserStore";
+import useDeveloperStore from "../../src/stores/useDeveloperStore";
 
 // ─────────────────────────────────────────────────────────────────
 // Constantes
@@ -85,6 +88,16 @@ const KitchenReservationCard = React.memo(
 				});
 			});
 			return Object.values(merged);
+		}, [orders]);
+
+		const orderRefs = useMemo(() => {
+			if (!orders || orders.length === 0) return [];
+			return orders.map((order) => ({
+				id: order._id,
+				shortId: String(order._id || "").slice(-6),
+				paymentStatus: order.paymentStatus,
+				orderStatus: order.orderStatus,
+			}));
 		}, [orders]);
 
 		const cardBg = isDone
@@ -176,6 +189,22 @@ const KitchenReservationCard = React.memo(
 						</Text>
 					</View>
 				</View>
+
+				{orderRefs.length > 0 && (
+					<View style={styles.orderRefsContainer}>
+						{orderRefs.map((orderRef) => (
+							<Text
+								key={orderRef.id}
+								style={[
+									styles.orderRefText,
+									{ color: THEME.mode === "dark" ? "#CBD5E1" : "#475569" },
+								]}
+							>
+								Cmd #{orderRef.shortId} · {orderRef.paymentStatus} · {orderRef.orderStatus}
+							</Text>
+						))}
+					</View>
+				)}
 
 				{/* Commande exacte — items de la commande */}
 				{allItems.length > 0 ? (
@@ -311,42 +340,34 @@ export default function FastFoodKitchen() {
 	const isLoading = useReservationStore((state) => state.isLoading);
 
 	// Map des orders par reservationId { [reservationId]: Order[] }
-	const [ordersMap, setOrdersMap] = useState({});
+	const ordersMap = useKitchenOrdersStore((state) => state.ordersMap);
+	const fetchOrdersForKitchen = useKitchenOrdersStore(
+		(state) => state.fetchOrdersForKitchen,
+	);
 	// IDs des réservations marquées payées localement (optimiste)
 	const [paidReservationIds, setPaidReservationIds] = useState(new Set());
 	// Réservation cible pour l'affichage du reçu
 	const [receiptTarget, setReceiptTarget] = useState(null);
 
-	// Charger les orders du restaurant pour aujourd'hui
-	const fetchOrders = useCallback(async () => {
-		try {
-			const restaurantId = await AsyncStorage.getItem("restaurantId");
-			if (!restaurantId) return;
-			const data = await authFetch(
-				`${API_CONFIG.baseURL}/orders?restaurantId=${restaurantId}`,
-				{ method: "GET" },
-			);
-			const list = Array.isArray(data) ? data : (data?.orders ?? []);
-			const map = {};
-			list.forEach((order) => {
-				const resaId =
-					order.reservationId?._id?.toString() ||
-					order.reservationId?.toString();
-				if (resaId) {
-					if (!map[resaId]) map[resaId] = [];
-					map[resaId].push(order);
-				}
-			});
-			setOrdersMap(map);
-		} catch (err) {
-			console.error("❌ [KITCHEN] Erreur fetch orders:", err);
-		}
-	}, [authFetch]);
+	// ⭐ Surveiller restaurantId : normal = useUserStore, dev = useDeveloperStore
+	const restaurantIdFromUser = useUserStore((state) => state.restaurantId);
+	const selectedRestaurant = useDeveloperStore((state) => state.selectedRestaurant);
+	const restaurantIdFromStore = restaurantIdFromUser || selectedRestaurant?._id;
 
 	useEffect(() => {
-		fetchOrders();
-	}, [fetchOrders]);
+		fetchReservations(true);
+		fetchOrdersForKitchen(true);
+	}, [restaurantIdFromStore, fetchReservations, fetchOrdersForKitchen]);
 
+	// Fallback temps réel: si le socket se coupe, on garde la cuisine à jour par polling.
+	useEffect(() => {
+		const intervalId = setInterval(() => {
+			fetchReservations(true);
+			fetchOrdersForKitchen(true);
+		}, 10000);
+
+		return () => clearInterval(intervalId);
+	}, [fetchReservations, fetchOrdersForKitchen]);
 	// Filtrer les réservations d'aujourd'hui (non-annulées), triées : non-terminées d'abord
 	const todayReservations = useMemo(() => {
 		const today = new Date();
@@ -360,8 +381,19 @@ export default function FastFoodKitchen() {
 		return reservations
 			.filter((r) => {
 				if (r.status === "annulée") return false;
-				const d = new Date(r.reservationDate || r.createdAt);
-				return d >= todayStart && d < todayEnd;
+
+				const reservationDate = new Date(r.reservationDate || r.createdAt);
+				const reservationIsToday =
+					reservationDate >= todayStart && reservationDate < todayEnd;
+
+				const linkedOrders = ordersMap[r._id] || [];
+				const hasOrderToday = linkedOrders.some((order) => {
+					const orderDate = new Date(order.createdAt || order.updatedAt);
+					return orderDate >= todayStart && orderDate < todayEnd;
+				});
+
+				const pass = reservationIsToday || hasOrderToday;
+				return pass;
 			})
 			.sort((a, b) => {
 				// Non-terminés avant terminés
@@ -371,7 +403,7 @@ export default function FastFoodKitchen() {
 				// Puis par heure
 				return (a.reservationTime || "").localeCompare(b.reservationTime || "");
 			});
-	}, [reservations]);
+	}, [reservations, ordersMap]);
 
 	const pendingCount = useMemo(
 		() => todayReservations.filter((r) => r.dishStatus !== "Terminé").length,
@@ -470,8 +502,8 @@ export default function FastFoodKitchen() {
 
 	const handleRefresh = useCallback(() => {
 		fetchReservations(true);
-		fetchOrders();
-	}, [fetchReservations, fetchOrders]);
+		fetchOrdersForKitchen(true);
+	}, [fetchReservations, fetchOrdersForKitchen]);
 
 	// ─── Render ────────────────────────────────────────────────
 	const renderItem = useCallback(
@@ -561,7 +593,7 @@ export default function FastFoodKitchen() {
 				</View>
 			) : todayReservations.length === 0 ? (
 				<View style={styles.emptyContainer}>
-					<Ionicons
+				<Ionicons
 						name="restaurant-outline"
 						size={52}
 						color={THEME.mode === "dark" ? "#374151" : "#CBD5E1"}
@@ -723,6 +755,14 @@ const styles = StyleSheet.create({
 		marginBottom: 10,
 		fontStyle: "italic",
 		lineHeight: 17,
+	},
+	orderRefsContainer: {
+		marginBottom: 8,
+		gap: 2,
+	},
+	orderRefText: {
+		fontSize: 11,
+		fontWeight: "500",
 	},
 	btnRow: {
 		flexDirection: "row",

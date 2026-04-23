@@ -5,3 +5,4 @@ export { default as SecuritySettings } from "./SecuritySettings";
 export { default as TableManagement } from "./TableManagement";
 export { default as CRMPerformance } from "./CRMPerformance";
 export { default as ServerPerformanceDetail } from "./ServerPerformanceDetail";
+export { default as OnboardingWizard } from "./OnboardingWizard";

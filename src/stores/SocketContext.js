@@ -17,6 +17,7 @@ import useProductStore from "./useProductStore";
 import { useServerStore } from "./useRestaurantStaffStore";
 import useTableStore from "./useRestaurantTableStore";
 import useNotificationStore from "./useNotificationStore";
+import useKitchenOrdersStore from "./useKitchenOrdersStore"; // 🍔 Commandes cuisine
 
 export const SocketContext = createContext(null);
 
@@ -44,6 +45,11 @@ export const SocketProvider = ({ children }) => {
 		attachServerListener(socketInstance);
 		attachTableListener(socketInstance);
 		attachNotificationListeners(socketInstance);
+
+		// 🍔 Attacher le listener des commandes cuisine
+		const attachKitchenOrdersListener =
+			useKitchenOrdersStore.getState().attachSocketListener;
+		attachKitchenOrdersListener(socketInstance);
 	}, []);
 
 	const setupSocket = useCallback(async () => {

@@ -41,7 +41,9 @@
 				}
 			],
 			"expo-web-browser",
-			"expo-screen-capture"
+			"expo-screen-capture",
+			"./plugins/withKioskMode",
+			"./plugins/withApkInstall"
 		],
 		"experiments": {
 			"typedRoutes": true

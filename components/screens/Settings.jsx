@@ -16,6 +16,7 @@ import {
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore, {
 	THEME_MODES,
 	FONT_SIZES,
@@ -73,6 +74,9 @@ export default function Settings() {
 	const [loadingMessaging, setLoadingMessaging] = useState(false);
 	const { restaurantId } = useUserStore();
 
+	// ⭐ État onboarding wizard
+	const [onboardingComplete, setOnboardingComplete] = useState(true);
+
 	// ⭐ Utiliser useTheme() pour avoir le thème complet avec typography scalée
 	const THEME = useTheme();
 
@@ -81,8 +85,14 @@ export default function Settings() {
 	const { hasFeedback } = useFeatures();
 
 	// 🔧 Feature level (developer overrides) — source unique de vérité pour le portail manager
-	const { hasChatClient, hasStatistiques, hasAutoTables, isComplete, hasAiHeatmap, hasAiStrategicSlots } =
-		useFeatureLevel();
+	const {
+		hasChatClient,
+		hasStatistiques,
+		hasAutoTables,
+		isComplete,
+		hasAiHeatmap,
+		hasAiStrategicSlots,
+	} = useFeatureLevel();
 
 	// ⭐ Styles dynamiques selon le thème
 	const settingsStyles = useMemo(() => createStyles(THEME), [THEME]);
@@ -100,6 +110,9 @@ export default function Settings() {
 	useEffect(() => {
 		initTheme();
 		initUser();
+		AsyncStorage.getItem("onboardingComplete").then((val) => {
+			setOnboardingComplete(val === "true");
+		});
 	}, [initTheme, initUser]);
 
 	// 💬 Charger statut messagerie
@@ -487,6 +500,53 @@ export default function Settings() {
 								</TouchableOpacity>
 							</View>
 						</View>
+
+{/* 🎨 Section Personnalisation thème client */}
+<View style={settingsStyles.themeSection}>
+<View style={settingsStyles.themeLabelRow}>
+<Ionicons
+name="brush-outline"
+size={24}
+color={THEME.colors.primary.amber}
+/>
+<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+<Text style={settingsStyles.settingLabel}>
+Thème client
+</Text>
+<Text style={settingsStyles.settingDescription}>
+Personnalisez l&apos;apparence du menu client
+</Text>
+</View>
+</View>
+
+{/* Bouton personnaliser */}
+<TouchableOpacity
+style={[
+settingsStyles.themeOption,
+{ width: "100%", marginTop: THEME.spacing.md }
+]}
+onPress={() => router.push("/theme-editor")}
+>
+<LinearGradient
+colors={[THEME.colors.primary.amber, "#D97706"]}
+style={{
+flexDirection: "row",
+alignItems: "center",
+justifyContent: "center",
+paddingVertical: THEME.spacing.md,
+paddingHorizontal: THEME.spacing.lg,
+borderRadius: THEME.borderRadius.lg,
+width: "100%",
+}}
+>
+<Ionicons name="color-palette" size={20} color="#FFF" />
+<Text style={{ color: "#FFF", fontWeight: "600", marginLeft: 8 }}>
+Personnaliser le thème
+</Text>
+</LinearGradient>
+</TouchableOpacity>
+</View>
+
 					</>
 				);
 
@@ -571,6 +631,9 @@ export default function Settings() {
 						</TouchableOpacity>
 					</>
 				);
+
+			case "onboarding":
+				return <OnboardingWizard />;
 
 			case "servers":
 				return <ServerManagement />;
@@ -1173,9 +1236,9 @@ export default function Settings() {
 										Analyse intelligente des réservations
 									</Text>
 									<Text style={settingsStyles.settingDescription}>
-										Heatmap d’occupation par jour et créneau, identification
-										des périodes creuses et recommandations stratégiques
-										pour optimiser votre taux de remplissage.
+										Heatmap d’occupation par jour et créneau, identification des
+										périodes creuses et recommandations stratégiques pour
+										optimiser votre taux de remplissage.
 									</Text>
 								</View>
 							</View>
@@ -1227,19 +1290,43 @@ export default function Settings() {
 								Fonctionnalités disponibles
 							</Text>
 							<View style={{ gap: 12, marginTop: 12 }}>
-								<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-									<Ionicons name="grid-outline" size={18} color={THEME.colors.primary.amber} />
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons
+										name="grid-outline"
+										size={18}
+										color={THEME.colors.primary.amber}
+									/>
 									<View style={{ flex: 1 }}>
-										<Text style={settingsStyles.settingLabel}>Heatmap d’occupation</Text>
+										<Text style={settingsStyles.settingLabel}>
+											Heatmap d’occupation
+										</Text>
 										<Text style={settingsStyles.settingDescription}>
 											Visualisation par jour et créneau horaire
 										</Text>
 									</View>
 								</View>
-								<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
-									<Ionicons name="bulb-outline" size={18} color={THEME.colors.primary.amber} />
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons
+										name="bulb-outline"
+										size={18}
+										color={THEME.colors.primary.amber}
+									/>
 									<View style={{ flex: 1 }}>
-										<Text style={settingsStyles.settingLabel}>Créneaux stratégiques</Text>
+										<Text style={settingsStyles.settingLabel}>
+											Créneaux stratégiques
+										</Text>
 										<Text style={settingsStyles.settingDescription}>
 											Identification des périodes sous-exploitées
 										</Text>
@@ -1348,6 +1435,47 @@ export default function Settings() {
 										Portail Manager
 									</Text>
 								</View>
+
+								{/* ⭐ Setup rapide — visible si onboarding non terminé */}
+								{!onboardingComplete && (
+									<TouchableOpacity
+										style={[
+											settingsStyles.menuItem,
+											{
+												backgroundColor:
+													"rgba(245, 158, 11, 0.1)",
+												borderWidth: 1,
+												borderColor:
+													"rgba(245, 158, 11, 0.3)",
+												borderRadius: 10,
+												marginBottom: 6,
+											},
+										]}
+										onPress={() =>
+											router.push("/onboarding")
+										}
+									>
+										<Ionicons
+											name="rocket-outline"
+											size={20}
+											color="#F59E0B"
+										/>
+										<Text
+											style={[
+												settingsStyles.menuItemText,
+												{ color: "#F59E0B", fontWeight: "600" },
+											]}
+										>
+											Setup rapide
+										</Text>
+										<Text style={{ flex: 1 }} />
+										<Ionicons
+											name="chevron-forward"
+											size={18}
+											color="#F59E0B"
+										/>
+									</TouchableOpacity>
+								)}
 
 								<MenuItem
 									icon="people-outline"
@@ -1504,7 +1632,7 @@ const createStyles = (THEME) =>
 			backgroundColor: THEME.colors.background.dark,
 		},
 		sidebar: {
-			width: 220,
+			width: 280,
 			backgroundColor: THEME.colors.background.card,
 			padding: THEME.spacing.lg,
 		},

@@ -71,6 +71,7 @@ const TabButton = React.memo(({ tab, isActive, onPress, onLayout }) => {
 			onLayout={onLayout}
 			style={[tabStyles.tabButton]}
 			hitSlop={hitSlop}
+			delayLongPress={0}
 		>
 			<Ionicons
 				name={tab.icon}
@@ -307,7 +308,7 @@ export default function TabsLayout() {
 	}, [activeTab, handleStart]);
 
 	return (
-		<SafeAreaView style={tabStyles.container}>
+		<SafeAreaView style={tabStyles.container} edges={["top", "left", "right"]}>
 			<LinearGradient
 				colors={[THEME.colors.background.dark, THEME.colors.background.card]}
 				style={StyleSheet.absoluteFill}
@@ -348,6 +349,9 @@ export default function TabsLayout() {
 						<ScrollView
 							horizontal
 							showsHorizontalScrollIndicator={false}
+							directionalLockEnabled={true}
+							cancelContentTouches={false}
+							keyboardShouldPersistTaps="always"
 							contentContainerStyle={{
 								flexDirection: "row",
 								alignItems: "center",

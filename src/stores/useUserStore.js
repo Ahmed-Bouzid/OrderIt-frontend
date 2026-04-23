@@ -95,6 +95,14 @@ const useUserStore = create((set, get) => ({
 	 */
 	clear: async () => {
 		try {
+			// 🚨 Réinitialiser les stores liés au restaurant
+			try {
+				const useExpressOrdersStore = require("./useExpressOrdersStore").default;
+				useExpressOrdersStore.getState().clearExpressOrders();
+			} catch (error) {
+				console.warn("⚠️ Impossible de nettoyer les commandes express:", error);
+			}
+
 			await Promise.all([
 				AsyncStorage.removeItem("userId"),
 				AsyncStorage.removeItem("userEmail"),

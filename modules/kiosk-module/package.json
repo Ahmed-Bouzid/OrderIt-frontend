@@ -1,0 +1,9 @@
+{
+  "name": "kiosk-module",
+  "version": "1.0.0",
+  "description": "Module natif Expo pour le Kiosk Mode Android (Lock Task)",
+  "main": "index.js",
+  "android": {
+    "gradlePath": "android"
+  }
+}

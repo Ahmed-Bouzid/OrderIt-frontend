@@ -2,7 +2,25 @@ import { create } from "zustand";
 
 import { API_CONFIG } from "../config/apiConfig";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { getItem as getSecureItem } from "../../utils/secureStorage";
+import { fetchWithAuth } from "../../utils/tokenManager";
+
+const getRestaurantId = async () => {
+	const useUserStore = require("./useUserStore").default;
+	const fromStore = useUserStore.getState().restaurantId;
+	if (fromStore) return fromStore;
+	const fromStorage = await AsyncStorage.getItem("restaurantId");
+	if (fromStorage) return fromStorage;
+
+	const selectedRestaurantRaw = await AsyncStorage.getItem("selectedRestaurant");
+	if (!selectedRestaurantRaw) return null;
+
+	try {
+		const selectedRestaurant = JSON.parse(selectedRestaurantRaw);
+		return selectedRestaurant?._id || null;
+	} catch {
+		return null;
+	}
+};
 
 let fetchPromise = null; // ✅ Stockage de la promise pour éviter les appels parallèles
 
@@ -81,9 +99,8 @@ const useReservationStore = create((set, get) => ({
 
 		fetchPromise = (async () => {
 			try {
-				const token = await getSecureItem("@access_token");
-				const restaurantId = await AsyncStorage.getItem("restaurantId");
-				if (!token || !restaurantId) {
+				const restaurantId = await getRestaurantId();
+				if (!restaurantId) {
 					return {
 						success: false,
 						error: "NO_TOKEN_OR_RESTAURANT",
@@ -92,14 +109,7 @@ const useReservationStore = create((set, get) => ({
 				}
 
 				const url = `${API_CONFIG.baseURL}/reservations/restaurant/${restaurantId}`;
-				const response = await fetch(url, {
-					headers: { Authorization: `Bearer ${token}` },
-				});
-
-				// 🔹 si le token est invalide ou expiré
-				if (response.status === 401 || response.status === 403) {
-					throw new Error("Session expirée");
-				}
+				const response = await fetchWithAuth(url, { method: "GET" });
 
 				if (!response.ok) {
 					const text = await response.text();
@@ -144,6 +154,18 @@ const useReservationStore = create((set, get) => ({
 				set({ reservations: refreshedReservations });
 				return { success: true, data: refreshedReservations };
 			} catch (err) {
+				const isSessionError =
+					err?.message?.includes("Session expirée") ||
+					err?.message?.includes("reconnecter");
+				if (isSessionError) {
+					console.warn("⚠️ Réservations: session expirée, refresh/login requis");
+					return {
+						success: false,
+						error: "SESSION_EXPIRED",
+						message: "Session expirée",
+					};
+				}
+
 				console.error("🚨 Erreur récupération réservations :", err);
 				return {
 					success: false,

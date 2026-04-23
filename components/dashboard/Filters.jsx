@@ -149,81 +149,93 @@ const Filters = React.memo(
 		return (
 			<View style={filterStyles.container}>
 				<View style={filterStyles.row}>
-{/* 🔍 Recherche */}
-				{IS_PHONE ? (
-					searchExpanded ? (
-						<View style={[filterStyles.searchContainer, { flex: 1, maxWidth: 180, minWidth: 0 }]}>
+					{/* 🔍 Recherche */}
+					{IS_PHONE ? (
+						searchExpanded ? (
+							<View
+								style={[
+									filterStyles.searchContainer,
+									{ flex: 1, maxWidth: 180, minWidth: 0 },
+								]}
+							>
+								<Ionicons
+									name="search-outline"
+									size={18}
+									color={THEME.colors.primary.amber}
+									style={filterStyles.searchIcon}
+								/>
+								<TextInput
+									style={filterStyles.searchInput}
+									placeholder="Rechercher..."
+									placeholderTextColor={THEME.colors.text.muted}
+									value={searchQuery}
+									onChangeText={onSearchChange}
+									autoCapitalize="none"
+									autoCorrect={false}
+									autoFocus
+								/>
+								<TouchableOpacity
+									onPress={() => {
+										setSearchExpanded(false);
+										onSearchChange("");
+									}}
+									style={filterStyles.clearButton}
+								>
+									<Ionicons
+										name="close-circle"
+										size={18}
+										color={THEME.colors.text.muted}
+									/>
+								</TouchableOpacity>
+							</View>
+						) : (
+							<TouchableOpacity
+								onPress={() => setSearchExpanded(true)}
+								style={filterStyles.searchIconBtn}
+								activeOpacity={0.7}
+							>
+								<Ionicons
+									name="search-outline"
+									size={20}
+									color={THEME.colors.text.muted}
+								/>
+							</TouchableOpacity>
+						)
+					) : (
+						<View style={filterStyles.searchContainer}>
 							<Ionicons
 								name="search-outline"
 								size={18}
-								color={THEME.colors.primary.amber}
+								color={
+									searchQuery
+										? THEME.colors.primary.amber
+										: THEME.colors.text.muted
+								}
 								style={filterStyles.searchIcon}
 							/>
 							<TextInput
 								style={filterStyles.searchInput}
-								placeholder="Rechercher..."
+								placeholder="Rechercher par nom..."
 								placeholderTextColor={THEME.colors.text.muted}
 								value={searchQuery}
 								onChangeText={onSearchChange}
 								autoCapitalize="none"
 								autoCorrect={false}
-								autoFocus
 							/>
-							<TouchableOpacity
-								onPress={() => { setSearchExpanded(false); onSearchChange(""); }}
-								style={filterStyles.clearButton}
-							>
-								<Ionicons name="close-circle" size={18} color={THEME.colors.text.muted} />
-							</TouchableOpacity>
+							{searchQuery ? (
+								<TouchableOpacity
+									onPress={() => onSearchChange("")}
+									style={filterStyles.clearButton}
+								>
+									<Ionicons
+										name="close-circle"
+										size={18}
+										color={THEME.colors.text.muted}
+									/>
+								</TouchableOpacity>
+							) : null}
 						</View>
-					) : (
-						<TouchableOpacity
-							onPress={() => setSearchExpanded(true)}
-							style={filterStyles.searchIconBtn}
-							activeOpacity={0.7}
-						>
-							<Ionicons
-								name="search-outline"
-								size={20}
-								color={THEME.colors.text.muted}
-							/>
-						</TouchableOpacity>
-					)
-				) : (
-					<View style={filterStyles.searchContainer}>
-						<Ionicons
-							name="search-outline"
-							size={18}
-							color={
-								searchQuery
-									? THEME.colors.primary.amber
-									: THEME.colors.text.muted
-							}
-							style={filterStyles.searchIcon}
-						/>
-						<TextInput
-							style={filterStyles.searchInput}
-							placeholder="Rechercher par nom..."
-							placeholderTextColor={THEME.colors.text.muted}
-							value={searchQuery}
-							onChangeText={onSearchChange}
-							autoCapitalize="none"
-							autoCorrect={false}
-						/>
-						{searchQuery ? (
-							<TouchableOpacity
-								onPress={() => onSearchChange("")}
-								style={filterStyles.clearButton}
-							>
-								<Ionicons
-									name="close-circle"
-									size={18}
-									color={THEME.colors.text.muted}
-								/>
-							</TouchableOpacity>
-						) : null}
-					</View>
-				)}
+					)}
 
 					{/* Filtres de statut */}
 					{IS_PHONE ? (
@@ -242,8 +254,12 @@ const Filters = React.memo(
 												left: translateX,
 												top: translateY,
 												width: width,
-												backgroundColor: searchQuery ? "transparent" : `${activeColor}25`,
-												borderColor: searchQuery ? "transparent" : `${activeColor}60`,
+												backgroundColor: searchQuery
+													? "transparent"
+													: `${activeColor}25`,
+												borderColor: searchQuery
+													? "transparent"
+													: `${activeColor}60`,
 											},
 										]}
 									/>
@@ -271,7 +287,12 @@ const Filters = React.memo(
 												<Text
 													style={[
 														filterStyles.label,
-														{ color: isActive ? color : THEME.colors.text.secondary, fontWeight: isActive ? "700" : "500" },
+														{
+															color: isActive
+																? color
+																: THEME.colors.text.secondary,
+															fontWeight: isActive ? "700" : "500",
+														},
 													]}
 												>
 													{label}
@@ -292,8 +313,12 @@ const Filters = React.memo(
 											left: translateX,
 											top: translateY,
 											width: width,
-											backgroundColor: searchQuery ? "transparent" : `${activeColor}25`,
-											borderColor: searchQuery ? "transparent" : `${activeColor}60`,
+											backgroundColor: searchQuery
+												? "transparent"
+												: `${activeColor}25`,
+											borderColor: searchQuery
+												? "transparent"
+												: `${activeColor}60`,
 										},
 									]}
 								/>
@@ -320,7 +345,12 @@ const Filters = React.memo(
 											<Text
 												style={[
 													filterStyles.label,
-													{ color: isActive ? color : THEME.colors.text.secondary, fontWeight: isActive ? "700" : "500" },
+													{
+														color: isActive
+															? color
+															: THEME.colors.text.secondary,
+														fontWeight: isActive ? "700" : "500",
+													},
 												]}
 											>
 												{label}

@@ -60,6 +60,15 @@ export default function Index() {
 					// ⭐ Si développeur sans restaurant sélectionné → developer-selector
 					if (userRole === "developer" && !restaurantId) {
 						setDestination("/developer-selector");
+					} else if (userRole === "admin") {
+						// 🚀 Si admin et onboarding non terminé → wizard
+						const onboardingComplete =
+							await AsyncStorage.getItem("onboardingComplete");
+						if (!onboardingComplete) {
+							setDestination("/onboarding");
+						} else {
+							setDestination("/tabs/activity");
+						}
 					} else {
 						// Redirige vers l'onglet Activité
 						setDestination("/tabs/activity");

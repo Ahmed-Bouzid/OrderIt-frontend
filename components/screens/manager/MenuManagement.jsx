@@ -61,6 +61,27 @@ export default function MenuManagement() {
 	useEffect(() => {
 		fetchProducts();
 	}, [fetchProducts]);
+
+	// Charger les add-ons disponibles au montage
+	useEffect(() => {
+		const fetchAvailableAddOns = async () => {
+			try {
+				setLoadingAddOns(true);
+				const addOns = await authFetch(`/products/addons/${restaurantId}`);
+				setAvailableAddOns(Array.isArray(addOns) ? addOns : []);
+			} catch (error) {
+				console.error("Erreur chargement add-ons:", error);
+				setAvailableAddOns([]);
+			} finally {
+				setLoadingAddOns(false);
+			}
+		};
+
+		if (restaurantId) {
+			fetchAvailableAddOns();
+		}
+	}, [restaurantId]);
+
 	const [modalVisible, setModalVisible] = useState(false);
 	const [editingProduct, setEditingProduct] = useState(null);
 	const [showAllergens, setShowAllergens] = useState(false);
@@ -82,6 +103,11 @@ export default function MenuManagement() {
 				product.quantifiable && typeof product.quantity === "number"
 					? product.quantity.toString()
 					: "",
+			addOns: product.addOns || false,
+			hasAddOns: product.hasAddOns || false,
+			allowedAddOns: Array.isArray(product.allowedAddOns)
+				? product.allowedAddOns.map((a) => (typeof a === "string" ? a : a._id))
+				: [],
 		});
 		setShowAllergens(false);
 		// Charger les allergènes du produit
@@ -289,7 +315,14 @@ export default function MenuManagement() {
 		description: "",
 		available: true,
 		image: "",
+		addOns: false,
+		hasAddOns: false,
+		allowedAddOns: [],
 	});
+
+	// ⭐ État pour add-ons disponibles
+	const [availableAddOns, setAvailableAddOns] = useState([]);
+	const [loadingAddOns, setLoadingAddOns] = useState(false);
 
 	// ⭐ État pour gérer les options
 	const [optionsModalVisible, setOptionsModalVisible] = useState(false);
@@ -455,6 +488,9 @@ export default function MenuManagement() {
 						!!formData.quantifiable && formData.quantity !== ""
 							? parseInt(formData.quantity, 10)
 							: null,
+					addOns: formData.addOns,
+					hasAddOns: formData.hasAddOns,
+					allowedAddOns: formData.allowedAddOns,
 				}),
 			});
 			Alert.alert("Succès", "Produit modifié");
@@ -883,6 +919,123 @@ export default function MenuManagement() {
 									}
 								/>
 							</View>
+
+							{/* Toggle cet article est un add-on */}
+							<View style={styles.switchRow}>
+								<Text style={styles.formLabel}>Cet article est un add-on</Text>
+								<Switch
+									value={formData.addOns}
+									onValueChange={(value) =>
+										setFormData({ ...formData, addOns: value })
+									}
+									trackColor={{
+										false: THEME.colors.text.muted,
+										true: "rgba(14, 165, 233, 0.4)",
+									}}
+									thumbColor={
+										formData.addOns
+											? THEME.colors.text.accent
+											: THEME.colors.status.error
+									}
+								/>
+							</View>
+
+							{/* Toggle cet article accepte les add-ons */}
+							<View style={styles.switchRow}>
+								<Text style={styles.formLabel}>Accepte des add-ons</Text>
+								<Switch
+									value={formData.hasAddOns}
+									onValueChange={(value) =>
+										setFormData({
+											...formData,
+											hasAddOns: value,
+											allowedAddOns: value ? formData.allowedAddOns : [],
+										})
+									}
+									trackColor={{
+										false: THEME.colors.text.muted,
+										true: "rgba(168, 85, 247, 0.4)",
+									}}
+									thumbColor={
+										formData.hasAddOns
+											? THEME.colors.success
+											: THEME.colors.status.error
+									}
+								/>
+							</View>
+
+							{/* Multi-select add-ons autorisés */}
+							{formData.hasAddOns && (
+								<View style={styles.addOnsContainer}>
+									<Text style={styles.formLabel}>Add-ons autorisés</Text>
+									{loadingAddOns ? (
+										<Text
+											style={{
+												color: THEME.colors.text.muted,
+												fontSize: 14,
+												marginVertical: 10,
+											}}
+										>
+											Chargement...
+										</Text>
+									) : availableAddOns.length === 0 ? (
+										<Text
+											style={{
+												color: THEME.colors.text.muted,
+												fontSize: 14,
+												marginVertical: 10,
+											}}
+										>
+											Aucun add-on disponible. Créez d'abord un article marqué
+											"Cet article est un add-on".
+										</Text>
+									) : (
+										<View style={styles.addOnsChecklist}>
+											{availableAddOns.map((addOn) => (
+												<TouchableOpacity
+													key={addOn._id}
+													style={styles.addOnCheckboxRow}
+													onPress={() => {
+														const isSelected = formData.allowedAddOns.includes(
+															addOn._id,
+														);
+														setFormData({
+															...formData,
+															allowedAddOns: isSelected
+																? formData.allowedAddOns.filter(
+																		(id) => id !== addOn._id,
+																	)
+																: [...formData.allowedAddOns, addOn._id],
+														});
+													}}
+												>
+													<View
+														style={[
+															styles.checkbox,
+															formData.allowedAddOns.includes(addOn._id) &&
+																styles.checkboxChecked,
+														]}
+													>
+														{formData.allowedAddOns.includes(addOn._id) && (
+															<Ionicons
+																name="checkmark"
+																size={14}
+																color="white"
+															/>
+														)}
+													</View>
+													<View style={{ flex: 1 }}>
+														<Text style={styles.addOnName}>{addOn.name}</Text>
+														<Text style={styles.addOnPrice}>
+															{addOn.price ? `+${addOn.price.toFixed(2)}€` : "Gratuit"}
+														</Text>
+													</View>
+												</TouchableOpacity>
+											))}
+										</View>
+									)}
+								</View>
+							)}
 
 							<View style={styles.modalButtons}>
 								<TouchableOpacity
@@ -1370,6 +1523,53 @@ const createStyles = (THEME) =>
 			paddingVertical: THEME.spacing.md,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border,
+		},
+		// Add-ons Container
+		addOnsContainer: {
+			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: THEME.spacing.md,
+			borderTopWidth: 1,
+			borderTopColor: THEME.colors.border,
+		},
+		addOnsChecklist: {
+			marginTop: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+			overflow: "hidden",
+			backgroundColor: THEME.colors.inputBg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border,
+		},
+		addOnCheckboxRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: THEME.spacing.md,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border,
+		},
+		checkbox: {
+			width: 20,
+			height: 20,
+			borderRadius: 4,
+			borderWidth: 2,
+			borderColor: THEME.colors.border,
+			marginRight: THEME.spacing.md,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		checkboxChecked: {
+			backgroundColor: THEME.colors.primary,
+			borderColor: THEME.colors.primary,
+		},
+		addOnName: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+		},
+		addOnPrice: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			marginTop: 2,
 		},
 		// Modal Buttons
 		modalButtons: {

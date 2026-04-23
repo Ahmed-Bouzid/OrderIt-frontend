@@ -17,8 +17,11 @@ import { LinearGradient } from "expo-linear-gradient";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { getTheme } from "../../utils/themeUtils";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
+import useSocket from "../../hooks/useSocket";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import ItemRow from "./ItemRow";
+
+const ACTIVE_ORDER_STATUSES = new Set(["confirmed", "in_progress", "ready"]);
 
 const TABS = [
 	{ id: "plat", label: "Plats", icon: "restaurant-outline", category: "plat" },
@@ -41,6 +44,7 @@ const PlanDeSalle = React.memo(() => {
 	const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
 	const styles = useMemo(() => createStyles(THEME), [THEME]);
 	const authFetch = useAuthFetch();
+	const { connect, on, off } = useSocket();
 
 	const [activeTab, setActiveTab] = useState("plat");
 	const [orders, setOrders] = useState([]);
@@ -88,11 +92,103 @@ const PlanDeSalle = React.memo(() => {
 		}
 	}, [restaurantId, authFetch]);
 
+	const getOrderRestaurantId = useCallback((order, fallbackRestaurantId = null) => {
+		return String(
+			order?.restaurantId?._id || order?.restaurantId || fallbackRestaurantId || ""
+		);
+	}, []);
+
+	const shouldDisplayOrder = useCallback(
+		(order, fallbackRestaurantId = null) => {
+			if (!order?._id) return false;
+
+			const orderRestaurantId = getOrderRestaurantId(order, fallbackRestaurantId);
+			if (orderRestaurantId !== String(restaurantId)) {
+				return false;
+			}
+
+			return ACTIVE_ORDER_STATUSES.has(order.orderStatus);
+		},
+		[getOrderRestaurantId, restaurantId]
+	);
+
 	useEffect(() => {
 		if (restaurantId) {
 			fetchOrders();
 		}
 	}, [restaurantId, fetchOrders]);
+
+	useEffect(() => {
+		if (!restaurantId) return;
+
+		const mergeOrder = (incomingOrder, fallbackRestaurantId = null) => {
+			setOrders((prev) => {
+				const exists = prev.some((existingOrder) => existingOrder._id === incomingOrder._id);
+
+				if (!shouldDisplayOrder(incomingOrder, fallbackRestaurantId)) {
+					return prev.filter((existingOrder) => existingOrder._id !== incomingOrder._id);
+				}
+
+				if (!exists) {
+					return [...prev, incomingOrder];
+				}
+
+				return prev.map((existingOrder) =>
+					existingOrder._id === incomingOrder._id
+						? { ...existingOrder, ...incomingOrder }
+						: existingOrder
+				);
+			});
+		};
+
+		const removeOrder = (orderId) => {
+			if (!orderId) return;
+			setOrders((prev) => prev.filter((existingOrder) => existingOrder._id !== orderId));
+		};
+
+		const handleOrderEvent = (payload) => {
+			if (!payload?.type || !payload?.data) return;
+
+			const fallbackRestaurantId = payload.restaurant_id || payload.restaurantId || null;
+
+			switch (payload.type) {
+				case "created":
+				case "updated":
+				case "statusUpdated":
+				case "payment_succeeded":
+					mergeOrder(payload.data, fallbackRestaurantId);
+					break;
+
+				case "deleted":
+				case "dismissed":
+					removeOrder(payload.data?._id || payload.data?.orderId);
+					break;
+
+				default:
+					break;
+			}
+		};
+
+		let isCancelled = false;
+
+		const initOrderSocket = async () => {
+			try {
+				await connect();
+				if (isCancelled) return;
+
+				on("order", handleOrderEvent);
+			} catch (error) {
+				console.error("Erreur connexion socket commandes:", error);
+			}
+		};
+
+		initOrderSocket();
+
+		return () => {
+			isCancelled = true;
+			off("order", handleOrderEvent);
+		};
+	}, [restaurantId, connect, on, off, shouldDisplayOrder]);
 
 	// Rafraîchir toutes les 30 secondes
 	useEffect(() => {

@@ -156,6 +156,9 @@ export default function Floor({ onStart }) {
 	const updateReservation = useReservationStore(
 		(state) => state.updateReservation,
 	);
+	const fetchReservations = useReservationStore(
+		(state) => state.fetchReservations,
+	);
 
 	// 🔒 Récupérer le rôle et l'ID du serveur connecté
 	const userId = useUserStore((state) => state.userId);

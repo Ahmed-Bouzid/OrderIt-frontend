@@ -20,6 +20,7 @@ import {
 	TextInput,
 	Animated,
 	PanResponder,
+	ScrollView,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
@@ -32,6 +33,7 @@ export default function FloorPlanModal({
 	onClose,
 	restaurantId,
 	roomNumber = 1,
+	focusTableId = null,
 }) {
 	const THEME = useTheme();
 	const authFetch = useAuthFetch();
@@ -47,13 +49,39 @@ export default function FloorPlanModal({
 	const [dragEnabled, setDragEnabled] = useState(false);
 	const [resizeEnabled, setResizeEnabled] = useState(false);
 	const [snapToGrid, setSnapToGrid] = useState(false);
+	const [headerHeight, setHeaderHeight] = useState(68);
 	const [history, setHistory] = useState([]);
 	const [historyIndex, setHistoryIndex] = useState(-1);
+
+	// Feature 5 — Alignment toolbar
+	const [selectedTableId, setSelectedTableId] = useState(null);
+
+	// Feature 6 — Independent grid visibility
+	const [showGrid, setShowGrid] = useState(false);
+
+	// Feature 4 — Right properties panel animation
+	const [panelAnim] = useState(new Animated.Value(-260));
+
+	// Focus table (click-to-focus depuis la sidebar réservations)
+	const [focusedTableId, setFocusedTableId] = useState(null);
+	useEffect(() => {
+		if (focusTableId) setFocusedTableId(focusTableId);
+	}, [focusTableId]);
+	// Auto-effacer le focus après 1.2s (temps de l'animation + léger délai)
+	useEffect(() => {
+		if (!focusedTableId) return;
+		const t = setTimeout(() => setFocusedTableId(null), 1200);
+		return () => clearTimeout(t);
+	}, [focusedTableId]);
 
 	// Refs pour les PanResponders (capturent les valeurs actuelles)
 	const dragEnabledRef = useRef(dragEnabled);
 	const resizeEnabledRef = useRef(resizeEnabled);
 	const snapToGridRef = useRef(snapToGrid);
+
+	// Feature 5 — canvas dimensions + pan refs map
+	const canvasRef = useRef({ width: 0, height: 0 });
+	const panRefsMap = useRef({});
 
 	// Sync refs avec états
 	useEffect(() => {
@@ -67,6 +95,20 @@ export default function FloorPlanModal({
 	useEffect(() => {
 		snapToGridRef.current = snapToGrid;
 	}, [snapToGrid]);
+
+	// Feature 4 — Animate properties panel in/out
+	useEffect(() => {
+		if (selectedTableId && !resaMode) {
+			Animated.timing(panelAnim, { toValue: 0, duration: 220, useNativeDriver: false }).start();
+		} else {
+			Animated.timing(panelAnim, { toValue: -260, duration: 220, useNativeDriver: false }).start();
+		}
+	}, [selectedTableId, resaMode, panelAnim]);
+
+	// Clear selection when resaMode activates
+	useEffect(() => {
+		if (resaMode) setSelectedTableId(null);
+	}, [resaMode]);
 
 	// Tables fictives pour simulation (Salles 2 et 3)
 	const mockTables = useMemo(() => {
@@ -194,8 +236,17 @@ export default function FloorPlanModal({
 			);
 
 			if (Array.isArray(data)) {
+				const todayStart = new Date();
+				todayStart.setHours(0, 0, 0, 0);
+				const todayEnd = new Date();
+				todayEnd.setHours(23, 59, 59, 999);
 				const active = data.filter(
-					(r) => r.status !== "terminée" && r.status !== "annulée",
+					(r) =>
+						r.status !== "terminée" &&
+						r.status !== "annulée" &&
+						r.restaurantId?.toString() === restaurantId?.toString() &&
+						new Date(r.reservationDate) >= todayStart &&
+						new Date(r.reservationDate) <= todayEnd,
 				);
 				setReservations(active);
 			}
@@ -372,6 +423,29 @@ export default function FloorPlanModal({
 		setModifiedTableIds((prev) => new Set(prev).add(tableId));
 	}, []);
 
+	// Feature 5 — Align selected table
+	const alignTable = useCallback((direction) => {
+		if (!selectedTableId) return;
+		const panRef = panRefsMap.current[selectedTableId];
+		if (!panRef) return;
+		const table = displayTables.find(t => t._id === selectedTableId);
+		if (!table) return;
+		const W = canvasRef.current.width;
+		const H = canvasRef.current.height;
+		const tw = (table.sizeW || table.size || 1) * 100;
+		const th = (table.sizeH || table.size || 1) * 100;
+		let x = panRef.x._value;
+		let y = panRef.y._value;
+		if (direction === 'left') x = 0;
+		if (direction === 'right') x = W - tw;
+		if (direction === 'centerH') x = (W - tw) / 2;
+		if (direction === 'top') y = 0;
+		if (direction === 'bottom') y = H - th;
+		if (direction === 'centerV') y = (H - th) / 2;
+		Animated.spring(panRef, { toValue: { x, y }, tension: 120, friction: 8, useNativeDriver: false }).start();
+		handlePositionChange(selectedTableId, { x, y });
+	}, [selectedTableId, displayTables, handlePositionChange]);
+
 	// �💾 Sauvegarder le plan (positions)
 	const handleSavePlan = async () => {
 		if (isSimulation) return;
@@ -464,6 +538,13 @@ export default function FloorPlanModal({
 		}
 	};
 
+	// Feature 4 — Derived selected table data
+	const selectedTable = selectedTableId ? displayTables.find(t => t._id === selectedTableId) : null;
+	const selectedTableResa = selectedTable ? getTableResa(selectedTable) : null;
+	// leftPanelTable : table visible dans le panel gauche, quelque soit le mode
+	const leftPanelTable = selectedTable ?? (resaMode && selectedResaTable ? selectedResaTable.table : null);
+	const panelResa = leftPanelTable ? getTableResa(leftPanelTable) : null;
+
 	return (
 		<Modal
 			visible={visible}
@@ -477,13 +558,186 @@ export default function FloorPlanModal({
 					activeOpacity={1}
 					onPress={onClose}
 				>
+					{/* LEFT PANEL — in the 0-281px blurred zone */}
+					<TouchableOpacity activeOpacity={1} style={styles.leftPanel} onPress={(e) => e.stopPropagation()}>
+						{/* Header — same paddingVertical as main header for alignment */}
+						<View style={[styles.leftPanelHeader, { height: headerHeight }]}>
+							<Text style={styles.leftPanelTitle}>
+								{leftPanelTable ? `Table #${leftPanelTable.number}` : `Salle ${roomNumber}`}
+							</Text>
+							{!isSimulation && (
+								<TouchableOpacity onPress={handleCreateTable} style={styles.leftPanelAddBtn}>
+									<Ionicons name="add" size={18} color={THEME.colors.primary.amber} />
+								</TouchableOpacity>
+							)}
+						</View>
+
+						{/* Properties — fixed, no scroll */}
+						{!isSimulation && selectedTable && !resaMode && (
+							<View style={{ paddingHorizontal: 14, paddingTop: 12, gap: 10 }}>
+								{/* N° de table stepper */}
+								<Text style={styles.propsSectionLabel}>N° de table</Text>
+								{(() => {
+									const taken = new Set(tables.filter(t => t._id !== selectedTable._id).map(t => String(t.number)));
+									const avail = [];
+									for (let i = 1; i <= 99; i++) { if (!taken.has(String(i))) avail.push(String(i)); }
+									const cur = String(selectedTable.number);
+									if (!avail.includes(cur)) avail.unshift(cur);
+									avail.sort((a, b) => Number(a) - Number(b));
+									const curIdx = avail.indexOf(cur);
+									const prevNum = avail[curIdx > 0 ? curIdx - 1 : avail.length - 1];
+									const nextNum = avail[curIdx < avail.length - 1 ? curIdx + 1 : 0];
+									const updateNumber = async (n) => {
+										const updated = await authFetch(`/tables/${selectedTable._id}`, { method: 'PUT', body: { number: n } });
+										if (updated?._id) setTables(prev => prev.map(t => t._id === selectedTable._id ? { ...t, number: n } : t));
+									};
+									return (
+										<View style={styles.propsStepperRow}>
+											<TouchableOpacity style={styles.propsStepperBtn} onPress={() => updateNumber(prevNum)}>
+												<Text style={styles.propsStepperBtnText}>−</Text>
+											</TouchableOpacity>
+											<Text style={styles.propsStepperValue}>{cur}</Text>
+											<TouchableOpacity style={styles.propsStepperBtn} onPress={() => updateNumber(nextNum)}>
+												<Text style={styles.propsStepperBtnText}>+</Text>
+											</TouchableOpacity>
+										</View>
+									);
+								})()}
+
+								{/* Capacité stepper */}
+								<Text style={styles.propsSectionLabel}>Capacité</Text>
+								<View style={styles.propsStepperRow}>
+									<TouchableOpacity style={styles.propsStepperBtn} onPress={async () => {
+										const newCap = Math.max(1, (selectedTable.capacity || 1) - 1);
+										const updated = await authFetch(`/tables/${selectedTable._id}`, { method: 'PUT', body: { capacity: newCap } });
+										if (updated?._id) setTables(prev => prev.map(t => t._id === selectedTable._id ? { ...t, capacity: newCap } : t));
+									}}>
+										<Text style={styles.propsStepperBtnText}>−</Text>
+									</TouchableOpacity>
+									<Text style={styles.propsStepperValue}>{selectedTable.capacity || 1}</Text>
+									<TouchableOpacity style={styles.propsStepperBtn} onPress={async () => {
+										const newCap = Math.min(50, (selectedTable.capacity || 1) + 1);
+										const updated = await authFetch(`/tables/${selectedTable._id}`, { method: 'PUT', body: { capacity: newCap } });
+										if (updated?._id) setTables(prev => prev.map(t => t._id === selectedTable._id ? { ...t, capacity: newCap } : t));
+									}}>
+										<Text style={styles.propsStepperBtnText}>+</Text>
+									</TouchableOpacity>
+								</View>
+
+								{/* Places rapides */}
+								<Text style={styles.propsSectionLabel}>Places rapides</Text>
+								<View style={styles.propsQuickSeatsRow}>
+									{[2, 3, 4, 6, 8, 10, 12].map(n => (
+										<TouchableOpacity key={n} style={[styles.propsQuickSeatBtn, selectedTable.capacity === n && styles.propsQuickSeatBtnActive]} onPress={async () => {
+											const updated = await authFetch(`/tables/${selectedTable._id}`, { method: 'PUT', body: { capacity: n } });
+											if (updated?._id) setTables(prev => prev.map(t => t._id === selectedTable._id ? { ...t, capacity: n } : t));
+										}}>
+											<Text style={[styles.propsQuickSeatText, selectedTable.capacity === n && styles.propsQuickSeatTextActive]}>{n}</Text>
+										</TouchableOpacity>
+									))}
+								</View>
+
+								{/* Statut */}
+								<Text style={styles.propsSectionLabel}>Statut</Text>
+								{[
+									{ key: 'available', label: 'Disponible', color: '#10B981' },
+									{ key: 'occupied', label: 'Occupée', color: '#EF4444' },
+									{ key: 'unavailable', label: 'Indisponible', color: '#9E9E9E' },
+								].map(({ key, label, color }) => (
+									<TouchableOpacity key={key} style={[styles.propsStatusBtn, selectedTable.status === key && { borderColor: color, backgroundColor: color + '22' }]} onPress={async () => {
+										const updated = await authFetch(`/tables/${selectedTable._id}`, { method: 'PUT', body: { status: key } });
+										if (updated?._id) setTables(prev => prev.map(t => t._id === selectedTable._id ? { ...t, status: key } : t));
+									}}>
+										<View style={[styles.propsStatusDot, { backgroundColor: color }]} />
+										<Text style={[styles.propsStatusLabel, selectedTable.status === key && { color }]}>{label}</Text>
+									</TouchableOpacity>
+								))}
+
+								{/* Forme */}
+								<Text style={styles.propsSectionLabel}>Forme</Text>
+								<View style={styles.propsShapeRow}>
+									{[{ key: 'rect', label: '▬ Rect.' }, { key: 'round', label: '⬤ Ronde' }].map(({ key, label }) => (
+										<TouchableOpacity key={key} style={[styles.propsShapeBtn, (selectedTable.shape || 'rect') === key && styles.propsShapeBtnActive]} onPress={async () => {
+											const updated = await authFetch(`/tables/${selectedTable._id}`, { method: 'PUT', body: { shape: key } });
+											if (updated?._id) setTables(prev => prev.map(t => t._id === selectedTable._id ? { ...t, shape: key } : t));
+										}}>
+											<Text style={[(selectedTable.shape || 'rect') === key ? styles.propsShapeTextActive : styles.propsShapeText]}>{label}</Text>
+										</TouchableOpacity>
+									))}
+								</View>
+
+								{/* Supprimer */}
+								<TouchableOpacity style={styles.propsDeleteBtn} onPress={() => { handleDeleteTable(selectedTable._id); setSelectedTableId(null); }}>
+									<Ionicons name="trash-outline" size={16} color="#EF4444" />
+									<Text style={styles.propsDeleteText}>Supprimer</Text>
+								</TouchableOpacity>
+							</View>
+						)}
+
+						{/* Resa liée — visible en resaMode ET en mode édition */}
+						{panelResa && (
+							<View style={{ paddingHorizontal: 14, paddingTop: selectedTable ? 10 : 12 }}>
+								<View style={styles.leftResaCard}>
+									<Text style={styles.leftResaName}>{panelResa.resa.clientName || '—'}</Text>
+									<Text style={styles.leftResaDetail}>
+										{panelResa.resa.reservationTime || (panelResa.resa.reservationDate ? new Date(panelResa.resa.reservationDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '')}
+										{panelResa.resa.nbPersonnes ? ` · ${panelResa.resa.nbPersonnes} pers.` : ''}
+									</Text>
+									<View style={[styles.leftResaStatus, { backgroundColor: panelResa.type === 'en_cours' ? '#EF4444' : '#3B82F6' }]}>
+										<Text style={styles.leftResaStatusText}>{panelResa.type === 'en_cours' ? 'En cours' : 'À venir'}</Text>
+									</View>
+								</View>
+							</View>
+						)}
+
+						{/* Divider + Réservations du jour — ScrollView seulement ici */}
+						<View style={styles.leftPanelDivider} />
+						<Text style={styles.leftPanelSectionTitle}>Réservations du jour</Text>
+						<ScrollView keyboardShouldPersistTaps="handled" showsVerticalScrollIndicator={false} style={{ flex: 1 }} contentContainerStyle={{ paddingBottom: 20 }}>
+							{reservations.length === 0 ? (
+								<Text style={styles.leftResaEmpty}>Aucune réservation</Text>
+							) : (
+								reservations
+									.slice()
+									.sort((a, b) => new Date(a.reservationDate) - new Date(b.reservationDate))
+									.map(r => {
+										const toId = v => (v?._id ?? v)?.toString();
+										const isLinked = selectedTable && toId(r.tableId) === selectedTable._id?.toString();
+										const time = r.reservationTime || (r.reservationDate ? new Date(r.reservationDate).toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' }) : '');
+										return (
+											<TouchableOpacity
+												key={r._id}
+												style={[styles.leftResaRow, isLinked && styles.leftResaRowActive]}
+												onPress={() => {
+													const tid = toId(r.tableId);
+													if (tid) setSelectedTableId(tid);
+												}}
+												activeOpacity={0.7}
+											>
+												<View style={[styles.leftResaRowDot, { backgroundColor: r.status === 'ouverte' ? '#EF4444' : '#3B82F6' }]} />
+												<View style={{ flex: 1 }}>
+													<Text style={[styles.leftResaRowName, !isLinked && styles.leftResaRowNameMuted]} numberOfLines={1}>
+														{r.clientName || '—'}
+													</Text>
+													<Text style={styles.leftResaRowDetail}>{time}{r.nbPersonnes ? ` · ${r.nbPersonnes}p` : ''}</Text>
+												</View>
+												{r.tableId && (
+													<Text style={styles.leftResaRowTable}>T{toId(r.tableId)?.slice(-2)}</Text>
+												)}
+											</TouchableOpacity>
+										);
+									})
+							)}
+						</ScrollView>
+					</TouchableOpacity>
+
 					<TouchableOpacity
 						activeOpacity={1}
 						style={styles.container}
 						onPress={(e) => e.stopPropagation()}
 					>
 						{/* Header */}
-						<View style={styles.header}>
+						<View style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
 							<Text style={styles.title}>
 								Salle {roomNumber} {isSimulation && "- Simulation"}
 							</Text>
@@ -501,6 +755,7 @@ export default function FloorPlanModal({
 											setDragEnabled(false);
 											setResizeEnabled(false);
 											setSnapToGrid(false);
+					setSelectedTableId(null);
 										}
 									}}
 									style={[
@@ -617,25 +872,40 @@ export default function FloorPlanModal({
 											resaMode && styles.toggleButtonTextDisabled,
 										]}
 									>
-										Grid
+										Snap
+									</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									onPress={() => setShowGrid(!showGrid)}
+									disabled={resaMode}
+									style={[
+										styles.toggleButton,
+										showGrid && styles.toggleButtonActive,
+										resaMode && styles.toggleButtonDisabled,
+									]}
+								>
+									<Ionicons
+										name="grid-outline"
+										size={20}
+										color={
+											resaMode
+												? THEME.colors.text.muted + "40"
+												: showGrid
+													? "#fff"
+													: THEME.colors.text.muted
+										}
+									/>
+									<Text
+										style={[
+											styles.toggleButtonText,
+											showGrid && styles.toggleButtonTextActive,
+											resaMode && styles.toggleButtonTextDisabled,
+										]}
+									>
+										Grille
 									</Text>
 								</TouchableOpacity>
 							</View>
-							{/* Boutons + et - (seulement salle 1) */}
-							{!isSimulation && (
-								<View style={styles.headerActions}>
-									<TouchableOpacity
-										onPress={handleCreateTable}
-										style={styles.actionButton}
-									>
-										<Ionicons
-											name="add-circle"
-											size={28}
-											color={THEME.colors.primary.amber}
-										/>
-									</TouchableOpacity>
-								</View>
-							)}
 
 							<TouchableOpacity onPress={onClose} style={styles.closeButton}>
 								<Ionicons
@@ -646,10 +916,30 @@ export default function FloorPlanModal({
 							</TouchableOpacity>
 						</View>
 
+						{/* Feature 5 — Alignment Toolbar */}
+						{dragEnabled && (
+							<View style={styles.alignToolbar}>
+								{[
+									{ dir: 'left', icon: 'arrow-back', label: 'G' },
+									{ dir: 'centerH', icon: 'contract', label: 'CH' },
+									{ dir: 'right', icon: 'arrow-forward', label: 'D' },
+									{ dir: 'top', icon: 'arrow-up', label: 'H' },
+									{ dir: 'centerV', icon: 'contract', label: 'CV' },
+									{ dir: 'bottom', icon: 'arrow-down', label: 'B' },
+								].map(({ dir, icon, label }) => (
+									<TouchableOpacity key={dir} style={[styles.alignBtn, !selectedTableId && styles.alignBtnDisabled]} onPress={() => alignTable(dir)} disabled={!selectedTableId}>
+										<Ionicons name={icon} size={14} color={selectedTableId ? THEME.colors.primary.amber : THEME.colors.text.muted} />
+										<Text style={[styles.alignBtnText, selectedTableId && styles.alignBtnTextActive]}>{label}</Text>
+									</TouchableOpacity>
+								))}
+								<Text style={styles.alignHint}>{selectedTableId ? `Table sélectionnée` : 'Tap une table pour aligner'}</Text>
+							</View>
+						)}
+
 						{/* Zone de plan (toutes les tables visibles) */}
-						<View style={styles.planContainer}>
+						<View style={styles.planContainer} onLayout={(e) => { canvasRef.current = { width: e.nativeEvent.layout.width, height: e.nativeEvent.layout.height }; }}>
 							{/* Grille visuelle — affichée quand Grid est actif */}
-							{snapToGrid && (
+							{showGrid && (
 								<View style={StyleSheet.absoluteFill} pointerEvents="none">
 									{Array.from({ length: 60 }).map((_, i) => (
 										<View
@@ -763,6 +1053,7 @@ export default function FloorPlanModal({
 												resaMode={resaMode}
 												resaInfo={resaInfo}
 												hasReservation={hasReservation}
+												isFocused={focusedTableId === table._id?.toString()}
 												onResaSelect={() => {
 													if (resaInfo) {
 														setSelectedResaTable({ table, resaInfo });
@@ -770,19 +1061,15 @@ export default function FloorPlanModal({
 														setSelectedResaTable(null);
 													}
 												}}
-												onSimpleTouch={() => handleSimpleTouch(table)}
-												onForceTouch={() => handleForceTouch(table)}
+												onSimpleTouch={() => setSelectedTableId(table._id)}
 												onPositionChange={handlePositionChange}
 												onSizeChange={handleSizeChange}
 												isModified={modifiedTableIds.has(table._id)}
 												dragEnabled={dragEnabled}
 												resizeEnabled={resizeEnabled}
 												snapToGrid={snapToGrid}
-												onDelete={
-													!isSimulation
-														? () => handleDeleteTable(table._id)
-														: null
-												}
+												isSelected={selectedTableId === table._id}
+											onRegisterPan={(id, panRef) => { panRefsMap.current[id] = panRef; }}
 											/>
 										);
 									})}
@@ -800,7 +1087,7 @@ export default function FloorPlanModal({
 								<Text style={styles.footerHint}>
 									{resaMode
 										? "Appuyez sur une table pour voir sa réservation"
-										: `Appui : Changer n°  •  Appui long : Changer capacité${!isSimulation ? "  •  × pour supprimer" : ""}`}
+										: `Tap une table pour voir ses propriétés${!isSimulation ? "  •  × pour supprimer" : ""}`}
 								</Text>
 							</View>
 
@@ -816,60 +1103,6 @@ export default function FloorPlanModal({
 						</View>
 					</TouchableOpacity>
 
-					{/* Modale d'édition */}
-					{editingTable && (
-						<TouchableOpacity
-							style={styles.editModal}
-							activeOpacity={1}
-							onPress={() => {
-								setEditingTable(null);
-								setEditMode(null);
-								setEditValue("");
-							}}
-						>
-							<TouchableOpacity
-								activeOpacity={1}
-								style={styles.editContainer}
-								onPress={(e) => e.stopPropagation()}
-							>
-								<Text style={styles.editTitle}>
-									{editMode === "number" ? "Numéro de table" : "Capacité"}
-								</Text>
-
-								<TextInput
-									style={styles.editInput}
-									value={editValue}
-									onChangeText={setEditValue}
-									keyboardType="number-pad"
-									autoFocus
-									selectTextOnFocus
-									placeholder={editMode === "number" ? "Ex: 46" : "Ex: 8"}
-									placeholderTextColor={THEME.colors.text.muted}
-								/>
-
-								<View style={styles.editActions}>
-									<TouchableOpacity
-										style={[styles.editButton, styles.editButtonCancel]}
-										onPress={() => {
-											setEditingTable(null);
-											setEditMode(null);
-											setEditValue("");
-										}}
-									>
-										<Text style={styles.editButtonText}>Annuler</Text>
-									</TouchableOpacity>
-
-									<TouchableOpacity
-										style={[styles.editButton, styles.editButtonSave]}
-										onPress={handleSave}
-									>
-										<Ionicons name="checkmark" size={20} color="#fff" />
-										<Text style={styles.editButtonText}>Enregistrer</Text>
-									</TouchableOpacity>
-								</View>
-							</TouchableOpacity>
-						</TouchableOpacity>
-					)}
 				</TouchableOpacity>
 			</BlurView>
 		</Modal>
@@ -885,16 +1118,17 @@ const TableCard = ({
 	resaMode,
 	resaInfo,
 	hasReservation,
+	isFocused,
 	onResaSelect,
 	onSimpleTouch,
-	onForceTouch,
-	onDelete,
 	onPositionChange,
 	onSizeChange,
 	isModified,
 	dragEnabled,
 	resizeEnabled,
 	snapToGrid,
+	isSelected,
+	onRegisterPan,
 }) => {
 	const tableSizeW = table.sizeW || table.size || 1;
 	const tableSizeH = table.sizeH || table.size || 1;
@@ -943,6 +1177,23 @@ const TableCard = ({
 		new Animated.ValueXY({ x: initialX, y: initialY }),
 	).current;
 	const [isDragging, setIsDragging] = useState(false);
+
+	// Pulse animation (focus depuis sidebar)
+	const pulseAnim = useRef(new Animated.Value(1)).current;
+	useEffect(() => {
+		if (!isFocused) return;
+		Animated.sequence([
+			Animated.timing(pulseAnim, { toValue: 1.08, duration: 200, useNativeDriver: true }),
+			Animated.timing(pulseAnim, { toValue: 1.0, duration: 200, useNativeDriver: true }),
+			Animated.timing(pulseAnim, { toValue: 1.08, duration: 200, useNativeDriver: true }),
+			Animated.timing(pulseAnim, { toValue: 1.0, duration: 200, useNativeDriver: true }),
+		]).start();
+	}, [isFocused, pulseAnim]);
+
+	// Register pan ref with parent for alignment
+	useEffect(() => {
+		if (onRegisterPan) onRegisterPan(table._id, pan);
+	}, []);
 
 	// PanResponder pour le drag
 	const panResponder = useRef(
@@ -1076,14 +1327,17 @@ const TableCard = ({
 			style={[
 				tableCardStyles(theme).card,
 				{
-					transform: [{ translateX: pan.x }, { translateY: pan.y }],
+					transform: [{ translateX: pan.x }, { translateY: pan.y }, { scale: pulseAnim }],
 					width: actualWidth,
 					height: actualHeight,
+					borderRadius: table.shape === 'round' ? actualWidth / 2 : 12,
 				},
 				isDragging && tableCardStyles(theme).dragging,
 				getStatusStyle(),
 				isModified && tableCardStyles(theme).modified,
 				resaBorderStyle,
+				isFocused && { borderColor: "#C9A84C", borderWidth: 3 },
+				isSelected && dragEnabled && { borderColor: "#C9A84C", borderWidth: 2, borderStyle: "dashed" },
 			]}
 		>
 			{/* Grip resize en bas à droite — zone de touch + triangle hors de la carte */}
@@ -1114,20 +1368,9 @@ const TableCard = ({
 				)}
 			</View>
 
-			{/* Bouton supprimer — masqué en mode Resa et pour les tables avec réservation */}
-			{onDelete && !resaMode && !hasReservation && (
-				<TouchableOpacity
-					style={tableCardStyles(theme).deleteButton}
-					onPress={onDelete}
-				>
-					<Ionicons name="close-circle" size={20} color="#fff" />
-				</TouchableOpacity>
-			)}
 
 			<TouchableOpacity
 				onPress={isDragging ? null : resaMode ? onResaSelect : onSimpleTouch}
-				onLongPress={isDragging || resaMode ? null : onForceTouch}
-				delayLongPress={500}
 				style={tableCardStyles(theme).touchArea}
 				activeOpacity={0.8}
 				disabled={isDragging}
@@ -1147,8 +1390,11 @@ const TableCard = ({
 				{nextReservation && (
 					<View style={tableCardStyles(theme).reservationBadge}>
 						<Ionicons name="time-outline" size={10} color="#fff" />
-						<Text style={tableCardStyles(theme).reservationText}>
+						<Text style={tableCardStyles(theme).reservationText} numberOfLines={1}>
 							{formatTime(nextReservation.reservationDate)}
+							{nextReservation.clientName
+								? `  ${nextReservation.clientName.slice(0, 9)}${nextReservation.clientName.length > 9 ? "…" : ""}`
+								: ""}
 						</Text>
 					</View>
 				)}
@@ -1319,7 +1565,7 @@ const createStyles = (THEME) =>
 		},
 		container: {
 			position: "absolute",
-			left: 381,
+			left: 281,
 			top: 120,
 			right: 0,
 			bottom: 0,
@@ -1578,4 +1824,71 @@ const createStyles = (THEME) =>
 			fontWeight: "600",
 			color: "#fff",
 		},
+		// Number stepper (modal)
+		numberStepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 24 },
+		numberStepperBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: THEME.colors.background.elevated, borderWidth: 1, borderColor: THEME.colors.border.default, alignItems: 'center', justifyContent: 'center' },
+		numberStepperBtnText: { fontSize: 28, fontWeight: '300', color: THEME.colors.primary.amber, lineHeight: 34 },
+		numberStepperValue: { alignItems: 'center', minWidth: 80 },
+		numberStepperNum: { fontSize: 40, fontWeight: '700', color: THEME.colors.text.primary },
+		numberStepperSub: { fontSize: 10, color: THEME.colors.text.muted, marginTop: 2 },
+		// Feature 5 — Alignment toolbar
+		alignToolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: THEME.colors.background.elevated, borderBottomWidth: 1, borderBottomColor: THEME.colors.border.default, gap: 6 },
+		alignBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: THEME.colors.background.card, borderWidth: 1, borderColor: THEME.colors.border.default },
+		alignBtnDisabled: { opacity: 0.35 },
+		alignBtnText: { fontSize: 9, fontWeight: '700', color: THEME.colors.text.muted },
+		alignBtnTextActive: { color: THEME.colors.primary.amber },
+		alignHint: { flex: 1, fontSize: 9, color: THEME.colors.text.muted, textAlign: 'right' },
+		// Feature 4 — Properties panel
+		propertiesPanel: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 260, backgroundColor: THEME.colors.background.card + 'F2', borderRightWidth: 1, borderRightColor: THEME.colors.border.default, zIndex: 200 },
+		propsPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: THEME.colors.border.default },
+		propsPanelTitle: { fontSize: 15, fontWeight: '700', color: THEME.colors.primary.amber },
+		propsPanelClose: { width: 28, height: 28, borderRadius: 14, backgroundColor: THEME.colors.background.elevated, alignItems: 'center', justifyContent: 'center' },
+		propsSectionLabel: { fontSize: 10, fontWeight: '700', color: THEME.colors.text.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
+		propsStepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
+		propsStepperBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: THEME.colors.background.elevated, borderWidth: 1, borderColor: THEME.colors.border.default, alignItems: 'center', justifyContent: 'center' },
+		propsStepperBtnText: { fontSize: 18, fontWeight: '700', color: THEME.colors.text.primary },
+		propsStepperValue: { fontSize: 24, fontWeight: '700', color: THEME.colors.text.primary, minWidth: 40, textAlign: 'center' },
+		propsQuickSeatsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
+		propsQuickSeatBtn: { width: 32, height: 32, borderRadius: 6, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: THEME.colors.background.elevated, alignItems: 'center', justifyContent: 'center' },
+		propsQuickSeatBtnActive: { backgroundColor: THEME.colors.primary.amber, borderColor: THEME.colors.primary.amber },
+		propsQuickSeatText: { fontSize: 12, fontWeight: '600', color: THEME.colors.text.muted },
+		propsQuickSeatTextActive: { color: '#000' },
+		propsStatusBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: THEME.colors.background.elevated, marginBottom: 6, gap: 8 },
+		propsStatusDot: { width: 8, height: 8, borderRadius: 4 },
+		propsStatusLabel: { fontSize: 13, fontWeight: '500', color: THEME.colors.text.secondary },
+		propsShapeRow: { flexDirection: 'row', gap: 8 },
+		propsShapeBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: THEME.colors.background.elevated, alignItems: 'center' },
+		propsShapeBtnActive: { backgroundColor: THEME.colors.primary.amber + '22', borderColor: THEME.colors.primary.amber },
+		propsShapeText: { fontSize: 12, color: THEME.colors.text.muted },
+		propsShapeTextActive: { fontSize: 12, color: THEME.colors.primary.amber, fontWeight: '700' },
+		propsResaCard: { backgroundColor: '#C9A84C11', borderWidth: 1, borderColor: '#C9A84C44', borderRadius: 10, padding: 12 },
+		propsResaName: { fontSize: 13, fontWeight: '700', color: '#C9A84C' },
+		propsResaDetail: { fontSize: 11, color: THEME.colors.text.muted, marginTop: 4 },
+		propsDeleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: '#EF444422', borderWidth: 1, borderColor: '#EF444444', marginTop: 8 },
+		propsDeleteText: { fontSize: 13, fontWeight: '600', color: '#EF4444' },
+		propsAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 12, marginBottom: 0, paddingVertical: 10, borderRadius: 10, backgroundColor: THEME.colors.primary.amber + '22', borderWidth: 1, borderColor: THEME.colors.primary.amber + '66', justifyContent: 'center' },
+		propsAddBtnText: { fontSize: 13, fontWeight: '700', color: THEME.colors.primary.amber },
+		propsResaMiniCard: { paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, backgroundColor: THEME.colors.background.elevated, borderWidth: 1, borderColor: THEME.colors.border.subtle, marginBottom: 5 },
+		propsResaMiniCardLinked: { backgroundColor: '#C9A84C11', borderColor: '#C9A84C44' },
+		propsResaMiniName: { fontSize: 12, fontWeight: '700', color: THEME.colors.text.primary },
+		propsResaMiniDetail: { fontSize: 10, color: THEME.colors.text.muted, marginTop: 2 },
+		leftPanel: { position: 'absolute', left: 0, top: 120, bottom: 0, width: 281, backgroundColor: THEME.colors.background.card, borderRightWidth: 1, borderRightColor: THEME.colors.border.default, zIndex: 10 },
+		leftPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: THEME.colors.border.default },
+		leftPanelTitle: { fontSize: 14, fontWeight: '700', color: THEME.colors.primary.amber },
+		leftPanelAddBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: THEME.colors.background.elevated, borderWidth: 1, borderColor: THEME.colors.primary.amber + '60', alignItems: 'center', justifyContent: 'center' },
+		leftPanelDivider: { height: 1, backgroundColor: THEME.colors.border.default, marginVertical: 12 },
+		leftPanelSectionTitle: { fontSize: 10, fontWeight: '700', color: THEME.colors.text.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingHorizontal: 14 },
+		leftResaCard: { backgroundColor: '#C9A84C11', borderWidth: 1, borderColor: '#C9A84C44', borderRadius: 10, padding: 12, marginBottom: 8 },
+		leftResaName: { fontSize: 13, fontWeight: '700', color: '#C9A84C' },
+		leftResaDetail: { fontSize: 11, color: THEME.colors.text.muted, marginTop: 3 },
+		leftResaStatus: { marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
+		leftResaStatusText: { fontSize: 10, fontWeight: '700', color: '#fff' },
+		leftResaEmpty: { fontSize: 12, color: THEME.colors.text.muted, textAlign: 'center', paddingVertical: 16 },
+		leftResaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, marginHorizontal: 8, marginBottom: 2 },
+		leftResaRowActive: { backgroundColor: THEME.colors.primary.amber + '18', borderWidth: 1, borderColor: THEME.colors.primary.amber + '40' },
+		leftResaRowDot: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
+		leftResaRowName: { fontSize: 12, fontWeight: '600', color: THEME.colors.text.primary },
+		leftResaRowNameMuted: { color: THEME.colors.text.muted },
+		leftResaRowDetail: { fontSize: 10, color: THEME.colors.text.muted, marginTop: 1 },
+		leftResaRowTable: { fontSize: 10, fontWeight: '700', color: THEME.colors.text.muted },
 	});

@@ -11,8 +11,7 @@ export const API_CONFIG = {
 	// 🖨️ URL du print daemon local (Mac avec l'imprimante) — uniquement pour /print/ticket
 	// Démarrer avec : cd backend && node printDaemon.js
 	localPrintURL:
-		Constants.expoConfig?.extra?.localPrintUrl ||
-		"http://192.168.1.162:5555",
+		Constants.expoConfig?.extra?.localPrintUrl || "http://192.168.1.162:5555",
 	RESTAURANT_ID: Resto_id_key,
 	DEFAULT_TABLE_ID: "6960d0037aca682cfc81925a", // Table T1 par défaut
 	timeout: 10000,

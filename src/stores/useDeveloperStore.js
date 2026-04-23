@@ -22,6 +22,11 @@ const useDeveloperStore = create((set, get) => ({
 	// Sélectionner un restaurant
 	selectRestaurant: async (restaurant) => {
 		try {
+			// 🚨 Réinitialiser les stores liés au restaurant AVANT le changement
+			// Cela évite d'afficher les données de l'ancien restaurant
+			const useExpressOrdersStore = require("./useExpressOrdersStore").default;
+			useExpressOrdersStore.getState().clearExpressOrders();
+
 			// Sauvegarder dans AsyncStorage
 			await AsyncStorage.setItem("restaurantId", restaurant._id);
 			await AsyncStorage.setItem(
@@ -30,6 +35,10 @@ const useDeveloperStore = create((set, get) => ({
 			);
 
 			set({ selectedRestaurant: restaurant });
+
+			// 🔄 Forcer un fresh fetch des commandes pour le nouveau restaurant
+			await useExpressOrdersStore.getState().fetchExpressOrders(true);
+
 			return true;
 		} catch (error) {
 			console.error("❌ Erreur sélection restaurant:", error);
@@ -40,6 +49,11 @@ const useDeveloperStore = create((set, get) => ({
 	// Changer de restaurant (sans déconnexion)
 	switchRestaurant: async (restaurant) => {
 		try {
+			// 🚨 Réinitialiser les stores liés au restaurant AVANT le changement
+			// Cela évite d'afficher les données de l'ancien restaurant
+			const useExpressOrdersStore = require("./useExpressOrdersStore").default;
+			useExpressOrdersStore.getState().clearExpressOrders();
+
 			await AsyncStorage.setItem("restaurantId", restaurant._id);
 			await AsyncStorage.setItem(
 				"selectedRestaurant",
@@ -47,6 +61,10 @@ const useDeveloperStore = create((set, get) => ({
 			);
 
 			set({ selectedRestaurant: restaurant });
+
+			// 🔄 Forcer un fresh fetch des commandes pour le nouveau restaurant
+			await useExpressOrdersStore.getState().fetchExpressOrders(true);
+
 			return true;
 		} catch (error) {
 			console.error("❌ Erreur changement restaurant:", error);
@@ -56,6 +74,14 @@ const useDeveloperStore = create((set, get) => ({
 
 	// Reset (déconnexion)
 	reset: async () => {
+		// 🚨 Réinitialiser les stores liés au restaurant AVANT la déconnexion
+		try {
+			const useExpressOrdersStore = require("./useExpressOrdersStore").default;
+			useExpressOrdersStore.getState().clearExpressOrders();
+		} catch (error) {
+			console.warn("⚠️ Impossible de nettoyer les commandes express:", error);
+		}
+
 		await AsyncStorage.removeItem("selectedRestaurant");
 		set({
 			isDeveloper: false,
