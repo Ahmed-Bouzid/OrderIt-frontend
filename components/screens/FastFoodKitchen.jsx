@@ -348,6 +348,7 @@ export default function FastFoodKitchen() {
 	const [paidReservationIds, setPaidReservationIds] = useState(new Set());
 	// Réservation cible pour l'affichage du reçu
 	const [receiptTarget, setReceiptTarget] = useState(null);
+	const [activeTab, setActiveTab] = useState("pending");
 
 	// ⭐ Surveiller restaurantId : normal = useUserStore, dev = useDeveloperStore
 	const restaurantIdFromUser = useUserStore((state) => state.restaurantId);
@@ -414,6 +415,27 @@ export default function FastFoodKitchen() {
 		() => todayReservations.length,
 		[todayReservations],
 	);
+
+	const completedCount = useMemo(
+		() => todayReservations.filter((r) => r.dishStatus === "Terminé").length,
+		[todayReservations],
+	);
+
+	const filteredReservations = useMemo(() => {
+		if (activeTab === "done") {
+			return todayReservations.filter((r) => r.dishStatus === "Terminé");
+		}
+
+		const toTimestamp = (reservation) => {
+			const rawDate = reservation.createdAt || reservation.updatedAt || reservation.reservationDate;
+			const parsed = rawDate ? new Date(rawDate).getTime() : 0;
+			return Number.isNaN(parsed) ? 0 : parsed;
+		};
+
+		return todayReservations
+			.filter((r) => r.dishStatus !== "Terminé")
+			.sort((a, b) => toTimestamp(b) - toTimestamp(a));
+	}, [activeTab, todayReservations]);
 
 	// ─── Actions ───────────────────────────────────────────────
 	const updateDishStatus = useCallback(
@@ -515,16 +537,18 @@ export default function FastFoodKitchen() {
 				(resaOrders.length > 0 &&
 					resaOrders.every((o) => o.paymentStatus === "paid"));
 			return (
-				<KitchenReservationCard
-					reservation={item}
-					orders={resaOrders}
-					isPaid={isPaid}
-					onMarkDone={handleMarkDone}
-					onMarkPending={handleMarkPending}
-					onMarkPaid={handleMarkPaid}
-					onShowReceipt={handleShowReceipt}
-					THEME={THEME}
-				/>
+				<View style={styles.cardColumn}>
+					<KitchenReservationCard
+						reservation={item}
+						orders={resaOrders}
+						isPaid={isPaid}
+						onMarkDone={handleMarkDone}
+						onMarkPending={handleMarkPending}
+						onMarkPaid={handleMarkPaid}
+						onShowReceipt={handleShowReceipt}
+						THEME={THEME}
+					/>
+				</View>
 			);
 		},
 		[
@@ -539,6 +563,7 @@ export default function FastFoodKitchen() {
 	);
 
 	const keyExtractor = useCallback((item) => item._id, []);
+	const listColumns = 2;
 
 	return (
 		<View
@@ -578,6 +603,44 @@ export default function FastFoodKitchen() {
 				</View>
 			</LinearGradient>
 
+			<View style={styles.tabsRow}>
+				<TouchableOpacity
+					style={[
+						styles.tabButton,
+						activeTab === "pending" && styles.tabButtonActive,
+					]}
+					onPress={() => setActiveTab("pending")}
+					activeOpacity={0.85}
+				>
+					<Text
+						style={[
+							styles.tabText,
+							activeTab === "pending" && styles.tabTextActive,
+						]}
+					>
+						En attente ({pendingCount})
+					</Text>
+				</TouchableOpacity>
+
+				<TouchableOpacity
+					style={[
+						styles.tabButton,
+						activeTab === "done" && styles.tabButtonActive,
+					]}
+					onPress={() => setActiveTab("done")}
+					activeOpacity={0.85}
+				>
+					<Text
+						style={[
+							styles.tabText,
+							activeTab === "done" && styles.tabTextActive,
+						]}
+					>
+						Terminé ({completedCount})
+					</Text>
+				</TouchableOpacity>
+			</View>
+
 			{/* Contenu */}
 			{isLoading ? (
 				<View style={styles.loadingContainer}>
@@ -591,7 +654,7 @@ export default function FastFoodKitchen() {
 						Chargement...
 					</Text>
 				</View>
-			) : todayReservations.length === 0 ? (
+			) : filteredReservations.length === 0 ? (
 				<View style={styles.emptyContainer}>
 				<Ionicons
 						name="restaurant-outline"
@@ -604,14 +667,19 @@ export default function FastFoodKitchen() {
 							{ color: THEME.mode === "dark" ? "#94A3B8" : "#64748B" },
 						]}
 					>
-						Aucune commande aujourd&apos;hui
+						{activeTab === "done"
+							? "Aucune commande terminée"
+							: "Aucune commande en attente"}
 					</Text>
 				</View>
 			) : (
 				<FlatList
-					data={todayReservations}
+					key={`kitchen-list-${listColumns}`}
+					data={filteredReservations}
 					renderItem={renderItem}
 					keyExtractor={keyExtractor}
+					numColumns={listColumns}
+					columnWrapperStyle={styles.columnWrapper}
 					contentContainerStyle={styles.listContent}
 					showsVerticalScrollIndicator={false}
 					initialNumToRender={10}
@@ -684,6 +752,35 @@ const styles = StyleSheet.create({
 	refreshBtn: {
 		padding: 4,
 	},
+	tabsRow: {
+		flexDirection: "row",
+		gap: 10,
+		paddingHorizontal: 12,
+		paddingTop: 10,
+		paddingBottom: 8,
+	},
+	tabButton: {
+		flex: 1,
+		paddingVertical: 9,
+		borderRadius: 10,
+		alignItems: "center",
+		justifyContent: "center",
+		backgroundColor: "rgba(148, 163, 184, 0.12)",
+		borderWidth: 1,
+		borderColor: "rgba(148, 163, 184, 0.2)",
+	},
+	tabButtonActive: {
+		backgroundColor: "#F59E0B",
+		borderColor: "#F59E0B",
+	},
+	tabText: {
+		fontSize: 13,
+		fontWeight: "600",
+		color: "#94A3B8",
+	},
+	tabTextActive: {
+		color: "#FFFFFF",
+	},
 	loadingContainer: {
 		flex: 1,
 		alignItems: "center",
@@ -705,14 +802,21 @@ const styles = StyleSheet.create({
 	},
 	listContent: {
 		padding: 12,
-		gap: 10,
+		paddingBottom: 16,
+	},
+	columnWrapper: {
+		justifyContent: "space-between",
+		marginBottom: 10,
+	},
+	cardColumn: {
+		width: "49%",
 	},
 	// ─── Carte ───
 	card: {
 		borderRadius: 14,
 		borderWidth: 2,
 		padding: 14,
-		marginBottom: 2,
+		marginBottom: 0,
 	},
 	cardHeader: {
 		flexDirection: "row",

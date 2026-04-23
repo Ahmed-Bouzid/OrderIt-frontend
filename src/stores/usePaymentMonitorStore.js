@@ -303,6 +303,55 @@ const usePaymentMonitorStore = create((set, get) => ({
 		set({ _socketListener: null });
 	},
 
+	// ── Mise à jour locale d'un paiement (ex : après remboursement) ──
+	updatePaymentStatus: (paymentId, updates) => {
+		set((s) => {
+			const newPayments = s.payments.map((p) =>
+				p.id === paymentId ? { ...p, ...updates } : p,
+			);
+			return {
+				payments: newPayments,
+				kpis: computeKPIs(newPayments),
+				lastUpdate: new Date().toISOString(),
+			};
+		});
+	},
+
+	/**
+	 * Effectue un remboursement Stripe via l'API backend
+	 * @param {Function} authFetch
+	 * @param {string}   paymentId    — ID du paiement dans le store (= _id MongoDB)
+	 * @param {number|null} amountCents — null = remboursement total
+	 * @param {string}   reason
+	 */
+	requestRefund: async (authFetch, { paymentId, amountCents, reason = "requested_by_customer" }) => {
+		if (!authFetch || !paymentId) throw new Error("Paramètres manquants");
+
+		const body = { paymentId, reason };
+		if (amountCents != null) {
+			body.amountCents = amountCents;
+		}
+
+		const data = await authFetch("/payments/refund", {
+			method: "POST",
+			headers: { "Content-Type": "application/json" },
+			body: JSON.stringify(body),
+		});
+
+		if (!data?.success) {
+			throw new Error(data?.error || data?.message || "Remboursement échoué");
+		}
+
+		// Mise à jour locale : marquer le paiement comme remboursé
+		const isFullRefund = amountCents == null || data.newStatus === "refunded";
+		get().updatePaymentStatus(paymentId, {
+			status: isFullRefund ? "refunded" : "partial_refund",
+			refundedAmount: (data.amountRefunded ?? 0) / 100,
+		});
+
+		return data;
+	},
+
 	// ══════════════════════════════════════════════════════════════
 	// MODE MOCK : Fallback si pas de données réelles
 	// ══════════════════════════════════════════════════════════════

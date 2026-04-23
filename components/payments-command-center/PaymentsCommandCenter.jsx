@@ -392,6 +392,11 @@ const PaymentsCommandCenter = memo(() => {
 
 	return (
 		<View style={s.absoluteWrap} pointerEvents="box-none">
+			<TouchableOpacity
+				style={s.overlayDismissDesktop}
+				activeOpacity={1}
+				onPress={handleClose}
+			/>
 			<Animated.View
 				style={[s.overlayDesktop, { opacity: fadeAnim }]}
 				pointerEvents="none"
@@ -453,6 +458,10 @@ const s = StyleSheet.create({
 	overlayDesktop: {
 		...StyleSheet.absoluteFillObject,
 		backgroundColor: "rgba(0,0,0,0.3)",
+	},
+	overlayDismissDesktop: {
+		...StyleSheet.absoluteFillObject,
+		zIndex: 9000,
 	},
 	absoluteWrap: {
 		...StyleSheet.absoluteFillObject,
