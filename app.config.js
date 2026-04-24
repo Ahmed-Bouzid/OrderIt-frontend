@@ -18,6 +18,11 @@ export default {
 		runtimeVersion: "1.0.0",
 		ios: {
 			bundleIdentifier: "com.sunnygo.dev",
+			infoPlist: {
+				// 🖨️ Déclarer le scheme Thermer pour que Linking.canOpenURL fonctionne sur iOS
+				// Si le scheme de l'app change, mettre à jour ici aussi
+				LSApplicationQueriesSchemes: ["thermer"],
+			},
 		},
 		android: {
 			package: "com.sunnygo.dev",

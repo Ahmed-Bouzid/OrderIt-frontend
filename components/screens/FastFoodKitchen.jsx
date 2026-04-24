@@ -25,6 +25,8 @@ import { ReceiptModal } from "../receipt";
 import useKitchenOrdersStore from "../../src/stores/useKitchenOrdersStore"; // ✨ NOUVEAU
 import useUserStore from "../../src/stores/useUserStore";
 import useDeveloperStore from "../../src/stores/useDeveloperStore";
+import PrintButton from "../PrintButton";
+import { printReceiptTicket } from "../../services/thermalPrinter";
 
 // ─────────────────────────────────────────────────────────────────
 // Constantes
@@ -303,21 +305,47 @@ const KitchenReservationCard = React.memo(
 							</LinearGradient>
 						</TouchableOpacity>
 					) : (
-						<TouchableOpacity
-							style={[styles.btnReceipt, styles.btnFlex]}
-							onPress={() => onShowReceipt(reservation, orders)}
-							activeOpacity={0.8}
-						>
-							<LinearGradient
-								colors={["#8B5CF6", "#7C3AED"]}
-								start={{ x: 0, y: 0 }}
-								end={{ x: 1, y: 0 }}
-								style={styles.btnGradient}
+						<>
+							<TouchableOpacity
+								style={[styles.btnReceipt, styles.btnFlex]}
+								onPress={() => onShowReceipt(reservation, orders)}
+								activeOpacity={0.8}
 							>
-								<Ionicons name="receipt-outline" size={15} color="#FFF" />
-								<Text style={styles.btnText}>Imprimer / Reçu</Text>
-							</LinearGradient>
-						</TouchableOpacity>
+								<LinearGradient
+									colors={["#8B5CF6", "#7C3AED"]}
+									start={{ x: 0, y: 0 }}
+									end={{ x: 1, y: 0 }}
+									style={styles.btnGradient}
+								>
+									<Ionicons name="receipt-outline" size={15} color="#FFF" />
+									<Text style={styles.btnText}>Imprimer / Reçu</Text>
+								</LinearGradient>
+							</TouchableOpacity>
+							{/* 🖨️ Bouton impression Thermer — masqué temporairement */}
+							{/* <PrintButton
+								size="sm"
+								label="Thermer"
+								onPress={() =>
+									printReceiptTicket({
+										restaurantName:
+											reservation.restaurantId?.name || "SunnyGo",
+										billNumber:
+											reservation._id?.slice(-6).toUpperCase() || "000000",
+										tableNumber:
+											reservation.tableNumber ||
+											reservation.table ||
+											reservation.tableId?.number,
+										clientName: reservation.clientName,
+										items: allItems.map((it) => ({
+											name: it.name,
+											quantity: it.quantity,
+											price: it.price || 0,
+										})),
+										taxRate: 0,
+									})
+								}
+							/> */}
+						</>
 					)}
 				</View>
 			</View>

@@ -117,8 +117,9 @@ PaymentsFAB.displayName = "PaymentsFAB";
 const s = StyleSheet.create({
 	container: {
 		position: "absolute",
-		bottom: Platform.OS === "ios" ? 100 : 80,
-		right: 16,
+		// Aligné sur l'axe de la bulle chat (56px à right:25) puis placé au-dessus.
+		bottom: Platform.select({ ios: 200, android: 190, default: 180 }),
+		right: 26,
 		zIndex: 8999,
 	},
 	fab: {

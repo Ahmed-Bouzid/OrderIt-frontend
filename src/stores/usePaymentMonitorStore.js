@@ -97,6 +97,37 @@ function normalizePaymentForUI(payment) {
 	};
 }
 
+function getStatusPriority(status) {
+	const priorityMap = {
+		success: 5,
+		refunded: 4,
+		partially_refunded: 3,
+		pending: 2,
+		failed: 1,
+	};
+
+	return priorityMap[status] ?? 0;
+}
+
+function mergeIncomingPayment(existingPayment, incomingPayment) {
+	const existingPriority = getStatusPriority(existingPayment?.status);
+	const incomingPriority = getStatusPriority(incomingPayment?.status);
+
+	if (incomingPriority < existingPriority) {
+		return existingPayment;
+	}
+
+	if (incomingPriority > existingPriority) {
+		return { ...existingPayment, ...incomingPayment };
+	}
+
+	const existingTs = new Date(existingPayment?.timestamp || 0).getTime();
+	const incomingTs = new Date(incomingPayment?.timestamp || 0).getTime();
+	return incomingTs >= existingTs
+		? { ...existingPayment, ...incomingPayment }
+		: existingPayment;
+}
+
 // ── Store ─────────────────────────────────────────────────────────
 const usePaymentMonitorStore = create((set, get) => ({
 	// ── Fenêtre ──
@@ -140,10 +171,33 @@ const usePaymentMonitorStore = create((set, get) => ({
 	addPayment: (payment) => {
 		set((s) => {
 			const normalizedPayment = normalizePaymentForUI(payment);
-			const newPayments = [normalizedPayment, ...s.payments].slice(0, 50);
+			const newPayments = [...s.payments];
 			const newAlerts = [...s.alerts];
 
-			if (normalizedPayment.status === "failed") {
+			const existingIndex = normalizedPayment.orderId
+				? newPayments.findIndex((p) => p.orderId === normalizedPayment.orderId)
+				: newPayments.findIndex((p) => p.id === normalizedPayment.id);
+
+			let previousStatus = null;
+			if (existingIndex >= 0) {
+				previousStatus = newPayments[existingIndex]?.status || null;
+				newPayments[existingIndex] = mergeIncomingPayment(
+					newPayments[existingIndex],
+					normalizedPayment,
+				);
+			} else {
+				newPayments.unshift(normalizedPayment);
+			}
+
+			newPayments.sort(
+				(a, b) =>
+					new Date(b.timestamp || 0).getTime() -
+					new Date(a.timestamp || 0).getTime(),
+			);
+
+			const trimmedPayments = newPayments.slice(0, 50);
+
+			if (normalizedPayment.status === "failed" && previousStatus !== "failed") {
 				newAlerts.unshift({
 					id: `alert_${Date.now()}`,
 					type: "failed",
@@ -154,8 +208,8 @@ const usePaymentMonitorStore = create((set, get) => ({
 			}
 
 			return {
-				payments: newPayments,
-				kpis: computeKPIs(newPayments),
+				payments: trimmedPayments,
+				kpis: computeKPIs(trimmedPayments),
 				alerts: newAlerts.slice(0, 20),
 				lastUpdate: new Date().toISOString(),
 			};
@@ -204,9 +258,10 @@ const usePaymentMonitorStore = create((set, get) => ({
 				}
 			}
 
+			const tzOffsetMinutes = new Date().getTimezoneOffset();
 			const query = resolvedRestaurantId
-				? `/payments/today?restaurantId=${encodeURIComponent(resolvedRestaurantId)}`
-				: "/payments/today";
+				? `/payments/today?restaurantId=${encodeURIComponent(resolvedRestaurantId)}&tzOffsetMinutes=${encodeURIComponent(tzOffsetMinutes)}`
+				: `/payments/today?tzOffsetMinutes=${encodeURIComponent(tzOffsetMinutes)}`;
 			const nowIso = new Date().toISOString();
 
 			console.log("[PaymentsMonitor] fetchTodayPayments", {
@@ -345,7 +400,7 @@ const usePaymentMonitorStore = create((set, get) => ({
 		// Mise à jour locale : marquer le paiement comme remboursé
 		const isFullRefund = amountCents == null || data.newStatus === "refunded";
 		get().updatePaymentStatus(paymentId, {
-			status: isFullRefund ? "refunded" : "partial_refund",
+			status: isFullRefund ? "refunded" : "partially_refunded",
 			refundedAmount: (data.amountRefunded ?? 0) / 100,
 		});
 

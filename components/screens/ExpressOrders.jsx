@@ -14,6 +14,7 @@ import {
 	Alert,
 	ActivityIndicator,
 } from "react-native";
+import PrintButton from "../PrintButton";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
@@ -316,6 +317,27 @@ const ExpressOrderCard = React.memo(
 								? "🔄 Tap pour marquer terminé"
 								: "⚡ Tap pour marquer urgent"}
 						</Text>
+					</View>
+				)}
+
+				{/* 🖨️ Bouton impression ticket cuisine */}
+				{!selectionMode && (
+					<View style={styles.printRow}>
+						<PrintButton
+							size="sm"
+							label="Imprimer"
+							textToPrint={[
+								"SUNNYGO",
+								"----------------",
+								`ORDER #${order._id?.slice(-6)?.toUpperCase() || "N/A"}`,
+								creatorName,
+								"",
+								...order.items.map((it) => `${it.quantity} x ${it.name}`),
+								...(order.notes ? ["", "Notes:", order.notes] : []),
+								"",
+								"----------------",
+							].join("\n")}
+						/>
 					</View>
 				)}
 			</TouchableOpacity>
@@ -878,6 +900,10 @@ const styles = StyleSheet.create({
 	hintText: {
 		fontSize: 11,
 		fontStyle: "italic",
+	},
+	printRow: {
+		marginTop: 10,
+		alignItems: "flex-end",
 	},
 	selectionBar: {
 		position: "absolute",
