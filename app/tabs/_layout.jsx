@@ -109,11 +109,11 @@ export default function TabsLayout() {
 		let tabs = ALL_TABS.filter((tab) => availableTabs.includes(tab.name));
 
 		// Gérer la logique Activity/Comptoir
-		const shouldShowActivity = category === "restaurant";
-		const shouldShowComptoir =
-			(category === "fast-food" || category === "foodtruck") && enableComptoir;
+		// ⭐ Comptoir maintenant disponible pour TOUS les types de restaurants
+		const shouldShowActivity = category === "restaurant" && !enableComptoir;
+		const shouldShowComptoir = enableComptoir;
 
-		// Si c'est FastFood + Comptoir activé → remplacer Activity par Comptoir
+		// Si Comptoir activé → remplacer Activity par Comptoir
 		if (shouldShowComptoir) {
 			tabs = tabs.filter((tab) => tab.name !== "activity");
 			// Ajouter Comptoir s'il n'est pas déjà là
@@ -124,11 +124,11 @@ export default function TabsLayout() {
 				}
 			}
 		}
-		// Si c'est classic (restaurant) → garder Activity, retirer Comptoir
+		// Si classic restaurant sans Comptoir → garder Activity, retirer Comptoir
 		else if (shouldShowActivity) {
 			tabs = tabs.filter((tab) => tab.name !== "comptoir");
 		}
-		// Si c'est FastFood sans Comptoir → retirer Activity ET Comptoir
+		// Si c'est FastFood/FoodTruck sans Comptoir → retirer Activity ET Comptoir
 		else if (category === "fast-food" || category === "foodtruck") {
 			tabs = tabs.filter(
 				(tab) => tab.name !== "activity" && tab.name !== "comptoir",
@@ -199,6 +199,28 @@ export default function TabsLayout() {
 			}
 		};
 		loadRestaurantName();
+	}, []);
+
+	// ⭐ Polling court pour détecter les changements enableComptoir du cache (quand on revient de DeveloperSelector)
+	useEffect(() => {
+		const pollInterval = setInterval(async () => {
+			try {
+				const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
+				const newComptoir = cachedComptoir === "true";
+				// Si ça a changé, updater l'état
+				setEnableComptoir((prev) => {
+					if (newComptoir !== prev) {
+						console.log("🔄 enableComptoir changé:", newComptoir);
+						return newComptoir;
+					}
+					return prev;
+				});
+			} catch (error) {
+				console.error("❌ Erreur polling enableComptoir:", error);
+			}
+		}, 2000); // Vérifier toutes les 2s
+
+		return () => clearInterval(pollInterval);
 	}, []);
 
 	useEffect(() => {
