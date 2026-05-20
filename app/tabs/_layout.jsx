@@ -5,7 +5,7 @@
  * 🎯 Adaptation dynamique selon le Feature Level (complet/intermediaire/minimum)
  */
 
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useEffect, useRef, useCallback, useMemo } from "react";
 import {
 	View,
 	Text,
@@ -104,7 +104,8 @@ export default function TabsLayout() {
 	const category = useUserStore((state) => state.category);
 
 	// 🏪 Filtrer les onglets selon la catégorie et enableComptoir
-	const getVisibleTabs = () => {
+	// ⭐ Wrapped in useMemo to ensure TABS is recalculated when enableComptoir changes
+	const TABS = useMemo(() => {
 		// Filtrer d'abord selon les onglets disponibles du Feature Level
 		let tabs = ALL_TABS.filter((tab) => availableTabs.includes(tab.name));
 
@@ -146,9 +147,7 @@ export default function TabsLayout() {
 
 		console.log("✅ ONGLETS VISIBLES:", tabs.map((t) => t.name));
 		return tabs;
-	};
-
-	const TABS = getVisibleTabs();
+	}, [enableComptoir, category, availableTabs]); // ⭐ Recalculate when these change
 
 	// Charger la catégorie dès le montage (initialise automatiquement le FeatureLevelStore)
 	useEffect(() => {
