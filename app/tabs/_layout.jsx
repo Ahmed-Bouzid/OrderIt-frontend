@@ -159,8 +159,13 @@ export default function TabsLayout() {
 	const [showMessagesPanel, setShowMessagesPanel] = useState(false);
 	const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 	const [restaurantName, setRestaurantName] = useState("Restaurant");
-	const [enableComptoir, setEnableComptoir] = useState(false);
-	const [restaurantId, setRestaurantId] = useState(null); // ⭐ Track restaurantId pour force refetch
+	const [enableComptoir, setEnableComptoir] = useState(undefined); // ⭐ Start as undefined, update explicitly
+	const [restaurantId, setRestaurantId] = useState(null);
+
+	// ⭐ Effect to watch for state changes in enableComptoir
+	useEffect(() => {
+		console.log("🔄 enableComptoir STATE CHANGED:", enableComptoir);
+	}, [enableComptoir]);
 
 	// ⭐ Fonction refactorisée pour charger le restaurant (réutilisable)
 	const loadRestaurantName = useCallback(async () => {
@@ -190,31 +195,31 @@ export default function TabsLayout() {
 			if (cachedId === resId && cachedName) {
 				console.log("✅ Cache valide, utilisé");
 				setRestaurantName(cachedName);
-				setEnableComptoir(cachedComptoir === "true");
-				return;
-			}
+			const comptoir = cachedComptoir === "true";
+			console.log("🔧 setEnableComptoir APPEL (cache):", comptoir, "cachedComptoir=", cachedComptoir);
+			setEnableComptoir(comptoir);
+			return;
+		}
 
-			// Cache invalide ou absent → fetch API
-			console.log("🔄 Cache invalide, fetch API...");
+		// Cache invalide ou absent → fetch API
+		console.log("🔄 Cache invalide, fetch API...");
 
-			const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${resId}/info`;
-			const response = await fetch(url);
+		const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${resId}/info`;
+		const response = await fetch(url);
 
-			if (response.ok) {
-				const data = await response.json();
-				const name = data.name || "Restaurant";
-				const comptoir = data.enableComptoir || false;
-				
-				console.log("📡 API Response:", {
-					name,
-					enableComptoir: comptoir,
-					fullData: data,
-				});
+		if (response.ok) {
+			const data = await response.json();
+			const name = data.name || "Restaurant";
+			const comptoir = data.enableComptoir || false;
+			
+			console.log("📡 API Response:", {
+				name,
+				enableComptoir: comptoir,
+				fullData: data,
+			});
 
-				setRestaurantName(name);
-				setEnableComptoir(comptoir);
-				
-				// Mettre en cache avec l'ID associé
+			setRestaurantName(name);
+			console.log("🔧 setEnableComptoir APPEL (API):", comptoir);
 				await AsyncStorage.setItem("restaurantName", name);
 				await AsyncStorage.setItem("restaurantNameId", resId);
 				await AsyncStorage.setItem("enableComptoir", comptoir ? "true" : "false");
