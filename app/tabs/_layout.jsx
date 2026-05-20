@@ -161,74 +161,92 @@ export default function TabsLayout() {
 	const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 	const [restaurantName, setRestaurantName] = useState("Restaurant");
 	const [enableComptoir, setEnableComptoir] = useState(false);
+	const [restaurantId, setRestaurantId] = useState(null); // ⭐ Track restaurantId pour force refetch
 
-	// Charger le nom du restaurant
-	useEffect(() => {
-		const loadRestaurantName = async () => {
-			try {
-				const restaurantId = await AsyncStorage.getItem("restaurantId");
-				const token = await getItem("access_token");
+	// ⭐ Fonction refactorisée pour charger le restaurant (réutilisable)
+	const loadRestaurantName = useCallback(async () => {
+		try {
+			const resId = restaurantId || (await AsyncStorage.getItem("restaurantId"));
+			const token = await getItem("access_token");
 
-				console.log("📱 loadRestaurantName START:", { restaurantId, hasToken: !!token });
+			console.log("📱 loadRestaurantName START:", { restaurantId: resId, hasToken: !!token });
 
-				if (!restaurantId || !token) {
-					console.log("⚠️ Pas de restaurantId ou token");
-					return;
-				}
+			if (!resId || !token) {
+				console.log("⚠️ Pas de restaurantId ou token");
+				return;
+			}
 
-				// Vérifier le cache : utiliser uniquement si le restaurantId correspond
-				const cachedId = await AsyncStorage.getItem("restaurantNameId");
-				const cachedName = await AsyncStorage.getItem("restaurantName");
-				const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
+			// Vérifier le cache : utiliser uniquement si le restaurantId correspond
+			const cachedId = await AsyncStorage.getItem("restaurantNameId");
+			const cachedName = await AsyncStorage.getItem("restaurantName");
+			const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
+			
+			console.log("💾 Cache actuel:", {
+				cachedId,
+				cachedName,
+				cachedComptoir,
+				restaurantIdMatch: cachedId === resId,
+			});
+
+			if (cachedId === resId && cachedName) {
+				console.log("✅ Cache valide, utilisé");
+				setRestaurantName(cachedName);
+				setEnableComptoir(cachedComptoir === "true");
+				return;
+			}
+
+			// Cache invalide ou absent → fetch API
+			console.log("🔄 Cache invalide, fetch API...");
+
+			const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${resId}/info`;
+			const response = await fetch(url);
+
+			if (response.ok) {
+				const data = await response.json();
+				const name = data.name || "Restaurant";
+				const comptoir = data.enableComptoir || false;
 				
-				console.log("💾 Cache actuel:", {
-					cachedId,
-					cachedName,
-					cachedComptoir,
-					restaurantIdMatch: cachedId === restaurantId,
+				console.log("📡 API Response:", {
+					name,
+					enableComptoir: comptoir,
+					fullData: data,
 				});
 
-				if (cachedId === restaurantId && cachedName) {
-					console.log("✅ Cache valide, utilisé");
-					setRestaurantName(cachedName);
-					setEnableComptoir(cachedComptoir === "true");
-					return;
-				}
+				setRestaurantName(name);
+				setEnableComptoir(comptoir);
+				
+				// Mettre en cache avec l'ID associé
+				await AsyncStorage.setItem("restaurantName", name);
+				await AsyncStorage.setItem("restaurantNameId", resId);
+				await AsyncStorage.setItem("enableComptoir", comptoir ? "true" : "false");
+				console.log("💾 Cache mis à jour:", { name, comptoir });
+			} else {
+				console.error("❌ Erreur API restaurant:", response.status);
+			}
+		} catch (error) {
+			console.error("❌ Erreur chargement nom restaurant:", error);
+		}
+	}, [restaurantId]); // ← Recalcule si restaurantId change
 
-				// Cache invalide ou absent → fetch API
-				console.log("🔄 Cache invalide, fetch API...");
-
-				const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${restaurantId}/info`;
-				const response = await fetch(url);
-
-				if (response.ok) {
-					const data = await response.json();
-					const name = data.name || "Restaurant";
-					const comptoir = data.enableComptoir || false;
-					
-					console.log("📡 API Response:", {
-						name,
-						enableComptoir: comptoir,
-						fullData: data,
-					});
-
-					setRestaurantName(name);
-					setEnableComptoir(comptoir);
-					
-					// Mettre en cache avec l'ID associé
-					await AsyncStorage.setItem("restaurantName", name);
-					await AsyncStorage.setItem("restaurantNameId", restaurantId);
-					await AsyncStorage.setItem("enableComptoir", comptoir ? "true" : "false");
-					console.log("💾 Cache mis à jour:", { name, comptoir });
-				} else {
-					console.error("❌ Erreur API restaurant:", response.status);
-				}
-			} catch (error) {
-				console.error("❌ Erreur chargement nom restaurant:", error);
+	// ⭐ Charger restaurantId au démarrage
+	useEffect(() => {
+		const initRestaurantId = async () => {
+			const resId = await AsyncStorage.getItem("restaurantId");
+			if (resId) {
+				setRestaurantId(resId);
+				console.log("📍 restaurantId chargé:", resId);
 			}
 		};
-		loadRestaurantName();
+		initRestaurantId();
 	}, []);
+
+	// ⭐ Refetch restaurant info quand restaurantId change (inclut après invalidation du cache!)
+	useEffect(() => {
+		if (restaurantId) {
+			console.log("🔔 restaurantId CHANGÉ ou restaurantId mis à jour, REFETCH...");
+			loadRestaurantName();
+		}
+	}, [restaurantId, loadRestaurantName]);
 
 	// ⭐ Polling court pour détecter les changements enableComptoir du cache (quand on revient de DeveloperSelector)
 	useEffect(() => {
@@ -236,8 +254,24 @@ export default function TabsLayout() {
 		const pollInterval = setInterval(async () => {
 			try {
 				const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
+				const cachedRestaurantId = await AsyncStorage.getItem("restaurantNameId");
 				const newComptoir = cachedComptoir === "true";
-				// Si ça a changé, updater l'état
+
+				console.log("🔄 Polling check:", {
+					cachedComptoir,
+					cachedRestaurantId,
+					restaurantId,
+					isCacheEmpty: !cachedComptoir || !cachedRestaurantId,
+				});
+
+				// ⭐ Si cache est vide (invalidé) ET on a un restaurantId → REFETCH l'API
+				if ((!cachedComptoir || !cachedRestaurantId) && restaurantId) {
+					console.log("⚠️ Cache invalidé détecté! REFETCH l'API...");
+					await loadRestaurantName();
+					return; // Skip les logs de polling normaux
+				}
+
+				// Sinon, si ça a changé, updater l'état
 				setEnableComptoir((prev) => {
 					if (newComptoir !== prev) {
 						console.log("⚡ enableComptoir CHANGÉ:", {
@@ -258,7 +292,7 @@ export default function TabsLayout() {
 			console.log("🛑 Arrêt polling enableComptoir");
 			clearInterval(pollInterval);
 		};
-	}, []);
+	}, [restaurantId, loadRestaurantName]);
 
 	useEffect(() => {
 		console.log("📊 Vérification initialisation activeTab:", {
