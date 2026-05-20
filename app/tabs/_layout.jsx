@@ -25,6 +25,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { useFonts } from "expo-font";
 import { Ionicons } from "@expo/vector-icons";
 import Activity from "../../components/screens/Activity";
+import ActivityFloor from "../../components/screens/ActivityFloor";
 import FloorScreen from "../../components/screens/Floor";
 import AgendaScreen from "../../components/screens/AgendaScreen";
 import Settings from "../../components/screens/Settings";
@@ -40,6 +41,7 @@ import ClientMessagesPanel from "../../components/ui/ClientMessagesPanel";
 // Tabs de base - affichés selon le niveau fonctionnel
 const ALL_TABS = [
 	{ name: "activity", label: "Activité", icon: "calendar-outline" },
+	{ name: "comptoir", label: "Comptoir", icon: "cube-outline" },
 	{ name: "floor", label: "Floor", icon: "map-outline" },
 	{ name: "agenda", label: "Agenda", icon: "time-outline" },
 	{ name: "reglage", label: "Réglages", icon: "settings-outline" },
@@ -99,9 +101,44 @@ export default function TabsLayout() {
 		(state) => state.isInitialized,
 	);
 	const isMinimum = useFeatureLevelStore((state) => state.isMinimum());
+	const category = useUserStore((state) => state.category);
 
-	// Filtrer ALL_TABS selon les tabs disponibles dans le niveau actuel
-	const TABS = ALL_TABS.filter((tab) => availableTabs.includes(tab.name));
+	// 🏪 Filtrer les onglets selon la catégorie et enableComptoir
+	const getVisibleTabs = () => {
+		// Filtrer d'abord selon les onglets disponibles du Feature Level
+		let tabs = ALL_TABS.filter((tab) => availableTabs.includes(tab.name));
+
+		// Gérer la logique Activity/Comptoir
+		const shouldShowActivity = category === "restaurant";
+		const shouldShowComptoir =
+			(category === "fast-food" || category === "foodtruck") && enableComptoir;
+
+		// Si c'est FastFood + Comptoir activé → remplacer Activity par Comptoir
+		if (shouldShowComptoir) {
+			tabs = tabs.filter((tab) => tab.name !== "activity");
+			// Ajouter Comptoir s'il n'est pas déjà là
+			if (!tabs.find((tab) => tab.name === "comptoir")) {
+				const comptoir = ALL_TABS.find((tab) => tab.name === "comptoir");
+				if (comptoir) {
+					tabs = [comptoir, ...tabs.slice(0)]; // Comptoir en premier
+				}
+			}
+		}
+		// Si c'est classic (restaurant) → garder Activity, retirer Comptoir
+		else if (shouldShowActivity) {
+			tabs = tabs.filter((tab) => tab.name !== "comptoir");
+		}
+		// Si c'est FastFood sans Comptoir → retirer Activity ET Comptoir
+		else if (category === "fast-food" || category === "foodtruck") {
+			tabs = tabs.filter(
+				(tab) => tab.name !== "activity" && tab.name !== "comptoir",
+			);
+		}
+
+		return tabs;
+	};
+
+	const TABS = getVisibleTabs();
 
 	// Charger la catégorie dès le montage (initialise automatiquement le FeatureLevelStore)
 	useEffect(() => {
@@ -113,6 +150,7 @@ export default function TabsLayout() {
 	const [showMessagesPanel, setShowMessagesPanel] = useState(false);
 	const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
 	const [restaurantName, setRestaurantName] = useState("Restaurant");
+	const [enableComptoir, setEnableComptoir] = useState(false);
 
 	// Charger le nom du restaurant
 	useEffect(() => {
@@ -128,8 +166,11 @@ export default function TabsLayout() {
 				// Vérifier le cache : utiliser uniquement si le restaurantId correspond
 				const cachedId = await AsyncStorage.getItem("restaurantNameId");
 				const cachedName = await AsyncStorage.getItem("restaurantName");
+				const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
+				
 				if (cachedId === restaurantId && cachedName) {
 					setRestaurantName(cachedName);
+					setEnableComptoir(cachedComptoir === "true");
 					return;
 				}
 
@@ -141,10 +182,15 @@ export default function TabsLayout() {
 				if (response.ok) {
 					const data = await response.json();
 					const name = data.name || "Restaurant";
+					const comptoir = data.enableComptoir || false;
+					
 					setRestaurantName(name);
+					setEnableComptoir(comptoir);
+					
 					// Mettre en cache avec l'ID associé
 					await AsyncStorage.setItem("restaurantName", name);
 					await AsyncStorage.setItem("restaurantNameId", restaurantId);
+					await AsyncStorage.setItem("enableComptoir", comptoir ? "true" : "false");
 				} else {
 					console.error("❌ Erreur API restaurant:", response.status);
 				}
@@ -235,6 +281,13 @@ export default function TabsLayout() {
 		setIsSliderReady(false);
 	}, [TABS.length]);
 
+	// 🔄 Quand TABS change (enableComptoir basculé), réinitialiser le activeTab si nécessaire
+	useEffect(() => {
+		if (!TABS.find((t) => t.name === activeTab)) {
+			setActiveTab(TABS[0]?.name || "");
+		}
+	}, [TABS]);
+
 	const handleTabLayout = (tabName, event) => {
 		const { x, width: w } = event.nativeEvent.layout;
 		setTabLayouts((prev) => {
@@ -296,6 +349,8 @@ export default function TabsLayout() {
 		switch (activeTab) {
 			case "activity":
 				return <Activity onStart={handleStart} />;
+			case "comptoir":
+				return <ActivityFloor restaurantInfo={{ enableComptoir: true }} />;
 			case "floor":
 				return <FloorScreen />;
 			case "agenda":

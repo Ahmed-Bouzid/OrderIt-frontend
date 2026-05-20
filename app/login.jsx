@@ -21,10 +21,7 @@ import {
 import { useRouter } from "expo-router";
 import { create } from "zustand";
 import useUserStore from "../src/stores/useUserStore";
-import * as WebBrowser from "expo-web-browser";
-import * as Google from "expo-auth-session/providers/google";
-
-WebBrowser.maybeCompleteAuthSession();
+// Google OAuth désactivé temporairement
 
 // ─────────────── Store restaurant ───────────────
 export const useRestaurantStore = create((set) => ({
@@ -41,25 +38,6 @@ export default function Login() {
 	const [showPassword, setShowPassword] = useState(false);
 	const { setRestaurantId } = useRestaurantStore();
 	const setUser = useUserStore((state) => state.setUser);
-
-	const [request, response, promptAsync] = Google.useAuthRequest({
-		iosClientId: process.env.EXPO_PUBLIC_GOOGLE_IOS_CLIENT_ID,
-		androidClientId: process.env.EXPO_PUBLIC_GOOGLE_ANDROID_CLIENT_ID,
-		scopes: ["openid", "profile", "email"],
-	});
-
-	// Gérer réponse OAuth Google
-	useEffect(() => {
-		if (response?.type === "success") {
-			const { id_token, code } = response.params;
-			if (id_token) {
-				handleGoogleLogin(id_token);
-			} else if (code) {
-				handleGoogleLogin(code);
-			}
-		} else if (response?.type === "error") {
-		}
-	}, [response]);
 
 	// Animation glow pulsant
 	const glowAnim = useRef(new Animated.Value(0)).current;
@@ -209,73 +187,6 @@ export default function Login() {
 		);
 	};
 
-	// 🔐 Connexion Google OAuth
-	const handleGoogleLogin = async (idToken) => {
-		setLoading(true);
-		try {
-			const res = await fetch(`${API_CONFIG.baseURL}/auth/google-login`, {
-				method: "POST",
-				headers: { "Content-Type": "application/json" },
-				body: JSON.stringify({ idToken }),
-			});
-
-			const data = await res.json();
-
-			if (res.ok) {
-				// Stocker tokens et infos (même logique que handleLogin)
-				await setSecureItem("@access_token", data.accessToken);
-				if (data.refreshToken) {
-					await setSecureItem("refreshToken", data.refreshToken);
-				}
-
-				const restaurantId = data.user.restaurantId;
-				if (restaurantId) {
-					await AsyncStorage.setItem("restaurantId", restaurantId);
-					setRestaurantId(restaurantId);
-				}
-
-				if (data.user.category) {
-					await AsyncStorage.setItem("category", data.user.category);
-				}
-
-				// 🔧 Stocker les feature overrides (developer mode)
-				if (
-					data.user.featureOverrides &&
-					Object.keys(data.user.featureOverrides).length > 0
-				) {
-					await AsyncStorage.setItem(
-						"featureOverrides",
-						JSON.stringify(data.user.featureOverrides),
-					);
-				} else {
-					await AsyncStorage.removeItem("featureOverrides");
-				}
-
-				await setUser({
-					userId: data.user.id,
-					email: data.user.email,
-					role: data.user.role,
-					restaurantId: restaurantId,
-					category: data.user.category || "restaurant",
-				});
-
-				router.replace("/");
-			} else {
-				Alert.alert("Erreur", data.message || "Connexion Google échouée");
-			}
-		} catch (err) {
-			if (err.name === "AbortError") {
-				console.warn("⏱️ Google login timeout");
-				Alert.alert("Erreur", "Le serveur ne répond pas. Réessayez.");
-			} else {
-				console.error("❌ [GOOGLE] Erreur:", err);
-				Alert.alert("Erreur", "Impossible de se connecter avec Google");
-			}
-		} finally {
-			setLoading(false);
-		}
-	};
-
 	const handleLogin = async () => {
 		setLoading(true);
 
@@ -343,10 +254,13 @@ export default function Login() {
 				// ✅ Stocker et assigner le restaurantId
 				const restaurantId = data.restaurantId;
 				if (!restaurantId) {
-					console.warn(
-						"⚠️ restaurantId non trouvé dans la réponse du backend",
-						data,
-					);
+					// ℹ️ Normal pour un developer/admin global : restaurant choisi ensuite via DeveloperSelector
+					if (data.role !== "developer") {
+						console.warn(
+							"⚠️ restaurantId non trouvé dans la réponse du backend",
+							data,
+						);
+					}
 					// Nettoyer l'ancien restaurantId (important pour mode développeur)
 					await AsyncStorage.removeItem("restaurantId");
 				} else {

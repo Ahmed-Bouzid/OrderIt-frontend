@@ -30,6 +30,7 @@ export default function MenuManagement() {
 
 	const [products, setProducts] = useState([]);
 	const [loading, setLoading] = useState(true);
+	const [restaurant, setRestaurant] = useState(null);
 
 	// Catégories disponibles (à adapter selon votre menu)
 	const categories = ["Entrée", "Plat", "Dessert", "Boisssson", "Autre"];
@@ -67,6 +68,11 @@ export default function MenuManagement() {
 		const fetchAvailableAddOns = async () => {
 			try {
 				setLoadingAddOns(true);
+				const restaurantId = await getRestaurantId();
+				if (!restaurantId) {
+					setAvailableAddOns([]);
+					return;
+				}
 				const addOns = await authFetch(`/products/addons/${restaurantId}`);
 				setAvailableAddOns(Array.isArray(addOns) ? addOns : []);
 			} catch (error) {
@@ -77,10 +83,24 @@ export default function MenuManagement() {
 			}
 		};
 
-		if (restaurantId) {
-			fetchAvailableAddOns();
-		}
-	}, [restaurantId]);
+		fetchAvailableAddOns();
+	}, [authFetch]);
+
+	// Charger le restaurant courant (pour feature overrides)
+	useEffect(() => {
+		const fetchRestaurant = async () => {
+			try {
+				const restaurantId = await getRestaurantId();
+				if (!restaurantId) return;
+				const res = await authFetch(`/restaurants/${restaurantId}`);
+				setRestaurant(res);
+			} catch (error) {
+				console.error("Erreur chargement restaurant:", error);
+			}
+		};
+
+		fetchRestaurant();
+	}, [authFetch]);
 
 	const [modalVisible, setModalVisible] = useState(false);
 	const [editingProduct, setEditingProduct] = useState(null);
@@ -416,13 +436,22 @@ export default function MenuManagement() {
 							<Ionicons name="settings-outline" size={14} color="#FFFFFF" />
 							<Text style={styles.optionsButtonText}>Options</Text>
 						</TouchableOpacity>
-						<TouchableOpacity
-							style={[styles.optionsButton, styles.allergensButton]}
-							onPress={() => handleOpenAllergensModal(item)}
-						>
-							<Ionicons name="warning-outline" size={14} color="#FFFFFF" />
-							<Text style={styles.optionsButtonText}>Allergènes</Text>
-						</TouchableOpacity>
+						{/* Bouton Allergènes - visible seulement si allergen_management = true */}
+						{(() => {
+							const allergenEnabled =
+								restaurant?.featureOverrides?.allergen_management !== false;
+							return (
+								allergenEnabled && (
+									<TouchableOpacity
+										style={[styles.optionsButton, styles.allergensButton]}
+										onPress={() => handleOpenAllergensModal(item)}
+									>
+										<Ionicons name="warning-outline" size={14} color="#FFFFFF" />
+										<Text style={styles.optionsButtonText}>Allergènes</Text>
+									</TouchableOpacity>
+								)
+							);
+						})()}
 					</View>
 					<View style={styles.availabilityRow}>
 						<Switch

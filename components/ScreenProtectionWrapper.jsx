@@ -40,6 +40,10 @@ const ScreenProtectionWrapper = ({
 	protectionKey = "screen",
 	children,
 }) => {
+	// 🚧 TEMP DISABLED — Désactivation globale pour autoriser screen recording / screenshots.
+	// ⚠️ À RÉACTIVER : supprimer la ligne ci-dessous avant tout build de production.
+	enabled = false;
+
 	// ─── Protection hook ─────────────────────────────────────────────────────
 	const { isBlurred, clearBlur } = useScreenProtection({
 		enabled,

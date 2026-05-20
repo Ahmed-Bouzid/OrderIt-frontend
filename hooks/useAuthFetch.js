@@ -144,7 +144,11 @@ export function useAuthFetch() {
 						.then(() => {})
 						.catch(() => {}); // Force cleanup
 					redirectToLogin(router, isRedirectingRef);
-					throw new Error("Token manquant, fetch annulé");
+					// ⭐ Retourner une réponse d'erreur au lieu de throw pour éviter crash
+					return new Response(JSON.stringify({ error: "Token manquant" }), {
+						status: 401,
+						headers: { "Content-Type": "application/json" },
+					});
 				}
 
 				// ⭐ Mettre en place le refresh automatique si pas déjà fait
@@ -170,7 +174,54 @@ export function useAuthFetch() {
 					fetchOptions.body = JSON.stringify(options.body);
 				}
 
-				let response = await fetch(fullUrl, fetchOptions);
+				// 🔁 Helper retry avec backoff exponentiel pour les 5xx et 429 (rate limiting)
+				// Jamais sur 4xx sauf 429 (erreur client = ne pas réessayer, sauf rate limiting)
+				const fetchWithRetry = async (u, opts) => {
+					const MAX_RETRIES = 3; // 1 essai + 3 retries = 4 tentatives max (429 a besoin de plus de temps)
+					const BASE_DELAY = 800; // ms
+					let lastResponse;
+					let lastError;
+					for (let attempt = 0; attempt <= MAX_RETRIES; attempt++) {
+						try {
+							lastResponse = await fetch(u, opts);
+							// Retry sur 5xx (sauf 501 Not Implemented) OU 429 (rate limiting)
+							const shouldRetry =
+								((lastResponse.status >= 500 && lastResponse.status !== 501) ||
+									lastResponse.status === 429) &&
+								attempt < MAX_RETRIES;
+							
+							if (shouldRetry) {
+								// Pour 429, ajouter plus de délai (retry-after ideally, mais on estime)
+								const delay = lastResponse.status === 429
+									? (1000 + BASE_DELAY) * Math.pow(2, attempt) // 1800, 4600, 10200ms
+									: BASE_DELAY * Math.pow(2, attempt); // 800, 1600, 3200ms
+								console.warn(
+									`⏳ ${lastResponse.status} sur ${u} → retry dans ${delay}ms (tentative ${attempt + 1}/${MAX_RETRIES})`,
+								);
+								await new Promise((r) => setTimeout(r, delay));
+								continue;
+							}
+							return lastResponse;
+						} catch (err) {
+							lastError = err;
+							// AbortError (timeout) → ne pas retry
+							if (err.name === "AbortError") throw err;
+							if (attempt < MAX_RETRIES) {
+								const delay = BASE_DELAY * Math.pow(2, attempt);
+								console.warn(
+									`⏳ Erreur réseau sur ${u} → retry dans ${delay}ms (tentative ${attempt + 1}/${MAX_RETRIES}):`,
+									err.message,
+								);
+								await new Promise((r) => setTimeout(r, delay));
+								continue;
+							}
+							throw lastError;
+						}
+					}
+					return lastResponse;
+				};
+
+				let response = await fetchWithRetry(fullUrl, fetchOptions);
 
 				// ⭐ Si 401, essayer de rafraîchir le token
 				if (response.status === 401 || response.status === 403) {
@@ -184,23 +235,31 @@ export function useAuthFetch() {
 						const newToken = await refreshPromiseRef.current;
 						refreshPromiseRef.current = null;
 
-						// ⭐ Réessayer avec le nouveau token
+						// ⭐ Réessayer avec le nouveau token (avec retry 5xx aussi)
 						fetchOptions.headers.Authorization = `Bearer ${newToken}`;
-						response = await fetch(fullUrl, fetchOptions);
+						response = await fetchWithRetry(fullUrl, fetchOptions);
 
 						if (response.status === 401 || response.status === 403) {
 							// ⭐ Debug: voir quelle URL et quel status exact
 							let errBody = "";
 							try { errBody = await response.text(); } catch (_) {}
-							console.error(`❌ Retry échoué après refresh: ${response.status} sur ${fullUrl}`, errBody);
-							throw new Error("Refresh failed");
+						console.warn(`⚠️ Retry échoué après refresh: ${response.status} sur ${fullUrl}`, errBody);
+						// ⭐ Retourner la réponse d'erreur au lieu de throw
+						return response;
 						}
 					} catch (refreshError) {
-						console.error("❌ Refresh échoué:", refreshError);
+					console.warn("⚠️ Refresh échoué:", refreshError);
+					// ⭐ Seulement rediriger au login si vraiment pas de token
+					// Si c'est juste une permission (403), garder la session active
+					if (refreshError?.message?.includes("401") || refreshError?.message?.includes("Pas de")) {
 						await setSecureItem("@access_token", "");
 						await setSecureItem("refreshToken", "");
 						redirectToLogin(router, isRedirectingRef);
-						return []; // ⭐ Retourne tableau vide = airbag
+						return [];
+					}
+					// ⭐ Pour les autres erreurs (403, réseau, etc), retourner la réponse actuelle
+					// De cette façon l'UI continue de fonctionner
+					return response;
 					}
 				}
 

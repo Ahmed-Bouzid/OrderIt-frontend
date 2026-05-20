@@ -13,6 +13,7 @@ import UpdateBanner from "../components/UpdateBanner";
 import { useKioskMode } from "../hooks/useKioskMode";
 import { useAppUpdate } from "../hooks/useAppUpdate";
 import { PaymentsCommandCenter, PaymentsFAB } from "../components/payments-command-center";
+import useUserStore from "../src/stores/useUserStore";
 
 // Passer EXPO_PUBLIC_KIOSK_ENABLED=true dans .env pour activer le mode kiosque
 const KIOSK_ENABLED = process.env.EXPO_PUBLIC_KIOSK_ENABLED === "true" && Platform.OS === "android";
@@ -32,6 +33,12 @@ export default function RootLayout() {
 	} = useAppUpdate();
 
 	const [updateDismissed, setUpdateDismissed] = useState(false);
+
+	// 🔒 Le PaymentsCommandCenter (FAB Stripe) ne doit s'afficher qu'une fois
+	// l'utilisateur authentifié ET rattaché à un restaurant.
+	const userId = useUserStore((state) => state.userId);
+	const restaurantId = useUserStore((state) => state.restaurantId);
+	const isAuthenticated = Boolean(userId && restaurantId);
 
 	return (
 		<ScreenProtectionWrapper protectionKey="app-global">
@@ -74,8 +81,13 @@ export default function RootLayout() {
 					)}
 
 					{/* PaymentsCommandCenter — fenêtre flottante + FAB */}
-					<PaymentsFAB />
-					<PaymentsCommandCenter />
+					{/* Affiché uniquement si l'utilisateur est connecté + rattaché à un restaurant */}
+					{isAuthenticated && (
+						<>
+							<PaymentsFAB />
+							<PaymentsCommandCenter />
+						</>
+					)}
 				</View>
 			</SocketProvider>
 		</ScreenProtectionWrapper>

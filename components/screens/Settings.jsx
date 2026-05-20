@@ -12,6 +12,8 @@ import {
 	StyleSheet,
 	ScrollView,
 	Switch,
+	Modal,
+	FlatList,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
@@ -49,13 +51,18 @@ export default function Settings() {
 	const router = useRouter();
 	const { themeMode, initTheme, setThemeMode, fontSize, setFontSize } =
 		useThemeStore();
-	const { isManager, email, role, userType, init: initUser } = useUserStore();
+	const { isManager, email, role, userType, init: initUser, category } =
+		useUserStore();
 
 	// État pour la section active du menu
 	const [activeSection, setActiveSection] = useState("account");
 
 	// État pour la modale feedback
 	const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+	// 🏪 État Comptoir (mode dev)
+	const [enableComptoir, setEnableComptoir] = useState(false);
+	const [loadingComptoir, setLoadingComptoir] = useState(false);
 
 	// ⭐ État comptabilité
 	const [showAccountingScreen, setShowAccountingScreen] = useState(false);
@@ -112,6 +119,10 @@ export default function Settings() {
 		initUser();
 		AsyncStorage.getItem("onboardingComplete").then((val) => {
 			setOnboardingComplete(val === "true");
+		});
+		// Charger la pref Comptoir
+		AsyncStorage.getItem("enableComptoir").then((val) => {
+			setEnableComptoir(val === "true");
 		});
 	}, [initTheme, initUser]);
 
@@ -221,6 +232,28 @@ export default function Settings() {
 			);
 		}
 	};
+
+	// 🏪 Handler Comptoir
+	const handleToggleComptoir = async (value) => {
+		setLoadingComptoir(true);
+		try {
+			setEnableComptoir(value);
+			await AsyncStorage.setItem("enableComptoir", value ? "true" : "false");
+			Alert.alert(
+				"✅ Mode Comptoir",
+				value
+					? "Mode Comptoir activé. Redémarrez l'app pour voir le changement."
+					: "Mode Comptoir désactivé.",
+			);
+		} catch (error) {
+			console.error("[Settings] Erreur toggle Comptoir:", error);
+			Alert.alert("Erreur", "Impossible de mettre à jour la pref Comptoir");
+		} finally {
+			setLoadingComptoir(false);
+		}
+	};
+
+
 
 	// Rendu de la section active
 	const renderActiveSection = () => {
@@ -1337,6 +1370,38 @@ Personnaliser le thème
 					</>
 				);
 
+			case "developer-features":
+				return (
+					<>
+						<Text style={settingsStyles.sectionHeaderText}>
+							🔧 Features en développement
+						</Text>
+
+
+
+						<View
+							style={{
+								marginTop: 16,
+								paddingHorizontal: 12,
+								paddingVertical: 10,
+								backgroundColor: `rgba(245, 158, 11, 0.08)`,
+								borderRadius: 8,
+								borderLeftWidth: 3,
+								borderLeftColor: THEME.colors.primary.amber,
+							}}
+						>
+							<Text
+								style={[
+									settingsStyles.settingDescription,
+									{ fontSize: 11, color: THEME.colors.text.secondary },
+								]}
+							>
+								⚠️ Ces features sont actuellement en développement. Redémarrez l'app après activation pour que le changement prenne effet.
+							</Text>
+						</View>
+					</>
+				);
+
 			default:
 				return null;
 		}
@@ -1525,6 +1590,14 @@ Personnaliser le thème
 										icon="sparkles-outline"
 										label="Analytics IA"
 										section="analytics-ai"
+									/>
+								)}
+								{/* Features en développement - Visibles si admin ET resto en mode fastfood */}
+								{isManager && category === "fastfood" && (
+									<MenuItem
+										icon="hammer-outline"
+										label="Features Dev"
+										section="developer-features"
 									/>
 								)}
 							</>

@@ -35,8 +35,11 @@ const useExpressOrdersStore = create((set, get) => ({
 				}
 
 				case "statusUpdated":
-				case "updated": {
+				case "updated":
+				case "counter_payment_declared": {
 					// Mettre à jour la commande existante
+					// counter_payment_declared = client a déclaré payer au comptoir
+					// → backend a mis paymentMethod="cash", on reflète juste l'update
 					const updated = state.expressOrders.map((o) =>
 						o._id === data._id ? data : o,
 					);
@@ -139,8 +142,13 @@ const useExpressOrdersStore = create((set, get) => ({
 
 				// 🔹 si le token est invalide ou expiré
 				if (response.status === 401 || response.status === 403) {
-					throw new Error("Session expirée");
-				}
+				console.warn("⚠️ Session expirée ou accès refusé");
+				return {
+					success: false,
+					error: "UNAUTHORIZED",
+					message: "Session expirée ou accès refusé",
+				};
+			}
 
 				if (!response.ok) {
 					const text = await response.text();

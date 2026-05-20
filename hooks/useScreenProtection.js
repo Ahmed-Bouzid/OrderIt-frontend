@@ -30,6 +30,10 @@ export function useScreenProtection({
 	onCapture = null,
 	protectionKey = "default",
 } = {}) {
+	// 🚧 TEMP DISABLED — Désactivation globale pour autoriser screen recording / screenshots.
+	// ⚠️ À RÉACTIVER : supprimer la ligne ci-dessous avant tout build de production.
+	enabled = false;
+
 	const [isBlurred, setIsBlurred] = useState(false);
 	const blurTimerRef = useRef(null);
 	const listenerRef = useRef(null);

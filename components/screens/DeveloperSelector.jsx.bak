@@ -2,7 +2,7 @@
  * 🔧 Developer Selector - Sélection de restaurant pour développeur
  * Interface réservée au compte développeur (Ahmed)
  */
-import React, { useState, useMemo, useEffect, useCallback } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -37,14 +37,12 @@ export default function DeveloperSelector() {
 
 	const [search, setSearch] = useState("");
 	const [loading, setLoading] = useState(false);
-	const [loadError, setLoadError] = useState(null);
 	const [showCreateModal, setShowCreateModal] = useState(false);
 	const [creatingRestaurant, setCreatingRestaurant] = useState(false);
 
 	// 🔧 Feature overrides par restaurant
 	const [expandedOverridesId, setExpandedOverridesId] = useState(null);
 	const [restaurantOverrides, setRestaurantOverrides] = useState({}); // { [restaurantId]: { featureKey: bool } }
-	const [showOptionsModal, setShowOptionsModal] = useState(null); // ID du restaurant dont on gère les options
 
 	// Formulaire de création
 	const [newRestaurant, setNewRestaurant] = useState({
@@ -56,103 +54,77 @@ export default function DeveloperSelector() {
 		turnoverTime: "120",
 	});
 
-	// ⭐ Fonction pour charger les restaurants (accessible partout dans le composant)
-	const loadRestaurants = useCallback(async () => {
-		// Si on a déjà des restaurants dans le store et pas d'erreur, pas besoin de refetch
-		if (restaurants && restaurants.length > 0 && !loadError) {
-			return;
-		}
-
-		try {
-			setLoadError(null);
-			const API_URL = process.env.EXPO_PUBLIC_API_URL;
-			const response = await fetchWithAuth(
-				`${API_URL}/developer/restaurants`,
-			);
-
-			if (response.ok) {
-				const data = await response.json();
-				if (data.restaurants) {
-					await initDeveloper(data.restaurants);
-					setLoadError(null);
-				}
-			} else if (response.status === 403) {
-				// ⚠️ 403 Forbidden - Accès refusé (pas d'autorisation suffisante)
-				console.warn("⚠️ Accès refusé (403) au chargement des restaurants");
-				setLoadError("Accès refusé : rôle utilisateur insuffisant.");
-			} else if (response.status === 401) {
-				// 401 Unauthorized - Session expirée
-				console.warn("⚠️ Non authentifié (401) - Redirection vers login");
-				setLoadError("Session expirée. Reconnexion...");
-				setTimeout(() => {
-					AsyncStorage.multiRemove([
-						"token",
-						"@access_token",
-						"refreshToken",
-						"restaurantId",
-						"userRole",
-					]).then(() => {
-						router.replace("/login");
-					});
-				}, 1000);
-			} else {
-				// Autres erreurs HTTP
-				console.error("❌ Erreur fetch restaurants:", response.status);
-				setLoadError(`Erreur serveur (${response.status}). Veuillez réessayer.`);
-			}
-		} catch (error) {
-			const errorMessage = error?.message || "";
-			const isExpectedSessionError =
-				error?.name === "AbortError" ||
-				errorMessage.includes("Session expirée") ||
-				errorMessage.includes("refresh échoué") ||
-				errorMessage.includes("Token manquant") ||
-				errorMessage.includes("Pas de token disponible");
-
-			if (isExpectedSessionError) {
-				console.warn("⚠️ Chargement restaurants interrompu:", errorMessage);
-				setLoadError("Session expirée. Reconnexion...");
-			} else {
-				console.error("❌ Erreur chargement restaurants:", error);
-				setLoadError("Erreur de connexion. Veuillez réessayer.");
-			}
-
-			// ⚠️ Si erreur de token (session expirée), rediriger vers login
-			if (
-				errorMessage.includes("Session expirée") ||
-				errorMessage.includes("refresh échoué") ||
-				errorMessage.includes("Token manquant") ||
-				errorMessage.includes("Pas de token disponible")
-			) {
-				Alert.alert(
-					"Session expirée",
-					"Votre session a expiré. Veuillez vous reconnecter.",
-					[
-						{
-							text: "OK",
-							onPress: () => {
-								// Nettoyer complètement avant de rediriger
-								AsyncStorage.multiRemove([
-									"token",
-									"@access_token",
-									"refreshToken",
-									"restaurantId",
-									"userRole",
-								]).then(() => {
-									router.replace("/login");
-								});
-							},
-						},
-					],
-				);
-			}
-		}
-	}, [restaurants, loadError, initDeveloper, router]);
-
 	// ⭐ Charger les restaurants au montage du composant (reload)
 	useEffect(() => {
+		const loadRestaurants = async () => {
+			// Si on a déjà des restaurants dans le store, pas besoin de refetch
+			if (restaurants && restaurants.length > 0) {
+				return;
+			}
+
+			try {
+				const API_URL = process.env.EXPO_PUBLIC_API_URL;
+				const response = await fetchWithAuth(
+					`${API_URL}/developer/restaurants`,
+				);
+
+				if (response.ok) {
+					const data = await response.json();
+					if (data.restaurants) {
+						await initDeveloper(data.restaurants);
+					}
+				} else {
+					console.error("❌ Erreur fetch restaurants:", response.status);
+				}
+			} catch (error) {
+				const errorMessage = error?.message || "";
+				const isExpectedSessionError =
+					error?.name === "AbortError" ||
+					errorMessage.includes("Session expirée") ||
+					errorMessage.includes("refresh échoué") ||
+					errorMessage.includes("Token manquant") ||
+					errorMessage.includes("Pas de token disponible");
+
+				if (isExpectedSessionError) {
+					console.warn("⚠️ Chargement restaurants interrompu:", errorMessage);
+				} else {
+					console.error("❌ Erreur chargement restaurants:", error);
+				}
+
+				// ⚠️ Si erreur de token (session expirée), rediriger vers login
+				if (
+					errorMessage.includes("Session expirée") ||
+					errorMessage.includes("refresh échoué") ||
+					errorMessage.includes("Token manquant") ||
+					errorMessage.includes("Pas de token disponible")
+				) {
+					Alert.alert(
+						"Session expirée",
+						"Votre session a expiré. Veuillez vous reconnecter.",
+						[
+							{
+								text: "OK",
+								onPress: () => {
+									// Nettoyer complètement avant de rediriger
+									AsyncStorage.multiRemove([
+										"token",
+										"@access_token",
+										"refreshToken",
+										"restaurantId",
+										"userRole",
+									]).then(() => {
+										router.replace("/login");
+									});
+								},
+							},
+						],
+					);
+				}
+			}
+		};
+
 		loadRestaurants();
-	}, [loadRestaurants]);
+	}, []); // Exécuter une seule fois au montage
 
 	// Filtrage par recherche
 	const filteredRestaurants = useMemo(() => {
@@ -251,67 +223,6 @@ export default function DeveloperSelector() {
 		}
 	};
 
-	const handleToggleComptoir = async (restaurant) => {
-		const originalRestaurants = [...restaurants];
-		const API_URL = process.env.EXPO_PUBLIC_API_URL;
-
-		try {
-			// ⭐ Mode Comptoir disponible pour TOUS les types de restaurants
-			// 🎯 Update optimiste
-			const updatedRestaurants = restaurants.map((r) =>
-				r._id === restaurant._id ? { ...r, enableComptoir: !r.enableComptoir } : r,
-			);
-			await initDeveloper(updatedRestaurants);
-
-			const response = await fetchWithAuth(
-				`${API_URL}/developer/restaurants/${restaurant._id}/comptoir`,
-				{
-					method: "PATCH",
-					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ enableComptoir: !restaurant.enableComptoir }),
-				},
-			);
-
-			const data = await response.json();
-
-			if (response.ok && data.status === "success") {
-				// Refresh
-				const refreshResponse = await fetchWithAuth(
-					`${API_URL}/developer/restaurants`,
-				);
-
-				const refreshData = await refreshResponse.json();
-				if (refreshResponse.ok) {
-					await initDeveloper(refreshData.restaurants);
-				}
-
-				// ⭐ Invalider le cache enableComptoir pour forcer un refetch dans les tabs
-				await AsyncStorage.removeItem("enableComptoir");
-				await AsyncStorage.removeItem("restaurantNameId"); // Forcer un refetch complet
-
-				Alert.alert(
-					"✅ Succès",
-					`Mode Comptoir ${data.enableComptoir ? "activé" : "désactivé"}`,
-				);
-			} else {
-				// ⚠️ Rollback
-				await initDeveloper(originalRestaurants);
-				Alert.alert("Erreur", data.message || "Erreur lors du toggle Comptoir");
-			}
-		} catch (error) {
-			console.error("❌ Erreur toggle Comptoir:", error);
-			await initDeveloper(originalRestaurants);
-
-			if (error.message.includes("Session expirée")) {
-				Alert.alert("Session expirée", "Veuillez vous reconnecter", [
-					{ text: "OK", onPress: () => router.replace("/login") },
-				]);
-			} else {
-				Alert.alert("Erreur", "Impossible de modifier le mode Comptoir");
-			}
-		}
-	};
-
 	const RESTAURANT_CATEGORIES = [
 		{ value: "restaurant", label: "🍽️ Restaurant" },
 		{ value: "fast-food", label: "🍔 Fast-food" },
@@ -379,18 +290,6 @@ export default function DeveloperSelector() {
 		icon: "bar-chart-outline",
 	};
 
-	const EXPORT_FEC_FEATURE = {
-		key: "export_comptable_fec",
-		label: "Export comptable FEC",
-		icon: "document-outline",
-	};
-
-	const ALLERGEN_FEATURE = {
-		key: "allergen_management",
-		label: "Gestion des allergènes",
-		icon: "alert-circle-outline",
-	};
-
 	const TOGGLEABLE_FEATURES = {
 		restaurant: [
 			{
@@ -399,11 +298,6 @@ export default function DeveloperSelector() {
 				icon: "chatbubbles-outline",
 			},
 			STAT_FEATURE,
-			{
-				key: "table_interactive",
-				label: "Table Interactive",
-				icon: "finger-print-outline",
-			},
 			// ─── IA Premium ───────────────────────────────────────────────────
 			{
 				key: "ai_auto_assign",
@@ -445,13 +339,6 @@ export default function DeveloperSelector() {
 				label: "IA — Créneaux stratégiques",
 				icon: "bulb-outline",
 			},
-			{
-				key: "google_review",
-				label: "Avis Google (post-paiement)",
-				icon: "star-outline",
-			},
-			ALLERGEN_FEATURE,
-			EXPORT_FEC_FEATURE,
 		],
 		"fast-food": [
 			{
@@ -460,8 +347,6 @@ export default function DeveloperSelector() {
 				icon: "cube-outline",
 			},
 			STAT_FEATURE,
-			ALLERGEN_FEATURE,
-			EXPORT_FEC_FEATURE,
 		],
 		snack: [
 			{
@@ -470,8 +355,6 @@ export default function DeveloperSelector() {
 				icon: "cube-outline",
 			},
 			STAT_FEATURE,
-			ALLERGEN_FEATURE,
-			EXPORT_FEC_FEATURE,
 		],
 		cafe: [
 			{
@@ -480,8 +363,6 @@ export default function DeveloperSelector() {
 				icon: "cube-outline",
 			},
 			STAT_FEATURE,
-			ALLERGEN_FEATURE,
-			EXPORT_FEC_FEATURE,
 		],
 		boulangerie: [
 			{
@@ -490,8 +371,6 @@ export default function DeveloperSelector() {
 				icon: "cube-outline",
 			},
 			STAT_FEATURE,
-			ALLERGEN_FEATURE,
-			EXPORT_FEC_FEATURE,
 		],
 		bar: [
 			{
@@ -500,8 +379,6 @@ export default function DeveloperSelector() {
 				icon: "cube-outline",
 			},
 			STAT_FEATURE,
-			ALLERGEN_FEATURE,
-			EXPORT_FEC_FEATURE,
 		],
 		foodtruck: [
 			{
@@ -510,8 +387,6 @@ export default function DeveloperSelector() {
 				icon: "add-circle-outline",
 			},
 			STAT_FEATURE,
-			ALLERGEN_FEATURE,
-			EXPORT_FEC_FEATURE,
 		],
 	};
 
@@ -554,11 +429,12 @@ export default function DeveloperSelector() {
 		const id = restaurant._id;
 		const current = restaurantOverrides[id] || {};
 
+		// La valeur courante : si override explicite → utiliser, sinon laisser undefined (= matrice par défaut)
+		// On calcule la valeur de base selon la catégorie pour déterminer ce qu'on va toggler
 		const BASE_ON_FEATURES = {
 			restaurant: {
 				chat_client: true,
 				statistiques: true,
-				table_interactive: true,
 				ai_auto_assign: true,
 				ai_slot_suggestions: true,
 				ai_heatmap: true,
@@ -567,16 +443,13 @@ export default function DeveloperSelector() {
 				ai_waiting_list: true,
 				ai_prediction: true,
 				ai_strategic_slots: true,
-				google_review: true,
-				allergen_management: true,
-				export_comptable_fec: false,
 			},
-			"fast-food": { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			snack: { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			cafe: { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			boulangerie: { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			bar: { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			foodtruck: { fab_fast_commande: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
+			"fast-food": { gestion_stocks: true, statistiques: false },
+			snack: { gestion_stocks: true, statistiques: false },
+			cafe: { gestion_stocks: true, statistiques: false },
+			boulangerie: { gestion_stocks: true, statistiques: false },
+			bar: { gestion_stocks: true, statistiques: false },
+			foodtruck: { fab_fast_commande: true, statistiques: false },
 		};
 		const baseValue =
 			(BASE_ON_FEATURES[restaurant.category] || {})[featureKey] ?? true;
@@ -613,46 +486,6 @@ export default function DeveloperSelector() {
 			}));
 			Alert.alert("Erreur", "Impossible de sauvegarder l'override");
 		}
-	};
-
-	/** Calcule le nombre d'options activées pour un restaurant */
-	const getOptionsCount = (restaurant) => {
-		const features = TOGGLEABLE_FEATURES[restaurant.category] || [];
-		const current = restaurantOverrides[restaurant._id] || {};
-
-		const BASE_ON_FEATURES = {
-			restaurant: {
-				chat_client: true,
-				statistiques: true,
-				table_interactive: true,
-				ai_auto_assign: true,
-				ai_slot_suggestions: true,
-				ai_heatmap: true,
-				ai_anti_gaps: true,
-				ai_smart_duration: true,
-				ai_waiting_list: true,
-				ai_prediction: true,
-				ai_strategic_slots: true,
-				google_review: true,
-				allergen_management: true,
-				export_comptable_fec: false,
-			},
-			"fast-food": { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			snack: { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			cafe: { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			boulangerie: { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			bar: { gestion_stocks: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-			foodtruck: { fab_fast_commande: true, statistiques: false, allergen_management: true, export_comptable_fec: false },
-		};
-
-		let enabled = 0;
-		features.forEach((feature) => {
-			const baseValue = (BASE_ON_FEATURES[restaurant.category] || {})[feature.key] ?? true;
-			const effectiveValue = feature.key in current ? current[feature.key] : baseValue;
-			if (effectiveValue) enabled++;
-		});
-
-		return { enabled, total: features.length };
 	};
 
 	const handleCreateRestaurant = async () => {
@@ -1015,60 +848,6 @@ export default function DeveloperSelector() {
 				/>
 			</View>
 
-			{/* �️ Bouton Options (affiche X/Y features activées) */}
-			<TouchableOpacity
-				onPress={() => setShowOptionsModal(item._id)}
-				style={{
-					flexDirection: "row",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: 10,
-					paddingVertical: 10,
-					paddingHorizontal: 12,
-					backgroundColor: "rgba(99, 102, 241, 0.1)",
-					borderRadius: 8,
-					borderWidth: 1.5,
-					borderColor: "#6366F1",
-				}}
-			>
-				<View style={{ flex: 1 }}>
-					<Text style={{ fontSize: 12, fontWeight: "600", color: "#6366F1" }}>
-						⚙️ Options
-					</Text>
-					<Text style={{ fontSize: 10, color: theme === "dark" ? "#94a3b8" : "#64748b", marginTop: 2 }}>
-						{getOptionsCount(item).enabled}/{getOptionsCount(item).total} activées
-					</Text>
-				</View>
-				<Ionicons name="chevron-forward" size={16} color="#6366F1" />
-			</TouchableOpacity>
-
-			{/* 🔄 Mode Comptoir - disponible pour TOUS les types de restaurants */}
-			<TouchableOpacity
-				onPress={() => handleToggleComptoir(item)}
-				style={{
-					flexDirection: "row",
-					justifyContent: "space-between",
-					alignItems: "center",
-					marginBottom: 10,
-					paddingVertical: 10,
-					paddingHorizontal: 12,
-					backgroundColor: item.enableComptoir ? "rgba(34, 197, 94, 0.1)" : "rgba(107, 114, 128, 0.1)",
-					borderRadius: 8,
-					borderWidth: 1.5,
-					borderColor: item.enableComptoir ? "#22c55e" : "#6b7280",
-				}}
-			>
-				<View style={{ flex: 1 }}>
-					<Text style={{ fontSize: 12, fontWeight: "600", color: item.enableComptoir ? "#22c55e" : "#6b7280" }}>
-						🔄 Mode Comptoir
-					</Text>
-					<Text style={{ fontSize: 10, color: theme === "dark" ? "#94a3b8" : "#64748b", marginTop: 2 }}>
-						{item.enableComptoir ? "Activé" : "Désactivé"}
-					</Text>
-				</View>
-				<Ionicons name={item.enableComptoir ? "toggle" : "toggle-outline"} size={20} color={item.enableComptoir ? "#22c55e" : "#6b7280"} />
-			</TouchableOpacity>
-
 			{/* Boutons compacts (icônes seulement) */}
 			<View style={{ flexDirection: "row", gap: 8, justifyContent: "space-between" }}>
 				<TouchableOpacity
@@ -1163,6 +942,196 @@ export default function DeveloperSelector() {
 				>
 					Gérez tous les restaurants de la plateforme
 				</Text>
+
+				{/* 🏪 Sélecteur Cascade : Type Resto + Comptoir */}
+				<View style={{ marginTop: 16, gap: 12 }}>
+					{/* Sélecteur Type Resto */}
+					<TouchableOpacity
+						onPress={() => setShowRestaurantTypePicker(true)}
+						style={{
+							paddingHorizontal: 12,
+							paddingVertical: 10,
+							backgroundColor: theme === "dark" ? "rgba(30,41,59,0.8)" : "rgba(255,255,255,0.6)",
+							borderRadius: 6,
+							borderWidth: 1,
+							borderColor: "#f59e0b",
+							flexDirection: "row",
+							alignItems: "center",
+							justifyContent: "space-between",
+						}}
+					>
+						<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+							<Ionicons name="build-outline" size={18} color="#f59e0b" />
+							<View>
+								<Text style={{ fontSize: 12, color: theme === "dark" ? "#94a3b8" : "#64748b" }}>
+									Type de Restaurant (Dev)
+								</Text>
+								<Text style={{ fontSize: 13, fontWeight: "500", color: theme === "dark" ? "#f1f5f9" : "#1e293b", marginTop: 2 }}>
+									{devRestaurantType
+										? RESTAURANT_TYPES.find(t => t.value === devRestaurantType)?.label || "Sélectionner..."
+										: "📍 Sélectionner un type..."}
+								</Text>
+							</View>
+						</View>
+						<Ionicons name="chevron-down" size={18} color="#f59e0b" />
+					</TouchableOpacity>
+
+					{/* Comptoir Toggle (seulement si fastfood) */}
+					{devRestaurantType === "fastfood" && (
+						<View
+							style={{
+								paddingHorizontal: 12,
+								paddingVertical: 10,
+								backgroundColor: theme === "dark" ? "rgba(30,41,59,0.8)" : "rgba(255,255,255,0.6)",
+								borderRadius: 6,
+								borderWidth: 1,
+								borderColor: "#10b981",
+								flexDirection: "row",
+								alignItems: "center",
+								justifyContent: "space-between",
+							}}
+						>
+							<View style={{ flexDirection: "row", alignItems: "center", gap: 10 }}>
+								<Ionicons name="storefront-outline" size={18} color="#10b981" />
+								<View>
+									<Text style={{ fontSize: 12, color: theme === "dark" ? "#94a3b8" : "#64748b" }}>
+										Mode Comptoir
+									</Text>
+									<Text style={{ fontSize: 13, fontWeight: "500", color: theme === "dark" ? "#f1f5f9" : "#1e293b", marginTop: 2 }}>
+										{enableComptoir ? "✅ Activé" : "❌ Désactivé"}
+									</Text>
+								</View>
+							</View>
+							<Switch
+								value={enableComptoir}
+								onValueChange={handleToggleComptoir}
+								trackColor={{
+									false: theme === "dark" ? "#475569" : "#cbd5e1",
+									true: "#10b981",
+								}}
+								thumbColor={enableComptoir ? "#fff" : "#94a3b8"}
+							/>
+						</View>
+					)}
+				</View>
+
+				{/* Modal Sélecteur Type Restaurant */}
+				<Modal
+					visible={showRestaurantTypePicker}
+					transparent={true}
+					animationType="slide"
+					onRequestClose={() => setShowRestaurantTypePicker(false)}
+				>
+					<View
+						style={{
+							flex: 1,
+							backgroundColor: "rgba(0,0,0,0.5)",
+							justifyContent: "flex-end",
+						}}
+					>
+						<View
+							style={{
+								backgroundColor: theme === "dark" ? "#1e293b" : "#f8fafc",
+								borderTopLeftRadius: 16,
+								borderTopRightRadius: 16,
+								maxHeight: "60%",
+								paddingVertical: 16,
+							}}
+						>
+							<View
+								style={{
+									paddingHorizontal: 16,
+									paddingBottom: 12,
+									borderBottomWidth: 1,
+									borderBottomColor: theme === "dark" ? "#475569" : "#e2e8f0",
+								}}
+							>
+								<Text
+									style={{
+										fontSize: 16,
+										fontWeight: "600",
+										color: theme === "dark" ? "#f1f5f9" : "#1e293b",
+									}}
+								>
+									Choisir le type
+								</Text>
+							</View>
+							<FlatList
+								data={RESTAURANT_TYPES}
+								keyExtractor={(item) => item.id}
+								renderItem={({ item }) => (
+									<TouchableOpacity
+										onPress={() => handleSelectRestaurantType(item.value)}
+										style={{
+											paddingHorizontal: 16,
+											paddingVertical: 12,
+											borderBottomWidth: 1,
+											borderBottomColor: theme === "dark" ? "#475569" : "#e2e8f0",
+											backgroundColor:
+												devRestaurantType === item.value
+													? theme === "dark"
+														? "rgba(245, 158, 11, 0.1)"
+														: "rgba(245, 158, 11, 0.08)"
+													: "transparent",
+										}}
+									>
+										<View
+											style={{
+												flexDirection: "row",
+												alignItems: "center",
+												justifyContent: "space-between",
+											}}
+										>
+											<Text
+												style={{
+													fontSize: 14,
+													color:
+														devRestaurantType === item.value
+															? "#f59e0b"
+															: theme === "dark"
+																? "#f1f5f9"
+																: "#1e293b",
+													fontWeight:
+														devRestaurantType === item.value ? "600" : "400",
+												}}
+											>
+												{item.label}
+											</Text>
+											{devRestaurantType === item.value && (
+												<Ionicons
+													name="checkmark-circle"
+													size={20}
+													color="#f59e0b"
+												/>
+											)}
+										</View>
+									</TouchableOpacity>
+								)}
+							/>
+							<TouchableOpacity
+								onPress={() => setShowRestaurantTypePicker(false)}
+								style={{
+									marginHorizontal: 16,
+									marginTop: 12,
+									paddingVertical: 10,
+									backgroundColor: theme === "dark" ? "#334155" : "#e2e8f0",
+									borderRadius: 6,
+									alignItems: "center",
+									marginBottom: 12,
+								}}
+							>
+								<Text
+									style={{
+										color: theme === "dark" ? "#f1f5f9" : "#1e293b",
+										fontWeight: "500",
+									}}
+								>
+									Fermer
+								</Text>
+							</TouchableOpacity>
+						</View>
+					</View>
+				</Modal>
 
 				{/* Boutons d'action */}
 				<View style={styles.actionButtons}>
@@ -1297,56 +1266,18 @@ export default function DeveloperSelector() {
 					ListEmptyComponent={
 						<View style={styles.emptyContainer}>
 							<Ionicons
-								name={loadError ? "alert-circle" : "restaurant-outline"}
+								name="restaurant-outline"
 								size={64}
-								color={
-									loadError
-										? theme === "dark"
-											? "#ef4444"
-											: "#dc2626"
-										: theme === "dark"
-											? "#475569"
-											: "#cbd5e1"
-								}
+								color={theme === "dark" ? "#475569" : "#cbd5e1"}
 							/>
 							<Text
 								style={[
 									styles.emptyText,
-									{
-										color: loadError
-											? theme === "dark"
-												? "#fca5a5"
-												: "#ef5350"
-											: theme === "dark"
-												? "#94a3b8"
-												: "#64748b",
-									},
+									{ color: theme === "dark" ? "#94a3b8" : "#64748b" },
 								]}
 							>
-								{loadError || "Aucun restaurant trouvé"}
+								Aucun restaurant trouvé
 							</Text>
-							{loadError && (
-								<TouchableOpacity
-									style={[
-										styles.retryButton,
-										{
-											backgroundColor: theme === "dark" ? "#3b82f6" : "#0284c7",
-										},
-									]}
-									onPress={() => loadRestaurants()}
-								>
-									<Ionicons name="refresh" size={18} color="#fff" />
-									<Text
-										style={{
-											color: "#fff",
-											marginLeft: 8,
-											fontWeight: "600",
-										}}
-									>
-										Réessayer
-									</Text>
-								</TouchableOpacity>
-							)}
 						</View>
 					}
 				/>
@@ -1628,118 +1559,6 @@ export default function DeveloperSelector() {
 					</View>
 				</View>
 			</Modal>
-
-			{/* 🎛️ Modal Options - Affiche les features toggleables */}
-			{showOptionsModal && (
-				<Modal
-					visible={!!showOptionsModal}
-					animationType="fade"
-					transparent={true}
-					onRequestClose={() => setShowOptionsModal(null)}
-				>
-					<View style={styles.modalOverlay}>
-						<View
-							style={[
-								styles.optionsModalContent,
-								{
-									backgroundColor: theme === "dark" ? "#1e293b" : "#fff",
-								},
-							]}
-						>
-							{/* Header */}
-							<View style={styles.modalHeader}>
-								<Text
-									style={[
-										styles.modalTitle,
-										{ color: theme === "dark" ? "#f1f5f9" : "#1e293b" },
-									]}
-								>
-									⚙️ Options ({getOptionsCount(restaurants.find((r) => r._id === showOptionsModal)).enabled}/{getOptionsCount(restaurants.find((r) => r._id === showOptionsModal)).total})
-								</Text>
-								<TouchableOpacity onPress={() => setShowOptionsModal(null)}>
-									<Ionicons
-										name="close"
-										size={28}
-										color={theme === "dark" ? "#94a3b8" : "#64748b"}
-									/>
-								</TouchableOpacity>
-							</View>
-
-							{/* Liste des options */}
-							<ScrollView style={[styles.optionsContainer, { paddingHorizontal: 16 }]}>
-								{(TOGGLEABLE_FEATURES[
-									restaurants.find((r) => r._id === showOptionsModal)?.category
-								] || []).map((feature) => {
-									const restaurant = restaurants.find((r) => r._id === showOptionsModal);
-									const current = restaurantOverrides[restaurant._id] || {};
-									const BASE_ON_FEATURES = {
-										restaurant: {
-											chat_client: true,
-											statistiques: true,
-											ai_auto_assign: true,
-											ai_slot_suggestions: true,
-											ai_heatmap: true,
-											ai_anti_gaps: true,
-											ai_smart_duration: true,
-											ai_waiting_list: true,
-											ai_prediction: true,
-											ai_strategic_slots: true,
-											export_comptable_fec: false,
-										},
-										"fast-food": { gestion_stocks: true, statistiques: false, export_comptable_fec: false },
-										snack: { gestion_stocks: true, statistiques: false, export_comptable_fec: false },
-										cafe: { gestion_stocks: true, statistiques: false, export_comptable_fec: false },
-										boulangerie: { gestion_stocks: true, statistiques: false, export_comptable_fec: false },
-										bar: { gestion_stocks: true, statistiques: false, export_comptable_fec: false },
-										foodtruck: { fab_fast_commande: true, statistiques: false, export_comptable_fec: false },
-									};
-									const baseValue = (BASE_ON_FEATURES[restaurant.category] || {})[feature.key] ?? true;
-									const effectiveValue = feature.key in current ? current[feature.key] : baseValue;
-
-									return (
-										<View
-											key={feature.key}
-											style={{
-												flexDirection: "row",
-												justifyContent: "space-between",
-												alignItems: "center",
-												paddingVertical: 12,
-												paddingHorizontal: 12,
-												marginBottom: 8,
-												backgroundColor: theme === "dark" ? "rgba(255,255,255,0.05)" : "rgba(0,0,0,0.02)",
-												borderRadius: 8,
-												borderLeftWidth: 3,
-												borderLeftColor: effectiveValue ? "#10b981" : "#ef4444",
-											}}
-										>
-											<View style={{ flex: 1 }}>
-												<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-													<Ionicons name={feature.icon} size={16} color={effectiveValue ? "#10b981" : theme === "dark" ? "#94a3b8" : "#64748b"} />
-													<Text
-														style={{
-															fontSize: 13,
-															fontWeight: "500",
-															color: theme === "dark" ? "#f1f5f9" : "#1e293b",
-														}}
-													>
-														{feature.label}
-													</Text>
-												</View>
-											</View>
-											<Switch
-												value={effectiveValue}
-												onValueChange={() => handleUpdateFeatureOverride(restaurant, feature.key)}
-												trackColor={{ false: "#ef4444", true: "#10b981" }}
-												thumbColor="#fff"
-											/>
-										</View>
-									);
-								})}
-							</ScrollView>
-						</View>
-					</View>
-				</Modal>
-			)}
 		</LinearGradient>
 	);
 }
@@ -1918,20 +1737,6 @@ const styles = StyleSheet.create({
 	emptyText: {
 		fontSize: 16,
 	},
-	retryButton: {
-		flexDirection: "row",
-		alignItems: "center",
-		justifyContent: "center",
-		paddingVertical: 12,
-		paddingHorizontal: 24,
-		borderRadius: 10,
-		marginTop: 12,
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 2 },
-		shadowOpacity: 0.2,
-		shadowRadius: 4,
-		elevation: 3,
-	},
 	modalOverlay: {
 		flex: 1,
 		backgroundColor: "rgba(0,0,0,0.6)",
@@ -2030,19 +1835,5 @@ const styles = StyleSheet.create({
 		backgroundColor: "rgba(0,0,0,0.05)",
 		alignItems: "center",
 		justifyContent: "center",
-	},
-	optionsModalContent: {
-		borderRadius: 20,
-		margin: 20,
-		maxHeight: "80%",
-		shadowColor: "#000",
-		shadowOffset: { width: 0, height: 10 },
-		shadowOpacity: 0.3,
-		shadowRadius: 20,
-		elevation: 10,
-	},
-	optionsContainer: {
-		paddingVertical: 16,
-		maxHeight: "70%",
 	},
 });

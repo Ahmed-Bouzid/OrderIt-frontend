@@ -7,6 +7,7 @@ import { API_CONFIG } from "../src/config/apiConfig";
 import useReservationStore from "../src/stores/useReservationStore";
 import { useServerStore } from "../src/stores/useRestaurantStaffStore";
 import { getItem as getSecureItem } from "../utils/secureStorage";
+import { clearAllUserData } from "../utils/storageHelper";
 
 /**
  * Hook custom pour gérer le chargement initial des données
@@ -92,25 +93,60 @@ export const useActivityData = () => {
 					try {
 						const result = await fetchReservationsFromStore(true); // force = true
 						if (!result.success) {
+							// 🔐 403 Forbidden → Logout propre + redirection
+							if (result.error === "FORBIDDEN" || result.statusCode === 403) {
+								console.warn("⚠️ 403 Accès refusé - déconnexion automatique");
+								if (!isRedirectingRef.current) {
+									isRedirectingRef.current = true;
+									try {
+										await clearAllUserData();
+										router.replace("/login");
+									} catch (err) {
+										console.error("❌ Erreur lors du logout 403:", err);
+									}
+								}
+								return;
+							}
 							setReservationsError(result.message);
 							console.error("❌ Erreur fetch réservations:", result.message);
-						}
-					} catch (resaErr) {
-						setReservationsError(resaErr?.message || String(resaErr));
-						console.error("❌ Erreur fetch réservations:", resaErr);
+							// ⭐ Ne pas crash, garder l'UI stable avec l'erreur affichée
+							}
+						} catch (resaErr) {
+							setReservationsError(resaErr?.message || String(resaErr));
+							console.error("❌ Erreur fetch réservations:", resaErr);
+							// ⭐ Graceful degradation - app reste stable même si fetch échoue
 					}
 					// Fetch des produits (menu)
 					try {
 						const urlProducts = `${API_CONFIG.baseURL}/products/restaurant/${finalRestaurantId}`;
 						const responseProducts = await authFetch(urlProducts);
-						// On accepte response.products ou response (array direct)
-						let prods = Array.isArray(responseProducts)
-							? responseProducts
-							: Array.isArray(responseProducts?.products)
-								? responseProducts.products
-								: [];
-						setProducts(prods);
-						setProductsError(null);
+						// ⭐ Vérifier si responseProducts est une Response d'erreur
+						if (responseProducts?.status === 403) {
+							console.warn("⚠️ 403 Produits - Accès refusé - déconnexion automatique");
+							if (!isRedirectingRef.current) {
+								isRedirectingRef.current = true;
+								try {
+									await clearAllUserData();
+									router.replace("/login");
+								} catch (err) {
+									console.error("❌ Erreur lors du logout 403:", err);
+								}
+							}
+							return;
+						}
+						if (responseProducts?.status >= 400) {
+							console.warn(`⚠️ Produits indisponibles (${responseProducts.status})`);
+							setProducts([]);
+						} else {
+							// On accepte response.products ou response (array direct)
+							let prods = Array.isArray(responseProducts)
+								? responseProducts
+								: Array.isArray(responseProducts?.products)
+									? responseProducts.products
+									: [];
+							setProducts(prods);
+							setProductsError(null);
+						}
 					} catch (prodErr) {
 						setProducts([]);
 						setProductsError(prodErr?.message || String(prodErr));
@@ -120,6 +156,20 @@ export const useActivityData = () => {
 					try {
 						const urlServers = `${API_CONFIG.baseURL}/restaurants/${finalRestaurantId}/servers`;
 						const responseServers = await authFetch(urlServers);
+						// 🔐 403 Forbidden → Logout propre
+						if (responseServers?.status === 403) {
+							console.warn("⚠️ 403 Serveurs - Accès refusé - déconnexion automatique");
+							if (!isRedirectingRef.current) {
+								isRedirectingRef.current = true;
+								try {
+									await clearAllUserData();
+									router.replace("/login");
+								} catch (err) {
+									console.error("❌ Erreur lors du logout 403:", err);
+								}
+							}
+							return;
+						}
 						const serversData = Array.isArray(responseServers)
 							? responseServers
 							: Array.isArray(responseServers?.servers)

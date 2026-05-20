@@ -15,6 +15,7 @@ const useUserStore = create((set, get) => ({
 	userType: null, // 'admin' ou 'server'
 	restaurantId: null,
 	category: null, // 🍔 'restaurant', 'foodtruck', 'snack', etc.
+	enableComptoir: false, // 🏪 Mode Comptoir activé (FastFood uniquement)
 	isManager: false, // Raccourci pour vérifier si admin/manager
 
 	/**
@@ -22,7 +23,7 @@ const useUserStore = create((set, get) => ({
 	 */
 	init: async () => {
 		try {
-			const [userId, email, role, userType, restaurantId, category] =
+			const [userId, email, role, userType, restaurantId, category, enableComptoir] =
 				await Promise.all([
 					AsyncStorage.getItem("userId"),
 					AsyncStorage.getItem("userEmail"),
@@ -30,6 +31,7 @@ const useUserStore = create((set, get) => ({
 					AsyncStorage.getItem("userType"),
 					AsyncStorage.getItem("restaurantId"),
 					AsyncStorage.getItem("category"),
+					AsyncStorage.getItem("enableComptoir"),
 				]);
 
 			const isManager = role === "admin" || userType === "admin";
@@ -41,6 +43,7 @@ const useUserStore = create((set, get) => ({
 				userType,
 				restaurantId,
 				category,
+				enableComptoir: enableComptoir === "true",
 				isManager,
 			});
 
@@ -87,6 +90,18 @@ const useUserStore = create((set, get) => ({
 
 		} catch (error) {
 			console.error("❌ Erreur setUser:", error);
+		}
+	},
+
+	/**
+	 * Met à jour le flag enableComptoir depuis le restaurant sélectionné
+	 */
+	setEnableComptoir: async (enableComptoir) => {
+		try {
+			await AsyncStorage.setItem("enableComptoir", enableComptoir ? "true" : "false");
+			set({ enableComptoir });
+		} catch (error) {
+			console.error("❌ Erreur setEnableComptoir:", error);
 		}
 	},
 

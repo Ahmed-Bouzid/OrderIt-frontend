@@ -56,6 +56,9 @@ export default function FloorPlanModal({
 	// Feature 5 — Alignment toolbar
 	const [selectedTableId, setSelectedTableId] = useState(null);
 
+	// Mode Resa (déclaré tôt car utilisé dans des useEffect)
+	const [resaMode, setResaMode] = useState(true);
+
 	// Feature 6 — Independent grid visibility
 	const [showGrid, setShowGrid] = useState(false);
 
@@ -169,8 +172,7 @@ export default function FloorPlanModal({
 	const [editMode, setEditMode] = useState(null); // "number" | "capacity"
 	const [editValue, setEditValue] = useState("");
 
-	// Mode Resa (activé par défaut à l'ouverture)
-	const [resaMode, setResaMode] = useState(true);
+	// Mode Resa — selectedResaTable
 	const [selectedResaTable, setSelectedResaTable] = useState(null); // { table, resaInfo }
 
 	// Résolveur de réservation par table — retourne { resa, type: "en_cours"|"futur" } ou null

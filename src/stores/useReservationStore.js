@@ -12,14 +12,17 @@ const getRestaurantId = async () => {
 	if (fromStorage) return fromStorage;
 
 	const selectedRestaurantRaw = await AsyncStorage.getItem("selectedRestaurant");
-	if (!selectedRestaurantRaw) return null;
-
-	try {
-		const selectedRestaurant = JSON.parse(selectedRestaurantRaw);
-		return selectedRestaurant?._id || null;
-	} catch {
-		return null;
+	if (selectedRestaurantRaw) {
+		try {
+			const selectedRestaurant = JSON.parse(selectedRestaurantRaw);
+			if (selectedRestaurant?._id) return selectedRestaurant._id;
+		} catch {
+			// Continue to fallback
+		}
 	}
+
+	// ⭐ Fallback value pour éviter "Données manquantes" au démarrage
+	return API_CONFIG.RESTAURANT_ID || null;
 };
 
 let fetchPromise = null; // ✅ Stockage de la promise pour éviter les appels parallèles
@@ -118,6 +121,15 @@ const useReservationStore = create((set, get) => ({
 						response.status,
 						text,
 					);
+					// 🔐 403 = Accès refusé → déclencher logout propre
+					if (response.status === 403) {
+						return {
+							success: false,
+							error: "FORBIDDEN",
+							statusCode: 403,
+							message: "Accès refusé - déconnexion",
+						};
+					}
 					return {
 						success: false,
 						error: "SERVER_ERROR",
