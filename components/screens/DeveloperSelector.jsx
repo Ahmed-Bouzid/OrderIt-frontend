@@ -255,6 +255,13 @@ export default function DeveloperSelector() {
 		const originalRestaurants = [...restaurants];
 		const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
+		console.log("🔄 TOGGLE MODE COMPTOIR:", {
+			restaurant: restaurant.name,
+			category: restaurant.category,
+			currentState: restaurant.enableComptoir,
+			newState: !restaurant.enableComptoir,
+		});
+
 		try {
 			// ⭐ Mode Comptoir disponible pour TOUS les types de restaurants
 			// 🎯 Update optimiste
@@ -262,6 +269,7 @@ export default function DeveloperSelector() {
 				r._id === restaurant._id ? { ...r, enableComptoir: !r.enableComptoir } : r,
 			);
 			await initDeveloper(updatedRestaurants);
+			console.log("⏳ Update optimiste effectué");
 
 			const response = await fetchWithAuth(
 				`${API_URL}/developer/restaurants/${restaurant._id}/comptoir`,
@@ -272,9 +280,13 @@ export default function DeveloperSelector() {
 				},
 			);
 
+			console.log("📡 API Response status:", response.status || response.ok);
+
 			const data = await response.json();
+			console.log("📡 API Response data:", data);
 
 			if (response.ok && data.status === "success") {
+				console.log("✅ API SUCCESS, rafraîchissement...");
 				// Refresh
 				const refreshResponse = await fetchWithAuth(
 					`${API_URL}/developer/restaurants`,
@@ -283,17 +295,24 @@ export default function DeveloperSelector() {
 				const refreshData = await refreshResponse.json();
 				if (refreshResponse.ok) {
 					await initDeveloper(refreshData.restaurants);
+					console.log("🔄 Restaurants rafraîchis");
 				}
 
 				// ⭐ Invalider le cache enableComptoir pour forcer un refetch dans les tabs
+				console.log("🗑️ Invalidation cache enableComptoir + restaurantNameId");
 				await AsyncStorage.removeItem("enableComptoir");
 				await AsyncStorage.removeItem("restaurantNameId"); // Forcer un refetch complet
+
+				console.log(
+					`✅ Mode Comptoir ${data.enableComptoir ? "activé ✔️" : "désactivé ❌"}`,
+				);
 
 				Alert.alert(
 					"✅ Succès",
 					`Mode Comptoir ${data.enableComptoir ? "activé" : "désactivé"}`,
 				);
 			} else {
+				console.log("❌ API ERROR");
 				// ⚠️ Rollback
 				await initDeveloper(originalRestaurants);
 				Alert.alert("Erreur", data.message || "Erreur lors du toggle Comptoir");

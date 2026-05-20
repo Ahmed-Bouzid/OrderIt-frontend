@@ -113,6 +113,15 @@ export default function TabsLayout() {
 		const shouldShowActivity = category === "restaurant" && !enableComptoir;
 		const shouldShowComptoir = enableComptoir;
 
+		console.log("🔍 getVisibleTabs:", {
+			category,
+			enableComptoir,
+			shouldShowComptoir,
+			shouldShowActivity,
+			availableTabs,
+			tabsBefore: tabs.map((t) => t.name),
+		});
+
 		// Si Comptoir activé → remplacer Activity par Comptoir
 		if (shouldShowComptoir) {
 			tabs = tabs.filter((tab) => tab.name !== "activity");
@@ -135,6 +144,7 @@ export default function TabsLayout() {
 			);
 		}
 
+		console.log("✅ ONGLETS VISIBLES:", tabs.map((t) => t.name));
 		return tabs;
 	};
 
@@ -159,7 +169,10 @@ export default function TabsLayout() {
 				const restaurantId = await AsyncStorage.getItem("restaurantId");
 				const token = await getItem("access_token");
 
+				console.log("📱 loadRestaurantName START:", { restaurantId, hasToken: !!token });
+
 				if (!restaurantId || !token) {
+					console.log("⚠️ Pas de restaurantId ou token");
 					return;
 				}
 
@@ -168,13 +181,22 @@ export default function TabsLayout() {
 				const cachedName = await AsyncStorage.getItem("restaurantName");
 				const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
 				
+				console.log("💾 Cache actuel:", {
+					cachedId,
+					cachedName,
+					cachedComptoir,
+					restaurantIdMatch: cachedId === restaurantId,
+				});
+
 				if (cachedId === restaurantId && cachedName) {
+					console.log("✅ Cache valide, utilisé");
 					setRestaurantName(cachedName);
 					setEnableComptoir(cachedComptoir === "true");
 					return;
 				}
 
 				// Cache invalide ou absent → fetch API
+				console.log("🔄 Cache invalide, fetch API...");
 
 				const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${restaurantId}/info`;
 				const response = await fetch(url);
@@ -184,6 +206,12 @@ export default function TabsLayout() {
 					const name = data.name || "Restaurant";
 					const comptoir = data.enableComptoir || false;
 					
+					console.log("📡 API Response:", {
+						name,
+						enableComptoir: comptoir,
+						fullData: data,
+					});
+
 					setRestaurantName(name);
 					setEnableComptoir(comptoir);
 					
@@ -191,6 +219,7 @@ export default function TabsLayout() {
 					await AsyncStorage.setItem("restaurantName", name);
 					await AsyncStorage.setItem("restaurantNameId", restaurantId);
 					await AsyncStorage.setItem("enableComptoir", comptoir ? "true" : "false");
+					console.log("💾 Cache mis à jour:", { name, comptoir });
 				} else {
 					console.error("❌ Erreur API restaurant:", response.status);
 				}
@@ -203,6 +232,7 @@ export default function TabsLayout() {
 
 	// ⭐ Polling court pour détecter les changements enableComptoir du cache (quand on revient de DeveloperSelector)
 	useEffect(() => {
+		console.log("🎯 Démarrage polling enableComptoir (2s)");
 		const pollInterval = setInterval(async () => {
 			try {
 				const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
@@ -210,7 +240,11 @@ export default function TabsLayout() {
 				// Si ça a changé, updater l'état
 				setEnableComptoir((prev) => {
 					if (newComptoir !== prev) {
-						console.log("🔄 enableComptoir changé:", newComptoir);
+						console.log("⚡ enableComptoir CHANGÉ:", {
+							ancien: prev,
+							nouveau: newComptoir,
+							cached: cachedComptoir,
+						});
 						return newComptoir;
 					}
 					return prev;
@@ -220,12 +254,23 @@ export default function TabsLayout() {
 			}
 		}, 2000); // Vérifier toutes les 2s
 
-		return () => clearInterval(pollInterval);
+		return () => {
+			console.log("🛑 Arrêt polling enableComptoir");
+			clearInterval(pollInterval);
+		};
 	}, []);
 
 	useEffect(() => {
+		console.log("📊 Vérification initialisation activeTab:", {
+			isFeatureLevelReady,
+			TABSLength: TABS.length,
+			activeTab,
+			TABS: TABS.map((t) => t.name),
+		});
+
 		if (isFeatureLevelReady && TABS.length > 0 && !activeTab) {
 			const firstTab = TABS[0]?.name || "floor";
+			console.log("📍 Initialisation activeTab →", firstTab);
 			setActiveTab(firstTab);
 		}
 	}, [isFeatureLevelReady, TABS, activeTab]);
