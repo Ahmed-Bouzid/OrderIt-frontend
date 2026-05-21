@@ -106,6 +106,7 @@ export default function TabsLayout() {
 	// 🏪 Filtrer les onglets selon la catégorie et enableComptoir
 	// ⭐ Wrapped in useMemo to ensure TABS is recalculated when enableComptoir changes
 	const TABS = useMemo(() => {
+		console.log("🔄 🔄 🔄 USEMEMO TABS RECALCULATING 🔄 🔄 🔄");
 		// Filtrer d'abord selon les onglets disponibles du Feature Level
 		let tabs = ALL_TABS.filter((tab) => availableTabs.includes(tab.name));
 
