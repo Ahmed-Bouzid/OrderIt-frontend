@@ -1,33 +1,24 @@
+const { expo: baseConfig } = require("./app.json");
+
 export default {
 	expo: {
-		name: "SunnyGo",
-		slug: "sunnygo",
-		version: "1.0.0",
-		orientation: "default", // Portrait + paysage
-		scheme: "sunnygo", // Ajout pour corriger le warning Expo Linking
-		icon: "./assets/images/icon.png",
-		splash: {
-			image: "./assets/images/splash.png",
-			resizeMode: "contain",
-			backgroundColor: "#000000",
-		},
-		plugins: ["expo-web-browser"],
+		...baseConfig,
+		// Dynamic overrides (EAS updates, runtime version, extra)
 		updates: {
 			url: "https://u.expo.dev/dea632ab-80a0-4526-ab61-8a6022535377",
 		},
 		runtimeVersion: "1.0.0",
 		ios: {
-			bundleIdentifier: "com.sunnygo.dev",
+			...baseConfig.ios,
 			infoPlist: {
-				// 🖨️ Déclarer le scheme Thermer pour que Linking.canOpenURL fonctionne sur iOS
-				// Si le scheme de l'app change, mettre à jour ici aussi
+				// Déclarer le scheme Thermer pour que Linking.canOpenURL fonctionne sur iOS
 				LSApplicationQueriesSchemes: ["thermer"],
 			},
 		},
 		android: {
-			package: "com.sunnygo.dev",
+			...baseConfig.android,
 			adaptiveIcon: {
-				foregroundImage: "./assets/images/adaptive-icon.png",
+				...baseConfig.android.adaptiveIcon,
 				backgroundColor: "#000000",
 			},
 		},
@@ -37,7 +28,7 @@ export default {
 			},
 			apiUrl: "https://orderit-backend-6y1m.onrender.com",
 			socketUrl: "https://orderit-backend-6y1m.onrender.com",
-			// 🖨️ URL du print daemon LOCAL (Mac avec l'imprimante GEZHI) — mettre à jour si l'IP change
+			// URL du print daemon LOCAL (Mac avec l'imprimante GEZHI) — mettre à jour si l'IP change
 			// Démarrer avec : cd backend && node printDaemon.js
 			localPrintUrl: "http://192.168.1.162:5555",
 			stripePublishableKey:
