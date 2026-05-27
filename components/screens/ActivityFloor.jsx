@@ -6,7 +6,7 @@
  * Réutilise FloorPlanModal en mode "service" (pas d'édition)
  */
 
-import React, { useState, useEffect, useMemo, useCallback } from "react";
+import React, { useState, useEffect, useMemo, useCallback, useRef } from "react";
 import {
 	View,
 	Text,
@@ -16,42 +16,659 @@ import {
 	ActivityIndicator,
 	ScrollView,
 	RefreshControl,
+	PanResponder,
+	Animated,
+	Alert,
+	TextInput,
+	Modal,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import useThemeStore from "../../src/stores/useThemeStore";
 import useCounterTableStore from "../../src/stores/useCounterTableStore";
 import useSocket from "../../hooks/useSocket";
 import counterService from "../../services/counterService";
+import { useAuthFetch } from "../../hooks/useAuthFetch";
+
+import useUserStore from "../../src/stores/useUserStore";
 
 // Composants réutilisés
 import FloorPlanModal from "../floor/FloorPlanModal";
 import TableDetailModal from "./modals/TableDetailModal";
+import ZReportScreen from "./ZReportScreen";
 
-const IS_PHONE = Dimensions.get("window").width < 600;
+const SCREEN_W = Dimensions.get("window").width;
+const IS_PHONE = SCREEN_W < 600;
+const CARD_SIZE = IS_PHONE ? 336 : 384;
+const CARD_GAP = 12;
+const CANVAS_PADDING = 12;
+const CANVAS_COLS = IS_PHONE ? 1 : 2; // pour auto-layout des tables sans position
+
+/** Formate l'affichage du numéro de table */
+const formatTableLabel = (number) =>
+	/^\d+$/.test(String(number ?? "")) ? `T${number}` : String(number ?? "?");
+
+// ─── EditTableModal ──────────────────────────────────────────────────────────
+const EditTableModal = ({ visible, table, onClose, onSave }) => {
+	const [numVal, setNumVal] = useState("");
+	const [capVal, setCapVal] = useState("");
+
+	useEffect(() => {
+		if (table && visible) {
+			setNumVal(String(table.number ?? ""));
+			setCapVal(String(table.capacity ?? "4"));
+		}
+	}, [table, visible]);
+
+	const handleSave = () => {
+		const cap = parseInt(capVal, 10);
+		if (!numVal.trim()) {
+			Alert.alert("Erreur", "Le numéro de table est requis");
+			return;
+		}
+		if (isNaN(cap) || cap < 1) {
+			Alert.alert("Erreur", "La capacité doit être ≥ 1");
+			return;
+		}
+		onSave(numVal.trim(), cap);
+	};
+
+	return (
+		<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+			<View style={etStyles.overlay}>
+				<View style={etStyles.sheet}>
+					<Text style={etStyles.title}>Modifier la table</Text>
+
+					<Text style={etStyles.label}>Numéro / Nom</Text>
+					<TextInput
+						style={etStyles.input}
+						value={numVal}
+						onChangeText={setNumVal}
+						placeholder="Ex: 1 ou T1"
+						placeholderTextColor="#64748B"
+						autoCapitalize="none"
+					/>
+
+					<Text style={etStyles.label}>Capacité (places)</Text>
+					<TextInput
+						style={etStyles.input}
+						value={capVal}
+						onChangeText={setCapVal}
+						keyboardType="number-pad"
+						placeholder="Ex: 4"
+						placeholderTextColor="#64748B"
+					/>
+
+					<View style={etStyles.buttons}>
+						<TouchableOpacity style={etStyles.btnCancel} onPress={onClose}>
+							<Text style={etStyles.btnCancelText}>Annuler</Text>
+						</TouchableOpacity>
+						<TouchableOpacity style={etStyles.btnSave} onPress={handleSave}>
+							<Text style={etStyles.btnSaveText}>Enregistrer</Text>
+						</TouchableOpacity>
+					</View>
+				</View>
+			</View>
+		</Modal>
+	);
+};
+
+const etStyles = StyleSheet.create({
+	overlay: {
+		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.65)",
+		justifyContent: "center",
+		alignItems: "center",
+	},
+	sheet: {
+		backgroundColor: "#1E293B",
+		borderRadius: 18,
+		padding: 24,
+		width: Math.min(SCREEN_W - 48, 320),
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.08)",
+	},
+	title: {
+		color: "#F8FAFC",
+		fontSize: 17,
+		fontWeight: "700",
+		marginBottom: 18,
+	},
+	label: {
+		color: "#94A3B8",
+		fontSize: 12,
+		fontWeight: "600",
+		marginBottom: 6,
+		textTransform: "uppercase",
+		letterSpacing: 0.5,
+	},
+	input: {
+		backgroundColor: "rgba(255,255,255,0.06)",
+		borderRadius: 10,
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.1)",
+		color: "#F8FAFC",
+		fontSize: 15,
+		paddingHorizontal: 14,
+		paddingVertical: 10,
+		marginBottom: 14,
+	},
+	buttons: {
+		flexDirection: "row",
+		gap: 10,
+		marginTop: 6,
+	},
+	btnCancel: {
+		flex: 1,
+		paddingVertical: 12,
+		borderRadius: 10,
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.12)",
+		alignItems: "center",
+	},
+	btnCancelText: {
+		color: "#94A3B8",
+		fontWeight: "600",
+		fontSize: 14,
+	},
+	btnSave: {
+		flex: 1,
+		paddingVertical: 12,
+		borderRadius: 10,
+		backgroundColor: "#FBBF24",
+		alignItems: "center",
+	},
+	btnSaveText: {
+		color: "#0F172A",
+		fontWeight: "700",
+		fontSize: 14,
+	},
+});
+
+// ─── ServerPickerModal ────────────────────────────────────────────────────────
+const WAITER_COLORS = ["#6366F1","#EC4899","#14B8A6","#F59E0B","#3B82F6","#10B981","#EF4444","#8B5CF6","#F97316","#06B6D4"];
+
+const getInitials = (name) => {
+	const parts = String(name ?? "?").trim().split(/\s+/);
+	return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
+};
+
+const ServerPickerModal = ({ visible, onClose, onConfirm, servers, selectedWaiter, onSelectWaiter }) => (
+	<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+		<View style={spStyles.overlay}>
+			<View style={spStyles.sheet}>
+				<Text style={spStyles.title}>Qui prend cette table ?</Text>
+
+				{servers.length === 0 ? (
+					<Text style={spStyles.emptyText}>Aucun serveur trouvé</Text>
+				) : (
+					<View style={spStyles.grid}>
+						{servers.map((s, i) => {
+							const isSel = selectedWaiter?._id === s._id;
+							const color = WAITER_COLORS[i % WAITER_COLORS.length];
+							return (
+								<TouchableOpacity
+									key={s._id}
+									style={spStyles.serverItem}
+									onPress={() => onSelectWaiter(s)}
+									activeOpacity={0.75}
+								>
+									<View style={[
+										spStyles.avatar,
+										{ backgroundColor: color },
+										isSel && spStyles.avatarSelected,
+									]}>
+										{isSel
+											? <Ionicons name="checkmark" size={22} color="#fff" />
+											: <Text style={spStyles.avatarText}>{getInitials(s.name)}</Text>
+										}
+									</View>
+									<Text
+										style={[spStyles.serverName, isSel && spStyles.serverNameSelected]}
+										numberOfLines={1}
+									>
+										{s.name}
+									</Text>
+								</TouchableOpacity>
+							);
+						})}
+					</View>
+				)}
+
+				<View style={spStyles.buttons}>
+					<TouchableOpacity style={spStyles.btnCancel} onPress={onClose}>
+						<Text style={spStyles.btnCancelText}>Annuler</Text>
+					</TouchableOpacity>
+					<TouchableOpacity
+						style={[spStyles.btnOpen, !selectedWaiter && spStyles.btnOpenDisabled]}
+						onPress={selectedWaiter ? onConfirm : undefined}
+						activeOpacity={selectedWaiter ? 0.8 : 1}
+					>
+						<Text style={spStyles.btnOpenText}>Ouvrir la table</Text>
+					</TouchableOpacity>
+				</View>
+			</View>
+		</View>
+	</Modal>
+);
+
+const spStyles = StyleSheet.create({
+	overlay: {
+		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.7)",
+		justifyContent: "center",
+		alignItems: "center",
+		paddingHorizontal: 24,
+	},
+	sheet: {
+		backgroundColor: "#1E293B",
+		borderRadius: 20,
+		padding: 24,
+		width: "100%",
+		maxWidth: 400,
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.08)",
+	},
+	title: {
+		color: "#F8FAFC",
+		fontSize: 18,
+		fontWeight: "700",
+		marginBottom: 20,
+		textAlign: "center",
+	},
+	emptyText: {
+		color: "#64748B",
+		fontSize: 14,
+		textAlign: "center",
+		marginVertical: 20,
+	},
+	grid: {
+		flexDirection: "row",
+		flexWrap: "wrap",
+		gap: 12,
+		justifyContent: "center",
+		marginBottom: 24,
+	},
+	serverItem: {
+		alignItems: "center",
+		width: 72,
+	},
+	avatar: {
+		width: 64,
+		height: 64,
+		borderRadius: 32,
+		justifyContent: "center",
+		alignItems: "center",
+		marginBottom: 6,
+	},
+	avatarSelected: {
+		borderWidth: 3,
+		borderColor: "#FBBF24",
+		shadowColor: "#FBBF24",
+		shadowOffset: { width: 0, height: 0 },
+		shadowOpacity: 0.6,
+		shadowRadius: 8,
+		elevation: 6,
+	},
+	avatarText: {
+		color: "#fff",
+		fontSize: 20,
+		fontWeight: "700",
+	},
+	serverName: {
+		color: "#94A3B8",
+		fontSize: 12,
+		fontWeight: "500",
+		textAlign: "center",
+	},
+	serverNameSelected: {
+		color: "#FBBF24",
+		fontWeight: "700",
+	},
+	buttons: {
+		flexDirection: "row",
+		gap: 10,
+	},
+	btnCancel: {
+		flex: 1,
+		paddingVertical: 13,
+		borderRadius: 12,
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.12)",
+		alignItems: "center",
+	},
+	btnCancelText: {
+		color: "#94A3B8",
+		fontWeight: "600",
+		fontSize: 14,
+	},
+	btnOpen: {
+		flex: 2,
+		paddingVertical: 13,
+		borderRadius: 12,
+		backgroundColor: "#FBBF24",
+		alignItems: "center",
+	},
+	btnOpenDisabled: {
+		backgroundColor: "rgba(251,191,36,0.3)",
+	},
+	btnOpenText: {
+		color: "#0F172A",
+		fontWeight: "700",
+		fontSize: 14,
+	},
+});
+
+// ─── DraggableTableCard ──────────────────────────────────────────────────────
+const FALLBACK_POSITIONS = [
+	{ x: 60, y: 40 }, { x: 300, y: 100 }, { x: 645, y: 35 },
+	{ x: 975, y: 50 }, { x: 60, y: 280 }, { x: 340, y: 280 },
+	{ x: 620, y: 290 }, { x: 900, y: 280 }, { x: 300, y: 520 },
+	{ x: 700, y: 520 }, { x: 100, y: 700 },
+];
+
+const DraggableTableCard = ({ table, session, tableIndex, onPress, onPositionSave }) => {
+	const [isDragging, setIsDragging] = useState(false);
+
+	const isFree = !session;
+	const isBill = session?.billStatus === "bill_requested";
+	const isOccupied = session?.billStatus === "open";
+	const dotCount = Math.min(session?.itemsCount ?? 0, 3);
+	const isLarge = (table?.capacity ?? 4) >= 6;
+	const cardW = isLarge ? 231 : 168;
+	const label = formatTableLabel(table?.number);
+
+	const initPos = useMemo(() => {
+		if (table?.position?.x != null && table?.position?.y != null) {
+			return { x: table.position.x, y: table.position.y };
+		}
+		if (tableIndex < FALLBACK_POSITIONS.length) return FALLBACK_POSITIONS[tableIndex];
+		const col = tableIndex % 5;
+		const row = Math.floor(tableIndex / 5);
+		return { x: 40 + col * 175, y: 30 + row * 182 };
+	}, []); // volontairement stable — init position uniquement
+
+	const pan = useRef(new Animated.ValueXY(initPos)).current;
+	const scaleAnim = useRef(new Animated.Value(1)).current;
+	const dragActiveRef = useRef(false);
+	const longPressTimer = useRef(null);
+	const latestDxRef = useRef(0);
+	const latestDyRef = useRef(0);
+	const dxAtDragStartRef = useRef(0);
+	const dyAtDragStartRef = useRef(0);
+
+	// Refs stables pour callbacks (évite closure stale dans PanResponder)
+	const onPressRef = useRef(onPress);
+	const onPositionSaveRef = useRef(onPositionSave);
+	const tableRef = useRef(table);
+	useEffect(() => { onPressRef.current = onPress; }, [onPress]);
+	useEffect(() => { onPositionSaveRef.current = onPositionSave; }, [onPositionSave]);
+	useEffect(() => { tableRef.current = table; }, [table]);
+
+	const panResponder = useRef(
+		PanResponder.create({
+			onStartShouldSetPanResponder: () => true,
+			onMoveShouldSetPanResponder: () => true,
+			onPanResponderGrant: () => {
+				latestDxRef.current = 0;
+				latestDyRef.current = 0;
+				// Déclenche le drag après 500ms de pression maintenue
+				longPressTimer.current = setTimeout(() => {
+					dragActiveRef.current = true;
+					dxAtDragStartRef.current = latestDxRef.current;
+					dyAtDragStartRef.current = latestDyRef.current;
+					pan.setOffset({ x: pan.x._value, y: pan.y._value });
+					pan.setValue({ x: 0, y: 0 });
+					setIsDragging(true);
+					Animated.spring(scaleAnim, {
+						toValue: 1.08,
+						useNativeDriver: true,
+						friction: 7,
+					}).start();
+				}, 500);
+			},
+			onPanResponderMove: (evt, gestureState) => {
+				latestDxRef.current = gestureState.dx;
+				latestDyRef.current = gestureState.dy;
+				// Annule le long press si le doigt bouge trop vite
+				if (!dragActiveRef.current && Math.abs(gestureState.dx) + Math.abs(gestureState.dy) > 8) {
+					clearTimeout(longPressTimer.current);
+				}
+				if (dragActiveRef.current) {
+					pan.x.setValue(gestureState.dx - dxAtDragStartRef.current);
+					pan.y.setValue(gestureState.dy - dyAtDragStartRef.current);
+				}
+			},
+			onPanResponderRelease: (evt, gestureState) => {
+				clearTimeout(longPressTimer.current);
+				const moved = Math.abs(gestureState.dx) + Math.abs(gestureState.dy);
+				if (dragActiveRef.current) {
+					dragActiveRef.current = false;
+					pan.flattenOffset();
+					const finalX = Math.max(0, pan.x._value);
+					const finalY = Math.max(0, pan.y._value);
+					pan.x.setValue(finalX);
+					pan.y.setValue(finalY);
+					setIsDragging(false);
+					Animated.spring(scaleAnim, {
+						toValue: 1,
+						useNativeDriver: true,
+						friction: 7,
+					}).start();
+					if (moved > 4) {
+						onPositionSaveRef.current?.(tableRef.current._id, { x: finalX, y: finalY });
+					}
+				} else if (moved < 8) {
+					onPressRef.current?.();
+				}
+			},
+			onPanResponderTerminate: () => {
+				clearTimeout(longPressTimer.current);
+				if (dragActiveRef.current) {
+					dragActiveRef.current = false;
+					pan.flattenOffset();
+					setIsDragging(false);
+					Animated.spring(scaleAnim, { toValue: 1, useNativeDriver: true, friction: 7 }).start();
+				}
+			},
+		}),
+	).current;
+
+	return (
+		<Animated.View
+			style={[
+				dcStyles.card,
+				{
+					width: cardW,
+					transform: [
+						{ translateX: pan.x },
+						{ translateY: pan.y },
+						{ scale: scaleAnim },
+					],
+				},
+				isFree && dcStyles.cardFree,
+				isOccupied && dcStyles.cardOccupied,
+				isBill && dcStyles.cardBill,
+				isDragging && dcStyles.cardDragging,
+			]}
+			{...panResponder.panHandlers}
+		>
+			{/* Numéro de table */}
+			<Text
+				style={[
+					dcStyles.label,
+					isFree && dcStyles.labelFree,
+					isOccupied && dcStyles.labelOccupied,
+					isBill && dcStyles.labelBill,
+				]}
+			>
+				{label}
+			</Text>
+
+			{/* Contenu selon statut */}
+			{isFree ? (
+				<Text style={dcStyles.statusFree}>libre</Text>
+			) : isBill ? (
+				<>
+					<Text style={dcStyles.dotsGold}>€</Text>
+					<Text style={dcStyles.amountBill}>
+						{session.totalAmount?.toFixed(0) ?? "0"} €
+					</Text>
+				</>
+			) : (
+				<>
+					<Text style={dcStyles.dotsGreen}>
+						{dotCount === 0 ? "···" : "●".repeat(dotCount)}
+					</Text>
+					<Text style={dcStyles.amountOccupied}>
+						{session.totalAmount?.toFixed(0) ?? "0"} €
+					</Text>
+				</>
+			)}
+
+			{/* Point de couleur coin sup droit */}
+			<View
+				style={[
+					dcStyles.statusDot,
+					{ backgroundColor: isFree ? "#60A5FA" : isBill ? "#F87171" : "#4ADE80" },
+				]}
+			/>
+		</Animated.View>
+	);
+};
+
+const dcStyles = StyleSheet.create({
+	card: {
+		position: "absolute",
+		height: 168,
+		borderRadius: 17,
+		justifyContent: "center",
+		alignItems: "center",
+		gap: 6,
+		borderWidth: 1,
+	},
+	cardFree: {
+		backgroundColor: "rgba(59,130,246,0.1)",
+		borderColor: "rgba(96,165,250,0.45)",
+	},
+	cardOccupied: {
+		backgroundColor: "rgba(74,222,128,0.1)",
+		borderColor: "rgba(74,222,128,0.45)",
+	},
+	cardBill: {
+		backgroundColor: "rgba(239,68,68,0.13)",
+		borderColor: "rgba(248,113,113,0.55)",
+	},
+	statusDot: {
+		position: "absolute",
+		top: 10,
+		right: 10,
+		width: 10,
+		height: 10,
+		borderRadius: 5,
+	},
+	cardDragging: {
+		borderColor: "#FBBF24",
+		borderWidth: 2,
+		shadowColor: "#FBBF24",
+		shadowOffset: { width: 0, height: 0 },
+		shadowOpacity: 0.55,
+		shadowRadius: 10,
+		elevation: 10,
+		zIndex: 999,
+	},
+	label: {
+		fontSize: 20,
+		fontWeight: "700",
+	},
+	labelFree: { color: "#60A5FA" },
+	labelOccupied: { color: "#4ADE80" },
+	labelBill: { color: "#F87171" },
+	statusFree: {
+		fontSize: 13,
+		color: "#60A5FA",
+		fontWeight: "500",
+	},
+	dotsGreen: {
+		fontSize: 14,
+		color: "#4ADE80",
+		letterSpacing: 6,
+	},
+	dotsGold: {
+		fontSize: 20,
+		color: "#F87171",
+		fontWeight: "700",
+	},
+	amountOccupied: {
+		fontSize: 15,
+		fontWeight: "600",
+		color: "#4ADE80",
+	},
+	amountBill: {
+		fontSize: 15,
+		fontWeight: "600",
+		color: "#F87171",
+	},
+});
 
 const ActivityFloor = ({ restaurantInfo }) => {
 	const THEME = useTheme();
 	const { themeMode } = useThemeStore();
 	const { socket } = useSocket();
 
+	const authFetch = useAuthFetch();
+
 	const [restaurantId, setRestaurantId] = useState(null);
+	const [tables, setTables] = useState([]);
 	const [selectedRoom, setSelectedRoom] = useState(1);
 	const [selectedTableId, setSelectedTableId] = useState(null);
 	const [showFloorPlan, setShowFloorPlan] = useState(false);
 	const [showTableDetail, setShowTableDetail] = useState(false);
 	const [isLoading, setIsLoading] = useState(false);
 	const [isRefreshing, setIsRefreshing] = useState(false);
+	const [isLoadingTables, setIsLoadingTables] = useState(true);
+	const [activeFilter, setActiveFilter] = useState("Toutes");
+	const [editModalTable, setEditModalTable] = useState(null); // {tableId, table}
+	const [layoutKey, setLayoutKey] = useState(0);
+	const [showZReport, setShowZReport] = useState(false);
+
+	// Z de caisse : visible managers seulement
+	const isManager = useUserStore((state) => state.role === "admin" || state.userType === "admin");
+
+	// ─── Serveurs (mode comptoir) ─────────────────────────────
+	const [servers, setServers] = useState([]);
+	const [serverPickerTableId, setServerPickerTableId] = useState(null);
+	const [selectedWaiter, setSelectedWaiter] = useState(null);
 
 	// Store
-	const activeSessions = useCounterTableStore((state) =>
-		state.getActiveSessions(restaurantId),
+	const rawSessions = useCounterTableStore((state) => state.sessions[restaurantId]);
+	const activeSessions = useMemo(() => rawSessions || [], [rawSessions]);
+	const stats = useMemo(
+		() => ({
+			total: activeSessions.length,
+			open: activeSessions.filter((s) => s.billStatus === "open").length,
+			billRequested: activeSessions.filter((s) => s.billStatus === "bill_requested").length,
+			totalAmount: activeSessions.reduce((sum, s) => sum + (s.totalAmount || 0), 0),
+		}),
+		[activeSessions],
 	);
-	const stats = useCounterTableStore((state) =>
-		state.getStats(restaurantId),
+
+	const ALL_TABLE_IDS = useMemo(
+		() => (tables ?? []).map((t) => t._id.toString()),
+		[tables],
 	);
+
+	const filteredTableIds = useMemo(() => {
+		if (activeFilter === "Toutes") return ALL_TABLE_IDS;
+		return ALL_TABLE_IDS.filter((tableId) => {
+			const session = activeSessions.find((s) => s.tableId === tableId);
+			if (activeFilter === "Libres") return !session;
+			if (activeFilter === "Occup\u00e9es") return session?.billStatus === "open";
+			if (activeFilter === "\u00c0 encaisser") return session?.billStatus === "bill_requested";
+			return true;
+		});
+	}, [activeFilter, activeSessions, ALL_TABLE_IDS]);
 	const fetchSessions = useCounterTableStore((state) =>
 		state.fetchSessions,
 	);
@@ -66,10 +683,19 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				const id = await AsyncStorage.getItem("restaurantId");
 				if (id) {
 					setRestaurantId(id);
-					await fetchSessions(id);
+					const [, tablesState] = await Promise.all([
+						fetchSessions(id),
+						counterService.getTablesState(id).catch((err) => {
+							console.error("[ActivityFloor] getTablesState failed:", err?.message, err);
+							return [];
+						}),
+					]);
+					setTables(tablesState || []);
 				}
 			} catch (err) {
 				console.error("[ActivityFloor] Erreur init:", err);
+			} finally {
+				setIsLoadingTables(false);
 			}
 		};
 
@@ -83,13 +709,30 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		attachSocketListener(socket);
 	}, [socket, restaurantId, attachSocketListener]);
 
+	// Fetch serveurs du restaurant (mode comptoir)
+	useEffect(() => {
+		if (!restaurantId) return;
+		authFetch(`/servers/${restaurantId}`)
+			.then((data) => setServers(Array.isArray(data) ? data : []))
+			.catch((err) => console.warn("[ActivityFloor] fetch servers:", err));
+	}, [restaurantId, authFetch]);
+
 	// Refresh handler
 	const handleRefresh = useCallback(async () => {
 		if (!restaurantId) return;
 
 		setIsRefreshing(true);
 		try {
-			await fetchSessions(restaurantId);
+			const [, tablesState] = await Promise.all([
+				fetchSessions(restaurantId),
+				counterService.getTablesState(restaurantId).catch((err) => {
+					console.error("[ActivityFloor] getTablesState failed (refresh):", err?.message, err);
+					return [];
+				}),
+			]);
+			if (tablesState && tablesState.length > 0) {
+				setTables(tablesState);
+			}
 		} catch (err) {
 			console.error("[ActivityFloor] Erreur refresh:", err);
 		} finally {
@@ -120,10 +763,117 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	}, [activeSessions]);
 
 	// Handler tap table
-	const handleTableTap = (tableId) => {
+	const handleTableTap = useCallback((tableId) => {
 		setSelectedTableId(tableId);
+		const session = activeSessions.find((s) => s.tableId === tableId);
+		if (!session) {
+			// Table libre → picker de serveur
+			setSelectedWaiter(null);
+			setServerPickerTableId(tableId);
+		} else {
+			// Table occupée → directement le détail
+			setShowTableDetail(true);
+		}
+	}, [activeSessions]);
+
+	// Confirmation du serveur → ouvre la session puis la modale
+	const handleConfirmWaiter = useCallback(async () => {
+		if (!serverPickerTableId || !restaurantId) return;
+		try {
+			await counterService.openSession(
+				restaurantId,
+				serverPickerTableId,
+				selectedWaiter?.name ?? null,
+				selectedWaiter?._id ?? null,
+			);
+		} catch (err) {
+			console.warn("[ActivityFloor] openSession:", err);
+		}
+		setServerPickerTableId(null);
+		setSelectedWaiter(null);
 		setShowTableDetail(true);
-	};
+	}, [serverPickerTableId, restaurantId, selectedWaiter]);
+
+	// Sauvegarder la position d'une table après drag
+	const saveTablePosition = useCallback(
+		async (tableId, position) => {
+			try {
+				await authFetch(`/tables/${tableId}`, {
+					method: "PUT",
+					body: { position },
+				});
+				setTables((prev) =>
+					prev.map((t) =>
+						t._id === tableId ? { ...t, position } : t,
+					),
+				);
+			} catch (err) {
+				console.warn("[ActivityFloor] Erreur save position:", err);
+			}
+		},
+		[authFetch],
+	);
+
+	// Sauvegarder les modifications d'une table (numéro + capacité)
+	const saveTableEdit = useCallback(
+		async (number, capacity) => {
+			if (!editModalTable) return;
+			const { tableId } = editModalTable;
+			try {
+				const updated = await authFetch(`/tables/${tableId}`, {
+					method: "PUT",
+					body: { number, capacity },
+				});
+				setTables((prev) =>
+					prev.map((t) => {
+						if (t._id !== tableId) return t;
+						return updated?._id ? updated : { ...t, number, capacity };
+					}),
+				);
+				setEditModalTable(null);
+			} catch (err) {
+				console.warn("[ActivityFloor] Erreur save edit:", err);
+				Alert.alert("Erreur", "Impossible de modifier la table");
+			}
+		},
+		[authFetch, editModalTable],
+	);
+
+	// Auto-aligner les tables en grille
+	const handleAutoAlign = useCallback(() => {
+		const CARD_W = 168;
+		const CARD_H = 168;
+		const MIN_GAP = 16;
+		// Largeur réelle du canvas : écran - paddingH canvasWrapper (×2) - padding gridPanel (×2)
+		const CANVAS_W = SCREEN_W - 2 * CANVAS_PADDING - 2 * 12;
+		// Nb de colonnes max qui tiennent dans le canvas (avec gap min), plafonné à 5
+		const maxCols = Math.max(1, Math.floor((CANVAS_W + MIN_GAP) / (CARD_W + MIN_GAP)));
+		const COLS = Math.min(5, maxCols);
+		// Gap égal pour remplir exactement la largeur (table 1 à gauche, dernière à droite)
+		const GAP = COLS > 1 ? Math.floor((CANVAS_W - COLS * CARD_W) / (COLS - 1)) : 0;
+		const sorted = [...tables].sort((a, b) =>
+			String(a.number ?? "").localeCompare(
+				String(b.number ?? ""),
+				undefined,
+				{ numeric: true, sensitivity: "base" },
+			),
+		);
+		const updates = sorted.map((t, i) => ({
+			tableId: t._id,
+			position: {
+				x: (i % COLS) * (CARD_W + GAP),
+				y: 8 + Math.floor(i / COLS) * (CARD_H + GAP),
+			},
+		}));
+		setTables((prev) =>
+			prev.map((t) => {
+				const upd = updates.find((u) => u.tableId === t._id);
+				return upd ? { ...t, position: upd.position } : t;
+			}),
+		);
+		setLayoutKey((k) => k + 1);
+		updates.forEach(({ tableId, position }) => saveTablePosition(tableId, position));
+	}, [tables, saveTablePosition]);
 
 	// Retourner "Chargement..." si pas de restaurantId
 	if (!restaurantId) {
@@ -140,159 +890,232 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	return (
 		<View style={dynamicStyles.container}>
 			{/* Header */}
-			<LinearGradient
-				colors={[
-					THEME.colors.background.elevated,
-					THEME.colors.background.dark,
-				]}
-				start={{ x: 0, y: 0 }}
-				end={{ x: 1, y: 1 }}
-				style={dynamicStyles.header}
-			>
-				<View style={dynamicStyles.headerContent}>
-					<Text style={dynamicStyles.headerTitle}>☀️ Comptoir</Text>
-					<TouchableOpacity
-						onPress={() => setShowFloorPlan(true)}
-						style={dynamicStyles.headerButton}
-					>
-						<Ionicons
-							name="map-outline"
-							size={24}
-							color={THEME.colors.primary.amber}
-						/>
-					</TouchableOpacity>
+			<View style={dynamicStyles.header}>
+				<View style={dynamicStyles.headerLeft}>
+					<Ionicons
+						name="grid-outline"
+						size={15}
+						color={THEME.colors.text.muted}
+						style={{ marginRight: 6 }}
+					/>
+					<View>
+						<Text style={dynamicStyles.headerTitle}>
+							Activity —
+						</Text>
+						<Text style={dynamicStyles.headerSubTitle}>
+							Comptoir
+						</Text>
+					</View>
 				</View>
+				<TouchableOpacity
+					style={dynamicStyles.roomDropdown}
+					onPress={() =>
+						setSelectedRoom((r) => (r % 3) + 1)
+					}
+				>
+					<Text style={dynamicStyles.roomDropdownText}>
+						Salle {selectedRoom}
+					</Text>
+					<Ionicons
+						name="chevron-down"
+						size={14}
+						color={THEME.colors.text.secondary}
+					/>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={dynamicStyles.menuButton}
+					onPress={() => setShowFloorPlan(true)}
+				>
+					<Ionicons
+						name="ellipsis-vertical"
+						size={20}
+						color={THEME.colors.text.secondary}
+					/>
+				</TouchableOpacity>
+				{isManager && (
+					<TouchableOpacity
+						style={dynamicStyles.zButton}
+						onPress={() => setShowZReport(true)}
+						accessibilityLabel="Z de caisse"
+					>
+						<Text style={dynamicStyles.zButtonText}>Z</Text>
+					</TouchableOpacity>
+				)}
+			</View>
 
-				{/* Sélecteur de salle */}
-				<View style={dynamicStyles.roomSelector}>
-					{[1, 2, 3].map((room) => (
+			{/* Filtres */}
+			<View style={dynamicStyles.filterBar}>
+				{["Toutes", "Libres", "Occupées", "À encaisser"].map(
+					(label) => (
 						<TouchableOpacity
-							key={room}
-							onPress={() => setSelectedRoom(room)}
+							key={label}
+							onPress={() => setActiveFilter(label)}
 							style={[
-								dynamicStyles.roomButton,
-								selectedRoom === room &&
-									dynamicStyles.roomButtonActive,
+								dynamicStyles.filterButton,
+								activeFilter === label &&
+									dynamicStyles.filterButtonActive,
 							]}
 						>
 							<Text
 								style={[
-									dynamicStyles.roomButtonText,
-									selectedRoom === room &&
-										dynamicStyles.roomButtonTextActive,
+									dynamicStyles.filterButtonText,
+									activeFilter === label &&
+										dynamicStyles.filterButtonActiveText,
 								]}
 							>
-								Salle {room}
+								{label}
 							</Text>
 						</TouchableOpacity>
-					))}
-				</View>
-			</LinearGradient>
-
-			{/* Filtres */}
-			<View style={dynamicStyles.filterBar}>
-				<Text style={dynamicStyles.filterLabel}>Filtres:</Text>
-				<ScrollView
-					horizontal
-					showsHorizontalScrollIndicator={false}
-					style={dynamicStyles.filterScroll}
+					),
+				)}
+				<View style={{ flex: 1 }} />
+				<TouchableOpacity
+					onPress={handleAutoAlign}
+					style={dynamicStyles.alignBtn}
 				>
-					{["Toutes", "Libres", "Occupées", "À encaisser"].map(
-						(label) => (
-							<TouchableOpacity
-								key={label}
-								style={dynamicStyles.filterButton}
-							>
-								<Text style={dynamicStyles.filterButtonText}>
-									{label}
-								</Text>
-							</TouchableOpacity>
-						),
-					)}
-				</ScrollView>
+					<Ionicons name="grid-outline" size={15} color={THEME.colors.text.secondary} />
+				</TouchableOpacity>
+			</View>
+				{/* Légende */}
+			<View style={dynamicStyles.legend}>
+				<View style={dynamicStyles.legendItem}>
+					<View
+						style={[
+							dynamicStyles.legendDot,
+							dynamicStyles.legendDotFree,
+						]}
+					/>
+					<Text style={dynamicStyles.legendText}>Libre</Text>
+				</View>
+				<View style={dynamicStyles.legendItem}>
+					<View
+						style={[
+							dynamicStyles.legendDot,
+							dynamicStyles.legendDotOccupied,
+						]}
+					/>
+					<Text style={dynamicStyles.legendText}>
+						En service
+					</Text>
+				</View>
+				<View style={dynamicStyles.legendItem}>
+					<View
+						style={[
+							dynamicStyles.legendDot,
+							dynamicStyles.legendDotBill,
+						]}
+					/>
+					<Text style={dynamicStyles.legendText}>
+						À encaisser
+					</Text>
+				</View>
 			</View>
 
-			{/* Plan de salle — Grille des tables */}
-			<ScrollView
-				refreshControl={
-					<RefreshControl
-						refreshing={isRefreshing}
-						onRefresh={handleRefresh}
-						tintColor={THEME.colors.primary.amber}
-					/>
-				}
-				style={dynamicStyles.tablesGrid}
-			>
-				<View style={dynamicStyles.gridContainer}>
-					{/* Grid de tables fictives pour démo */}
-					{Array.from({ length: 10 }).map((_, i) => {
-						const tableId = `table-${i + 1}`;
-						const session = getTableSession(tableId);
-
-						return (
+			{/* Canvas plan de salle */}
+			<View style={dynamicStyles.canvasWrapper}>
+				<View style={dynamicStyles.gridPanel}>
+					{isLoadingTables ? (
+						<View style={dynamicStyles.emptyState}>
+							<ActivityIndicator
+								size="large"
+								color={THEME.colors.primary.amber}
+							/>
+							<Text style={dynamicStyles.emptyStateText}>
+								Chargement des tables…
+							</Text>
+						</View>
+					) : tables.length === 0 ? (
+						<View style={dynamicStyles.emptyState}>
+							<Text style={dynamicStyles.emptyStateIcon}>
+								🪑
+							</Text>
+							<Text style={dynamicStyles.emptyStateText}>
+								Aucune table configurée
+							</Text>
+							<Text style={dynamicStyles.emptyStateHint}>
+								Créez des tables dans les réglages
+							</Text>
 							<TouchableOpacity
-								key={tableId}
-								onPress={() => handleTableTap(tableId)}
-								style={[
-									dynamicStyles.tableCard,
-									session?.billStatus === "open" &&
-										dynamicStyles.tableCardOccupied,
-									session?.billStatus ===
-										"bill_requested" &&
-										dynamicStyles.tableCardBillRequested,
-									!session &&
-										dynamicStyles.tableCardFree,
-								]}
+								onPress={handleRefresh}
+								style={dynamicStyles.emptyStateButton}
 							>
-								<View
-									style={dynamicStyles.tableCardContent}
+								<Text
+									style={
+										dynamicStyles.emptyStateButtonText
+									}
 								>
-									<Text style={dynamicStyles.tableNumber}>
-										T{i + 1}
-									</Text>
-
-									{session ? (
-										<>
-											<Text
-												style={dynamicStyles.tableIndicator}
-											>
-												●●●
-											</Text>
-											<Text
-												style={dynamicStyles.tableAmount}
-											>
-												{session.totalAmount.toFixed(0)}€
-											</Text>
-											{session.billStatus ===
-												"bill_requested" && (
-												<Text style={dynamicStyles.tableBillBadge}>
-													💶
-												</Text>
-											)}
-										</>
-									) : (
-										<Text
-											style={dynamicStyles.tableStatusFree}
-										>
-											Libre
-										</Text>
-									)}
-								</View>
+									↻ Rafraîchir
+								</Text>
 							</TouchableOpacity>
-						);
-					})}
+						</View>
+					) : filteredTableIds.length === 0 ? (
+						<View style={dynamicStyles.emptyState}>
+							<Text style={dynamicStyles.emptyStateText}>
+								Aucune table dans ce filtre
+							</Text>
+						</View>
+					) : (
+						<View style={dynamicStyles.canvas}>
+							{filteredTableIds.map((tableId, index) => {
+								const session = getTableSession(tableId);
+								const table = tables.find(
+									(t) => t._id.toString() === tableId,
+								);
+								return (
+									<DraggableTableCard
+										key={`${tableId}-${layoutKey}`}
+										table={table}
+										session={session}
+										tableIndex={index}
+										onPress={() => handleTableTap(tableId)}
+										onPositionSave={saveTablePosition}
+									/>
+								);
+							})}
+						</View>
+					)}
 				</View>
-			</ScrollView>
+			</View>
 
 			{/* Footer Stats */}
 			<View style={dynamicStyles.footer}>
-				<Text style={dynamicStyles.footerText}>
-					📊 {stats.open} actives · 💶 {stats.billRequested}{" "}
-					à encaisser · CA: {stats.totalAmount.toFixed(0)}€
-				</Text>
+				<View style={dynamicStyles.footerItem}>
+					<Ionicons
+						name="grid-outline"
+						size={13}
+						color={THEME.colors.text.muted}
+					/>
+					<Text style={dynamicStyles.footerText}>
+						{stats.open} occupées
+					</Text>
+				</View>
+				<View style={dynamicStyles.footerSep} />
+				<View style={dynamicStyles.footerItem}>
+					<Text style={dynamicStyles.footerEuroIcon}>€</Text>
+					<Text style={dynamicStyles.footerText}>
+						{stats.billRequested} à encaisser
+					</Text>
+				</View>
+				<View style={dynamicStyles.footerSep} />
+				<View style={dynamicStyles.footerItem}>
+					<Ionicons
+						name="bar-chart-outline"
+						size={13}
+						color={THEME.colors.text.muted}
+					/>
+					<Text style={dynamicStyles.footerText}>
+						CA en cours : {stats.totalAmount.toFixed(0)} €
+					</Text>
+				</View>
 			</View>
 
 			{/* Modales */}
+			<EditTableModal
+				visible={!!editModalTable}
+				table={editModalTable?.table}
+				onClose={() => setEditModalTable(null)}
+				onSave={saveTableEdit}
+			/>
 			{showFloorPlan && (
 				<FloorPlanModal
 					visible={showFloorPlan}
@@ -302,15 +1125,35 @@ const ActivityFloor = ({ restaurantInfo }) => {
 					focusTableId={selectedTableId}
 				/>
 			)}
-
 			{showTableDetail && selectedTableId && (
 				<TableDetailModal
 					visible={showTableDetail}
 					onClose={() => setShowTableDetail(false)}
 					restaurantId={restaurantId}
 					tableId={selectedTableId}
+					table={tables.find((t) => t._id.toString() === selectedTableId)}
 				/>
 			)}
+			<ServerPickerModal
+				visible={!!serverPickerTableId}
+				onClose={() => { setServerPickerTableId(null); setSelectedWaiter(null); }}
+				onConfirm={handleConfirmWaiter}
+				servers={servers}
+				selectedWaiter={selectedWaiter}
+				onSelectWaiter={setSelectedWaiter}
+			/>
+			{/* Modal Z de caisse */}
+			<Modal
+				visible={showZReport}
+				animationType="slide"
+				presentationStyle="pageSheet"
+				onRequestClose={() => setShowZReport(false)}
+			>
+				<ZReportScreen
+					restaurantId={restaurantId}
+					onClose={() => setShowZReport(false)}
+				/>
+			</Modal>
 		</View>
 	);
 };
@@ -322,176 +1165,296 @@ const createStyles = (THEME) =>
 			backgroundColor: THEME.colors.background.dark,
 		},
 
+		// ─── Header ────────────────────────────────────────────
 		header: {
+			flexDirection: "row",
+			alignItems: "center",
 			paddingHorizontal: 16,
 			paddingVertical: 12,
+			gap: 10,
 			borderBottomWidth: 1,
 			borderBottomColor: THEME.colors.border.subtle,
 		},
-
-		headerContent: {
+		headerLeft: {
 			flexDirection: "row",
-			justifyContent: "space-between",
 			alignItems: "center",
-			marginBottom: 12,
 		},
-
 		headerTitle: {
-			fontSize: 20,
+			fontSize: 13,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
+			lineHeight: 17,
 		},
-
-		headerButton: {
-			padding: 8,
-			borderRadius: 8,
-			backgroundColor: `rgba(245, 158, 11, 0.1)`,
+		headerSubTitle: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			lineHeight: 17,
 		},
-
-		roomSelector: {
-			flexDirection: "row",
-			gap: 8,
-		},
-
-		roomButton: {
+		roomDropdown: {
 			flex: 1,
-			paddingVertical: 8,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "space-between",
 			paddingHorizontal: 12,
-			borderRadius: 6,
-			backgroundColor: "transparent",
+			paddingVertical: 9,
+			borderRadius: 8,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
+			backgroundColor: THEME.colors.background.elevated,
 		},
-
-		roomButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
-		},
-
-		roomButtonText: {
-			fontSize: 12,
+		roomDropdownText: {
+			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.muted,
-			textAlign: "center",
+			color: THEME.colors.text.primary,
+		},
+		menuButton: {
+			padding: 6,
+		},
+		zButton: {
+			width: 32,
+			height: 32,
+			borderRadius: 8,
+			backgroundColor: THEME.colors.primary?.amber || "#F59E0B",
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		zButtonText: {
+			fontSize: 14,
+			fontWeight: "800",
+			color: "#1A1A1A",
 		},
 
-		roomButtonTextActive: {
-			color: THEME.colors.background.dark,
-		},
-
+		// ─── Filters ───────────────────────────────────────────
 		filterBar: {
-			paddingHorizontal: 16,
-			paddingVertical: 8,
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: 10,
+			paddingHorizontal: 12,
+			gap: 8,
+			flexGrow: 0,
+		},
+		filterBarContent: {
 			flexDirection: "row",
 			alignItems: "center",
 			gap: 8,
 		},
-
-		filterLabel: {
-			fontSize: 12,
-			fontWeight: "600",
-			color: THEME.colors.text.secondary,
-		},
-
-		filterScroll: {
-			flex: 1,
-		},
-
 		filterButton: {
-			paddingVertical: 6,
-			paddingHorizontal: 12,
-			borderRadius: 4,
-			backgroundColor: "transparent",
+			paddingVertical: 7,
+			paddingHorizontal: 16,
+			borderRadius: 20,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
-			marginRight: 8,
+			backgroundColor: "transparent",
 		},
-
+		filterButtonActive: {
+			backgroundColor: THEME.colors.text.primary,
+			borderColor: THEME.colors.text.primary,
+		},
 		filterButtonText: {
-			fontSize: 11,
+			fontSize: 13,
 			fontWeight: "500",
-			color: THEME.colors.text.muted,
+			color: THEME.colors.text.secondary,
+		},
+		filterButtonActiveText: {
+			color: THEME.colors.background.dark,
+			fontWeight: "700",
+		},
+		alignBtn: {
+			padding: 7,
+			borderRadius: 8,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
 		},
 
-		tablesGrid: {
+		// ─── Legend ────────────────────────────────────────────
+		legend: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: 16,
+			paddingBottom: 8,
+			gap: 16,
+		},
+		legendItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 6,
+		},
+		legendDot: {
+			width: 10,
+			height: 10,
+			borderRadius: 5,
+		},
+		legendDotFree: {
+			backgroundColor: "#60A5FA",
+		},
+		legendDotOccupied: {
+			backgroundColor: "#4ADE80",
+		},
+		legendDotBill: {
+			backgroundColor: "#F87171",
+		},
+		legendText: {
+			fontSize: 11,
+			color: THEME.colors.text.muted,
+			fontWeight: "500",
+		},
+
+		// ─── Grid ──────────────────────────────────────────────
+		canvasWrapper: {
 			flex: 1,
 			paddingHorizontal: 12,
-			paddingVertical: 12,
+			paddingTop: 4,
+			paddingBottom: 4,
 		},
-
+		gridPanel: {
+			flex: 1,
+			backgroundColor: "rgba(255,255,255,0.04)",
+			borderRadius: 16,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			padding: 12,
+			minHeight: 200,
+		},
 		gridContainer: {
 			flexDirection: "row",
 			flexWrap: "wrap",
-			justifyContent: "space-between",
-			gap: 12,
+			gap: CARD_GAP,
+		},
+		canvas: {
+			position: "relative",
+			width: "100%",
+			minHeight: 280,
 		},
 
+		// ─── Table cards ───────────────────────────────────────
 		tableCard: {
-			width: "32%",
-			aspectRatio: 1,
-			borderRadius: 12,
-			backgroundColor: THEME.colors.background.card,
-			borderWidth: 2,
-			borderColor: THEME.colors.border.subtle,
+			width: CARD_SIZE,
+			height: CARD_SIZE,
+			borderRadius: 28,
 			justifyContent: "center",
 			alignItems: "center",
+			borderWidth: 2,
+			borderColor: "rgba(100,116,139,0.3)",
 		},
-
 		tableCardFree: {
-			borderColor: `rgba(148, 163, 184, 0.3)`,
-			backgroundColor: "transparent",
+			backgroundColor: "rgba(30,41,59,0.5)",
+			borderColor: "rgba(100,116,139,0.2)",
 		},
-
 		tableCardOccupied: {
-			borderColor: THEME.colors.primary.amber,
-			backgroundColor: `rgba(245, 158, 11, 0.05)`,
+			backgroundColor: "rgba(74,222,128,0.12)",
+			borderColor: "rgba(74,222,128,0.5)",
 		},
-
 		tableCardBillRequested: {
-			borderColor: "#FBBF24",
-			backgroundColor: `rgba(251, 191, 36, 0.1)`,
+			backgroundColor: "rgba(251,191,36,0.15)",
+			borderColor: "rgba(251,191,36,0.6)",
 		},
-
-		tableCardContent: {
-			alignItems: "center",
-			gap: 4,
-		},
-
 		tableNumber: {
-			fontSize: 18,
+			fontSize: IS_PHONE ? 36 : 40,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 		},
-
-		tableIndicator: {
-			fontSize: 14,
-			color: THEME.colors.primary.amber,
+		tableNumberFree: {
+			color: THEME.colors.text.muted,
 		},
-
-		tableAmount: {
-			fontSize: 14,
+		tableNumberOccupied: {
+			color: "#4ADE80",
+		},
+		tableNumberBill: {
+			color: "#FBBF24",
+		},
+		tableDots: {
+			fontSize: 22,
+			color: "#4ADE80",
+			letterSpacing: 4,
+			marginTop: 8,
+		},
+		tableAmountOccupied: {
+			fontSize: IS_PHONE ? 20 : 22,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#4ADE80",
+			marginTop: 8,
 		},
-
-		tableBillBadge: {
-			fontSize: 16,
+		tableBillIcon: {
+			fontSize: 32,
+			color: "#FBBF24",
+			fontWeight: "700",
+			marginTop: 8,
 		},
-
+		tableAmountBill: {
+			fontSize: IS_PHONE ? 20 : 22,
+			fontWeight: "600",
+			color: "#FBBF24",
+			marginTop: 8,
+		},
 		tableStatusFree: {
-			fontSize: 11,
+			fontSize: 16,
 			color: THEME.colors.text.muted,
 			fontWeight: "500",
+			marginTop: 10,
 		},
 
+		// ─── Empty states ──────────────────────────────────────
+		emptyState: {
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: 48,
+			gap: 8,
+		},
+		emptyStateIcon: {
+			fontSize: 36,
+			marginBottom: 4,
+		},
+		emptyStateText: {
+			fontSize: 15,
+			fontWeight: "600",
+			color: THEME.colors.text.secondary,
+			textAlign: "center",
+		},
+		emptyStateHint: {
+			fontSize: 12,
+			color: THEME.colors.text.muted,
+			textAlign: "center",
+		},
+		emptyStateButton: {
+			backgroundColor: THEME.colors.primary.amber,
+			paddingHorizontal: 20,
+			paddingVertical: 10,
+			borderRadius: 8,
+			marginTop: 8,
+		},
+		emptyStateButtonText: {
+			color: THEME.colors.background.dark,
+			fontWeight: "700",
+			fontSize: 13,
+		},
+
+		// ─── Footer ────────────────────────────────────────────
 		footer: {
+			flexDirection: "row",
+			alignItems: "center",
 			paddingHorizontal: 16,
 			paddingVertical: 12,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.subtle,
 			backgroundColor: THEME.colors.background.card,
+			gap: 10,
 		},
-
+		footerItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 5,
+		},
+		footerSep: {
+			width: 1,
+			height: 14,
+			backgroundColor: THEME.colors.border.subtle,
+		},
+		footerEuroIcon: {
+			fontSize: 12,
+			fontWeight: "700",
+			color: THEME.colors.text.muted,
+		},
 		footerText: {
 			fontSize: 12,
 			color: THEME.colors.text.secondary,

@@ -11,14 +11,19 @@ const counterService = {
 	/**
 	 * Ouvrir une session table (ou récupérer l'existante)
 	 */
-	async openSession(restaurantId, tableId) {
+	async openSession(restaurantId, tableId, waiterName = null, waiterId = null) {
 		try {
 			const response = await fetchWithAuth(
 				`${API_CONFIG.baseURL}/counter/sessions`,
 				{
 					method: "POST",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ restaurantId, tableId }),
+					body: JSON.stringify({
+						restaurantId,
+						tableId,
+						...(waiterName && { waiterName }),
+						...(waiterId && { waiterId }),
+					}),
 				},
 			);
 
@@ -157,7 +162,9 @@ const counterService = {
 				throw new Error(`HTTP ${response.status}`);
 			}
 
-			return await response.json();
+			const data = await response.json();
+			// Backend retourne { tables: [...], activeSessions: N }
+			return Array.isArray(data) ? data : (data.tables ?? []);
 		} catch (err) {
 			console.error("[Counter] Erreur état tables:", err);
 			throw err;

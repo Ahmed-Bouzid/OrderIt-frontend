@@ -22,6 +22,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useRouter } from "expo-router";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useDeveloperStore from "../../src/stores/useDeveloperStore";
+import useUserStore from "../../src/stores/useUserStore";
 import useReservationStore from "../../src/stores/useReservationStore";
 import useThemeStore from "../../src/stores/useThemeStore";
 import { useTheme } from "../../hooks/useTheme";
@@ -298,10 +299,8 @@ export default function DeveloperSelector() {
 					console.log("🔄 Restaurants rafraîchis");
 				}
 
-				// ⭐ Invalider le cache enableComptoir pour forcer un refetch dans les tabs
-				console.log("🗑️ Invalidation cache enableComptoir + restaurantNameId");
-				await AsyncStorage.removeItem("enableComptoir");
-				await AsyncStorage.removeItem("restaurantNameId"); // Forcer un refetch complet
+				// ✅ Mise à jour directe Zustand → TabsLayout réagit instantanément
+				await useUserStore.getState().setEnableComptoir(data.enableComptoir);
 
 				console.log(
 					`✅ Mode Comptoir ${data.enableComptoir ? "activé ✔️" : "désactivé ❌"}`,

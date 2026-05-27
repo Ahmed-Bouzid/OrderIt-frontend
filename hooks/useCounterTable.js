@@ -5,7 +5,7 @@
  * Retourne { session, cart, actions: { addItem, removeItem, sendToCook, requestBill, close } }
  */
 
-import { useEffect, useCallback, useState } from "react";
+import { useEffect, useCallback, useState, useMemo } from "react";
 import useCounterCartStore from "../src/stores/useCounterCartStore";
 import useCounterTableStore from "../src/stores/useCounterTableStore";
 import counterService from "../services/counterService";
@@ -23,12 +23,15 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 	const [isOpening, setIsOpening] = useState(false);
 
 	// Stores
-	const cart = useCounterCartStore((state) => state.getCart(tableId));
-	const cartTotal = useCounterCartStore((state) =>
-		state.getCartTotal(tableId),
+	const rawCart = useCounterCartStore((state) => state.carts[tableId]);
+	const cart = useMemo(() => rawCart || [], [rawCart]);
+	const cartTotal = useMemo(
+		() => cart.reduce((sum, item) => sum + item.price * item.quantity, 0),
+		[cart],
 	);
-	const cartItemsCount = useCounterCartStore((state) =>
-		state.getCartItemsCount(tableId),
+	const cartItemsCount = useMemo(
+		() => cart.reduce((sum, item) => sum + item.quantity, 0),
+		[cart],
 	);
 
 	const addCartItem = useCounterCartStore((state) => state.addItem);
@@ -36,9 +39,11 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 	const setCartQty = useCounterCartStore((state) => state.setQty);
 	const clearCart = useCounterCartStore((state) => state.clearCart);
 
-	const tableSession = useCounterTableStore((state) =>
-		state.getTableSession(actualRestaurantId, tableId),
-	);
+	const rawTableSessions = useCounterTableStore((state) => state.sessions[actualRestaurantId]);
+	const tableSession = useMemo(() => {
+		const sessions = rawTableSessions || [];
+		return sessions.find((s) => s.tableId === tableId && s.billStatus !== "closed") || null;
+	}, [rawTableSessions, tableId]);
 	const openTableSession = useCounterTableStore((state) => state.openSession);
 	const updateTableSession = useCounterTableStore((state) =>
 		state.updateSession,
@@ -73,27 +78,7 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 		initRestaurantId();
 	}, [actualRestaurantId]);
 
-	// Ouvrir la session table au mount
-	useEffect(() => {
-		if (!actualRestaurantId || !tableId) return;
-
-		const openSession = async () => {
-			setIsOpening(true);
-			try {
-				const session = await counterService.openSession(
-					actualRestaurantId,
-					tableId,
-				);
-				openTableSession(actualRestaurantId, tableId, session);
-			} catch (err) {
-				console.error("[useCounterTable] Erreur ouverture session:", err);
-			} finally {
-				setIsOpening(false);
-			}
-		};
-
-		openSession();
-	}, [actualRestaurantId, tableId, openTableSession]);
+	// (session ouverte explicitement via actions.openTable, pas au mount)
 
 	// Attacher socket listener
 	useEffect(() => {
@@ -110,6 +95,26 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 
 	// Actions métier
 	const actions = {
+		/**
+		 * Ouvrir la session table (action explicite du serveur)
+		 */
+		openTable: async () => {
+			if (!actualRestaurantId || !tableId) return;
+			setIsOpening(true);
+			try {
+				const session = await counterService.openSession(
+					actualRestaurantId,
+					tableId,
+				);
+				openTableSession(actualRestaurantId, tableId, session);
+			} catch (err) {
+				console.error("[useCounterTable] Erreur ouverture session:", err);
+				throw err;
+			} finally {
+				setIsOpening(false);
+			}
+		},
+
 		/**
 		 * Ajouter un produit au panier
 		 */

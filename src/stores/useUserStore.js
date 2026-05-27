@@ -123,6 +123,9 @@ const useUserStore = create((set, get) => ({
 				AsyncStorage.removeItem("userEmail"),
 				AsyncStorage.removeItem("userRole"),
 				AsyncStorage.removeItem("userType"),
+				AsyncStorage.removeItem("enableComptoir"),
+				AsyncStorage.removeItem("restaurantName"),
+				AsyncStorage.removeItem("restaurantNameId"),
 			]);
 
 			set({
@@ -132,6 +135,7 @@ const useUserStore = create((set, get) => ({
 				userType: null,
 				restaurantId: null,
 				isManager: false,
+				enableComptoir: false,
 			});
 
 		} catch (error) {

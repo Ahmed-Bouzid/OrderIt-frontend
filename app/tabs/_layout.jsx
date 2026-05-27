@@ -101,203 +101,74 @@ export default function TabsLayout() {
 		(state) => state.isInitialized,
 	);
 	const isMinimum = useFeatureLevelStore((state) => state.isMinimum());
-	const category = useUserStore((state) => state.category);
 
-	// 🏪 Filtrer les onglets selon la catégorie et enableComptoir
-	// ⭐ Wrapped in useMemo to ensure TABS is recalculated when enableComptoir changes
+	// ✅ State declarations BEFORE useMemo: enableComptoir must be initialized
+	//    before the useMemo dependency array is evaluated. If useState is placed
+	//    after useMemo, Babel hoists `enableComptoir` as `undefined`, React stores
+	//    [undefined,…] as deps, and the memo NEVER recalculates on state change.
+	const [activeTab, setActiveTab] = useState("");
+	const [showMessagesPanel, setShowMessagesPanel] = useState(false);
+	const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
+	const [restaurantName, setRestaurantName] = useState("Restaurant");
+	const enableComptoir = useUserStore((state) => state.enableComptoir);
+	const restaurantId = useUserStore((state) => state.restaurantId);
+
+	// 🏪 TABS — enableComptoir est la source unique (useUserStore).
+	// availableTabs gère le filtrage par catégorie (fast-food/foodtruck → pas d'Activity).
 	const TABS = useMemo(() => {
-		console.log("🔄 🔄 🔄 USEMEMO TABS RECALCULATING 🔄 🔄 🔄");
-		// Filtrer d'abord selon les onglets disponibles du Feature Level
 		let tabs = ALL_TABS.filter((tab) => availableTabs.includes(tab.name));
-
-		// Gérer la logique Activity/Comptoir
-		// ⭐ Comptoir maintenant disponible pour TOUS les types de restaurants
-		const shouldShowActivity = category === "restaurant" && !enableComptoir;
-		const shouldShowComptoir = enableComptoir;
-
-		console.log("🔍 getVisibleTabs:", {
-			category,
-			enableComptoir,
-			shouldShowComptoir,
-			shouldShowActivity,
-			availableTabs,
-			tabsBefore: tabs.map((t) => t.name),
-		});
-
-		// Si Comptoir activé → remplacer Activity par Comptoir
-		if (shouldShowComptoir) {
+		if (enableComptoir) {
 			tabs = tabs.filter((tab) => tab.name !== "activity");
-			// Ajouter Comptoir s'il n'est pas déjà là
 			if (!tabs.find((tab) => tab.name === "comptoir")) {
 				const comptoir = ALL_TABS.find((tab) => tab.name === "comptoir");
-				if (comptoir) {
-					tabs = [comptoir, ...tabs.slice(0)]; // Comptoir en premier
-				}
+				if (comptoir) tabs = [comptoir, ...tabs];
 			}
-		}
-		// Si classic restaurant sans Comptoir → garder Activity, retirer Comptoir
-		else if (shouldShowActivity) {
+		} else {
 			tabs = tabs.filter((tab) => tab.name !== "comptoir");
 		}
-		// Si c'est FastFood/FoodTruck sans Comptoir → retirer Activity ET Comptoir
-		else if (category === "fast-food" || category === "foodtruck") {
-			tabs = tabs.filter(
-				(tab) => tab.name !== "activity" && tab.name !== "comptoir",
-			);
-		}
-
-		console.log("✅ ONGLETS VISIBLES:", tabs.map((t) => t.name));
 		return tabs;
-	}, [enableComptoir, category, availableTabs]); // ⭐ Recalculate when these change
+	}, [enableComptoir, availableTabs]);
 
 	// Charger la catégorie dès le montage (initialise automatiquement le FeatureLevelStore)
 	useEffect(() => {
 		useUserStore.getState().init();
 	}, []);
 
-	// Initialiser le tab actif dynamiquement une fois que le Feature Level est prêt
-	const [activeTab, setActiveTab] = useState("");
-	const [showMessagesPanel, setShowMessagesPanel] = useState(false);
-	const [unreadMessagesCount, setUnreadMessagesCount] = useState(0);
-	const [restaurantName, setRestaurantName] = useState("Restaurant");
-	const [enableComptoir, setEnableComptoir] = useState(undefined); // ⭐ Start as undefined, update explicitly
-	const [restaurantId, setRestaurantId] = useState(null);
 
-	// ⭐ Effect to watch for state changes in enableComptoir
+
+	// Chargement du nom du restaurant (enableComptoir géré par useUserStore)
 	useEffect(() => {
-		console.log("🔄 enableComptoir STATE CHANGED:", enableComptoir);
-	}, [enableComptoir]);
-
-	// ⭐ Fonction refactorisée pour charger le restaurant (réutilisable)
-	const loadRestaurantName = useCallback(async () => {
-		try {
-			const resId = restaurantId || (await AsyncStorage.getItem("restaurantId"));
-			const token = await getItem("access_token");
-
-			console.log("📱 loadRestaurantName START:", { restaurantId: resId, hasToken: !!token });
-
-			if (!resId || !token) {
-				console.log("⚠️ Pas de restaurantId ou token");
-				return;
-			}
-
-			// Vérifier le cache : utiliser uniquement si le restaurantId correspond
-			const cachedId = await AsyncStorage.getItem("restaurantNameId");
-			const cachedName = await AsyncStorage.getItem("restaurantName");
-			const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
-			
-			console.log("💾 Cache actuel:", {
-				cachedId,
-				cachedName,
-				cachedComptoir,
-				restaurantIdMatch: cachedId === resId,
-			});
-
-			if (cachedId === resId && cachedName) {
-				console.log("✅ Cache valide, utilisé");
-				setRestaurantName(cachedName);
-			const comptoir = cachedComptoir === "true";
-			console.log("🔧 setEnableComptoir APPEL (cache):", comptoir, "cachedComptoir=", cachedComptoir);
-			setEnableComptoir(comptoir);
-			return;
-		}
-
-		// Cache invalide ou absent → fetch API
-		console.log("🔄 Cache invalide, fetch API...");
-
-		const url = `${process.env.EXPO_PUBLIC_API_URL}/restaurants/${resId}/info`;
-		const response = await fetch(url);
-
-		if (response.ok) {
-			const data = await response.json();
-			const name = data.name || "Restaurant";
-			const comptoir = data.enableComptoir || false;
-			
-			console.log("📡 API Response:", {
-				name,
-				enableComptoir: comptoir,
-				fullData: data,
-			});
-
-			setRestaurantName(name);
-			console.log("🔧 setEnableComptoir APPEL (API):", comptoir);
-				await AsyncStorage.setItem("restaurantName", name);
-				await AsyncStorage.setItem("restaurantNameId", resId);
-				await AsyncStorage.setItem("enableComptoir", comptoir ? "true" : "false");
-				console.log("💾 Cache mis à jour:", { name, comptoir });
-			} else {
-				console.error("❌ Erreur API restaurant:", response.status);
-			}
-		} catch (error) {
-			console.error("❌ Erreur chargement nom restaurant:", error);
-		}
-	}, [restaurantId]); // ← Recalcule si restaurantId change
-
-	// ⭐ Charger restaurantId au démarrage
-	useEffect(() => {
-		const initRestaurantId = async () => {
-			const resId = await AsyncStorage.getItem("restaurantId");
-			if (resId) {
-				setRestaurantId(resId);
-				console.log("📍 restaurantId chargé:", resId);
-			}
-		};
-		initRestaurantId();
-	}, []);
-
-	// ⭐ Refetch restaurant info quand restaurantId change (inclut après invalidation du cache!)
-	useEffect(() => {
-		if (restaurantId) {
-			console.log("🔔 restaurantId CHANGÉ ou restaurantId mis à jour, REFETCH...");
-			loadRestaurantName();
-		}
-	}, [restaurantId, loadRestaurantName]);
-
-	// ⭐ Polling court pour détecter les changements enableComptoir du cache (quand on revient de DeveloperSelector)
-	useEffect(() => {
-		console.log("🎯 Démarrage polling enableComptoir (2s)");
-		const pollInterval = setInterval(async () => {
+		if (!restaurantId) return;
+		const loadRestaurantName = async () => {
 			try {
-				const cachedComptoir = await AsyncStorage.getItem("enableComptoir");
-				const cachedRestaurantId = await AsyncStorage.getItem("restaurantNameId");
-				const newComptoir = cachedComptoir === "true";
-
-				console.log("🔄 Polling check:", {
-					cachedComptoir,
-					cachedRestaurantId,
-					restaurantId,
-					isCacheEmpty: !cachedComptoir || !cachedRestaurantId,
-				});
-
-				// ⭐ Si cache est vide (invalidé) ET on a un restaurantId → REFETCH l'API
-				if ((!cachedComptoir || !cachedRestaurantId) && restaurantId) {
-					console.log("⚠️ Cache invalidé détecté! REFETCH l'API...");
-					await loadRestaurantName();
-					return; // Skip les logs de polling normaux
+				const token = await getItem("access_token");
+				if (!token) return;
+				const cachedId = await AsyncStorage.getItem("restaurantNameId");
+				const cachedName = await AsyncStorage.getItem("restaurantName");
+				if (cachedId === restaurantId && cachedName) {
+					setRestaurantName(cachedName);
+					return;
 				}
-
-				// Sinon, si ça a changé, updater l'état
-				setEnableComptoir((prev) => {
-					if (newComptoir !== prev) {
-						console.log("⚡ enableComptoir CHANGÉ:", {
-							ancien: prev,
-							nouveau: newComptoir,
-							cached: cachedComptoir,
-						});
-						return newComptoir;
-					}
-					return prev;
-				});
+				const response = await fetch(
+					`${process.env.EXPO_PUBLIC_API_URL}/restaurants/${restaurantId}/info`,
+				);
+				if (response.ok) {
+					const data = await response.json();
+					const name = data.name || "Restaurant";
+					setRestaurantName(name);
+					await AsyncStorage.setItem("restaurantName", name);
+					await AsyncStorage.setItem("restaurantNameId", restaurantId);
+					// Sync enableComptoir → source unique de vérité (useUserStore)
+					await useUserStore.getState().setEnableComptoir(data.enableComptoir || false);
+				}
 			} catch (error) {
-				console.error("❌ Erreur polling enableComptoir:", error);
+				console.error("❌ Erreur chargement restaurant:", error);
 			}
-		}, 2000); // Vérifier toutes les 2s
-
-		return () => {
-			console.log("🛑 Arrêt polling enableComptoir");
-			clearInterval(pollInterval);
 		};
-	}, [restaurantId, loadRestaurantName]);
+		loadRestaurantName();
+	}, [restaurantId]);
+
+
 
 	useEffect(() => {
 		console.log("📊 Vérification initialisation activeTab:", {
@@ -381,11 +252,11 @@ export default function TabsLayout() {
 	const sliderTranslateX = useRef(new Animated.Value(0)).current;
 	const sliderWidth = useRef(new Animated.Value(100)).current;
 
-	// Reset du slider si TABS change (ex: foodtruck)
+	// Reset du slider si TABS change (y compris activity↔comptoir swap, même longueur)
 	useEffect(() => {
 		setTabLayouts({});
 		setIsSliderReady(false);
-	}, [TABS.length]);
+	}, [TABS]);
 
 	// 🔄 Quand TABS change (enableComptoir basculé), réinitialiser le activeTab si nécessaire
 	useEffect(() => {

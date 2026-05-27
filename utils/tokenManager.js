@@ -168,16 +168,9 @@ export async function fetchWithAuth(url, options = {}) {
 			headers,
 		});
 
-		// Si 401/403, tenter un refresh et réessayer (SEULEMENT pour GET)
+		// Si 401/403, tenter un refresh et réessayer (tous verbes)
 		if (response.status === 401 || response.status === 403) {
 			const method = (options.method || "GET").toUpperCase();
-
-			// ⚠️ NE PAS retry les requêtes POST/PUT/PATCH/DELETE (non-idempotentes)
-			if (method !== "GET" && method !== "HEAD") {
-				console.warn(`⚠️ ${method} 401/403 - session expirée`);
-				throw new Error("Session expirée, veuillez vous reconnecter");
-			}
-
 
 			const refreshToken = await getItem("refreshToken");
 			const newTokens = await refreshAccessToken(refreshToken);
@@ -186,7 +179,7 @@ export async function fetchWithAuth(url, options = {}) {
 				await setItem("@access_token", newTokens.accessToken);
 				await setItem("refreshToken", newTokens.refreshToken);
 
-				// Réessayer avec le nouveau token (GET uniquement)
+				// Réessayer avec le nouveau token (tous verbes)
 				const retryHeaders = {
 					...options.headers,
 					Authorization: `Bearer ${newTokens.accessToken}`,
@@ -196,6 +189,12 @@ export async function fetchWithAuth(url, options = {}) {
 					...options,
 					headers: retryHeaders,
 				});
+			}
+
+			// Refresh impossible → session vraiment expirée
+			if (method !== "GET" && method !== "HEAD") {
+				console.warn(`⚠️ ${method} 401/403 - session expirée`);
+				throw new Error("Session expirée, veuillez vous reconnecter");
 			}
 
 			throw new Error("Session expirée, veuillez vous reconnecter");

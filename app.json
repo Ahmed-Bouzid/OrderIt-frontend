@@ -8,8 +8,8 @@
 		"icon": "./assets/images/icon.png",
 		"scheme": "sunnygo",
 		"userInterfaceStyle": "automatic",
-		"newArchEnabled": true,
-		"jsEngine": "jsc",
+		"newArchEnabled": false,
+		"jsEngine": "hermes",
 		"ios": {
 			"supportsTablet": true,
 			"bundleIdentifier": "com.sunnygo.dev",

@@ -1,14 +1,14 @@
 /**
- * 🏪 TableDetailModal.jsx — Détail table Comptoir
+ * TableDetailModal.jsx — Détail table Comptoir
  *
- * Affiche :
- * - Bandeau statut table
- * - Items envoyés en cuisine (avec état)
- * - Panier local (en attente d'envoi)
- * - 4 actions : Ajouter, Envoyer, Demander addition, Encaisser
+ * Layout redesigné :
+ *   Header fixe  : ← retour | Table X (N pers.) | ● Xmin
+ *   Status pill  : pill colorée + "Ouverte à HH:MM"
+ *   ScrollView   : envoyés cuisine → panier → total
+ *   Actions 2×2  : Ajouter | Envoyer | Addition | Encaisser
  */
 
-import React, { useState, useMemo, useCallback } from "react";
+import React, { useState, useMemo } from "react";
 import {
 	Modal,
 	View,
@@ -21,80 +21,105 @@ import {
 	Dimensions,
 } from "react-native";
 import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../hooks/useTheme";
 import useCounterTable from "../../../hooks/useCounterTable";
-import useCounterCartStore from "../../../src/stores/useCounterCartStore";
 import MenuPickerModal from "./MenuPickerModal";
 import EncaisserModal from "./EncaisserModal";
 
 const IS_PHONE = Dimensions.get("window").width < 600;
 
-const TableDetailModal = ({
-	visible,
-	onClose,
-	restaurantId,
-	tableId,
-}) => {
+// ─── Demo sent items (pas d'API pour items individuels pour l'instant) ──────
+const DEMO_SENT = [
+	{ id: "1", qty: 2, name: "Burger Maison", price: 11.0, status: "En préparation" },
+	{ id: "2", qty: 1, name: "Frites Maison", price: 5.0, status: "Prêt" },
+	{ id: "3", qty: 2, name: "Coca 33cl", price: 5.0, status: "Servi" },
+];
+
+// ─── Colors par statut d'item ─────────────────────────────────────────────
+const ITEM_STATUS_COLORS = {
+	"En préparation": { bg: "#E6F1FB", text: "#0C447C" },
+	Prêt: { bg: "#EAF3DE", text: "#27500A" },
+	Servi: { bg: "#F1EFE8", text: "#5F5E5A" },
+};
+
+// ─── Helpers ──────────────────────────────────────────────────────────────
+function formatHHMM(dateStr) {
+	if (!dateStr) return "--:--";
+	return new Date(dateStr).toLocaleTimeString("fr-FR", {
+		hour: "2-digit",
+		minute: "2-digit",
+	});
+}
+
+function getElapsedMin(dateStr) {
+	if (!dateStr) return 0;
+	return Math.max(0, Math.floor((Date.now() - new Date(dateStr)) / 60000));
+}
+
+function getStatusConfig(billStatus) {
+	if (billStatus === "bill_requested") {
+		return {
+			label: "🟡 À encaisser",
+			dotColor: "#F59E0B",
+		};
+	}
+	if (billStatus === "open") {
+		return {
+			label: "🟢 En service",
+			dotColor: "#22C55E",
+		};
+	}
+	return {
+		label: "⚪ Libre",
+		dotColor: "#94A3B8",
+	};
+}
+
+// ─── Main Component ──────────────────────────────────────────────────────
+const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) => {
 	const THEME = useTheme();
 	const [showMenuPicker, setShowMenuPicker] = useState(false);
 	const [showEncaisser, setShowEncaisser] = useState(false);
 	const [isSending, setIsSending] = useState(false);
 	const [isClosing, setIsClosing] = useState(false);
 
-	// Hook composite
-	const {
-		session,
-		cart,
-		cartTotal,
-		cartItemsCount,
-		isOpening,
-		actions,
-	} = useCounterTable(tableId, restaurantId);
+	const { session, cart, cartTotal, cartItemsCount, isOpening, actions, isTableFree } =
+		useCounterTable(tableId, restaurantId);
 
-	const dynamicStyles = useMemo(
-		() => createStyles(THEME),
-		[THEME],
-	);
+	const styles = useMemo(() => createStyles(THEME), [THEME]);
 
-	// Handler envoi en cuisine
+	// ─── Handlers ────────────────────────────────────────────────────────
 	const handleSendToCook = async () => {
 		if (cart.length === 0) {
 			Alert.alert("Panier vide", "Ajoutez des plats avant d'envoyer");
 			return;
 		}
-
 		setIsSending(true);
 		try {
 			await actions.sendToCook();
-			Alert.alert("✅ Envoyé!", "Les plats sont en cuisine");
 		} catch (err) {
-			Alert.alert("❌ Erreur", err.message);
+			Alert.alert("Erreur", err.message);
 		} finally {
 			setIsSending(false);
 		}
 	};
 
-	// Handler demande addition
 	const handleRequestBill = async () => {
 		try {
 			await actions.requestBill();
-			Alert.alert("✅ Addition demandée", "Table marquée comme prête à payer");
 		} catch (err) {
-			Alert.alert("❌ Erreur", err.message);
+			Alert.alert("Erreur", err.message);
 		}
 	};
 
-	// Handler fermeture (encaissement)
 	const handleEncaisser = async (paymentMethod) => {
 		setIsClosing(true);
 		try {
 			await actions.closeTable(paymentMethod);
-			Alert.alert("✅ Encaissé!", "Table libérée");
 			onClose();
 		} catch (err) {
-			Alert.alert("❌ Erreur", err.message);
+			Alert.alert("Erreur", err.message);
 		} finally {
 			setIsClosing(false);
 		}
@@ -102,29 +127,47 @@ const TableDetailModal = ({
 
 	if (!visible) return null;
 
-	// Affichage chargement
-	if (isOpening || !session) {
+	// ─── Render : Table libre ─────────────────────────────────────────────
+	if (isTableFree || isOpening) {
 		return (
-			<Modal
-				visible={visible}
-				transparent
-				animationType="fade"
-				onRequestClose={onClose}
-			>
-				<BlurView intensity={90} style={dynamicStyles.blur}>
-					<View style={dynamicStyles.centeredView}>
-						<ActivityIndicator
-							size="large"
-							color={THEME.colors.primary.amber}
-						/>
-						<Text style={dynamicStyles.loadingText}>
-							Ouverture de la table...
-						</Text>
+			<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+				<BlurView intensity={90} style={styles.blur}>
+					<View style={styles.freeSheet}>
+						<TouchableOpacity onPress={onClose} style={styles.freeCloseBtn}>
+							<Ionicons name="close" size={24} color={THEME.colors.text.muted} />
+						</TouchableOpacity>
+						<Text style={styles.freeEmoji}>🪑</Text>
+						<Text style={styles.freeTitle}>Table {table?.number ?? "—"}</Text>
+						<Text style={styles.freeHint}>Table libre — prête pour le service</Text>
+						<TouchableOpacity
+							onPress={async () => {
+								try {
+									await actions.openTable();
+								} catch {
+									Alert.alert("Erreur", "Impossible d'ouvrir la table. Vérifiez la connexion.");
+								}
+							}}
+							disabled={isOpening}
+							style={styles.openBtn}
+						>
+							{isOpening ? (
+								<ActivityIndicator size="small" color={THEME.colors.background.dark} />
+							) : (
+								<Text style={styles.openBtnText}>🟢 OUVRIR LA TABLE</Text>
+							)}
+						</TouchableOpacity>
 					</View>
 				</BlurView>
 			</Modal>
 		);
 	}
+
+	// ─── Render : Session active ──────────────────────────────────────────
+	const statusConfig = getStatusConfig(session?.billStatus);
+	const elapsedMin = getElapsedMin(session?.openedAt);
+	const openedAtStr = formatHHMM(session?.openedAt);
+	const tableLabel = table?.number ?? "—";
+	const tableCapacity = table?.capacity ?? "?";
 
 	return (
 		<Modal
@@ -132,268 +175,167 @@ const TableDetailModal = ({
 			transparent
 			animationType="slide"
 			onRequestClose={onClose}
+			presentationStyle={!IS_PHONE ? "pageSheet" : undefined}
 		>
-			<BlurView intensity={90} style={dynamicStyles.blur}>
-				<View style={dynamicStyles.container}>
-					{/* Header */}
-					<LinearGradient
-						colors={[
-							THEME.colors.background.elevated,
-							THEME.colors.background.dark,
-						]}
-						start={{ x: 0, y: 0 }}
-						end={{ x: 1, y: 1 }}
-						style={dynamicStyles.header}
-					>
-						<TouchableOpacity
-							onPress={onClose}
-							style={dynamicStyles.closeButton}
-						>
-							<Ionicons
-								name="chevron-back"
-								size={28}
-								color={THEME.colors.primary.amber}
-							/>
-						</TouchableOpacity>
-						<Text style={dynamicStyles.headerTitle}>
-							Table {tableId.split("-")[1]} (4 pers.)
-						</Text>
-						<Text style={dynamicStyles.headerSubtitle}>
-							🕐 {Math.floor((Date.now() - new Date(session.openedAt)) / 60000)} min
-						</Text>
-					</LinearGradient>
+			<View style={styles.overlay}>
+				<View style={styles.sheet}>
 
-					{/* Status Badge */}
-					<View style={dynamicStyles.statusBadge}>
-						<Text style={dynamicStyles.statusLabel}>
-							STATUT: 🟢 En service
+					{/* ── HEADER (fixe) ────────────────────────────────────── */}
+					<View style={styles.header}>
+						<TouchableOpacity onPress={onClose} style={styles.headerBtn}>
+							<Ionicons name="chevron-back" size={26} color={THEME.colors.primary.amber} />
+						</TouchableOpacity>
+						<Text style={styles.headerTitle} numberOfLines={1}>
+							Table {tableLabel} ({tableCapacity} pers.)
 						</Text>
-						<Text style={dynamicStyles.statusTime}>
-							Ouverte par tablette comptoir
-						</Text>
+						<View style={styles.headerRight}>
+							<View style={[styles.headerDot, { backgroundColor: statusConfig.dotColor }]} />
+							<Text style={styles.headerTime}>{elapsedMin} min</Text>
+						</View>
 					</View>
 
-					<ScrollView style={dynamicStyles.content}>
-						{/* Section Envoyés en cuisine */}
-						<View style={dynamicStyles.section}>
-							<Text style={dynamicStyles.sectionTitle}>
-								📋 PLATS COMMANDÉS {cartTotal > 0 && <Text style={dynamicStyles.totalAmount}>{cartTotal.toFixed(2)}€</Text>}
-							</Text>
-							<View style={dynamicStyles.divider} />
+					{/* ── STATUS BADGE (fixe) ──────────────────────────────── */}
+					<View style={styles.statusSection}>
+						<Text style={styles.statusLabel}>{statusConfig.label}</Text>
+						<Text style={styles.statusMeta}>Ouverte par tablette comptoir · {openedAtStr}</Text>
+					</View>
 
-							{/* Fake items pour démo */}
-							<View style={dynamicStyles.sentItems}>
-								<View style={dynamicStyles.itemRow}>
-									<View style={dynamicStyles.itemInfo}>
-										<Text style={dynamicStyles.itemName}>
-											2× Burger Maison
-										</Text>
-										<Text style={dynamicStyles.itemStatus}>
-											🟢 En préparation
-										</Text>
-									</View>
-									<Text style={dynamicStyles.itemPrice}>
-										22€
-									</Text>
-								</View>
+					{/* ── SCROLLABLE CONTENT ────────────────────────────────── */}
+					<ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
 
-								<View style={dynamicStyles.itemRow}>
-									<View style={dynamicStyles.itemInfo}>
-										<Text style={dynamicStyles.itemName}>
-											1× Frites
-										</Text>
-										<Text style={dynamicStyles.itemStatusReady}>
-											✅ Prêt
-										</Text>
-									</View>
-									<Text style={dynamicStyles.itemPrice}>
-										5€
-									</Text>
-								</View>
-							</View>
+						{/* Label total */}
+						<View style={styles.sectionLabelRow}>
+							<Text style={styles.sectionLabel}>PLATS COMMANDÉS</Text>
+							<Text style={styles.totalBadge}>{cartTotal.toFixed(2)} €</Text>
 						</View>
 
-						{/* Section Panier */}
-						<View style={dynamicStyles.section}>
-							<Text style={dynamicStyles.sectionTitle}>
-								EN ATTENTE D'ENVOI (Panier)
-							</Text>
-							<View style={dynamicStyles.divider} />
+						{/* Envoyés en cuisine */}
+						<Text style={styles.subsectionLabel}>ENVOYÉS EN CUISINE ✓ {formatHHMM(session?.openedAt)}</Text>
+						{DEMO_SENT.map((item) => {
+							const colors = ITEM_STATUS_COLORS[item.status] || ITEM_STATUS_COLORS["Servi"];
+							return (
+								<View key={item.id} style={styles.sentRow}>
+									<Text style={styles.sentName}>
+										{item.qty}× {item.name}
+									</Text>
+									<Text style={styles.sentPrice}>{item.price.toFixed(2)} €</Text>
+									<View style={[styles.statusPill, { backgroundColor: colors.bg }]}>
+										<Text style={[styles.statusPillText, { color: colors.text }]}>
+											{item.status}
+										</Text>
+									</View>
+								</View>
+							);
+						})}
 
-							{cart.length === 0 ? (
-								<Text style={dynamicStyles.emptyCart}>
-									Panier vide — Tap pour ajouter des plats
-								</Text>
-							) : (
-								cart.map((item) => (
-									<View
-										key={item.tempId}
-										style={dynamicStyles.cartItemRow}
-									>
-										<View style={dynamicStyles.cartItemInfo}>
-											<Text
-												style={dynamicStyles.cartItemName}
-											>
-												{item.quantity}×{" "}
-												{item.name}
-											</Text>
-											<Text
-												style={dynamicStyles.cartItemPrice}
-											>
-												{(
-													item.price * item.quantity
-												).toFixed(2)}
-												€
-											</Text>
-										</View>
+						{/* Separator */}
+						<View style={styles.divider} />
 
-										<View
-											style={dynamicStyles.qtyControls}
+						{/* En attente d'envoi */}
+						<Text style={styles.subsectionLabel}>EN ATTENTE D'ENVOI</Text>
+						{cart.length === 0 ? (
+							<Text style={styles.emptyHint}>Panier vide</Text>
+						) : (
+							cart.map((item) => (
+								<View key={item.tempId} style={styles.cartRow}>
+									<Text style={styles.cartName} numberOfLines={1}>
+										{item.name}
+									</Text>
+									<Text style={styles.cartPrice}>
+										{(item.price * item.quantity).toFixed(2)} €
+									</Text>
+									<View style={styles.qtyControls}>
+										<TouchableOpacity
+											onPress={() =>
+												actions.setQty(item.tempId, item.quantity - 1)
+											}
+											style={styles.qtyBtn}
 										>
-											<TouchableOpacity
-												onPress={() =>
-													actions.setQty(
-														item.tempId,
-														item.quantity -
-															1,
-													)
-												}
-											>
-												<Text
-													style={
-														dynamicStyles.qtyButton
-													}
-												>
-													−
-												</Text>
-											</TouchableOpacity>
-											<Text
-												style={
-													dynamicStyles.qtyDisplay
-												}
-											>
-												{item.quantity}
-											</Text>
-											<TouchableOpacity
-												onPress={() =>
-													actions.setQty(
-														item.tempId,
-														item.quantity +
-															1,
-													)
-												}
-											>
-												<Text
-													style={
-														dynamicStyles.qtyButton
-													}
-												>
-													+
-												</Text>
-											</TouchableOpacity>
-
-											<TouchableOpacity
-												onPress={() =>
-													actions.removeItem(
-														item.tempId,
-													)
-												}
-											>
-												<Ionicons
-													name="trash-outline"
-													size={18}
-													color={THEME.colors.text.muted}
-												/>
-											</TouchableOpacity>
-										</View>
+											<Text style={styles.qtyBtnText}>−</Text>
+										</TouchableOpacity>
+										<Text style={styles.qtyValue}>{item.quantity}</Text>
+										<TouchableOpacity
+											onPress={() =>
+												actions.setQty(item.tempId, item.quantity + 1)
+											}
+											style={styles.qtyBtn}
+										>
+											<Text style={styles.qtyBtnText}>+</Text>
+										</TouchableOpacity>
+										<TouchableOpacity
+											onPress={() => actions.removeItem(item.tempId)}
+											style={styles.trashBtn}
+										>
+											<Ionicons
+												name="trash-outline"
+												size={16}
+												color="#EF4444"
+											/>
+										</TouchableOpacity>
 									</View>
-								))
-							)}
-						</View>
+								</View>
+							))
+						)}
 
-						{/* Total */}
-						<View style={dynamicStyles.totalSection}>
-							<Text style={dynamicStyles.totalLabel}>
-								Total commandé:
-							</Text>
-							<Text style={dynamicStyles.totalValue}>
-								{cartTotal.toFixed(2)}€
+						{/* Divider before total */}
+						<View style={styles.divider} />
+
+						{/* Total line */}
+						<View style={styles.totalRow}>
+							<Text style={styles.totalLabel}>Total</Text>
+							<Text style={styles.totalValue}>
+								{cartTotal.toFixed(2)} €
 							</Text>
 						</View>
 					</ScrollView>
 
-					{/* Actions */}
-					<View style={dynamicStyles.actionsGrid}>
+					{/* ── ACTIONS GRID (fixe en bas) ────────────────────────── */}
+					<View style={styles.actionsGrid}>
 						<TouchableOpacity
 							onPress={() => setShowMenuPicker(true)}
-							style={dynamicStyles.actionButton}
+							style={styles.actionOutlined}
 						>
-							<Text style={dynamicStyles.actionButtonText}>
-								+ AJOUTER DES PLATS
-							</Text>
+							<Text style={styles.actionOutlinedText}>+ Ajouter des plats</Text>
 						</TouchableOpacity>
 
 						<TouchableOpacity
 							onPress={handleSendToCook}
 							disabled={isSending || cart.length === 0}
 							style={[
-								dynamicStyles.actionButton,
-								dynamicStyles.actionButtonPrimary,
+								styles.actionPrimary,
+								(isSending || cart.length === 0) && styles.actionDisabled,
 							]}
 						>
 							{isSending ? (
-								<ActivityIndicator
-									color={THEME.colors.background.dark}
-									size="small"
-								/>
+								<ActivityIndicator size="small" color={THEME.colors.background.dark} />
 							) : (
-								<Text
-									style={[
-										dynamicStyles.actionButtonText,
-										dynamicStyles.actionButtonTextPrimary,
-									]}
-								>
-									📤 ENVOYER ({cartItemsCount})
+								<Text style={styles.actionPrimaryText}>
+									📤 Envoyer ({cartItemsCount})
 								</Text>
 							)}
 						</TouchableOpacity>
 
 						<TouchableOpacity
 							onPress={handleRequestBill}
-							style={dynamicStyles.actionButton}
+							style={styles.actionOutlined}
 						>
-							<Text style={dynamicStyles.actionButtonText}>
-								💶 DEMANDER ADDITION
-							</Text>
+							<Text style={styles.actionOutlinedText}>💶 Demander addition</Text>
 						</TouchableOpacity>
 
 						<TouchableOpacity
 							onPress={() => setShowEncaisser(true)}
 							disabled={isClosing}
-							style={[
-								dynamicStyles.actionButton,
-								dynamicStyles.actionButtonDanger,
-							]}
+							style={[styles.actionSuccess, isClosing && styles.actionDisabled]}
 						>
 							{isClosing ? (
-								<ActivityIndicator
-									color={THEME.colors.background.dark}
-									size="small"
-								/>
+								<ActivityIndicator size="small" color="#fff" />
 							) : (
-								<Text
-									style={[
-										dynamicStyles.actionButtonText,
-										dynamicStyles.actionButtonTextDanger,
-									]}
-								>
-									✅ ENCAISSER & LIBÉRER
-								</Text>
+								<Text style={styles.actionSuccessText}>✅ Encaisser & libérer</Text>
 							)}
 						</TouchableOpacity>
 					</View>
 
-					{/* Modales */}
+					{/* ── SUB-MODALS ────────────────────────────────────────── */}
 					{showMenuPicker && (
 						<MenuPickerModal
 							visible={showMenuPicker}
@@ -401,7 +343,6 @@ const TableDetailModal = ({
 							tableId={tableId}
 						/>
 					)}
-
 					{showEncaisser && (
 						<EncaisserModal
 							visible={showEncaisser}
@@ -411,269 +352,334 @@ const TableDetailModal = ({
 						/>
 					)}
 				</View>
-			</BlurView>
+			</View>
 		</Modal>
 	);
 };
 
+// ─── Styles ───────────────────────────────────────────────────────────────
 const createStyles = (THEME) =>
 	StyleSheet.create({
-		blur: {
-			flex: 1,
-			justifyContent: "flex-end",
-		},
-
-		container: {
-			maxHeight: "90%",
-			backgroundColor: THEME.colors.background.dark,
-			borderTopLeftRadius: 20,
-			borderTopRightRadius: 20,
-			flexDirection: "column",
-		},
-
-		header: {
-			flexDirection: "row",
-			alignItems: "center",
-			paddingHorizontal: 16,
-			paddingVertical: 12,
-			gap: 12,
-		},
-
-		closeButton: {
-			padding: 8,
-		},
-
-		headerTitle: {
-			flex: 1,
-			fontSize: 18,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-		},
-
-		headerSubtitle: {
-			fontSize: 12,
-			color: THEME.colors.text.muted,
-		},
-
-		centeredView: {
+		// ── Table libre ──────────────────────────────────────────
+		blur: { flex: 1 },
+		freeSheet: {
 			flex: 1,
 			justifyContent: "center",
 			alignItems: "center",
 		},
-
-		loadingText: {
-			marginTop: 12,
+		freeCloseBtn: {
+			position: "absolute",
+			top: 56,
+			right: 20,
+			padding: 8,
+		},
+		freeEmoji: { fontSize: 48, marginBottom: 12 },
+		freeTitle: {
+			fontSize: 22,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginBottom: 6,
+		},
+		freeHint: {
 			fontSize: 14,
+			color: THEME.colors.text.muted,
+			marginBottom: 36,
+		},
+		openBtn: {
+			backgroundColor: THEME.colors.primary.amber,
+			paddingHorizontal: 36,
+			paddingVertical: 14,
+			borderRadius: 12,
+			minWidth: 220,
+			alignItems: "center",
+		},
+		openBtnText: {
+			color: THEME.colors.background.dark,
+			fontWeight: "700",
+			fontSize: 15,
+		},
+
+		// ── Session active ───────────────────────────────────────
+		overlay: {
+			flex: 1,
+			backgroundColor: "rgba(0,0,0,0.55)",
+			justifyContent: "flex-end",
+		},
+		sheet: {
+			maxHeight: "92%",
+			backgroundColor: THEME.colors.background.dark,
+			borderTopLeftRadius: 20,
+			borderTopRightRadius: 20,
+			overflow: "hidden",
+			flexDirection: "column",
+		},
+
+		// ── Header ───────────────────────────────────────────────
+		header: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: 12,
+			paddingVertical: 14,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+			gap: 8,
+		},
+		headerBtn: { padding: 4 },
+		headerTitle: {
+			flex: 1,
+			fontSize: 16,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			textAlign: "center",
+		},
+		headerRight: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 5,
+			minWidth: 60,
+			justifyContent: "flex-end",
+		},
+		headerDot: {
+			width: 8,
+			height: 8,
+			borderRadius: 4,
+		},
+		headerTime: {
+			fontSize: 13,
+			fontWeight: "600",
 			color: THEME.colors.text.secondary,
 		},
 
-		statusBadge: {
+		// ── Status badge ─────────────────────────────────────────
+		statusSection: {
 			paddingHorizontal: 16,
-			paddingVertical: 8,
-			backgroundColor: `rgba(245, 158, 11, 0.05)`,
+			paddingVertical: 10,
 			borderBottomWidth: 1,
 			borderBottomColor: THEME.colors.border.subtle,
 		},
-
 		statusLabel: {
-			fontSize: 12,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-		},
-
-		statusTime: {
-			fontSize: 11,
-			color: THEME.colors.text.muted,
-			marginTop: 4,
-		},
-
-		content: {
-			flex: 1,
-			paddingHorizontal: 16,
-			paddingVertical: 12,
-		},
-
-		section: {
-			marginBottom: 20,
-		},
-
-		sectionTitle: {
 			fontSize: 13,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
-			flexDirection: "row",
-			marginBottom: 8,
-		},
-
-		totalAmount: {
-			marginLeft: "auto",
-			color: THEME.colors.primary.amber,
-		},
-
-		divider: {
-			height: 1,
-			backgroundColor: THEME.colors.border.subtle,
-			marginBottom: 12,
-		},
-
-		sentItems: {
-			gap: 8,
-		},
-
-		itemRow: {
-			flexDirection: "row",
-			justifyContent: "space-between",
-			paddingVertical: 8,
-			paddingHorizontal: 8,
-			backgroundColor: THEME.colors.background.card,
-			borderRadius: 8,
-		},
-
-		itemInfo: {
-			flex: 1,
-		},
-
-		itemName: {
-			fontSize: 13,
-			fontWeight: "600",
 			color: THEME.colors.text.primary,
 			marginBottom: 4,
 		},
-
-		itemStatus: {
-			fontSize: 11,
-			color: THEME.colors.text.muted,
-		},
-
-		itemStatusReady: {
-			fontSize: 11,
-			color: THEME.colors.primary.amber,
-		},
-
-		itemPrice: {
-			fontSize: 13,
-			fontWeight: "700",
-			color: THEME.colors.text.secondary,
-		},
-
-		emptyCart: {
+		statusMeta: {
 			fontSize: 12,
 			color: THEME.colors.text.muted,
-			textAlign: "center",
-			paddingVertical: 20,
 		},
 
-		cartItemRow: {
+		// ── Scroll ───────────────────────────────────────────────
+		scroll: { flex: 1 },
+		scrollContent: {
+			paddingHorizontal: 16,
+			paddingTop: 12,
+			paddingBottom: 8,
+		},
+
+		// ── Section headers ──────────────────────────────────────
+		sectionLabelRow: {
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "center",
-			paddingVertical: 8,
-			paddingHorizontal: 8,
-			backgroundColor: THEME.colors.background.card,
-			borderRadius: 8,
-			marginBottom: 8,
+			marginBottom: 6,
+		},
+		sectionLabel: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		totalBadge: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: THEME.colors.primary.amber,
+		},
+		subsectionLabel: {
+			fontSize: 11,
+			fontWeight: "700",
+			letterSpacing: 0.6,
+			color: THEME.colors.text.muted,
+			marginTop: 12,
+			marginBottom: 6,
 		},
 
-		cartItemInfo: {
+		// ── Sent items ───────────────────────────────────────────
+		sentRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 8,
+			paddingVertical: 9,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		sentName: {
 			flex: 1,
-		},
-
-		cartItemName: {
-			fontSize: 12,
+			fontSize: 13,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
 		},
-
-		cartItemPrice: {
-			fontSize: 11,
-			color: THEME.colors.text.muted,
-			marginTop: 2,
+		sentPrice: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: THEME.colors.text.secondary,
+		},
+		statusPill: {
+			borderRadius: 12,
+			paddingHorizontal: 8,
+			paddingVertical: 3,
+		},
+		statusPillText: {
+			fontSize: 10,
+			fontWeight: "700",
 		},
 
-		qtyControls: {
+		// ── Divider ──────────────────────────────────────────────
+		divider: {
+			height: 1,
+			backgroundColor: THEME.colors.border.subtle,
+			marginVertical: 10,
+		},
+
+		// ── Cart items ───────────────────────────────────────────
+		emptyHint: {
+			fontSize: 13,
+			color: THEME.colors.text.muted,
+			textAlign: "center",
+			paddingVertical: 16,
+			fontStyle: "italic",
+		},
+		cartRow: {
 			flexDirection: "row",
 			alignItems: "center",
 			gap: 6,
+			paddingVertical: 9,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
 		},
-
-		qtyButton: {
-			fontSize: 16,
-			fontWeight: "700",
-			color: THEME.colors.primary.amber,
-			paddingHorizontal: 8,
-		},
-
-		qtyDisplay: {
-			fontSize: 12,
+		cartName: {
+			flex: 1,
+			fontSize: 13,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
-			minWidth: 20,
-			textAlign: "center",
 		},
-
-		totalSection: {
-			flexDirection: "row",
-			justifyContent: "space-between",
-			alignItems: "center",
-			paddingVertical: 12,
-			paddingHorizontal: 12,
-			backgroundColor: `rgba(245, 158, 11, 0.1)`,
-			borderRadius: 8,
-			marginBottom: 12,
-		},
-
-		totalLabel: {
+		cartPrice: {
 			fontSize: 13,
 			fontWeight: "600",
 			color: THEME.colors.text.secondary,
+			minWidth: 42,
 		},
-
-		totalValue: {
-			fontSize: 18,
+		qtyControls: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 4,
+		},
+		qtyBtn: {
+			width: 28,
+			height: 28,
+			borderRadius: 6,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			alignItems: "center",
+			justifyContent: "center",
+			backgroundColor: THEME.colors.background.card,
+		},
+		qtyBtnText: {
+			fontSize: 16,
 			fontWeight: "700",
-			color: THEME.colors.primary.amber,
+			color: THEME.colors.text.primary,
+			lineHeight: 20,
+		},
+		qtyValue: {
+			minWidth: 22,
+			textAlign: "center",
+			fontSize: 13,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		trashBtn: {
+			padding: 4,
+			marginLeft: 2,
 		},
 
+		// ── Total ────────────────────────────────────────────────
+		totalRow: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			marginTop: 4,
+			paddingTop: 14,
+			borderTopWidth: 1,
+			borderTopColor: THEME.colors.border.subtle,
+			marginBottom: 4,
+		},
+		totalLabel: {
+			fontSize: 15,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		totalValue: {
+			fontSize: 16,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+
+		// ── Actions grid ─────────────────────────────────────────
 		actionsGrid: {
-			paddingHorizontal: 16,
-			paddingVertical: 12,
-			gap: 8,
+			flexDirection: "row",
+			flexWrap: "wrap",
+			gap: 7,
+			padding: 12,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.subtle,
 		},
-
-		actionButton: {
-			paddingVertical: 12,
-			paddingHorizontal: 16,
+		actionOutlined: {
+			width: "48%",
+			height: 48,
 			borderRadius: 8,
-			backgroundColor: THEME.colors.background.card,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
+			backgroundColor: THEME.colors.background.card,
+			alignItems: "center",
+			justifyContent: "center",
+			paddingHorizontal: 6,
 		},
-
-		actionButtonPrimary: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
-		},
-
-		actionButtonDanger: {
-			backgroundColor: "rgba(76, 175, 80, 0.2)",
-			borderColor: "rgba(76, 175, 80, 0.5)",
-		},
-
-		actionButtonText: {
-			fontSize: 13,
+		actionOutlinedText: {
+			fontSize: 12,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
 			textAlign: "center",
 		},
-
-		actionButtonTextPrimary: {
-			color: THEME.colors.background.dark,
+		actionPrimary: {
+			width: "48%",
+			height: 48,
+			borderRadius: 8,
+			backgroundColor: THEME.colors.primary.amber,
+			alignItems: "center",
+			justifyContent: "center",
+			paddingHorizontal: 6,
 		},
-
-		actionButtonTextDanger: {
-			color: "#4CAF50",
+		actionPrimaryText: {
+			fontSize: 12,
+			fontWeight: "700",
+			color: THEME.colors.background.dark,
+			textAlign: "center",
+		},
+		actionSuccess: {
+			width: "48%",
+			height: 48,
+			borderRadius: 8,
+			backgroundColor: "#22C55E",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingHorizontal: 6,
+		},
+		actionSuccessText: {
+			fontSize: 12,
+			fontWeight: "700",
+			color: "#fff",
+			textAlign: "center",
+		},
+		actionDisabled: {
+			opacity: 0.4,
 		},
 	});
 
