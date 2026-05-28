@@ -34,6 +34,7 @@ export default function FloorPlanModal({
 	restaurantId,
 	roomNumber = 1,
 	focusTableId = null,
+	upcomingReservations = [],
 }) {
 	const THEME = useTheme();
 	const authFetch = useAuthFetch();
@@ -52,6 +53,13 @@ export default function FloorPlanModal({
 	const [headerHeight, setHeaderHeight] = useState(68);
 	const [history, setHistory] = useState([]);
 	const [historyIndex, setHistoryIndex] = useState(-1);
+
+	// Layout snapshot — sauvegarde manuelle des positions
+	const [hasSavedLayout, setHasSavedLayout] = useState(false);
+	const savedPositionsSnapshot = useRef(null); // { [tableId]: { x, y } }
+
+	// Swap — deux tables qui se touchent en mode Drag
+	const [swapCandidates, setSwapCandidates] = useState(null); // { idA, idB }
 
 	// Feature 5 — Alignment toolbar
 	const [selectedTableId, setSelectedTableId] = useState(null);
@@ -112,6 +120,15 @@ export default function FloorPlanModal({
 	useEffect(() => {
 		if (resaMode) setSelectedTableId(null);
 	}, [resaMode]);
+
+	// Swap — effacer les candidats quand drag désactivé
+	useEffect(() => {
+		if (!dragEnabled) setSwapCandidates(null);
+	}, [dragEnabled]);
+
+	// Ref live des tables pour la détection d'overlap dans handlePositionChange
+	const tablesRef = useRef(tables);
+	useEffect(() => { tablesRef.current = tables; }, [tables]);
 
 	// Tables fictives pour simulation (Salles 2 et 3)
 	const mockTables = useMemo(() => {
@@ -413,6 +430,29 @@ export default function FloorPlanModal({
 			),
 		);
 		setModifiedTableIds((prev) => new Set(prev).add(tableId));
+
+		// Détection overlap — au moment du drop, données les plus fraîches
+		if (!dragEnabledRef.current) return;
+		const allTables = tablesRef.current;
+		const moved = allTables.find(t => t._id === tableId);
+		const wA = (moved?.sizeW || moved?.size || 1) * 100;
+		const hA = (moved?.sizeH || moved?.size || 1) * 100;
+		for (const other of allTables) {
+			if (other._id === tableId) continue;
+			const panB = panRefsMap.current[other._id];
+			const xB = panB ? panB.x._value : (other.position?.x ?? 0);
+			const yB = panB ? panB.y._value : (other.position?.y ?? 0);
+			const wB = (other.sizeW || other.size || 1) * 100;
+			const hB = (other.sizeH || other.size || 1) * 100;
+			if (
+				newPosition.x < xB + wB && newPosition.x + wA > xB &&
+				newPosition.y < yB + hB && newPosition.y + hA > yB
+			) {
+				setSwapCandidates({ idA: tableId, idB: other._id });
+				return;
+			}
+		}
+		setSwapCandidates(null);
 	}, []);
 
 	// � Gérer le changement de taille
@@ -449,6 +489,31 @@ export default function FloorPlanModal({
 	}, [selectedTableId, displayTables, handlePositionChange]);
 
 	// �💾 Sauvegarder le plan (positions)
+	// Swap — inverser les numéros de deux tables
+	const handleSwapTables = useCallback(async (idA, idB) => {
+		if (isSimulation) return;
+		const tA = displayTables.find(t => t._id === idA);
+		const tB = displayTables.find(t => t._id === idB);
+		if (!tA || !tB) return;
+		try {
+			const [updA, updB] = await Promise.all([
+				authFetch(`/tables/${idA}`, { method: 'PUT', body: { number: tB.number } }),
+				authFetch(`/tables/${idB}`, { method: 'PUT', body: { number: tA.number } }),
+			]);
+			if (updA?._id && updB?._id) {
+				setTables(prev => prev.map(t => {
+					if (t._id === idA) return { ...t, number: tB.number };
+					if (t._id === idB) return { ...t, number: tA.number };
+					return t;
+				}));
+				setSwapCandidates(null);
+			}
+		} catch (err) {
+			console.error('❌ [FLOOR] Swap tables:', err);
+			Alert.alert('Erreur', "Impossible d'échanger les tables");
+		}
+	}, [isSimulation, displayTables, authFetch]);
+
 	const handleSavePlan = async () => {
 		if (isSimulation) return;
 
@@ -538,6 +603,85 @@ export default function FloorPlanModal({
 			console.error("Erreur sauvegarde plan:", error);
 			Alert.alert("Erreur", "Impossible de sauvegarder le plan");
 		}
+	};
+
+	// 📸 Capturer un snapshot des positions actuelles et sauvegarder
+	const handleSaveLayoutSnapshot = async () => {
+		if (isSimulation) return;
+		// Capturer snapshot AVANT save (positions actuelles via panRefs)
+		const snapshot = {};
+		displayTables.forEach((t) => {
+			const panRef = panRefsMap.current[t._id];
+			snapshot[t._id] = {
+				x: panRef ? panRef.x._value : (t.position?.x ?? 0),
+				y: panRef ? panRef.y._value : (t.position?.y ?? 0),
+			};
+		});
+		await handleSavePlan();
+		// Stocker le snapshot après la sauvegarde réussie
+		savedPositionsSnapshot.current = snapshot;
+		setHasSavedLayout(true);
+	};
+
+	// ↩ Rétablir le plan depuis le snapshot sauvegardé
+	const handleRestoreLayout = () => {
+		const snapshot = savedPositionsSnapshot.current;
+		if (!snapshot) return;
+		setTables((prev) =>
+			prev.map((t) => {
+				const savedPos = snapshot[t._id];
+				if (!savedPos) return t;
+				const panRef = panRefsMap.current[t._id];
+				if (panRef) {
+					Animated.spring(panRef, {
+						toValue: { x: savedPos.x, y: savedPos.y },
+						tension: 120,
+						friction: 8,
+						useNativeDriver: false,
+					}).start();
+				}
+				return { ...t, position: savedPos };
+			}),
+		);
+		setModifiedTableIds(new Set());
+	};
+
+	// 💾 Handler principal du bouton Layout
+	const handleLayoutButton = () => {
+		if (isSimulation) return;
+		const hasChanges = modifiedTableIds.size > 0;
+		// Snapshot existant + modifications en cours → proposer le choix
+		if (hasSavedLayout && hasChanges) {
+			Alert.alert(
+				"Plan modifié",
+				"Des tables ont été déplacées depuis la dernière sauvegarde.",
+				[
+					{ text: "Annuler", style: "cancel" },
+					{
+						text: "↩ Rétablir",
+						style: "destructive",
+						onPress: handleRestoreLayout,
+					},
+					{
+						text: "💾 Sauvegarder",
+						onPress: handleSaveLayoutSnapshot,
+					},
+				],
+			);
+			return;
+		}
+		// Pas de modifications → rien à faire
+		if (!hasChanges) {
+			Alert.alert(
+				"Info",
+				hasSavedLayout
+					? "Aucune modification depuis la dernière sauvegarde."
+					: "Déplacez des tables pour activer la sauvegarde.",
+			);
+			return;
+		}
+		// Pas encore de snapshot → sauvegarder directement
+		handleSaveLayoutSnapshot();
 	};
 
 	// Feature 4 — Derived selected table data
@@ -813,6 +957,44 @@ export default function FloorPlanModal({
 									</Text>
 								</TouchableOpacity>
 
+								{/* Bouton sauvegarde layout — actif dès qu'il y a des modifs */}
+								{!isSimulation && (
+									<TouchableOpacity
+										onPress={handleLayoutButton}
+										disabled={resaMode}
+										style={[
+											styles.toggleButton,
+											hasSavedLayout && !modifiedTableIds.size && styles.toggleButtonSaveActive,
+											modifiedTableIds.size > 0 && styles.toggleButtonSavePending,
+											resaMode && styles.toggleButtonDisabled,
+										]}
+									>
+										<Ionicons
+											name={modifiedTableIds.size > 0 ? "save" : "save-outline"}
+											size={20}
+											color={
+												resaMode
+													? THEME.colors.text.muted + "40"
+													: modifiedTableIds.size > 0
+													? THEME.colors.primary.amber
+													: hasSavedLayout
+													? "#10B981"
+													: THEME.colors.text.muted
+											}
+										/>
+										<Text
+											style={[
+												styles.toggleButtonText,
+												modifiedTableIds.size > 0 && { color: THEME.colors.primary.amber },
+												hasSavedLayout && !modifiedTableIds.size && { color: "#10B981" },
+												resaMode && styles.toggleButtonTextDisabled,
+											]}
+										>
+											Layout
+										</Text>
+									</TouchableOpacity>
+								)}
+
 								<TouchableOpacity
 									onPress={() => {
 										setResizeEnabled(!resizeEnabled);
@@ -1034,8 +1216,17 @@ export default function FloorPlanModal({
 								<View style={styles.tablesContainer}>
 									{displayTables.map((table, index) => {
 										const _toId = (v) => (v?._id ?? v)?.toString();
-										const nextReservation = reservations
-											.filter((r) => _toId(r.tableId) === table._id?.toString())
+										
+										// Prochaine réservation à venir pour cette table
+										const nextReservation = upcomingReservations
+											.filter((r) => {
+												const tableId = _toId(r.tableId);
+												const tableIds = r.tableIds || [];
+												return (
+													tableId === table._id?.toString() ||
+													tableIds.some((tid) => _toId(tid) === table._id?.toString())
+												);
+											})
 											.sort(
 												(a, b) =>
 													new Date(a.reservationDate) -
@@ -1075,6 +1266,51 @@ export default function FloorPlanModal({
 											/>
 										);
 									})}
+
+									{/* Bouton swap — apparaît quand deux tables se touchent en mode Drag */}
+									{swapCandidates && dragEnabled && (() => {
+										const tA = displayTables.find(t => t._id === swapCandidates.idA);
+										const tB = displayTables.find(t => t._id === swapCandidates.idB);
+										if (!tA || !tB) return null;
+										const panA = panRefsMap.current[swapCandidates.idA];
+										const panB = panRefsMap.current[swapCandidates.idB];
+										const xA = panA ? panA.x._value : (tA.position?.x ?? 0);
+										const yA = panA ? panA.y._value : (tA.position?.y ?? 0);
+										const wA = (tA.sizeW || tA.size || 1) * 100;
+										const hA = (tA.sizeH || tA.size || 1) * 100;
+										const xB = panB ? panB.x._value : (tB.position?.x ?? 0);
+										const yB = panB ? panB.y._value : (tB.position?.y ?? 0);
+										const wB = (tB.sizeW || tB.size || 1) * 100;
+										const hB = (tB.sizeH || tB.size || 1) * 100;
+										const midX = (xA + wA / 2 + xB + wB / 2) / 2 - 24;
+										const midY = (yA + hA / 2 + yB + hB / 2) / 2 - 24;
+										return (
+											<TouchableOpacity
+												key="swap-btn"
+												style={{
+													position: 'absolute',
+													left: midX,
+													top: midY,
+													width: 48,
+													height: 48,
+													borderRadius: 24,
+													backgroundColor: THEME.colors.primary?.amber ?? '#F59E0B',
+													alignItems: 'center',
+													justifyContent: 'center',
+													zIndex: 9999,
+													elevation: 12,
+													shadowColor: '#000',
+													shadowOffset: { width: 0, height: 4 },
+													shadowOpacity: 0.4,
+													shadowRadius: 8,
+												}}
+												onPress={() => handleSwapTables(swapCandidates.idA, swapCandidates.idB)}
+												activeOpacity={0.85}
+											>
+												<Ionicons name="sync" size={22} color="#1A1A1A" />
+											</TouchableOpacity>
+										);
+									})()}
 								</View>
 							)}
 						</View>
@@ -1314,6 +1550,24 @@ const TableCard = ({
 		});
 	};
 
+	// 📅 Calculer le temps restant jusqu'à une réservation
+	const formatTimeRemaining = (dateString) => {
+		const now = new Date();
+		const resaDate = new Date(dateString);
+		const diffMs = resaDate - now;
+
+		if (diffMs < 0) return "en retard";
+
+		const diffMin = Math.floor(diffMs / (1000 * 60));
+		const hours = Math.floor(diffMin / 60);
+		const minutes = diffMin % 60;
+
+		if (hours > 0) {
+			return `${hours}h${minutes > 0 ? `${minutes}min` : ""}`;
+		}
+		return `${minutes}min`;
+	};
+
 	// Bordure resa dynamique
 	const resaBorderStyle =
 		resaMode && resaInfo
@@ -1388,15 +1642,15 @@ const TableCard = ({
 					style={tableCardStyles(theme).icon}
 				/>
 
-				{/* Prochaine réservation */}
+				{/* Prochaine réservation à venir */}
 				{nextReservation && (
 					<View style={tableCardStyles(theme).reservationBadge}>
-						<Ionicons name="time-outline" size={10} color="#fff" />
+						<Ionicons name="calendar-outline" size={10} color="#fff" />
 						<Text style={tableCardStyles(theme).reservationText} numberOfLines={1}>
-							{formatTime(nextReservation.reservationDate)}
 							{nextReservation.clientName
-								? `  ${nextReservation.clientName.slice(0, 9)}${nextReservation.clientName.length > 9 ? "…" : ""}`
+								? `${nextReservation.clientName.slice(0, 12)}${nextReservation.clientName.length > 12 ? "…" : ""} - `
 								: ""}
+							{formatTimeRemaining(nextReservation.reservationDate)}
 						</Text>
 					</View>
 				)}
@@ -1644,6 +1898,14 @@ const createStyles = (THEME) =>
 		toggleButtonActive: {
 			backgroundColor: THEME.colors.primary.amber,
 			borderColor: THEME.colors.primary.amber,
+		},
+		toggleButtonSaveActive: {
+			borderColor: "#10B981",
+			backgroundColor: "rgba(16,185,129,0.12)",
+		},
+		toggleButtonSavePending: {
+			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "rgba(245,158,11,0.12)",
 		},
 		toggleButtonDisabled: {
 			opacity: 0.35,

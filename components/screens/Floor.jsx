@@ -164,7 +164,11 @@ export default function Floor({ onStart }) {
 	const userId = useUserStore((state) => state.userId);
 	const userRole = useUserStore((state) => state.role);
 	const isManager = useUserStore((state) => state.isManager);
+	const enableComptoir = useUserStore((state) => state.enableComptoir);
 	const isServerOnly = userRole === "server" && !isManager;
+
+	// 🏪 Comptoir mode : état live des tables (TableSession)
+	const [counterTablesState, setCounterTablesState] = useState([]);
 
 	// 🔒 Tables des réservations ouvertes du serveur connecté
 	const myOpenTableIds = useMemo(() => {
@@ -217,8 +221,25 @@ export default function Floor({ onStart }) {
 		[isServerOnly, userId],
 	);
 
-	// ⭐ Stats Caisse dynamiques + listes de réservations (jour actuel uniquement)
+	// ⭐ Stats Caisse dynamiques — Comptoir: TableSession / Activity: Réservations
 	const caisseStats = useMemo(() => {
+		if (enableComptoir) {
+			// Mode Comptoir : lire les tables ouvertes (TableSession)
+			const enCours = counterTablesState.filter((t) => t.status !== "free");
+			return {
+				enCoursCount: enCours.length,
+				enCoursMontant: enCours.reduce(
+					(sum, t) => sum + (t.totalAmount || 0),
+					0,
+				),
+				enCoursList: enCours,
+				payeesCount: 0,
+				payeesMontant: 0,
+				payeesList: [],
+			};
+		}
+
+		// Mode Activity : stats basées sur les réservations du jour
 		const today = new Date();
 		const todayStart = new Date(
 			today.getFullYear(),
@@ -246,7 +267,7 @@ export default function Floor({ onStart }) {
 			payeesMontant: payees.reduce((sum, r) => sum + (r.totalAmount || 0), 0),
 			payeesList: payees,
 		};
-	}, [reservations, isMyReservation]);
+	}, [enableComptoir, counterTablesState, reservations, isMyReservation]);
 
 	// Connecter le socket au montage
 	useEffect(() => {
@@ -289,6 +310,9 @@ export default function Floor({ onStart }) {
 	const availBarAnim = useRef(new Animated.Value(0)).current;
 	const occupBarAnim = useRef(new Animated.Value(0)).current;
 	const unavailBarAnim = useRef(new Animated.Value(0)).current;
+
+	// 📅 Réservations à venir (dans les prochaines heures)
+	const [upcomingReservations, setUpcomingReservations] = useState([]);
 
 	const tableStats = useMemo(() => {
 		const available = salleTables.filter((t) => t.status === "available").length;
@@ -399,6 +423,22 @@ export default function Floor({ onStart }) {
 		}
 	}, [restaurantId, authFetch]);
 
+	// 📅 Charger les réservations à venir (dans les 3 prochaines heures)
+	const fetchUpcomingReservations = useCallback(async () => {
+		if (!restaurantId || !hasPlanSalle) return;
+
+		try {
+			const result = await authFetch(`/reservations/upcoming/${restaurantId}`, {
+				method: "GET",
+			});
+			if (Array.isArray(result)) {
+				setUpcomingReservations(result);
+			}
+		} catch (error) {
+			console.error("❌ [UPCOMING-RESAS] Erreur chargement:", error);
+		}
+	}, [restaurantId, hasPlanSalle, authFetch]);
+
 	// WebSocket listeners pour updates instantanées
 	useEffect(() => {
 		if (!restaurantId || !socketReady) return;
@@ -502,7 +542,73 @@ export default function Floor({ onStart }) {
 		};
 	}, [restaurantId, socketReady, on, off]);
 
-	// 📦 WebSocket listener pour mise à jour stock
+	// � WebSocket listener pour réservations à venir
+	useEffect(() => {
+		if (!restaurantId || !socketReady || !hasPlanSalle) return;
+
+		const handleReservationEvent = (event) => {
+			if (!event?.type || !event?.data) return;
+
+			const resaRestaurantId = String(
+				event.data?.restaurantId?._id ||
+					event.data?.restaurantId ||
+					event.restaurant_id ||
+					"",
+			);
+
+			if (resaRestaurantId !== String(restaurantId)) return;
+
+			const reservation = event.data;
+
+			// Mise à jour des réservations à venir (status "en attente" uniquement)
+			switch (event.type) {
+				case "created":
+					if (reservation.status === "en attente") {
+						setUpcomingReservations((prev) => {
+							const exists = prev.some((r) => r._id === reservation._id);
+							return exists ? prev : [...prev, reservation];
+						});
+					}
+					break;
+
+				case "updated":
+					setUpcomingReservations((prev) =>
+						prev
+							.map((r) =>
+								r._id === reservation._id ? { ...r, ...reservation } : r,
+							)
+							.filter((r) => r.status === "en attente"), // Retirer si status changé
+					);
+					break;
+
+				case "deleted":
+				case "no_show":
+					setUpcomingReservations((prev) =>
+						prev.filter((r) => r._id !== reservation._id),
+					);
+					break;
+
+				default:
+					break;
+			}
+		};
+
+		on("reservation", handleReservationEvent);
+		on("reservation:created", handleReservationEvent);
+		on("reservation:updated", handleReservationEvent);
+		on("reservation:no_show", handleReservationEvent);
+		on("reservation:cancelled", handleReservationEvent);
+
+		return () => {
+			off("reservation", handleReservationEvent);
+			off("reservation:created", handleReservationEvent);
+			off("reservation:updated", handleReservationEvent);
+			off("reservation:no_show", handleReservationEvent);
+			off("reservation:cancelled", handleReservationEvent);
+		};
+	}, [restaurantId, socketReady, hasPlanSalle, on, off]);
+
+	// �📦 WebSocket listener pour mise à jour stock
 	useEffect(() => {
 		if (!restaurantId || !socketReady) return;
 
@@ -525,10 +631,38 @@ export default function Floor({ onStart }) {
 		};
 	}, [restaurantId, socketReady, fetchLowStock, on, off]);
 
+	// 🏪 WebSocket : mise à jour des sessions Comptoir en temps réel
+	useEffect(() => {
+		if (!restaurantId || !socketReady || !enableComptoir) return;
+
+		const refreshCounterTables = () => {
+			authFetch(`/counter/tables/${restaurantId}`, { method: "GET" })
+				.then((data) => {
+					if (data?.tables) setCounterTablesState(data.tables);
+				})
+				.catch(() => {});
+		};
+
+		on("table-session", refreshCounterTables);
+
+		return () => {
+			off("table-session", refreshCounterTables);
+		};
+	}, [restaurantId, socketReady, enableComptoir, on, off]);
+
 	useEffect(() => {
 		if (restaurantId) {
 			fetchOrders();
 			fetchLowStock(); // 📦 Charger aussi les stocks
+			fetchUpcomingReservations(); // 📅 Charger réservations à venir
+			// En mode Comptoir : charger l'état des tables (TableSession)
+			if (enableComptoir) {
+				authFetch(`/counter/tables/${restaurantId}`, { method: "GET" })
+					.then((data) => {
+						if (data?.tables) setCounterTablesState(data.tables);
+					})
+					.catch(() => {});
+			}
 			// Réduire l'intervalle puisque WebSocket gère les updates
 			const interval = setInterval(fetchOrders, 60000); // 1 min au lieu de 30s
 			return () => clearInterval(interval);
@@ -1013,8 +1147,8 @@ export default function Floor({ onStart }) {
 								</>
 							)}
 
-							{/* 🏢 Salles Section - Affiché seulement si Plan de Salle disponible */}
-							{hasPlanSalle && (
+							{/* 🏢 Salles Section - Masqué en mode Comptoir (redondant) */}
+							{hasPlanSalle && !enableComptoir && (
 								<>
 									<SectionHeader
 										icon="grid-outline"
@@ -1372,47 +1506,70 @@ export default function Floor({ onStart }) {
 									<View style={floorStyles.caisseDetailSection}>
 										{caisseStats.enCoursList.length === 0 ? (
 											<Text style={floorStyles.caisseDetailEmpty}>
-												Aucune réservation en cours
+												{enableComptoir
+													? "Aucune table ouverte"
+													: "Aucune réservation en cours"}
 											</Text>
 										) : (
 											caisseStats.enCoursList.map((r) => (
 												<TouchableOpacity
-													key={r._id}
+													key={r._id || r.sessionId}
 													style={floorStyles.caisseDetailItem}
-													onPress={() => handleCaisseMarkPaid(r)}
-													onLongPress={() => {
-														const tid = String(r.tableId?._id || r.tableId || "");
-														// Menu contextuel : plan de salle + reset table
-														Alert.alert(
-															r.clientName || "Client",
-															`Table ${r.tableId?.number || "?"}`,
-															[
-																hasPlanSalle && tid ? {
-																	text: "Voir sur plan",
-																	onPress: () => { setActiveRoom(1); setFocusTableId(tid); setShowFloorPlan(true); },
-																} : null,
-																{
-																	text: "Réinitialiser table",
-																	style: "destructive",
-																	onPress: () => handleResetTable(r),
-																},
-																{ text: "Annuler", style: "cancel" },
-															].filter(Boolean),
-														);
-													}}
+													onPress={
+														enableComptoir
+															? undefined
+															: () => handleCaisseMarkPaid(r)
+													}
+													onLongPress={
+														enableComptoir
+															? undefined
+															: () => {
+																const tid = String(r.tableId?._id || r.tableId || "");
+																Alert.alert(
+																	r.clientName || "Client",
+																	`Table ${r.tableId?.number || "?"}`,
+																	[
+																		hasPlanSalle && tid ? {
+																			text: "Voir sur plan",
+																			onPress: () => { setActiveRoom(1); setFocusTableId(tid); setShowFloorPlan(true); },
+																		} : null,
+																		{
+																			text: "Réinitialiser table",
+																			style: "destructive",
+																			onPress: () => handleResetTable(r),
+																		},
+																		{ text: "Annuler", style: "cancel" },
+																	].filter(Boolean),
+																);
+															}
+													}
 													delayLongPress={400}
-													activeOpacity={0.7}
+													activeOpacity={enableComptoir ? 1 : 0.7}
 												>
 													<Text style={floorStyles.caisseDetailName}>
-														{r.clientName || "Client"}
+														{enableComptoir
+															? `Table ${r.number || "?"}`
+															: r.clientName || "Client"}
 													</Text>
 													<Text style={floorStyles.caisseDetailAmount}>
 														{(r.totalAmount || 0).toFixed(2)}€
 													</Text>
 													<Ionicons
-														name="map-outline"
+														name={
+															enableComptoir
+																? r.status === "bill_requested"
+																	? "cash-outline"
+																	: "restaurant-outline"
+																: "map-outline"
+														}
 														size={16}
-														color="#C9A84C"
+														color={
+															enableComptoir
+																? r.status === "bill_requested"
+																	? "#F59E0B"
+																	: "#10B981"
+																: "#C9A84C"
+														}
 													/>
 												</TouchableOpacity>
 											))
@@ -1488,6 +1645,7 @@ export default function Floor({ onStart }) {
 				restaurantId={restaurantId}
 				roomNumber={activeRoom}
 				focusTableId={focusTableId}
+				upcomingReservations={upcomingReservations}
 			/>
 			{receiptTargetCaisse && (
 				<ReceiptModal
