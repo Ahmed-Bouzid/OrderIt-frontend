@@ -130,7 +130,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 			onRequestClose={handleClose}
 		>
 			<View style={styles.modalOverlay}>
-				<View style={[styles.modalContainer, { backgroundColor: THEME.colors.background.base }]}>
+				<View style={[styles.modalContainer, { backgroundColor: THEME.colors.background.card }]}>
 					{/* Header */}
 					<LinearGradient
 						colors={[THEME.colors.primary.amber, THEME.colors.primary.dark]}
@@ -178,7 +178,7 @@ const createStyles = (THEME) =>
 	StyleSheet.create({
 		modalOverlay: {
 			flex: 1,
-			backgroundColor: "rgba(0, 0, 0, 0.5)",
+			backgroundColor: "rgba(0, 0, 0, 0.75)",
 			justifyContent: "center",
 			alignItems: "center",
 			paddingHorizontal: 20,
@@ -189,6 +189,11 @@ const createStyles = (THEME) =>
 			height: "80%",
 			borderRadius: 16,
 			overflow: "hidden",
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 8 },
+			shadowOpacity: 0.44,
+			shadowRadius: 12,
+			elevation: 16,
 		},
 		header: {
 			flexDirection: "row",
