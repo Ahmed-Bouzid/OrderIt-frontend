@@ -9,6 +9,7 @@ import {
 	Text,
 	Modal,
 	TouchableOpacity,
+	TouchableWithoutFeedback,
 	FlatList,
 	StyleSheet,
 } from "react-native";
@@ -129,8 +130,13 @@ export default function WebReservationsModal({ visible, onClose }) {
 			transparent={true}
 			onRequestClose={handleClose}
 		>
-			<View style={styles.modalOverlay}>
-				<View style={[styles.modalContainer, { backgroundColor: THEME.colors.background.card }]}>
+			<TouchableOpacity 
+				style={styles.modalOverlay}
+				activeOpacity={1}
+				onPress={handleClose}
+			>
+				<TouchableWithoutFeedback>
+					<View style={[styles.modalContainer, { backgroundColor: THEME.colors.background.card }]}>
 					{/* Header */}
 					<LinearGradient
 						colors={[THEME.colors.primary.amber, THEME.colors.primary.dark]}
@@ -168,8 +174,9 @@ export default function WebReservationsModal({ visible, onClose }) {
 							showsVerticalScrollIndicator={false}
 						/>
 					)}
-				</View>
-			</View>
+					</View>
+				</TouchableWithoutFeedback>
+			</TouchableOpacity>
 		</Modal>
 	);
 }
@@ -186,7 +193,8 @@ const createStyles = (THEME) =>
 		modalContainer: {
 			width: "100%",
 			maxWidth: 380,
-			height: "80%",
+			maxHeight: "60%",
+			minHeight: 300,
 			borderRadius: 16,
 			overflow: "hidden",
 			shadowColor: "#000",
