@@ -50,6 +50,19 @@ const useReservationStore = create((set, get) => ({
 						set({
 							reservations: [...state.reservations, data],
 						});
+						
+						// ⭐ Notification si c'est une réservation web
+						if (data.reservationSource === "À distance") {
+							// Importer le store de notifications et afficher un toast
+							import('./useNotificationStore').then(({ default: useNotificationStore }) => {
+								useNotificationStore.getState().showToast({
+									title: "📱 Nouvelle réservation en ligne",
+									message: `${data.clientName} · ${data.nbPersonnes} pers. · ${new Date(data.reservationDate).toLocaleDateString('fr-FR', { day: 'numeric', month: 'short' })} ${data.reservationTime}`,
+									variant: "success",
+									duration: 6000,
+								});
+							});
+						}
 					}
 					break;
 				}

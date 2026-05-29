@@ -262,6 +262,13 @@ const ReservationCard = React.memo(
 												<Text style={styles.noTableBadgeText}>Sans table</Text>
 											</View>
 										)}
+									{/* ⭐ Badge réservation web */}
+									{reservation.reservationSource === "À distance" && (
+										<View style={styles.webReservationBadge}>
+											<Ionicons name="globe-outline" size={10} color="#3B82F6" />
+											<Text style={styles.webReservationBadgeText}>Web</Text>
+										</View>
+									)}
 								</View>
 							</View>
 							<View
@@ -593,6 +600,23 @@ const createStyles = (THEME) =>
 		},
 		noTableBadgeText: {
 			color: "#EF4444",
+			fontSize: 9,
+			fontWeight: "700",
+			textTransform: "uppercase",
+			letterSpacing: 0.3,
+		},
+		// ⭐ Badge réservation web
+		webReservationBadge: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: "rgba(59, 130, 246, 0.12)",
+			paddingHorizontal: 8,
+			paddingVertical: 3,
+			borderRadius: 12,
+			gap: 3,
+		},
+		webReservationBadgeText: {
+			color: "#3B82F6",
 			fontSize: 9,
 			fontWeight: "700",
 			textTransform: "uppercase",
