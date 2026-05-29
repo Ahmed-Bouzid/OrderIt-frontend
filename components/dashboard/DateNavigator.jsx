@@ -2,7 +2,7 @@
  * 📅 DateNavigator - Composant de navigation par date
  * Affiche la date sélectionnée avec navigation jour par jour
  */
-import React, { useState, useCallback } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -15,9 +15,12 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import DatePickerModal from "./DatePickerModal";
 import AutoAssignModal from "./AutoAssignModal";
+import WebReservationsModal from "./WebReservationsModal";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../../src/config/apiConfig";
+import useReservationStore from "../../src/stores/useReservationStore";
+import useWebReservationStore from "../../src/stores/useWebReservationStore";
 
 export default function DateNavigator({
 	selectedDate,
@@ -31,7 +34,22 @@ export default function DateNavigator({
 	const [showAssistantMenu, setShowAssistantMenu] = useState(false);
 	const [loading, setLoading] = useState(false);
 	const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
+	const [showWebReservationsModal, setShowWebReservationsModal] = useState(false);
 	const authFetch = useAuthFetch();
+	
+	// 🔔 Stores pour notifications de réservations web
+	const reservations = useReservationStore((state) => state.reservations);
+	const { unreadCount, init, updateUnreadCount } = useWebReservationStore();
+	
+	// Initialiser le store au montage
+	useEffect(() => {
+		init();
+	}, [init]);
+	
+	// Calculer le compteur non lus à chaque changement de réservations
+	useEffect(() => {
+		updateUnreadCount(reservations);
+	}, [reservations, updateUnreadCount]);
 
 	const fetchMonthlyCounts = useCallback(
 		async (year, month) => {
@@ -119,6 +137,29 @@ export default function DateNavigator({
 			)}
 
 			<View style={styles.container}>
+				{/* 🔔 Bouton Notifications Réservations Web */}
+				<View style={styles.notificationContainer}>
+					<TouchableOpacity
+						style={[
+							styles.notificationButton,
+							unreadCount > 0 && styles.notificationButtonActive,
+						]}
+						onPress={() => setShowWebReservationsModal(true)}
+						activeOpacity={0.7}
+					>
+						<Ionicons
+							name={unreadCount > 0 ? "notifications" : "notifications-outline"}
+							size={22}
+							color={unreadCount > 0 ? THEME.colors.primary.amber : THEME.colors.text.muted}
+						/>
+						{unreadCount > 0 && (
+							<View style={styles.badge}>
+								<Text style={styles.badgeText}>{unreadCount}</Text>
+							</View>
+						)}
+					</TouchableOpacity>
+				</View>
+				
 				<TouchableOpacity
 					style={styles.arrowButton}
 					onPress={handlePreviousDay}
@@ -230,6 +271,11 @@ export default function DateNavigator({
 					if (onAssignmentComplete) onAssignmentComplete();
 				}}
 			/>
+			
+			<WebReservationsModal
+				visible={showWebReservationsModal}
+				onClose={() => setShowWebReservationsModal(false)}
+			/>
 		</>
 	);
 }
@@ -243,6 +289,60 @@ const createStyles = (THEME) =>
 			paddingVertical: 12,
 			paddingHorizontal: 16,
 			marginBottom: 8,
+		},
+		notificationContainer: {
+			marginRight: 8,
+		},
+		notificationButton: {
+			width: 40,
+			height: 40,
+			borderRadius: 20,
+			backgroundColor: THEME.colors.background.card + "40",
+			alignItems: "center",
+			justifyContent: "center",
+			position: "relative",
+			...Platform.select({
+				ios: {
+					shadowColor: THEME.colors.text.muted,
+					shadowOffset: { width: 0, height: 2 },
+					shadowOpacity: 0.1,
+					shadowRadius: 4,
+				},
+				android: {
+					elevation: 2,
+				},
+			}),
+		},
+		notificationButtonActive: {
+			backgroundColor: THEME.colors.primary.amber + "20",
+			...Platform.select({
+				ios: {
+					shadowColor: THEME.colors.primary.amber,
+					shadowOffset: { width: 0, height: 2 },
+					shadowOpacity: 0.25,
+					shadowRadius: 6,
+				},
+				android: {
+					elevation: 4,
+				},
+			}),
+		},
+		badge: {
+			position: "absolute",
+			top: -2,
+			right: -2,
+			backgroundColor: THEME.colors.danger.red,
+			borderRadius: 10,
+			minWidth: 20,
+			height: 20,
+			alignItems: "center",
+			justifyContent: "center",
+			paddingHorizontal: 4,
+		},
+		badgeText: {
+			fontSize: 11,
+			fontWeight: "700",
+			color: "#FFFFFF",
 		},
 		arrowButton: {
 			width: 40,

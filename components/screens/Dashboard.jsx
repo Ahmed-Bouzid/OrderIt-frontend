@@ -37,8 +37,10 @@ import { useDashboardData } from "../../hooks/useDashboardData";
 import { useDashboardActions } from "../../hooks/useDashboardActions";
 import { useDashboardFilters } from "../../hooks/useDashboardFilters";
 import useThemeStore from "../../src/stores/useThemeStore";
+import useReservationStore from "../../src/stores/useReservationStore";
 import { useTheme } from "../../hooks/useTheme";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
+import useSocket from "../../hooks/useSocket";
 
 export default function Dashboard() {
 	const category = useUserStore((state) => state.category);
@@ -97,6 +99,21 @@ export default function Dashboard() {
 		useDashboardData();
 
 	const localStyles = useMemo(() => createStyles(THEME), [THEME]);
+	
+	// 🔌 WebSocket pour les mises à jour en temps réel
+	const { socket, connect } = useSocket();
+	const attachSocketListener = useReservationStore(
+		(state) => state.attachSocketListener
+	);
+	
+	// Connecter le socket et attacher les listeners
+	useEffect(() => {
+		connect();
+		if (socket) {
+			const cleanup = attachSocketListener(socket);
+			return cleanup;
+		}
+	}, [socket, connect, attachSocketListener]);
 
 	const {
 		activeReservation,
