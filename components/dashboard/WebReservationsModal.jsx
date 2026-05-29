@@ -63,62 +63,60 @@ export default function WebReservationsModal({ visible, onClose }) {
 	
 	const renderItem = ({ item }) => {
 		const statusColor = getStatusColor(item.status);
+		const initials = item.clientName.charAt(0).toUpperCase();
 		
 		return (
-			<View style={[styles.itemCard, { backgroundColor: THEME.colors.background.elevated }]}>
-				{/* Header */}
-				<View style={styles.itemHeader}>
-					<View style={styles.itemHeaderLeft}>
-						<View style={[styles.statusDot, { backgroundColor: statusColor }]} />
-						<Text style={[styles.clientName, { color: THEME.colors.text.primary }]}>
+			<TouchableOpacity 
+				activeOpacity={0.7}
+				style={[styles.mailItem, { backgroundColor: THEME.colors.background.elevated }]}
+			>
+				{/* Avatar avec initiale */}
+				<View style={[styles.avatar, { backgroundColor: THEME.colors.primary.amber }]}>
+					<Text style={styles.avatarText}>{initials}</Text>
+				</View>
+				
+				{/* Contenu */}
+				<View style={styles.mailContent}>
+					{/* Première ligne : Nom + Date */}
+					<View style={styles.mailHeader}>
+						<Text 
+							style={[styles.mailName, { color: THEME.colors.text.primary }]}
+							numberOfLines={1}
+						>
 							{item.clientName}
 						</Text>
+						<Text style={[styles.mailDate, { color: THEME.colors.text.muted }]}>
+							{formatDate(item.reservationDate)}
+						</Text>
 					</View>
-					<Text style={[styles.itemDate, { color: THEME.colors.text.muted }]}>
-						{formatDate(item.reservationDate)}
+					
+					{/* Deuxième ligne : Heure + Personnes + Téléphone */}
+					<Text 
+						style={[styles.mailSubject, { color: THEME.colors.text.secondary }]}
+						numberOfLines={1}
+					>
+						{item.reservationTime} • {item.nbPersonnes} pers. • {item.phone || "Pas de tél."}
 					</Text>
-				</View>
-				
-				{/* Body */}
-				<View style={styles.itemBody}>
-					<View style={styles.infoRow}>
-						<Ionicons name="time-outline" size={14} color={THEME.colors.text.muted} />
-						<Text style={[styles.infoText, { color: THEME.colors.text.secondary }]}>
-							{item.reservationTime}
-						</Text>
-					</View>
 					
-					<View style={styles.infoRow}>
-						<Ionicons name="people-outline" size={14} color={THEME.colors.text.muted} />
-						<Text style={[styles.infoText, { color: THEME.colors.text.secondary }]}>
-							{item.nbPersonnes} pers.
-						</Text>
-					</View>
-					
-					<View style={styles.infoRow}>
-						<Ionicons name="call-outline" size={14} color={THEME.colors.text.muted} />
-						<Text style={[styles.infoText, { color: THEME.colors.text.secondary }]}>
-							{item.phone || "—"}
-						</Text>
-					</View>
-				</View>
-				
-				{/* Notes si présentes */}
-				{item.notes && (
-					<View style={[styles.notesContainer, { backgroundColor: THEME.colors.background.card }]}>
-						<Text style={[styles.notesText, { color: THEME.colors.text.muted }]}>
+					{/* Notes en aperçu si présentes */}
+					{item.notes && (
+						<Text 
+							style={[styles.mailPreview, { color: THEME.colors.text.muted }]}
+							numberOfLines={2}
+						>
 							{item.notes}
 						</Text>
+					)}
+					
+					{/* Badge statut discret */}
+					<View style={styles.statusRow}>
+						<View style={[styles.statusDot, { backgroundColor: statusColor }]} />
+						<Text style={[styles.statusLabel, { color: statusColor }]}>
+							{item.status}
+						</Text>
 					</View>
-				)}
-				
-				{/* Badge statut */}
-				<View style={[styles.statusBadge, { backgroundColor: `${statusColor}15` }]}>
-					<Text style={[styles.statusText, { color: statusColor }]}>
-						{item.status}
-					</Text>
 				</View>
-			</View>
+			</TouchableOpacity>
 		);
 	};
 	
@@ -127,7 +125,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 	return (
 		<Modal
 			visible={visible}
-			animationType="slide"
+			animationType="fade"
 			transparent={true}
 			onRequestClose={handleClose}
 		>
@@ -141,11 +139,11 @@ export default function WebReservationsModal({ visible, onClose }) {
 						style={styles.header}
 					>
 						<View style={styles.headerLeft}>
-							<Ionicons name="globe-outline" size={24} color="#FFFFFF" />
+							<Ionicons name="globe-outline" size={20} color="#FFFFFF" />
 							<Text style={styles.headerTitle}>Réservations en ligne</Text>
 						</View>
 						<TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-							<Ionicons name="close" size={24} color="#FFFFFF" />
+							<Ionicons name="close" size={22} color="#FFFFFF" />
 						</TouchableOpacity>
 					</LinearGradient>
 					
@@ -154,7 +152,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 						<View style={styles.emptyContainer}>
 							<Ionicons
 								name="checkmark-circle-outline"
-								size={48}
+								size={40}
 								color={THEME.colors.text.muted}
 							/>
 							<Text style={[styles.emptyText, { color: THEME.colors.text.muted }]}>
@@ -181,28 +179,31 @@ const createStyles = (THEME) =>
 		modalOverlay: {
 			flex: 1,
 			backgroundColor: "rgba(0, 0, 0, 0.5)",
-			justifyContent: "flex-end",
+			justifyContent: "center",
+			alignItems: "center",
+			paddingHorizontal: 20,
 		},
 		modalContainer: {
-			height: "85%",
-			borderTopLeftRadius: 24,
-			borderTopRightRadius: 24,
+			width: "100%",
+			maxWidth: 380,
+			height: "80%",
+			borderRadius: 16,
 			overflow: "hidden",
 		},
 		header: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			paddingHorizontal: 20,
-			paddingVertical: 16,
+			paddingHorizontal: 16,
+			paddingVertical: 14,
 		},
 		headerLeft: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: 12,
+			gap: 10,
 		},
 		headerTitle: {
-			fontSize: THEME.typography.sizes.lg,
+			fontSize: THEME.typography.sizes.base,
 			fontWeight: "700",
 			color: "#FFFFFF",
 		},
@@ -210,83 +211,83 @@ const createStyles = (THEME) =>
 			padding: 4,
 		},
 		listContent: {
-			padding: 16,
-			gap: 12,
+			paddingTop: 8,
 		},
-		itemCard: {
-			borderRadius: 12,
-			padding: 16,
-			gap: 12,
-			shadowColor: "#000",
-			shadowOffset: { width: 0, height: 2 },
-			shadowOpacity: 0.05,
-			shadowRadius: 4,
-			elevation: 2,
-		},
-		itemHeader: {
+		// Style type Mail iOS
+		mailItem: {
 			flexDirection: "row",
+			paddingVertical: 12,
+			paddingHorizontal: 16,
+			borderBottomWidth: 0.5,
+			borderBottomColor: THEME.colors.text.muted + "20",
+		},
+		avatar: {
+			width: 40,
+			height: 40,
+			borderRadius: 20,
 			alignItems: "center",
-			justifyContent: "space-between",
+			justifyContent: "center",
+			marginRight: 12,
 		},
-		itemHeaderLeft: {
-			flexDirection: "row",
-			alignItems: "center",
-			gap: 8,
-		},
-		statusDot: {
-			width: 8,
-			height: 8,
-			borderRadius: 4,
-		},
-		clientName: {
-			fontSize: THEME.typography.sizes.base,
+		avatarText: {
+			fontSize: 16,
 			fontWeight: "700",
+			color: "#FFFFFF",
 		},
-		itemDate: {
-			fontSize: THEME.typography.sizes.xs,
-			fontWeight: "600",
-			textTransform: "uppercase",
+		mailContent: {
+			flex: 1,
+			gap: 4,
 		},
-		itemBody: {
+		mailHeader: {
 			flexDirection: "row",
-			flexWrap: "wrap",
-			gap: 16,
+			justifyContent: "space-between",
+			alignItems: "center",
 		},
-		infoRow: {
+		mailName: {
+			fontSize: THEME.typography.sizes.base,
+			fontWeight: "600",
+			flex: 1,
+			marginRight: 8,
+		},
+		mailDate: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: "400",
+		},
+		mailSubject: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "500",
+		},
+		mailPreview: {
+			fontSize: THEME.typography.sizes.xs,
+			lineHeight: 16,
+			fontStyle: "italic",
+		},
+		statusRow: {
 			flexDirection: "row",
 			alignItems: "center",
 			gap: 6,
+			marginTop: 2,
 		},
-		infoText: {
-			fontSize: THEME.typography.sizes.sm,
+		statusDot: {
+			width: 6,
+			height: 6,
+			borderRadius: 3,
 		},
-		notesContainer: {
-			padding: 10,
-			borderRadius: 8,
-		},
-		notesText: {
+		statusLabel: {
 			fontSize: THEME.typography.sizes.xs,
-			lineHeight: 16,
-		},
-		statusBadge: {
-			alignSelf: "flex-start",
-			paddingHorizontal: 10,
-			paddingVertical: 4,
-			borderRadius: 12,
-		},
-		statusText: {
-			fontSize: THEME.typography.sizes.xs,
-			fontWeight: "700",
-			textTransform: "uppercase",
+			fontWeight: "600",
+			textTransform: "capitalize",
 		},
 		emptyContainer: {
 			flex: 1,
 			alignItems: "center",
 			justifyContent: "center",
-			gap: 16,
+			gap: 12,
+			paddingHorizontal: 40,
 		},
 		emptyText: {
-			fontSize: THEME.typography.sizes.base,
-			fontWeight: "600",
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "500",
+			textAlign: "center",
 		},
 	});
