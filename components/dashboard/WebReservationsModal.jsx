@@ -12,7 +12,9 @@ import {
 	TouchableWithoutFeedback,
 	FlatList,
 	StyleSheet,
+	Animated,
 } from "react-native";
+import { Swipeable } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
@@ -22,19 +24,23 @@ import useWebReservationStore from "../../src/stores/useWebReservationStore";
 export default function WebReservationsModal({ visible, onClose }) {
 	const THEME = useTheme();
 	const reservations = useReservationStore((state) => state.reservations);
-	const markAllAsSeen = useWebReservationStore((state) => state.markAllAsSeen);
+	const { seenIds, markAllAsSeen, markAsSeen } = useWebReservationStore((state) => ({
+		seenIds: state.seenIds,
+		markAllAsSeen: state.markAllAsSeen,
+		markAsSeen: state.markAsSeen,
+	}));
 	
-	// Filtrer uniquement les réservations "À distance"
+	// Filtrer uniquement les réservations "À distance" non vues
 	const webReservations = useMemo(() => {
 		return reservations
-			.filter((r) => r.reservationSource === "À distance") // Strictement égal, pas null/undefined
+			.filter((r) => r.reservationSource === "À distance" && !seenIds.has(r._id)) // Exclure les vues
 			.sort((a, b) => {
 				// Trier par date de réservation (plus récent en premier)
 				const dateA = new Date(a.reservationDate);
 				const dateB = new Date(b.reservationDate);
 				return dateB - dateA;
 			});
-	}, [reservations]);
+	}, [reservations, seenIds]);
 	
 	const handleClose = () => {
 		// Marquer toutes comme vues au moment de la fermeture
@@ -61,16 +67,37 @@ export default function WebReservationsModal({ visible, onClose }) {
 		};
 		return statusMap[status] || THEME.colors.text.muted;
 	};
+
+	const handleDismiss = (itemId) => {
+		// Marquer comme vue pour la masquer définitivement
+		markAsSeen(itemId);
+	};
+
+	const renderRightActions = (itemId) => {
+		return (
+			<TouchableOpacity
+				style={[styles.deleteAction, { backgroundColor: THEME.colors.status.error }]}
+				onPress={() => handleDismiss(itemId)}
+			>
+				<Ionicons name="trash-outline" size={22} color="#FFFFFF" />
+				<Text style={styles.deleteText}>Masquer</Text>
+			</TouchableOpacity>
+		);
+	};
 	
 	const renderItem = ({ item }) => {
 		const statusColor = getStatusColor(item.status);
 		const initials = item.clientName.charAt(0).toUpperCase();
 		
 		return (
-			<TouchableOpacity 
-				activeOpacity={0.7}
-				style={[styles.mailItem, { backgroundColor: THEME.colors.background.elevated }]}
+			<Swipeable
+				renderRightActions={() => renderRightActions(item._id)}
+				overshootRight={false}
 			>
+				<TouchableOpacity 
+					activeOpacity={0.7}
+					style={[styles.mailItem, { backgroundColor: THEME.colors.background.elevated }]}
+				>
 				{/* Avatar avec initiale */}
 				<View style={[styles.avatar, { backgroundColor: THEME.colors.primary.amber }]}>
 					<Text style={styles.avatarText}>{initials}</Text>
@@ -117,7 +144,8 @@ export default function WebReservationsModal({ visible, onClose }) {
 						</Text>
 					</View>
 				</View>
-			</TouchableOpacity>
+				</TouchableOpacity>
+			</Swipeable>
 		);
 	};
 	
@@ -148,8 +176,15 @@ export default function WebReservationsModal({ visible, onClose }) {
 							<Ionicons name="globe-outline" size={20} color="#FFFFFF" />
 							<Text style={styles.headerTitle}>Réservations en ligne</Text>
 						</View>
-						<TouchableOpacity onPress={handleClose} style={styles.closeButton}>
-							<Ionicons name="close" size={22} color="#FFFFFF" />
+						<TouchableOpacity 
+							onPress={handleClose} 
+							style={styles.closeButton}
+							hitSlop={{ top: 10, bottom: 10, left: 10, right: 10 }}
+						>
+							<View style={styles.closeButtonCircle}>
+								<Ionicons name="close" size={20} color="#FFFFFF" />
+							</View>
+						</TouchableOpacity>
 						</TouchableOpacity>
 					</LinearGradient>
 					
@@ -222,9 +257,30 @@ const createStyles = (THEME) =>
 		},
 		closeButton: {
 			padding: 4,
+			zIndex: 10,
+		},
+		closeButtonCircle: {
+			width: 32,
+			height: 32,
+			borderRadius: 16,
+			backgroundColor: "rgba(255, 255, 255, 0.2)",
+			alignItems: "center",
+			justifyContent: "center",
 		},
 		listContent: {
-			paddingTop: 8,
+			paddingBottom: 8,
+		},
+		deleteAction: {
+			justifyContent: "center",
+			alignItems: "center",
+			width: 80,
+			paddingHorizontal: 12,
+			gap: 4,
+		},
+		deleteText: {
+			color: "#FFFFFF",
+			fontSize: 12,
+			fontWeight: "600",
 		},
 		// Style type Mail iOS
 		mailItem: {

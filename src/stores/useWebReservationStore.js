@@ -56,6 +56,19 @@ const useWebReservationStore = create((set, get) => ({
 		}
 	},
 	
+	// Marquer une seule réservation comme vue (pour swipe to dismiss)
+	markAsSeen: async (reservationId) => {
+		const newSeenIds = new Set([...get().seenIds, reservationId]);
+		set({ seenIds: newSeenIds });
+		
+		// Persister dans AsyncStorage
+		try {
+			await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([...newSeenIds]));
+		} catch (error) {
+			console.error("[WebReservationStore] Erreur persist:", error);
+		}
+	},
+	
 	// Reset (pour tests)
 	reset: async () => {
 		set({ seenIds: new Set(), unreadCount: 0 });
