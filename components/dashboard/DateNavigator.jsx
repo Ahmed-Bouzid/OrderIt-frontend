@@ -331,7 +331,7 @@ const createStyles = (THEME) =>
 			position: "absolute",
 			top: -2,
 			right: -2,
-			backgroundColor: THEME.colors.danger.red,
+			backgroundColor: THEME.colors.status.error,
 			borderRadius: 10,
 			minWidth: 20,
 			height: 20,

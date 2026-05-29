@@ -53,10 +53,10 @@ export default function WebReservationsModal({ visible, onClose }) {
 	
 	const getStatusColor = (status) => {
 		const statusMap = {
-			"en attente": THEME.colors.warning.yellow,
-			"present": THEME.colors.success.green,
+			"en attente": THEME.colors.status.warning,
+			"present": THEME.colors.status.success,
 			"terminée": THEME.colors.text.muted,
-			"annulée": THEME.colors.danger.red,
+			"annulée": THEME.colors.status.error,
 		};
 		return statusMap[status] || THEME.colors.text.muted;
 	};
