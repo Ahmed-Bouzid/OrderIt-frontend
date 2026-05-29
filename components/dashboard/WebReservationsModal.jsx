@@ -185,16 +185,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 								<Ionicons name="close" size={20} color="#FFFFFF" />
 							</View>
 						</TouchableOpacity>
-						</TouchableOpacity>
-					</LinearGradient>
-					
-					{/* Liste */}
-					{webReservations.length === 0 ? (
-						<View style={styles.emptyContainer}>
-							<Ionicons
-								name="checkmark-circle-outline"
-								size={40}
-								color={THEME.colors.text.muted}
+
 							/>
 							<Text style={[styles.emptyText, { color: THEME.colors.text.muted }]}>
 								Aucune réservation en ligne
