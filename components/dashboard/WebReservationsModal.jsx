@@ -26,7 +26,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 	// Filtrer uniquement les réservations "À distance"
 	const webReservations = useMemo(() => {
 		return reservations
-			.filter((r) => r.reservationSource === "À distance")
+			.filter((r) => r.reservationSource === "À distance") // Strictement égal, pas null/undefined
 			.sort((a, b) => {
 				// Trier par date de réservation (plus récent en premier)
 				const dateA = new Date(a.reservationDate);
@@ -202,7 +202,7 @@ const createStyles = (THEME) =>
 			gap: 12,
 		},
 		headerTitle: {
-			fontSize: THEME.typography.size.lg,
+			fontSize: THEME.typography.sizes.lg,
 			fontWeight: "700",
 			color: "#FFFFFF",
 		},
@@ -239,11 +239,11 @@ const createStyles = (THEME) =>
 			borderRadius: 4,
 		},
 		clientName: {
-			fontSize: THEME.typography.size.base,
+			fontSize: THEME.typography.sizes.base,
 			fontWeight: "700",
 		},
 		itemDate: {
-			fontSize: THEME.typography.size.xs,
+			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "600",
 			textTransform: "uppercase",
 		},
@@ -258,14 +258,14 @@ const createStyles = (THEME) =>
 			gap: 6,
 		},
 		infoText: {
-			fontSize: THEME.typography.size.sm,
+			fontSize: THEME.typography.sizes.sm,
 		},
 		notesContainer: {
 			padding: 10,
 			borderRadius: 8,
 		},
 		notesText: {
-			fontSize: THEME.typography.size.xs,
+			fontSize: THEME.typography.sizes.xs,
 			lineHeight: 16,
 		},
 		statusBadge: {
@@ -275,7 +275,7 @@ const createStyles = (THEME) =>
 			borderRadius: 12,
 		},
 		statusText: {
-			fontSize: THEME.typography.size.xs,
+			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "700",
 			textTransform: "uppercase",
 		},
@@ -286,7 +286,7 @@ const createStyles = (THEME) =>
 			gap: 16,
 		},
 		emptyText: {
-			fontSize: THEME.typography.size.base,
+			fontSize: THEME.typography.sizes.base,
 			fontWeight: "600",
 		},
 	});

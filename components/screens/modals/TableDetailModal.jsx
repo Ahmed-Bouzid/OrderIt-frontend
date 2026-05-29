@@ -1,11 +1,10 @@
 /**
  * TableDetailModal.jsx — Détail table Comptoir
  *
- * Layout redesigné :
- *   Header fixe  : ← retour | Table X (N pers.) | ● Xmin
- *   Status pill  : pill colorée + "Ouverte à HH:MM"
- *   ScrollView   : envoyés cuisine → panier → total
- *   Actions 2×2  : Ajouter | Envoyer | Addition | Encaisser
+ * Modal centrée (style ServerPickerModal) :
+ *   Header : Table X · N pers. · Xmin  +  × fermer
+ *   Status pill · Items envoyés · Cart · Total
+ *   Actions 2×2
  */
 
 import React, { useState, useMemo } from "react";
@@ -20,7 +19,6 @@ import {
 	Alert,
 	Dimensions,
 } from "react-native";
-import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../hooks/useTheme";
 import useCounterTable from "../../../hooks/useCounterTable";
@@ -29,18 +27,21 @@ import EncaisserModal from "./EncaisserModal";
 
 const IS_PHONE = Dimensions.get("window").width < 600;
 
-// ─── Demo sent items (pas d'API pour items individuels pour l'instant) ──────
-const DEMO_SENT = [
-	{ id: "1", qty: 2, name: "Burger Maison", price: 11.0, status: "En préparation" },
-	{ id: "2", qty: 1, name: "Frites Maison", price: 5.0, status: "Prêt" },
-	{ id: "3", qty: 2, name: "Coca 33cl", price: 5.0, status: "Servi" },
-];
+// ─── Mapping statuts order → label affiché ───────────────────────────────
+const ORDER_STATUS_LABEL = {
+	confirmed: "En préparation",
+	in_progress: "En préparation",
+	ready: "Prêt",
+	completed: "Servi",
+	cancelled: "Annulé",
+};
 
 // ─── Colors par statut d'item ─────────────────────────────────────────────
 const ITEM_STATUS_COLORS = {
 	"En préparation": { bg: "#E6F1FB", text: "#0C447C" },
 	Prêt: { bg: "#EAF3DE", text: "#27500A" },
 	Servi: { bg: "#F1EFE8", text: "#5F5E5A" },
+	Annulé: { bg: "#FEE2E2", text: "#991B1B" },
 };
 
 // ─── Helpers ──────────────────────────────────────────────────────────────
@@ -84,8 +85,21 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	const [isSending, setIsSending] = useState(false);
 	const [isClosing, setIsClosing] = useState(false);
 
-	const { session, cart, cartTotal, cartItemsCount, isOpening, actions, isTableFree } =
+	const { session, cart, cartTotal, cartItemsCount, isOpening, actions, isTableFree, sessionOrders, sentTotal } =
 		useCounterTable(tableId, restaurantId);
+
+	// Total global = envoyé en cuisine + panier en attente
+	const grandTotal = sentTotal + cartTotal;
+
+	// 🔍 Log de diagnostic pour tracer le décalage
+	React.useEffect(() => {
+		if (visible && session) {
+			console.log(`[TableDetailModal] table=${tableId} session=${session._id} sentTotal=${sentTotal.toFixed(2)}€ cartTotal=${cartTotal.toFixed(2)}€ grandTotal=${grandTotal.toFixed(2)}€ orders=${sessionOrders.length}`);
+			sessionOrders.forEach((o, i) => {
+				console.log(`  [Order ${i+1}] id=${o._id} status=${o.orderStatus} total=${o.totalAmount?.toFixed(2) || 0}€`);
+			});
+		}
+	}, [visible, session, sentTotal, cartTotal, grandTotal, sessionOrders, tableId]);
 
 	const styles = useMemo(() => createStyles(THEME), [THEME]);
 
@@ -113,10 +127,10 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 		}
 	};
 
-	const handleEncaisser = async (paymentMethod) => {
+	const handleEncaisser = async (paymentMethod, zeroReason, discounts = []) => {
 		setIsClosing(true);
 		try {
-			await actions.closeTable(paymentMethod);
+			await actions.closeTable(paymentMethod, discounts);
 			onClose();
 		} catch (err) {
 			Alert.alert("Erreur", err.message);
@@ -125,39 +139,45 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 		}
 	};
 
+	/**
+	 * Annuler une commande individuelle déjà envoyée en cuisine.
+	 * Guard : statut "cancelled" → skip silencieux.
+	 * Pattern identique à handleCancelOrder dans Activity.jsx.
+	 */
+	const handleCancelOrder = (order) => {
+		if (order.orderStatus === "cancelled") return;
+		Alert.alert(
+			"Annuler cette commande ?",
+			"Cette action est irréversible.",
+			[
+				{ text: "Annuler", style: "cancel" },
+				{
+					text: "Confirmer",
+					style: "destructive",
+					onPress: async () => {
+						try {
+							await actions.cancelOrder(order._id);
+						} catch (err) {
+							Alert.alert("Erreur", err.message);
+						}
+					},
+				},
+			],
+		);
+	};
+
 	if (!visible) return null;
 
-	// ─── Render : Table libre ─────────────────────────────────────────────
+	// ─── Render : Table en cours d'ouverture (transition) ────────────────
 	if (isTableFree || isOpening) {
 		return (
 			<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-				<BlurView intensity={90} style={styles.blur}>
-					<View style={styles.freeSheet}>
-						<TouchableOpacity onPress={onClose} style={styles.freeCloseBtn}>
-							<Ionicons name="close" size={24} color={THEME.colors.text.muted} />
-						</TouchableOpacity>
-						<Text style={styles.freeEmoji}>🪑</Text>
-						<Text style={styles.freeTitle}>Table {table?.number ?? "—"}</Text>
-						<Text style={styles.freeHint}>Table libre — prête pour le service</Text>
-						<TouchableOpacity
-							onPress={async () => {
-								try {
-									await actions.openTable();
-								} catch {
-									Alert.alert("Erreur", "Impossible d'ouvrir la table. Vérifiez la connexion.");
-								}
-							}}
-							disabled={isOpening}
-							style={styles.openBtn}
-						>
-							{isOpening ? (
-								<ActivityIndicator size="small" color={THEME.colors.background.dark} />
-							) : (
-								<Text style={styles.openBtnText}>🟢 OUVRIR LA TABLE</Text>
-							)}
-						</TouchableOpacity>
+				<View style={styles.overlay}>
+					<View style={[styles.sheet, styles.loadingSheet]}>
+						<ActivityIndicator size="large" color="#FBBF24" />
+						<Text style={styles.loadingText}>Ouverture de la table…</Text>
 					</View>
-				</BlurView>
+				</View>
 			</Modal>
 		);
 	}
@@ -165,7 +185,6 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	// ─── Render : Session active ──────────────────────────────────────────
 	const statusConfig = getStatusConfig(session?.billStatus);
 	const elapsedMin = getElapsedMin(session?.openedAt);
-	const openedAtStr = formatHHMM(session?.openedAt);
 	const tableLabel = table?.number ?? "—";
 	const tableCapacity = table?.capacity ?? "?";
 
@@ -173,181 +192,203 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 		<Modal
 			visible={visible}
 			transparent
-			animationType="slide"
+			animationType="fade"
 			onRequestClose={onClose}
-			presentationStyle={!IS_PHONE ? "pageSheet" : undefined}
 		>
 			<View style={styles.overlay}>
 				<View style={styles.sheet}>
 
-					{/* ── HEADER (fixe) ────────────────────────────────────── */}
+					{/* ── HEADER ────────────────────────────────────── */}
 					<View style={styles.header}>
-						<TouchableOpacity onPress={onClose} style={styles.headerBtn}>
-							<Ionicons name="chevron-back" size={26} color={THEME.colors.primary.amber} />
+						<View style={styles.headerLeft}>
+							<Text style={styles.headerTitle}>Table {tableLabel}</Text>
+							<Text style={styles.headerSub}>
+								{tableCapacity} pers. · ouverte depuis {elapsedMin} min
+							</Text>
+						</View>
+						<TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+							<Ionicons name="close" size={20} color="#94A3B8" />
 						</TouchableOpacity>
-						<Text style={styles.headerTitle} numberOfLines={1}>
-							Table {tableLabel} ({tableCapacity} pers.)
-						</Text>
-						<View style={styles.headerRight}>
-							<View style={[styles.headerDot, { backgroundColor: statusConfig.dotColor }]} />
-							<Text style={styles.headerTime}>{elapsedMin} min</Text>
+					</View>
+
+					{/* ── STATUS PILL ──────────────────────────────────── */}
+					<View style={styles.statusRow}>
+						<View style={[
+							styles.statusPillWrap,
+							session?.billStatus === "bill_requested"
+								? styles.statusPillBill
+								: styles.statusPillOpen,
+						]}>
+							<View style={[
+								styles.statusDot,
+								{ backgroundColor: statusConfig.dotColor },
+							]} />
+							<Text style={[
+								styles.statusPillLabel,
+								{ color: statusConfig.dotColor },
+							]}>
+								{session?.billStatus === "bill_requested" ? "À encaisser" : "En service"}
+							</Text>
 						</View>
 					</View>
 
-					{/* ── STATUS BADGE (fixe) ──────────────────────────────── */}
-					<View style={styles.statusSection}>
-						<Text style={styles.statusLabel}>{statusConfig.label}</Text>
-						<Text style={styles.statusMeta}>Ouverte par tablette comptoir · {openedAtStr}</Text>
-					</View>
-
-					{/* ── SCROLLABLE CONTENT ────────────────────────────────── */}
-					<ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-
-						{/* Label total */}
-						<View style={styles.sectionLabelRow}>
-							<Text style={styles.sectionLabel}>PLATS COMMANDÉS</Text>
-							<Text style={styles.totalBadge}>{cartTotal.toFixed(2)} €</Text>
-						</View>
-
+					{/* ── SCROLLABLE CONTENT ────────────────────────────── */}
+					<ScrollView
+						style={styles.scroll}
+						contentContainerStyle={styles.scrollContent}
+						showsVerticalScrollIndicator={false}
+					>
 						{/* Envoyés en cuisine */}
-						<Text style={styles.subsectionLabel}>ENVOYÉS EN CUISINE ✓ {formatHHMM(session?.openedAt)}</Text>
-						{DEMO_SENT.map((item) => {
-							const colors = ITEM_STATUS_COLORS[item.status] || ITEM_STATUS_COLORS["Servi"];
-							return (
-								<View key={item.id} style={styles.sentRow}>
-									<Text style={styles.sentName}>
-										{item.qty}× {item.name}
-									</Text>
-									<Text style={styles.sentPrice}>{item.price.toFixed(2)} €</Text>
-									<View style={[styles.statusPill, { backgroundColor: colors.bg }]}>
-										<Text style={[styles.statusPillText, { color: colors.text }]}>
-											{item.status}
+						<Text style={styles.subsectionLabel}>ENVOYÉS EN CUISINE</Text>
+					{sessionOrders.length === 0 ? (
+						<Text style={styles.emptyHint}>Aucun plat encore envoyé</Text>
+					) : (
+						sessionOrders.map((order) =>
+							(order.items || []).map((item, idx) => {
+								const orderLabel = ORDER_STATUS_LABEL[order.orderStatus] ?? "En préparation";
+								const colors = ITEM_STATUS_COLORS[orderLabel] || ITEM_STATUS_COLORS["Servi"];
+								const isCancelled = order.orderStatus === "cancelled";
+								return (
+									<View key={`${order._id}-${idx}`} style={styles.sentRow}>
+										<Text style={[styles.sentName, isCancelled && styles.sentNameCancelled]}>
+											{item.quantity}× {item.name}
 										</Text>
+										<Text style={[styles.sentPrice, isCancelled && styles.sentNameCancelled]}>
+											{(item.price * item.quantity).toFixed(2)} €
+										</Text>
+										<View style={[styles.statusPillItem, { backgroundColor: colors.bg }]}>
+											<Text style={[styles.statusPillItemText, { color: colors.text }]}>
+												{orderLabel}
+											</Text>
+										</View>
+										{/* Bouton annuler (visible seulement sur le premier item de la commande) */}
+										{idx === 0 && !isCancelled && (
+											<TouchableOpacity
+												onPress={() => handleCancelOrder(order)}
+												style={styles.cancelOrderBtn}
+												hitSlop={{ top: 8, bottom: 8, left: 8, right: 8 }}
+											>
+												<Ionicons name="close-circle-outline" size={18} color="#EF4444" />
+											</TouchableOpacity>
+										)}
 									</View>
-								</View>
-							);
-						})}
-
-						{/* Separator */}
-						<View style={styles.divider} />
-
-						{/* En attente d'envoi */}
-						<Text style={styles.subsectionLabel}>EN ATTENTE D'ENVOI</Text>
-						{cart.length === 0 ? (
-							<Text style={styles.emptyHint}>Panier vide</Text>
-						) : (
-							cart.map((item) => (
-								<View key={item.tempId} style={styles.cartRow}>
-									<Text style={styles.cartName} numberOfLines={1}>
-										{item.name}
-									</Text>
-									<Text style={styles.cartPrice}>
-										{(item.price * item.quantity).toFixed(2)} €
-									</Text>
-									<View style={styles.qtyControls}>
-										<TouchableOpacity
-											onPress={() =>
-												actions.setQty(item.tempId, item.quantity - 1)
-											}
-											style={styles.qtyBtn}
-										>
-											<Text style={styles.qtyBtnText}>−</Text>
-										</TouchableOpacity>
-										<Text style={styles.qtyValue}>{item.quantity}</Text>
-										<TouchableOpacity
-											onPress={() =>
-												actions.setQty(item.tempId, item.quantity + 1)
-											}
-											style={styles.qtyBtn}
-										>
-											<Text style={styles.qtyBtnText}>+</Text>
-										</TouchableOpacity>
-										<TouchableOpacity
-											onPress={() => actions.removeItem(item.tempId)}
-											style={styles.trashBtn}
-										>
-											<Ionicons
-												name="trash-outline"
-												size={16}
-												color="#EF4444"
-											/>
-										</TouchableOpacity>
+								);
+							})
+						)
+					)}
+						{cart.length > 0 && (
+							<>
+								<Text style={[styles.subsectionLabel, { marginTop: 12 }]}>EN ATTENTE D'ENVOI</Text>
+								{cart.map((item) => (
+									<View key={item.tempId} style={styles.cartRow}>
+										<Text style={styles.sentName} numberOfLines={1}>
+											{item.quantity}× {item.name}
+										</Text>
+										<Text style={styles.sentPrice}>
+											{(item.price * item.quantity).toFixed(2)} €
+										</Text>
+										<View style={styles.qtyControls}>
+											<TouchableOpacity
+												onPress={() => actions.setQty(item.tempId, item.quantity - 1)}
+												style={styles.qtyBtn}
+											>
+												<Text style={styles.qtyBtnText}>−</Text>
+											</TouchableOpacity>
+											<Text style={styles.qtyValue}>{item.quantity}</Text>
+											<TouchableOpacity
+												onPress={() => actions.setQty(item.tempId, item.quantity + 1)}
+												style={styles.qtyBtn}
+											>
+												<Text style={styles.qtyBtnText}>+</Text>
+											</TouchableOpacity>
+											<TouchableOpacity
+												onPress={() => actions.removeItem(item.tempId)}
+												style={styles.trashBtn}
+											>
+												<Ionicons name="trash-outline" size={16} color="#EF4444" />
+											</TouchableOpacity>
+										</View>
 									</View>
-								</View>
-							))
+								))}
+							</>
 						)}
 
-						{/* Divider before total */}
+						{/* Divider + Total */}
 						<View style={styles.divider} />
-
-						{/* Total line */}
-						<View style={styles.totalRow}>
-							<Text style={styles.totalLabel}>Total</Text>
-							<Text style={styles.totalValue}>
-								{cartTotal.toFixed(2)} €
-							</Text>
+					{sentTotal > 0 && (
+						<View style={styles.subTotalRow}>
+							<Text style={styles.subTotalLabel}>Envoyé en cuisine</Text>
+							<Text style={styles.subTotalValue}>{sentTotal.toFixed(2)} €</Text>
+						</View>
+					)}
+					{cartTotal > 0 && (
+						<View style={styles.subTotalRow}>
+							<Text style={styles.subTotalLabel}>En attente d'envoi</Text>
+							<Text style={styles.subTotalValue}>{cartTotal.toFixed(2)} €</Text>
+						</View>
+					)}
+					<View style={styles.totalRow}>
+						<Text style={styles.totalLabel}>Total</Text>
+						<Text style={styles.totalValue}>{grandTotal.toFixed(2)} €</Text>
 						</View>
 					</ScrollView>
 
-					{/* ── ACTIONS GRID (fixe en bas) ────────────────────────── */}
+					{/* ── ACTIONS 2×2 ──────────────────────────────────── */}
 					<View style={styles.actionsGrid}>
 						<TouchableOpacity
 							onPress={() => setShowMenuPicker(true)}
-							style={styles.actionOutlined}
+							style={styles.actionBtn}
 						>
-							<Text style={styles.actionOutlinedText}>+ Ajouter des plats</Text>
+							<Text style={styles.actionBtnText}>+ Ajouter des plats</Text>
 						</TouchableOpacity>
 
 						<TouchableOpacity
 							onPress={handleSendToCook}
 							disabled={isSending || cart.length === 0}
-							style={[
-								styles.actionPrimary,
-								(isSending || cart.length === 0) && styles.actionDisabled,
-							]}
+							style={[styles.actionBtn, (isSending || cart.length === 0) && styles.actionDisabled]}
 						>
 							{isSending ? (
-								<ActivityIndicator size="small" color={THEME.colors.background.dark} />
+								<ActivityIndicator size="small" color="#F8FAFC" />
 							) : (
-								<Text style={styles.actionPrimaryText}>
-									📤 Envoyer ({cartItemsCount})
-								</Text>
+								<Text style={styles.actionBtnText}>✈ Envoyer en cuisine</Text>
 							)}
 						</TouchableOpacity>
 
 						<TouchableOpacity
 							onPress={handleRequestBill}
-							style={styles.actionOutlined}
+							style={styles.actionBtn}
 						>
-							<Text style={styles.actionOutlinedText}>💶 Demander addition</Text>
+							<Text style={styles.actionBtnText}>€ Demander addition</Text>
 						</TouchableOpacity>
 
 						<TouchableOpacity
 							onPress={() => setShowEncaisser(true)}
-							disabled={isClosing}
-							style={[styles.actionSuccess, isClosing && styles.actionDisabled]}
+							disabled={isClosing || cart.length > 0}
+							style={[styles.actionBtn, styles.actionBtnEncaisser, (isClosing || cart.length > 0) && styles.actionDisabled]}
 						>
 							{isClosing ? (
 								<ActivityIndicator size="small" color="#fff" />
 							) : (
-								<Text style={styles.actionSuccessText}>✅ Encaisser & libérer</Text>
+								<Text style={[styles.actionBtnText, styles.actionBtnEncaisserText]}>✓ Encaisser &amp; libérer</Text>
 							)}
 						</TouchableOpacity>
 					</View>
 
-					{/* ── SUB-MODALS ────────────────────────────────────────── */}
+					{/* ── SUB-MODALS ────────────────────────────────────── */}
 					{showMenuPicker && (
 						<MenuPickerModal
 							visible={showMenuPicker}
 							onClose={() => setShowMenuPicker(false)}
 							tableId={tableId}
+							restaurantId={restaurantId}
 						/>
 					)}
 					{showEncaisser && (
 						<EncaisserModal
 							visible={showEncaisser}
 							onClose={() => setShowEncaisser(false)}
-							total={cartTotal}
+							total={grandTotal}
+							orders={sessionOrders}
 							onEncaisser={handleEncaisser}
 						/>
 					)}
@@ -360,146 +401,123 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 // ─── Styles ───────────────────────────────────────────────────────────────
 const createStyles = (THEME) =>
 	StyleSheet.create({
-		// ── Table libre ──────────────────────────────────────────
-		blur: { flex: 1 },
-		freeSheet: {
-			flex: 1,
-			justifyContent: "center",
-			alignItems: "center",
-		},
-		freeCloseBtn: {
-			position: "absolute",
-			top: 56,
-			right: 20,
-			padding: 8,
-		},
-		freeEmoji: { fontSize: 48, marginBottom: 12 },
-		freeTitle: {
-			fontSize: 22,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-			marginBottom: 6,
-		},
-		freeHint: {
-			fontSize: 14,
-			color: THEME.colors.text.muted,
-			marginBottom: 36,
-		},
-		openBtn: {
-			backgroundColor: THEME.colors.primary.amber,
-			paddingHorizontal: 36,
-			paddingVertical: 14,
-			borderRadius: 12,
-			minWidth: 220,
-			alignItems: "center",
-		},
-		openBtnText: {
-			color: THEME.colors.background.dark,
-			fontWeight: "700",
-			fontSize: 15,
-		},
-
-		// ── Session active ───────────────────────────────────────
+		// ── Overlay centré ───────────────────────────────────────
 		overlay: {
 			flex: 1,
-			backgroundColor: "rgba(0,0,0,0.55)",
-			justifyContent: "flex-end",
+			backgroundColor: "rgba(0,0,0,0.70)",
+			justifyContent: "center",
+			alignItems: "center",
+			paddingHorizontal: 16,
+			paddingVertical: 12,
 		},
 		sheet: {
-			maxHeight: "92%",
-			backgroundColor: THEME.colors.background.dark,
-			borderTopLeftRadius: 20,
-			borderTopRightRadius: 20,
+			backgroundColor: "#1E293B",
+			borderRadius: 20,
+			width: "100%",
+			maxWidth: 520,
+			flex: 0,
+			flexShrink: 1,
+			minHeight: "78%",
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.08)",
 			overflow: "hidden",
-			flexDirection: "column",
+		},
+
+		// ── Loading ───────────────────────────────────────────────
+		loadingSheet: {
+			paddingVertical: 48,
+			alignItems: "center",
+			justifyContent: "center",
+			gap: 16,
+		},
+		loadingText: {
+			color: "#94A3B8",
+			fontSize: 14,
+			fontWeight: "500",
 		},
 
 		// ── Header ───────────────────────────────────────────────
 		header: {
 			flexDirection: "row",
-			alignItems: "center",
-			paddingHorizontal: 12,
-			paddingVertical: 14,
+			alignItems: "flex-start",
+			paddingHorizontal: 20,
+			paddingTop: 20,
+			paddingBottom: 14,
 			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
-			gap: 8,
+			borderBottomColor: "rgba(255,255,255,0.07)",
 		},
-		headerBtn: { padding: 4 },
+		headerLeft: { flex: 1 },
 		headerTitle: {
-			flex: 1,
-			fontSize: 16,
+			fontSize: 20,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
-			textAlign: "center",
+			color: "#F8FAFC",
+			marginBottom: 3,
 		},
-		headerRight: {
+		headerSub: {
+			fontSize: 13,
+			color: "#64748B",
+			fontWeight: "400",
+		},
+		closeBtn: {
+			width: 32,
+			height: 32,
+			borderRadius: 16,
+			backgroundColor: "rgba(255,255,255,0.07)",
+			alignItems: "center",
+			justifyContent: "center",
+			marginLeft: 12,
+		},
+
+		// ── Status pill ───────────────────────────────────────────
+		statusRow: {
+			paddingHorizontal: 20,
+			paddingVertical: 12,
+			borderBottomWidth: 1,
+			borderBottomColor: "rgba(255,255,255,0.07)",
+		},
+		statusPillWrap: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: 5,
-			minWidth: 60,
-			justifyContent: "flex-end",
+			alignSelf: "flex-start",
+			borderRadius: 20,
+			paddingHorizontal: 12,
+			paddingVertical: 5,
+			gap: 6,
+			borderWidth: 1,
 		},
-		headerDot: {
+		statusPillOpen: {
+			backgroundColor: "rgba(34,197,94,0.12)",
+			borderColor: "rgba(34,197,94,0.3)",
+		},
+		statusPillBill: {
+			backgroundColor: "rgba(245,158,11,0.12)",
+			borderColor: "rgba(245,158,11,0.3)",
+		},
+		statusDot: {
 			width: 8,
 			height: 8,
 			borderRadius: 4,
 		},
-		headerTime: {
+		statusPillLabel: {
 			fontSize: 13,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
-		},
-
-		// ── Status badge ─────────────────────────────────────────
-		statusSection: {
-			paddingHorizontal: 16,
-			paddingVertical: 10,
-			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
-		},
-		statusLabel: {
-			fontSize: 13,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-			marginBottom: 4,
-		},
-		statusMeta: {
-			fontSize: 12,
-			color: THEME.colors.text.muted,
 		},
 
 		// ── Scroll ───────────────────────────────────────────────
-		scroll: { flex: 1 },
+		scroll: { flex: 1, minHeight: 80 },
 		scrollContent: {
-			paddingHorizontal: 16,
-			paddingTop: 12,
-			paddingBottom: 8,
+			paddingHorizontal: 20,
+			paddingTop: 14,
+			paddingBottom: 10,
 		},
 
-		// ── Section headers ──────────────────────────────────────
-		sectionLabelRow: {
-			flexDirection: "row",
-			justifyContent: "space-between",
-			alignItems: "center",
-			marginBottom: 6,
-		},
-		sectionLabel: {
-			fontSize: 13,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-		},
-		totalBadge: {
-			fontSize: 13,
-			fontWeight: "700",
-			color: THEME.colors.primary.amber,
-		},
+		// ── Section label ─────────────────────────────────────────
 		subsectionLabel: {
 			fontSize: 11,
 			fontWeight: "700",
-			letterSpacing: 0.6,
-			color: THEME.colors.text.muted,
-			marginTop: 12,
-			marginBottom: 6,
+			letterSpacing: 0.8,
+			color: "#475569",
+			marginBottom: 8,
 		},
 
 		// ── Sent items ───────────────────────────────────────────
@@ -507,65 +525,41 @@ const createStyles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			gap: 8,
-			paddingVertical: 9,
+			paddingVertical: 10,
 			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
+			borderBottomColor: "rgba(255,255,255,0.05)",
 		},
 		sentName: {
 			flex: 1,
-			fontSize: 13,
+			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F8FAFC",
 		},
 		sentPrice: {
 			fontSize: 13,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
+			minWidth: 58,
+			textAlign: "right",
 		},
-		statusPill: {
+		statusPillItem: {
 			borderRadius: 12,
 			paddingHorizontal: 8,
 			paddingVertical: 3,
 		},
-		statusPillText: {
+		statusPillItemText: {
 			fontSize: 10,
 			fontWeight: "700",
 		},
 
-		// ── Divider ──────────────────────────────────────────────
-		divider: {
-			height: 1,
-			backgroundColor: THEME.colors.border.subtle,
-			marginVertical: 10,
-		},
-
-		// ── Cart items ───────────────────────────────────────────
-		emptyHint: {
-			fontSize: 13,
-			color: THEME.colors.text.muted,
-			textAlign: "center",
-			paddingVertical: 16,
-			fontStyle: "italic",
-		},
+		// ── Cart items ────────────────────────────────────────────
 		cartRow: {
 			flexDirection: "row",
 			alignItems: "center",
 			gap: 6,
 			paddingVertical: 9,
 			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
-		},
-		cartName: {
-			flex: 1,
-			fontSize: 13,
-			fontWeight: "600",
-			color: THEME.colors.text.primary,
-		},
-		cartPrice: {
-			fontSize: 13,
-			fontWeight: "600",
-			color: THEME.colors.text.secondary,
-			minWidth: 42,
+			borderBottomColor: "rgba(255,255,255,0.05)",
 		},
 		qtyControls: {
 			flexDirection: "row",
@@ -577,15 +571,15 @@ const createStyles = (THEME) =>
 			height: 28,
 			borderRadius: 6,
 			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
+			borderColor: "rgba(255,255,255,0.12)",
 			alignItems: "center",
 			justifyContent: "center",
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "rgba(255,255,255,0.05)",
 		},
 		qtyBtnText: {
 			fontSize: 16,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F8FAFC",
 			lineHeight: 20,
 		},
 		qtyValue: {
@@ -593,90 +587,95 @@ const createStyles = (THEME) =>
 			textAlign: "center",
 			fontSize: 13,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F8FAFC",
 		},
-		trashBtn: {
-			padding: 4,
-			marginLeft: 2,
+		trashBtn: { padding: 4, marginLeft: 2 },
+
+		// ── Cancel order (envoyé en cuisine) ─────────────────────
+		cancelOrderBtn: {
+			padding: 2,
+			marginLeft: 6,
+		},
+		sentNameCancelled: {
+			opacity: 0.4,
+			textDecorationLine: "line-through",
 		},
 
-		// ── Total ────────────────────────────────────────────────
+		// ── Divider + Total ───────────────────────────────────────
+		divider: {
+			height: 1,
+			backgroundColor: "rgba(255,255,255,0.07)",
+			marginVertical: 12,
+		},
 		totalRow: {
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "center",
-			marginTop: 4,
-			paddingTop: 14,
-			borderTopWidth: 1,
-			borderTopColor: THEME.colors.border.subtle,
-			marginBottom: 4,
+			paddingBottom: 4,
+		},
+		subTotalRow: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingBottom: 6,
+		},
+		subTotalLabel: {
+			fontSize: 13,
+			color: "#94A3B8",
+		},
+		subTotalValue: {
+			fontSize: 13,
+			color: "#94A3B8",
+		},
+		emptyHint: {
+			fontSize: 13,
+			color: "#64748B",
+			fontStyle: "italic",
+			paddingVertical: 8,
 		},
 		totalLabel: {
-			fontSize: 15,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-		},
-		totalValue: {
 			fontSize: 16,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F8FAFC",
+		},
+		totalValue: {
+			fontSize: 18,
+			fontWeight: "700",
+			color: "#F8FAFC",
 		},
 
-		// ── Actions grid ─────────────────────────────────────────
+		// ── Actions 2×2 ───────────────────────────────────────────
 		actionsGrid: {
 			flexDirection: "row",
 			flexWrap: "wrap",
-			gap: 7,
-			padding: 12,
+			gap: 8,
+			padding: 16,
 			borderTopWidth: 1,
-			borderTopColor: THEME.colors.border.subtle,
+			borderTopColor: "rgba(255,255,255,0.07)",
 		},
-		actionOutlined: {
+		actionBtn: {
 			width: "48%",
-			height: 48,
-			borderRadius: 8,
+			height: 52,
+			borderRadius: 10,
 			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
-			backgroundColor: THEME.colors.background.card,
+			borderColor: "rgba(255,255,255,0.12)",
+			backgroundColor: "rgba(255,255,255,0.05)",
 			alignItems: "center",
 			justifyContent: "center",
-			paddingHorizontal: 6,
+			paddingHorizontal: 8,
 		},
-		actionOutlinedText: {
-			fontSize: 12,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
+		actionBtnText: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: "#F8FAFC",
 			textAlign: "center",
 		},
-		actionPrimary: {
-			width: "48%",
-			height: 48,
-			borderRadius: 8,
-			backgroundColor: THEME.colors.primary.amber,
-			alignItems: "center",
-			justifyContent: "center",
-			paddingHorizontal: 6,
+		actionBtnEncaisser: {
+			backgroundColor: "rgba(34,197,94,0.15)",
+			borderColor: "rgba(34,197,94,0.35)",
 		},
-		actionPrimaryText: {
-			fontSize: 12,
-			fontWeight: "700",
-			color: THEME.colors.background.dark,
-			textAlign: "center",
-		},
-		actionSuccess: {
-			width: "48%",
-			height: 48,
-			borderRadius: 8,
-			backgroundColor: "#22C55E",
-			alignItems: "center",
-			justifyContent: "center",
-			paddingHorizontal: 6,
-		},
-		actionSuccessText: {
-			fontSize: 12,
-			fontWeight: "700",
-			color: "#fff",
-			textAlign: "center",
+		actionBtnEncaisserText: {
+			color: "#4ADE80",
 		},
 		actionDisabled: {
 			opacity: 0.4,

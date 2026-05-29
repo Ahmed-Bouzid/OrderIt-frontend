@@ -11,6 +11,8 @@ import useCounterTableStore from "../src/stores/useCounterTableStore";
 import counterService from "../services/counterService";
 import useSocket from "./useSocket";
 import AsyncStorage from "@react-native-async-storage/async-storage";
+import { useAuthFetch } from "./useAuthFetch";
+import { API_CONFIG } from "../src/config/apiConfig";
 
 /**
  * Hook composite pour gérer une table en mode Comptoir
@@ -21,6 +23,10 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 export const useCounterTable = (tableId, restaurantId = null) => {
 	const [actualRestaurantId, setActualRestaurantId] = useState(restaurantId);
 	const [isOpening, setIsOpening] = useState(false);
+	const [sessionOrders, setSessionOrders] = useState([]);
+
+	// Auth fetch (même hook qu'Activity.jsx — retry auto, logs erreur détaillés)
+	const authFetch = useAuthFetch();
 
 	// Stores
 	const rawCart = useCounterCartStore((state) => state.carts[tableId]);
@@ -44,6 +50,8 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 		const sessions = rawTableSessions || [];
 		return sessions.find((s) => s.tableId === tableId && s.billStatus !== "closed") || null;
 	}, [rawTableSessions, tableId]);
+	// ✅ Extraire sessionId stable pour éviter boucle infinie (tableSession change de ref à chaque mutation store)
+	const sessionId = tableSession?._id;
 	const openTableSession = useCounterTableStore((state) => state.openSession);
 	const updateTableSession = useCounterTableStore((state) =>
 		state.updateSession,
@@ -93,6 +101,73 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 		};
 	}, [socket, actualRestaurantId]);
 
+	// Charger les orders de la session active
+	useEffect(() => {
+		if (!sessionId) {
+			setSessionOrders([]);
+			return;
+		}
+
+		console.log(
+			`[useCounterTable] table=${tableId} session=${String(sessionId)} restaurant=${actualRestaurantId}`,
+		);
+
+		let cancelled = false;
+		const load = async () => {
+			const orders = await counterService.getSessionOrders(
+				sessionId,
+				actualRestaurantId,
+				tableId,
+			);
+			if (!cancelled) setSessionOrders(orders);
+		};
+		load();
+
+		return () => { cancelled = true; };
+	}, [sessionId, actualRestaurantId, tableId]);
+
+	/**
+	 * Rafraîchir les orders depuis le backend (utilisé après WebSocket order event).
+	 * Pattern identique à fetchOrders() dans useReservationManager.
+	 * ✅ Utilise sessionId au lieu de tableSession objet pour éviter boucle infinie
+	 */
+	const refreshSessionOrders = useCallback(async () => {
+		if (!sessionId) return;
+		const orders = await counterService.getSessionOrders(
+			sessionId,
+			actualRestaurantId,
+			tableId,
+		);
+		setSessionOrders(orders);
+	}, [sessionId, actualRestaurantId, tableId]);
+
+	/**
+	 * WebSocket — écoute les events "order" pour mettre à jour les statuts
+	 * en temps réel (confirmed → ready → completed).
+	 * Même pattern que le listener "reservation" dans useReservationManager.
+	 * ✅ Utilise sessionId stable au lieu de tableSession objet
+	 */
+	useEffect(() => {
+		if (!socket || !sessionId) return;
+
+		const handleOrderEvent = (event) => {
+			const { type, data } = event || {};
+			// Filtrer : uniquement les orders de notre session
+			if (!data?.tableSessionId) return;
+			const eventSessionId = String(data.tableSessionId);
+			const currentSessionId = String(sessionId);
+			if (eventSessionId !== currentSessionId) return;
+
+			// Sur tout changement de statut → recharger la liste complète
+			if (["created", "updated", "statusUpdated", "cancelled"].includes(type)) {
+				refreshSessionOrders();
+			}
+		};
+
+		socket.on("order", handleOrderEvent);
+		return () => socket.off("order", handleOrderEvent);
+	}, [socket, sessionId, refreshSessionOrders]);
+
 	// Actions métier
 	const actions = {
 		/**
@@ -139,6 +214,7 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 		/**
 		 * Envoyer le panier en cuisine
 		 * Flush du panier local → POST /orders
+		 * Pattern identique à Activity.jsx submitOrder
 		 */
 		sendToCook: async () => {
 			if (!tableSession || !cart || cart.length === 0) {
@@ -146,31 +222,94 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 			}
 
 			try {
-				// Préparer les items pour l'API
+				// Préparer les items — même structure qu'Activity.jsx
 				const items = cart.map((item) => ({
 					productId: item.productId,
 					name: item.name,
 					quantity: item.quantity,
 					price: item.price,
-					category: item.category,
-					notes: item.notes,
+					category: item.category || "autre",
 				}));
 
-				// POST /orders avec source: "counter"
-				const order = await counterService.sendToCook(
-					tableSession._id,
-					items,
-					cartTotal,
-					actualRestaurantId,
-					tableId,
-				);
+				// Validation avant envoi (garde-fou)
+				if (items.some((i) => typeof i.price !== "number" || i.price < 0)) {
+					throw new Error("Prix invalide dans le panier — relancer l'app");
+				}
+
+				// Recalculer le total depuis les items (comme Activity) pour garantir la cohérence
+				const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
+
+				console.log(`[Counter] sendToCook → table=${tableId} session=${tableSession._id} total=${total.toFixed(2)}€ items=${items.length}`);
+
+				// POST /orders via authFetch — retry auto sur 5xx, logs body erreur automatiques
+				const order = await authFetch(`${API_CONFIG.baseURL}/orders`, {
+					method: "POST",
+					body: {
+						tableId,
+						items,
+						total,
+						restaurantId: actualRestaurantId,
+						tableSessionId: tableSession._id,
+						source: "counter",
+						orderStatus: "confirmed",
+					},
+				});
+
+				// authFetch retourne [] comme airbag sur erreur
+				if (!order || (Array.isArray(order) && order.length === 0)) {
+					throw new Error("Échec envoi commande — voir logs Metro");
+				}
 
 				// Vider le panier après succès
 				clearCart(tableId);
 
+				// Recharger les orders pour afficher le nouvel envoi
+				const updatedOrders = await counterService.getSessionOrders(
+					tableSession._id,
+					actualRestaurantId,
+					tableId,
+				);
+				setSessionOrders(updatedOrders);
+
+				// Sync totalAmount dans le store → les cartes du plan de salle s'actualisent
+			// ⚠️ Exclure les orders cancelled du total
+			const newTotal = updatedOrders
+				.filter((o) => o.orderStatus !== "cancelled")
+				.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+				updateTableSession(actualRestaurantId, tableSession._id, { totalAmount: newTotal });
+
 				return order;
 			} catch (err) {
 				console.error("[useCounterTable] Erreur envoi cuisine:", err);
+				throw err;
+			}
+		},
+
+		/**
+		 * Annuler une commande individuelle.
+		 * Guard : commande déjà annulée → silent skip.
+		 * Pattern identique à handleCancelOrder() dans Activity.jsx.
+		 * Route backend : PATCH /orders/:id/cancel
+		 */
+		cancelOrder: async (orderId) => {
+			if (!orderId) throw new Error("orderId manquant");
+			try {
+				await authFetch(`/orders/${orderId}/cancel`, { method: "PATCH" });
+				await refreshSessionOrders();
+
+				// ⚠️ Recalculer le total (excluant les cancelled) et mettre à jour le store
+				// pour que les cartes du plan de salle affichent le bon montant
+				const updatedOrders = await counterService.getSessionOrders(
+					tableSession._id,
+					actualRestaurantId,
+					tableId,
+				);
+				const newTotal = updatedOrders
+					.filter((o) => o.orderStatus !== "cancelled")
+					.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+				updateTableSession(actualRestaurantId, tableSession._id, { totalAmount: newTotal });
+			} catch (err) {
+				console.error("[useCounterTable] Erreur annulation commande:", err);
 				throw err;
 			}
 		},
@@ -197,8 +336,10 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 
 		/**
 		 * Encaisser et libérer la table
+		 * @param {string} paymentMethod - "cash" | "card_offline"
+		 * @param {Array} discounts - Liste des réductions (optionnel)
 		 */
-		closeTable: async (paymentMethod) => {
+		closeTable: async (paymentMethod, discounts = []) => {
 			if (!tableSession) {
 				throw new Error("Aucune session active");
 			}
@@ -213,6 +354,7 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				const closed = await counterService.closeSession(
 					tableSession._id,
 					paymentMethod,
+					discounts,
 				);
 				closeTableSession(actualRestaurantId, tableSession._id);
 				clearCart(tableId);
@@ -224,10 +366,24 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 		},
 	};
 
+	// Total des items déjà envoyés en cuisine (somme des orders NON annulées)
+	const sentTotal = useMemo(
+		() =>
+			sessionOrders
+				.filter((o) => o.orderStatus !== "cancelled")
+				.reduce((sum, o) => sum + (o.totalAmount || 0), 0),
+		[sessionOrders],
+	);
+
 	return {
 		// État session
 		session: tableSession,
 		isOpening,
+
+		// Orders envoyés en cuisine
+		sessionOrders,
+		sentTotal,
+		refreshSessionOrders,
 
 		// État panier
 		cart,

@@ -90,15 +90,23 @@ const counterService = {
 
 	/**
 	 * Encaisser et libérer la table
+	 * @param {string} sessionId - ID de la session
+	 * @param {string} paymentMethod - "cash" | "card_offline"
+	 * @param {Array} discounts - Liste des réductions (optionnel)
 	 */
-	async closeSession(sessionId, paymentMethod) {
+	async closeSession(sessionId, paymentMethod, discounts = []) {
 		try {
+			const body = { paymentMethod };
+			if (discounts && discounts.length > 0) {
+				body.discounts = discounts;
+			}
+
 			const response = await fetchWithAuth(
 				`${API_CONFIG.baseURL}/counter/sessions/${sessionId}/close`,
 				{
 					method: "PATCH",
 					headers: { "Content-Type": "application/json" },
-					body: JSON.stringify({ paymentMethod }),
+					body: JSON.stringify(body),
 				},
 			);
 
@@ -131,19 +139,92 @@ const counterService = {
 						tableId,
 						tableSessionId,
 						source: "counter",
-						status: "confirmed",
+						orderStatus: "confirmed",
 					}),
 				},
 			);
 
 			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}`);
+				// Récupérer le message d'erreur réel depuis le backend
+				let errMsg = `HTTP ${response.status}`;
+				try {
+					const errBody = await response.json();
+					errMsg = errBody.message || errMsg;
+				} catch {}
+				console.error("[Counter] sendToCook erreur backend:", errMsg);
+				throw new Error(errMsg);
 			}
 
 			return await response.json();
 		} catch (err) {
 			console.error("[Counter] Erreur envoi cuisine:", err);
 			throw err;
+		}
+	},
+
+	/**
+	 * Récupérer les orders envoyés en cuisine pour une session
+	 * Filtres cumulés : sessionId + restaurantId + tableId + source=counter + depuis minuit
+	 */
+	async getSessionOrders(sessionId, restaurantId, tableId) {
+		// Guard : sessionId doit être un string non vide
+		const sessionIdStr = sessionId ? String(sessionId) : null;
+		if (!sessionIdStr) {
+			console.warn("[Counter] getSessionOrders: sessionId manquant, abandon");
+			return [];
+		}
+
+		try {
+			// Minuit du jour courant (heure locale → UTC)
+			const todayMidnight = new Date();
+			todayMidnight.setHours(0, 0, 0, 0);
+
+			const params = new URLSearchParams({
+				tableSessionId: sessionIdStr,
+				source: "counter",
+				since: todayMidnight.toISOString(),
+			});
+			if (restaurantId) params.set("restaurantId", String(restaurantId));
+			if (tableId) params.set("tableId", String(tableId));
+
+			console.log(`[Counter] getSessionOrders → session=${sessionIdStr} table=${tableId}`);
+
+			const response = await fetchWithAuth(
+				`${API_CONFIG.baseURL}/orders?${params.toString()}`,
+				{ method: "GET" },
+			);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+
+			const data = await response.json();
+			return Array.isArray(data) ? data : (data.orders ?? []);
+		} catch (err) {
+			console.error("[Counter] Erreur récupération orders session:", err);
+			return [];
+		}
+	},
+
+	/**
+	 * Récupérer les produits du restaurant (pour MenuPickerModal)
+	 */
+	async getProducts(restaurantId) {
+		try {
+			const response = await fetchWithAuth(
+				`${API_CONFIG.baseURL}/products/restaurant/${restaurantId}`,
+				{ method: "GET" },
+			);
+
+			if (!response.ok) {
+				throw new Error(`HTTP ${response.status}`);
+			}
+
+			const data = await response.json();
+			return Array.isArray(data) ? data : (data.products ?? []);
+		} catch (err) {
+			console.error("[Counter] Erreur récupération produits:", err);
+			return [];
 		}
 	},
 
