@@ -10,6 +10,7 @@ import React, { useState, useEffect, useMemo, useCallback, useRef } from "react"
 import {
 	View,
 	Text,
+	Image,
 	StyleSheet,
 	TouchableOpacity,
 	Dimensions,
@@ -36,7 +37,6 @@ import useUserStore from "../../src/stores/useUserStore";
 // Composants réutilisés
 import FloorPlanModal from "../floor/FloorPlanModal";
 import TableDetailModal from "./modals/TableDetailModal";
-import ZReportScreen from "./ZReportScreen";
 
 const SCREEN_W = Dimensions.get("window").width;
 const IS_PHONE = SCREEN_W < 600;
@@ -194,64 +194,100 @@ const getInitials = (name) => {
 	return ((parts[0]?.[0] ?? "") + (parts[1]?.[0] ?? "")).toUpperCase() || "?";
 };
 
-const ServerPickerModal = ({ visible, onClose, onConfirm, servers, selectedWaiter, onSelectWaiter }) => (
+const buildDisplayNames = (serverList) => {
+	const firstNameCount = {};
+	for (const srv of serverList) {
+		const first = (srv.name || "").trim().split(/\s+/)[0] || "";
+		if (first) firstNameCount[first] = (firstNameCount[first] || 0) + 1;
+	}
+	const map = {};
+	for (const srv of serverList) {
+		if (!srv._id) continue;
+		const parts = (srv.name || "").trim().split(/\s+/);
+		const first = parts[0] || "Serveur";
+		const lastInitial = parts[1]?.[0]?.toUpperCase();
+		map[srv._id] = (firstNameCount[first] > 1 && lastInitial) ? `${first} ${lastInitial}.` : first;
+	}
+	return map;
+};
+
+const ServerPickerModal = ({ visible, onClose, onConfirm, servers, selectedWaiter, onSelectWaiter, currentUser }) => {
+	const displayNames = useMemo(() => buildDisplayNames(servers), [servers]);
+	return (
 	<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-		<View style={spStyles.overlay}>
-			<View style={spStyles.sheet}>
-				<Text style={spStyles.title}>Qui prend cette table ?</Text>
+			<View style={spStyles.overlay}>
+				<View style={spStyles.sheet}>
+					<Text style={spStyles.title}>Qui prend cette table ?</Text>
 
-				{servers.length === 0 ? (
-					<Text style={spStyles.emptyText}>Aucun serveur trouvé</Text>
-				) : (
-					<View style={spStyles.grid}>
-						{servers.map((s, i) => {
-							const isSel = selectedWaiter?._id === s._id;
-							const color = WAITER_COLORS[i % WAITER_COLORS.length];
-							return (
-								<TouchableOpacity
-									key={s._id}
-									style={spStyles.serverItem}
-									onPress={() => onSelectWaiter(s)}
-									activeOpacity={0.75}
-								>
-									<View style={[
-										spStyles.avatar,
-										{ backgroundColor: color },
-										isSel && spStyles.avatarSelected,
-									]}>
-										{isSel
-											? <Ionicons name="checkmark" size={22} color="#fff" />
-											: <Text style={spStyles.avatarText}>{getInitials(s.name)}</Text>
-										}
-									</View>
-									<Text
-										style={[spStyles.serverName, isSel && spStyles.serverNameSelected]}
-										numberOfLines={1}
+					{servers.length === 0 ? (
+						<View style={spStyles.currentUserBox}>
+							<View style={[spStyles.avatar, { backgroundColor: "#6366F1" }, spStyles.avatarSelected]}>
+								<Ionicons name="checkmark" size={22} color="#fff" />
+							</View>
+							<Text style={spStyles.currentUserName}>{currentUser?.name ?? "Vous"}</Text>
+							<Text style={spStyles.currentUserRole}>Ouverture en votre nom</Text>
+						</View>
+					) : (
+						<View style={spStyles.grid}>
+							{servers.map((s, i) => {
+								const isSel = selectedWaiter?._id === s._id;
+								const color = WAITER_COLORS[i % WAITER_COLORS.length];
+								return (
+									<TouchableOpacity
+										key={s._id}
+										style={spStyles.serverItem}
+										onPress={() => onSelectWaiter(s)}
+										activeOpacity={0.75}
 									>
-										{s.name}
-									</Text>
-								</TouchableOpacity>
-							);
-						})}
-					</View>
-				)}
+										<View style={[
+											spStyles.avatar,
+											!s.avatar && { backgroundColor: color },
+											isSel && spStyles.avatarSelected,
+										]}>
+											{s.avatar ? (
+												<>
+													<Image source={{ uri: s.avatar }} style={spStyles.avatarPhoto} />
+													{isSel && (
+														<View style={spStyles.avatarCheckOverlay}>
+															<Ionicons name="checkmark" size={22} color="#fff" />
+														</View>
+													)}
+												</>
+											) : isSel ? (
+												<Ionicons name="checkmark" size={22} color="#fff" />
+											) : (
+												<Text style={spStyles.avatarText}>{getInitials(s.name)}</Text>
+											)}
+										</View>
+										<Text
+											style={[spStyles.serverName, isSel && spStyles.serverNameSelected]}
+											numberOfLines={1}
+										>
+											{displayNames[s._id] || s.name}
+										</Text>
+									</TouchableOpacity>
+								);
+							})}
+						</View>
+					)}
 
-				<View style={spStyles.buttons}>
-					<TouchableOpacity style={spStyles.btnCancel} onPress={onClose}>
-						<Text style={spStyles.btnCancelText}>Annuler</Text>
-					</TouchableOpacity>
-					<TouchableOpacity
-						style={[spStyles.btnOpen, !selectedWaiter && spStyles.btnOpenDisabled]}
-						onPress={selectedWaiter ? onConfirm : undefined}
-						activeOpacity={selectedWaiter ? 0.8 : 1}
-					>
-						<Text style={spStyles.btnOpenText}>Ouvrir la table</Text>
-					</TouchableOpacity>
+					<View style={spStyles.buttons}>
+						<TouchableOpacity style={spStyles.btnCancel} onPress={onClose}>
+							<Text style={spStyles.btnCancelText}>Annuler</Text>
+						</TouchableOpacity>
+						<TouchableOpacity
+							style={[spStyles.btnOpen, (servers.length > 0 && !selectedWaiter) && spStyles.btnOpenDisabled]}
+							onPress={(servers.length === 0 || selectedWaiter) ? onConfirm : undefined}
+							activeOpacity={(servers.length === 0 || selectedWaiter) ? 0.8 : 1}
+						>
+							<Text style={spStyles.btnOpenText}>Ouvrir la table</Text>
+						</TouchableOpacity>
+					</View>
 				</View>
 			</View>
-		</View>
-	</Modal>
-);
+		</Modal>
+	);
+};
 
 const spStyles = StyleSheet.create({
 	overlay: {
@@ -282,6 +318,22 @@ const spStyles = StyleSheet.create({
 		fontSize: 14,
 		textAlign: "center",
 		marginVertical: 20,
+	},
+	currentUserBox: {
+		alignItems: "center",
+		paddingVertical: 16,
+		marginBottom: 8,
+	},
+	currentUserName: {
+		color: "#FBBF24",
+		fontSize: 15,
+		fontWeight: "700",
+		marginTop: 8,
+	},
+	currentUserRole: {
+		color: "#64748B",
+		fontSize: 12,
+		marginTop: 3,
 	},
 	grid: {
 		flexDirection: "row",
@@ -358,6 +410,18 @@ const spStyles = StyleSheet.create({
 		fontWeight: "700",
 		fontSize: 14,
 	},
+	avatarPhoto: {
+		width: 64,
+		height: 64,
+		borderRadius: 32,
+	},
+	avatarCheckOverlay: {
+		...StyleSheet.absoluteFillObject,
+		borderRadius: 32,
+		backgroundColor: "rgba(0,0,0,0.45)",
+		alignItems: "center",
+		justifyContent: "center",
+	},
 });
 
 // ─── DraggableTableCard ──────────────────────────────────────────────────────
@@ -368,7 +432,7 @@ const FALLBACK_POSITIONS = [
 	{ x: 700, y: 520 }, { x: 100, y: 700 },
 ];
 
-const DraggableTableCard = ({ table, session, tableIndex, onPress, onPositionSave }) => {
+const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations = [], onPress, onPositionSave }) => {
 	const [isDragging, setIsDragging] = useState(false);
 
 	const isFree = !session;
@@ -378,6 +442,20 @@ const DraggableTableCard = ({ table, session, tableIndex, onPress, onPositionSav
 	const isLarge = (table?.capacity ?? 4) >= 6;
 	const cardW = isLarge ? 231 : 168;
 	const label = formatTableLabel(table?.number);
+
+	//  Trouver la prochaine réservation pour cette table
+	const nextReservation = useMemo(() => {
+		if (!table?._id || !upcomingReservations.length) return null;
+		
+		const tableIdStr = table._id.toString();
+		return upcomingReservations
+			.filter((r) => {
+				const rTableId = r.tableId?._id?.toString() || r.tableId?.toString();
+				const rTableIds = (r.tableIds || []).map(tid => tid?._id?.toString() || tid?.toString());
+				return rTableId === tableIdStr || rTableIds.includes(tableIdStr);
+			})
+			.sort((a, b) => new Date(a.reservationDate) - new Date(b.reservationDate))[0];
+	}, [table, upcomingReservations]);
 
 	const initPos = useMemo(() => {
 		if (table?.position?.x != null && table?.position?.y != null) {
@@ -534,6 +612,15 @@ const DraggableTableCard = ({ table, session, tableIndex, onPress, onPositionSav
 					{ backgroundColor: isFree ? "#60A5FA" : isBill ? "#F87171" : "#4ADE80" },
 				]}
 			/>
+
+			{/* 📅 Badge réservation à venir (sous la carte) */}
+			{nextReservation && (
+				<View style={dcStyles.reservationBadge}>
+					<Text style={dcStyles.reservationText} numberOfLines={1}>
+						{nextReservation.clientName} à {nextReservation.reservationTime}
+					</Text>
+				</View>
+			)}
 		</Animated.View>
 	);
 };
@@ -610,6 +697,20 @@ const dcStyles = StyleSheet.create({
 		fontWeight: "600",
 		color: "#F87171",
 	},
+	reservationBadge: {
+		position: "absolute",
+		bottom: -22,
+		left: 0,
+		right: 0,
+		alignItems: "center",
+		paddingHorizontal: 8,
+	},
+	reservationText: {
+		fontSize: 11,
+		fontStyle: "italic",
+		color: "#94A3B8",
+		fontWeight: "500",
+	},
 });
 
 const ActivityFloor = ({ restaurantInfo }) => {
@@ -631,10 +732,17 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	const [activeFilter, setActiveFilter] = useState("Toutes");
 	const [editModalTable, setEditModalTable] = useState(null); // {tableId, table}
 	const [layoutKey, setLayoutKey] = useState(0);
-	const [showZReport, setShowZReport] = useState(false);
-
-	// Z de caisse : visible managers seulement
+	const [upcomingReservations, setUpcomingReservations] = useState([]);
+	// Z de caisse déplacé dans Réglages → Comptabilité
 	const isManager = useUserStore((state) => state.role === "admin" || state.userType === "admin");
+
+	// Utilisateur actuel (fallback waiter si pas de serveurs)
+	const currentUserId = useUserStore((state) => state.userId);
+	const currentUserEmail = useUserStore((state) => state.email);
+	const currentUser = useMemo(() => ({
+		_id: currentUserId,
+		name: currentUserEmail?.split("@")[0] ?? "Moi",
+	}), [currentUserId, currentUserEmail]);
 
 	// ─── Serveurs (mode comptoir) ─────────────────────────────
 	const [servers, setServers] = useState([]);
@@ -676,6 +784,30 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		state.attachSocketListener,
 	);
 
+	/**
+	 * Hydrate le sessions store depuis la réponse getTablesState.
+	 * Pattern identique à useReservationStore.fetchReservations dans Activity :
+	 * on charge l'état serveur → on peuple le store local.
+	 */
+	const hydrateSessionsFromTables = useCallback((restaurantIdParam, tablesWithState) => {
+		if (!tablesWithState || !restaurantIdParam) return;
+		tablesWithState.forEach((table) => {
+			if (table.status !== "free" && table.sessionId) {
+				const sessionObj = {
+					_id: table.sessionId,
+					tableId: table._id.toString(),
+					restaurantId: restaurantIdParam,
+					billStatus: table.status === "bill_requested" ? "bill_requested" : "open",
+					totalAmount: table.totalAmount ?? 0,
+					itemsCount: table.itemsCount ?? 0,
+					openedAt: table.openedAt ?? null,
+					source: "counter",
+				};
+				useCounterTableStore.getState().openSession(restaurantIdParam, sessionObj.tableId, sessionObj);
+			}
+		});
+	}, []);
+
 	// Initialiser restaurantId
 	useEffect(() => {
 		const init = async () => {
@@ -683,14 +815,13 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				const id = await AsyncStorage.getItem("restaurantId");
 				if (id) {
 					setRestaurantId(id);
-					const [, tablesState] = await Promise.all([
-						fetchSessions(id),
-						counterService.getTablesState(id).catch((err) => {
-							console.error("[ActivityFloor] getTablesState failed:", err?.message, err);
-							return [];
-						}),
-					]);
+					const tablesState = await counterService.getTablesState(id).catch((err) => {
+						console.error("[ActivityFloor] getTablesState failed:", err?.message, err);
+						return [];
+					});
 					setTables(tablesState || []);
+					// Hydrater le store sessions (équivalent fetchReservations dans Activity)
+					hydrateSessionsFromTables(id, tablesState);
 				}
 			} catch (err) {
 				console.error("[ActivityFloor] Erreur init:", err);
@@ -717,21 +848,33 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.catch((err) => console.warn("[ActivityFloor] fetch servers:", err));
 	}, [restaurantId, authFetch]);
 
+	// 📅 Fetch réservations à venir (72h)
+	useEffect(() => {
+		if (!restaurantId) return;
+		
+		authFetch(`/reservations/upcoming/${restaurantId}`)
+			.then((data) => {
+				if (Array.isArray(data)) {
+					setUpcomingReservations(data);
+					console.log(`[ActivityFloor] ✅ ${data.length} réservations upcoming`);
+				}
+			})
+			.catch((err) => console.warn("[ActivityFloor] fetch upcoming reservations:", err));
+	}, [restaurantId, authFetch]);
+
 	// Refresh handler
 	const handleRefresh = useCallback(async () => {
 		if (!restaurantId) return;
 
 		setIsRefreshing(true);
 		try {
-			const [, tablesState] = await Promise.all([
-				fetchSessions(restaurantId),
-				counterService.getTablesState(restaurantId).catch((err) => {
-					console.error("[ActivityFloor] getTablesState failed (refresh):", err?.message, err);
-					return [];
-				}),
-			]);
+			const tablesState = await counterService.getTablesState(restaurantId).catch((err) => {
+				console.error("[ActivityFloor] getTablesState failed (refresh):", err?.message, err);
+				return [];
+			});
 			if (tablesState && tablesState.length > 0) {
 				setTables(tablesState);
+				hydrateSessionsFromTables(restaurantId, tablesState);
 			}
 		} catch (err) {
 			console.error("[ActivityFloor] Erreur refresh:", err);
@@ -768,31 +911,38 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		const session = activeSessions.find((s) => s.tableId === tableId);
 		if (!session) {
 			// Table libre → picker de serveur
-			setSelectedWaiter(null);
+			// Pré-sélectionner l'utilisateur actuel si aucun serveur n'est enregistré
+			setSelectedWaiter(servers.length === 0 ? currentUser : null);
 			setServerPickerTableId(tableId);
 		} else {
 			// Table occupée → directement le détail
 			setShowTableDetail(true);
 		}
-	}, [activeSessions]);
+	}, [activeSessions, servers, currentUser]);
 
 	// Confirmation du serveur → ouvre la session puis la modale
 	const handleConfirmWaiter = useCallback(async () => {
 		if (!serverPickerTableId || !restaurantId) return;
+		// Utiliser le waiter sélectionné ou l'utilisateur actuel comme fallback
+		const waiter = selectedWaiter ?? currentUser;
 		try {
-			await counterService.openSession(
+			const session = await counterService.openSession(
 				restaurantId,
 				serverPickerTableId,
-				selectedWaiter?.name ?? null,
-				selectedWaiter?._id ?? null,
+				waiter?.name ?? null,
+				waiter?._id ?? null,
 			);
+			// Injecter la session dans le store immédiatement pour éviter le spinner
+			if (session) {
+				useCounterTableStore.getState().openSession(restaurantId, serverPickerTableId, session);
+			}
 		} catch (err) {
 			console.warn("[ActivityFloor] openSession:", err);
 		}
 		setServerPickerTableId(null);
 		setSelectedWaiter(null);
 		setShowTableDetail(true);
-	}, [serverPickerTableId, restaurantId, selectedWaiter]);
+	}, [serverPickerTableId, restaurantId, selectedWaiter, currentUser]);
 
 	// Sauvegarder la position d'une table après drag
 	const saveTablePosition = useCallback(
@@ -932,15 +1082,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 						color={THEME.colors.text.secondary}
 					/>
 				</TouchableOpacity>
-				{isManager && (
-					<TouchableOpacity
-						style={dynamicStyles.zButton}
-						onPress={() => setShowZReport(true)}
-						accessibilityLabel="Z de caisse"
-					>
-						<Text style={dynamicStyles.zButtonText}>Z</Text>
-					</TouchableOpacity>
-				)}
+
 			</View>
 
 			{/* Filtres */}
@@ -1067,6 +1209,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 										table={table}
 										session={session}
 										tableIndex={index}
+										upcomingReservations={upcomingReservations}
 										onPress={() => handleTableTap(tableId)}
 										onPositionSave={saveTablePosition}
 									/>
@@ -1141,19 +1284,9 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				servers={servers}
 				selectedWaiter={selectedWaiter}
 				onSelectWaiter={setSelectedWaiter}
+				currentUser={currentUser}
 			/>
-			{/* Modal Z de caisse */}
-			<Modal
-				visible={showZReport}
-				animationType="slide"
-				presentationStyle="pageSheet"
-				onRequestClose={() => setShowZReport(false)}
-			>
-				<ZReportScreen
-					restaurantId={restaurantId}
-					onClose={() => setShowZReport(false)}
-				/>
-			</Modal>
+
 		</View>
 	);
 };
@@ -1211,20 +1344,6 @@ const createStyles = (THEME) =>
 		menuButton: {
 			padding: 6,
 		},
-		zButton: {
-			width: 32,
-			height: 32,
-			borderRadius: 8,
-			backgroundColor: THEME.colors.primary?.amber || "#F59E0B",
-			alignItems: "center",
-			justifyContent: "center",
-		},
-		zButtonText: {
-			fontSize: 14,
-			fontWeight: "800",
-			color: "#1A1A1A",
-		},
-
 		// ─── Filters ───────────────────────────────────────────
 		filterBar: {
 			flexDirection: "row",

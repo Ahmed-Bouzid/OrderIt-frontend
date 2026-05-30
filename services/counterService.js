@@ -164,7 +164,7 @@ const counterService = {
 
 	/**
 	 * Récupérer les orders envoyés en cuisine pour une session
-	 * Filtres cumulés : sessionId + restaurantId + tableId + source=counter + depuis minuit
+	 * Filtres : sessionId + restaurantId optionnel + tableId optionnel
 	 */
 	async getSessionOrders(sessionId, restaurantId, tableId) {
 		// Guard : sessionId doit être un string non vide
@@ -175,14 +175,9 @@ const counterService = {
 		}
 
 		try {
-			// Minuit du jour courant (heure locale → UTC)
-			const todayMidnight = new Date();
-			todayMidnight.setHours(0, 0, 0, 0);
-
+			// tableSessionId est déjà un identifiant unique de session → pas besoin de filtre `since`
 			const params = new URLSearchParams({
 				tableSessionId: sessionIdStr,
-				source: "counter",
-				since: todayMidnight.toISOString(),
 			});
 			if (restaurantId) params.set("restaurantId", String(restaurantId));
 			if (tableId) params.set("tableId", String(tableId));
