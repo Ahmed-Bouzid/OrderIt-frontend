@@ -153,10 +153,15 @@ async function refreshAccessToken(refreshToken, retries = 2) {
 
 /**
  * Fetch avec gestion automatique du refresh token
+ * ✅ Timeout 30s pour éviter les loaders infinis
  */
 export async function fetchWithAuth(url, options = {}) {
 	try {
 		const token = await getValidToken();
+
+		// ✅ AbortController pour timeout
+		const controller = new AbortController();
+		const timeoutId = setTimeout(() => controller.abort(), 30000); // 30s timeout
 
 		const headers = {
 			...options.headers,
@@ -166,7 +171,10 @@ export async function fetchWithAuth(url, options = {}) {
 		const response = await fetch(url, {
 			...options,
 			headers,
+			signal: controller.signal,
 		});
+
+		clearTimeout(timeoutId);
 
 		// Si 401/403, tenter un refresh et réessayer (tous verbes)
 		if (response.status === 401 || response.status === 403) {
@@ -180,15 +188,23 @@ export async function fetchWithAuth(url, options = {}) {
 				await setItem("refreshToken", newTokens.refreshToken);
 
 				// Réessayer avec le nouveau token (tous verbes)
+				// ✅ Nouveau timeout pour le retry
+				const retryController = new AbortController();
+				const retryTimeoutId = setTimeout(() => retryController.abort(), 30000);
+
 				const retryHeaders = {
 					...options.headers,
 					Authorization: `Bearer ${newTokens.accessToken}`,
 				};
 
-				return fetch(url, {
+				const retryResponse = await fetch(url, {
 					...options,
 					headers: retryHeaders,
+					signal: retryController.signal,
 				});
+
+				clearTimeout(retryTimeoutId);
+				return retryResponse;
 			}
 
 			// Refresh impossible → session vraiment expirée
@@ -204,8 +220,8 @@ export async function fetchWithAuth(url, options = {}) {
 	} catch (error) {
 		// ⭐ Gérer les AbortError (timeouts) de manière gracieuse
 		if (error.name === "AbortError") {
-			console.warn("⏱️ Requête annulée (timeout ou abort):", url);
-			throw error; // Propager mais sans log ERROR
+			console.warn("⏱️ Requête annulée (timeout 30s):", url);
+			throw new Error("Requête trop longue (timeout 30s). Vérifiez votre connexion.");
 		}
 
 		// Ne logger que les erreurs inattendues (pas les expirations de session)
