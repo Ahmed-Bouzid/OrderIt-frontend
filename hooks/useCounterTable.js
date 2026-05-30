@@ -182,21 +182,52 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 					actualRestaurantId,
 					tableId,
 				);
+				
+				console.log(`[useCounterTable] Session reçue:`, {
+					sessionId: session._id,
+					tableId: typeof session.tableId === 'object' ? session.tableId._id : session.tableId,
+					billStatus: session.billStatus,
+					restaurantId: actualRestaurantId,
+				});
+				
 				openTableSession(actualRestaurantId, tableId, session);
 				
 				// ✅ Attendre que le store contienne la session (max 500ms)
-				// Sinon : composant re-render avec isOpening=false mais tableSession=null → spinner reste affiché
 				const maxWait = 500;
 				const startWait = Date.now();
+				let attempts = 0;
 				while (Date.now() - startWait < maxWait) {
+					attempts++;
 					const currentStore = useCounterTableStore.getState();
 					const sessions = currentStore.sessions[actualRestaurantId] || [];
-					const found = sessions.find(s => s.tableId === tableId && s.billStatus !== "closed");
+					
+					if (attempts === 1 || attempts % 10 === 0) {
+						console.log(`[useCounterTable] Tentative ${attempts}: ${sessions.length} sessions dans le store`, 
+							sessions.map(s => ({
+								id: s._id,
+								tableId: typeof s.tableId === 'object' ? s.tableId._id : s.tableId,
+								billStatus: s.billStatus
+							}))
+						);
+					}
+					
+					// ✅ Comparer les IDs de manière robuste (tableId peut être populate ou string)
+					const sessionTableId = typeof session.tableId === 'object' ? session.tableId._id : session.tableId;
+					const found = sessions.find(s => {
+						const storeTableId = typeof s.tableId === 'object' ? s.tableId._id : s.tableId;
+						return String(storeTableId) === String(sessionTableId) && s.billStatus !== "closed";
+					});
+					
 					if (found) {
-						console.log(`[useCounterTable] Store mis à jour après ${Date.now() - startWait}ms`);
+						console.log(`[useCounterTable] ✅ Store mis à jour après ${Date.now() - startWait}ms (${attempts} tentatives)`);
 						break;
 					}
+					
 					await new Promise(resolve => setTimeout(resolve, 10));
+				}
+				
+				if (Date.now() - startWait >= maxWait) {
+					console.warn(`[useCounterTable] ⚠️ Timeout 500ms atteint - store pas mis à jour`);
 				}
 			} catch (err) {
 				console.error("[useCounterTable] Erreur ouverture session:", err);
