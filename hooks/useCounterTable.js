@@ -172,6 +172,7 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 	const actions = {
 		/**
 		 * Ouvrir la session table (action explicite du serveur)
+		 * ✅ Fix race condition : vérifier que le store est mis à jour AVANT de mettre isOpening=false
 		 */
 		openTable: async () => {
 			if (!actualRestaurantId || !tableId) return;
@@ -182,6 +183,21 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 					tableId,
 				);
 				openTableSession(actualRestaurantId, tableId, session);
+				
+				// ✅ Attendre que le store contienne la session (max 500ms)
+				// Sinon : composant re-render avec isOpening=false mais tableSession=null → spinner reste affiché
+				const maxWait = 500;
+				const startWait = Date.now();
+				while (Date.now() - startWait < maxWait) {
+					const currentStore = useCounterTableStore.getState();
+					const sessions = currentStore.sessions[actualRestaurantId] || [];
+					const found = sessions.find(s => s.tableId === tableId && s.billStatus !== "closed");
+					if (found) {
+						console.log(`[useCounterTable] Store mis à jour après ${Date.now() - startWait}ms`);
+						break;
+					}
+					await new Promise(resolve => setTimeout(resolve, 10));
+				}
 			} catch (err) {
 				console.error("[useCounterTable] Erreur ouverture session:", err);
 				throw err;
