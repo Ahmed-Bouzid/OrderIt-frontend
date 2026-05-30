@@ -31,6 +31,7 @@ import AgendaScreen from "../../components/screens/AgendaScreen";
 import Settings from "../../components/screens/Settings";
 import useSocket from "../../hooks/useSocket";
 import { getItem } from "../../utils/secureStorage";
+import { API_CONFIG } from "../../src/config/apiConfig";
 
 import useUserStore from "../../src/stores/useUserStore";
 import { useFeatureLevelStore } from "../../src/stores/useFeatureLevelStore";
@@ -150,7 +151,7 @@ export default function TabsLayout() {
 					return;
 				}
 				const response = await fetch(
-					`${process.env.EXPO_PUBLIC_API_URL}/restaurants/${restaurantId}/info`,
+					`${API_CONFIG.baseURL}/restaurants/${restaurantId}/info`,
 				);
 				if (response.ok) {
 					const data = await response.json();
@@ -171,16 +172,8 @@ export default function TabsLayout() {
 
 
 	useEffect(() => {
-		console.log("📊 Vérification initialisation activeTab:", {
-			isFeatureLevelReady,
-			TABSLength: TABS.length,
-			activeTab,
-			TABS: TABS.map((t) => t.name),
-		});
-
 		if (isFeatureLevelReady && TABS.length > 0 && !activeTab) {
 			const firstTab = TABS[0]?.name || "floor";
-			console.log("📍 Initialisation activeTab →", firstTab);
 			setActiveTab(firstTab);
 		}
 	}, [isFeatureLevelReady, TABS, activeTab]);
@@ -228,7 +221,7 @@ export default function TabsLayout() {
 				const token = await AsyncStorage.getItem("token");
 				if (!restaurantId || !token) return;
 
-				const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/restaurant/${restaurantId}?status=sent`;
+				const url = `${API_CONFIG.baseURL}/client-messages/restaurant/${restaurantId}?status=sent`;
 				const response = await fetch(url, {
 					headers: { Authorization: `Bearer ${token}` },
 				});
@@ -259,11 +252,15 @@ export default function TabsLayout() {
 	}, [TABS]);
 
 	// 🔄 Quand TABS change (enableComptoir basculé), réinitialiser le activeTab si nécessaire
+	// ⚠️ Guard isFeatureLevelReady obligatoire : avant init, TABS contient les tabs par
+	// défaut (activity inclus) et activeTab="" → sans le guard, activeTab serait forcé
+	// à "activity" avant que enableComptoir charge → race condition visuelle.
 	useEffect(() => {
+		if (!isFeatureLevelReady) return;
 		if (!TABS.find((t) => t.name === activeTab)) {
 			setActiveTab(TABS[0]?.name || "");
 		}
-	}, [TABS]);
+	}, [TABS, isFeatureLevelReady]);
 
 	const handleTabLayout = (tabName, event) => {
 		const { x, width: w } = event.nativeEvent.layout;

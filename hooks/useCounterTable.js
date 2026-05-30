@@ -272,11 +272,11 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				setSessionOrders(updatedOrders);
 
 				// Sync totalAmount dans le store → les cartes du plan de salle s'actualisent
-			// ⚠️ Exclure les orders cancelled du total
-			const newTotal = updatedOrders
-				.filter((o) => o.orderStatus !== "cancelled")
-				.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-				updateTableSession(actualRestaurantId, tableSession._id, { totalAmount: newTotal });
+				// ⚠️ Exclure les orders cancelled du total
+				const activeOrders = updatedOrders.filter((o) => o.orderStatus !== "cancelled");
+				const newTotal = activeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+				const newItemsCount = activeOrders.reduce((sum, o) => sum + (o.items?.length || 0), 0);
+				updateTableSession(actualRestaurantId, tableSession._id, { totalAmount: newTotal, itemsCount: newItemsCount });
 
 				return order;
 			} catch (err) {
@@ -304,10 +304,10 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 					actualRestaurantId,
 					tableId,
 				);
-				const newTotal = updatedOrders
-					.filter((o) => o.orderStatus !== "cancelled")
-					.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
-				updateTableSession(actualRestaurantId, tableSession._id, { totalAmount: newTotal });
+				const activeOrders = updatedOrders.filter((o) => o.orderStatus !== "cancelled");
+				const newTotal = activeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
+				const newItemsCount = activeOrders.reduce((sum, o) => sum + (o.items?.length || 0), 0);
+				updateTableSession(actualRestaurantId, tableSession._id, { totalAmount: newTotal, itemsCount: newItemsCount });
 			} catch (err) {
 				console.error("[useCounterTable] Erreur annulation commande:", err);
 				throw err;

@@ -54,10 +54,6 @@ export default function FloorPlanModal({
 	const [history, setHistory] = useState([]);
 	const [historyIndex, setHistoryIndex] = useState(-1);
 
-	// Layout snapshot — sauvegarde manuelle des positions
-	const [hasSavedLayout, setHasSavedLayout] = useState(false);
-	const savedPositionsSnapshot = useRef(null); // { [tableId]: { x, y } }
-
 	// Swap — deux tables qui se touchent en mode Drag
 	const [swapCandidates, setSwapCandidates] = useState(null); // { idA, idB }
 
@@ -128,7 +124,9 @@ export default function FloorPlanModal({
 
 	// Ref live des tables pour la détection d'overlap dans handlePositionChange
 	const tablesRef = useRef(tables);
-	useEffect(() => { tablesRef.current = tables; }, [tables]);
+	useEffect(() => {
+		tablesRef.current = tables;
+	}, [tables]);
 
 	// Tables fictives pour simulation (Salles 2 et 3)
 	const mockTables = useMemo(() => {
@@ -432,11 +430,15 @@ export default function FloorPlanModal({
 		setModifiedTableIds((prev) => new Set(prev).add(tableId));
 
 		// Détection overlap — au moment du drop, données les plus fraîches
-		if (!dragEnabledRef.current) return;
+		if (!dragEnabledRef.current) {
+			console.log('[SWAP] skip — drag not enabled');
+			return;
+		}
 		const allTables = tablesRef.current;
 		const moved = allTables.find(t => t._id === tableId);
 		const wA = (moved?.sizeW || moved?.size || 1) * 100;
 		const hA = (moved?.sizeH || moved?.size || 1) * 100;
+		console.log('[SWAP] drop', { tableId, newPosition, tablesCount: allTables.length, wA, hA, movedFound: !!moved });
 		for (const other of allTables) {
 			if (other._id === tableId) continue;
 			const panB = panRefsMap.current[other._id];
@@ -444,11 +446,12 @@ export default function FloorPlanModal({
 			const yB = panB ? panB.y._value : (other.position?.y ?? 0);
 			const wB = (other.sizeW || other.size || 1) * 100;
 			const hB = (other.sizeH || other.size || 1) * 100;
-			if (
-				newPosition.x < xB + wB && newPosition.x + wA > xB &&
-				newPosition.y < yB + hB && newPosition.y + hA > yB
-			) {
+			const overlap = newPosition.x < xB + wB && newPosition.x + wA > xB &&
+				newPosition.y < yB + hB && newPosition.y + hA > yB;
+			console.log('[SWAP] check vs', other._id, { xA: newPosition.x, yA: newPosition.y, wA, hA, xB, yB, wB, hB, overlap, hasPan: !!panB });
+			if (overlap) {
 				setSwapCandidates({ idA: tableId, idB: other._id });
+				console.log('[SWAP] overlap detected!', tableId, other._id);
 				return;
 			}
 		}
@@ -603,85 +606,6 @@ export default function FloorPlanModal({
 			console.error("Erreur sauvegarde plan:", error);
 			Alert.alert("Erreur", "Impossible de sauvegarder le plan");
 		}
-	};
-
-	// 📸 Capturer un snapshot des positions actuelles et sauvegarder
-	const handleSaveLayoutSnapshot = async () => {
-		if (isSimulation) return;
-		// Capturer snapshot AVANT save (positions actuelles via panRefs)
-		const snapshot = {};
-		displayTables.forEach((t) => {
-			const panRef = panRefsMap.current[t._id];
-			snapshot[t._id] = {
-				x: panRef ? panRef.x._value : (t.position?.x ?? 0),
-				y: panRef ? panRef.y._value : (t.position?.y ?? 0),
-			};
-		});
-		await handleSavePlan();
-		// Stocker le snapshot après la sauvegarde réussie
-		savedPositionsSnapshot.current = snapshot;
-		setHasSavedLayout(true);
-	};
-
-	// ↩ Rétablir le plan depuis le snapshot sauvegardé
-	const handleRestoreLayout = () => {
-		const snapshot = savedPositionsSnapshot.current;
-		if (!snapshot) return;
-		setTables((prev) =>
-			prev.map((t) => {
-				const savedPos = snapshot[t._id];
-				if (!savedPos) return t;
-				const panRef = panRefsMap.current[t._id];
-				if (panRef) {
-					Animated.spring(panRef, {
-						toValue: { x: savedPos.x, y: savedPos.y },
-						tension: 120,
-						friction: 8,
-						useNativeDriver: false,
-					}).start();
-				}
-				return { ...t, position: savedPos };
-			}),
-		);
-		setModifiedTableIds(new Set());
-	};
-
-	// 💾 Handler principal du bouton Layout
-	const handleLayoutButton = () => {
-		if (isSimulation) return;
-		const hasChanges = modifiedTableIds.size > 0;
-		// Snapshot existant + modifications en cours → proposer le choix
-		if (hasSavedLayout && hasChanges) {
-			Alert.alert(
-				"Plan modifié",
-				"Des tables ont été déplacées depuis la dernière sauvegarde.",
-				[
-					{ text: "Annuler", style: "cancel" },
-					{
-						text: "↩ Rétablir",
-						style: "destructive",
-						onPress: handleRestoreLayout,
-					},
-					{
-						text: "💾 Sauvegarder",
-						onPress: handleSaveLayoutSnapshot,
-					},
-				],
-			);
-			return;
-		}
-		// Pas de modifications → rien à faire
-		if (!hasChanges) {
-			Alert.alert(
-				"Info",
-				hasSavedLayout
-					? "Aucune modification depuis la dernière sauvegarde."
-					: "Déplacez des tables pour activer la sauvegarde.",
-			);
-			return;
-		}
-		// Pas encore de snapshot → sauvegarder directement
-		handleSaveLayoutSnapshot();
 	};
 
 	// Feature 4 — Derived selected table data
@@ -957,44 +881,6 @@ export default function FloorPlanModal({
 									</Text>
 								</TouchableOpacity>
 
-								{/* Bouton sauvegarde layout — actif dès qu'il y a des modifs */}
-								{!isSimulation && (
-									<TouchableOpacity
-										onPress={handleLayoutButton}
-										disabled={resaMode}
-										style={[
-											styles.toggleButton,
-											hasSavedLayout && !modifiedTableIds.size && styles.toggleButtonSaveActive,
-											modifiedTableIds.size > 0 && styles.toggleButtonSavePending,
-											resaMode && styles.toggleButtonDisabled,
-										]}
-									>
-										<Ionicons
-											name={modifiedTableIds.size > 0 ? "save" : "save-outline"}
-											size={20}
-											color={
-												resaMode
-													? THEME.colors.text.muted + "40"
-													: modifiedTableIds.size > 0
-													? THEME.colors.primary.amber
-													: hasSavedLayout
-													? "#10B981"
-													: THEME.colors.text.muted
-											}
-										/>
-										<Text
-											style={[
-												styles.toggleButtonText,
-												modifiedTableIds.size > 0 && { color: THEME.colors.primary.amber },
-												hasSavedLayout && !modifiedTableIds.size && { color: "#10B981" },
-												resaMode && styles.toggleButtonTextDisabled,
-											]}
-										>
-											Layout
-										</Text>
-									</TouchableOpacity>
-								)}
-
 								<TouchableOpacity
 									onPress={() => {
 										setResizeEnabled(!resizeEnabled);
@@ -1117,6 +1003,10 @@ export default function FloorPlanModal({
 									</TouchableOpacity>
 								))}
 								<Text style={styles.alignHint}>{selectedTableId ? `Table sélectionnée` : 'Tap une table pour aligner'}</Text>
+								{/* DEBUG SWAP — à retirer après fix */}
+								<Text style={{ fontSize: 9, color: swapCandidates ? '#22c55e' : '#ef4444', marginLeft: 4 }}>
+									{swapCandidates ? `SWAP:${String(swapCandidates.idA).slice(-4)}↔${String(swapCandidates.idB).slice(-4)}` : 'no swap'}
+								</Text>
 							</View>
 						)}
 
@@ -1216,22 +1106,33 @@ export default function FloorPlanModal({
 								<View style={styles.tablesContainer}>
 									{displayTables.map((table, index) => {
 										const _toId = (v) => (v?._id ?? v)?.toString();
+
 										
 										// Prochaine réservation à venir pour cette table
 										const nextReservation = upcomingReservations
 											.filter((r) => {
 												const tableId = _toId(r.tableId);
 												const tableIds = r.tableIds || [];
-												return (
-													tableId === table._id?.toString() ||
-													tableIds.some((tid) => _toId(tid) === table._id?.toString())
-												);
+												const match = tableId === table._id?.toString() ||
+													tableIds.some((tid) => _toId(tid) === table._id?.toString());
+												
+												// 🐛 DEBUG: Log pour Tab3
+												if (table.number === "Tab3" || table.number === 3) {
+													console.log(`[DEBUG Tab3] Resa ${r.clientName}: tableId=${tableId}, table._id=${table._id}, match=${match}`);
+												}
+												
+												return match;
 											})
 											.sort(
 												(a, b) =>
 													new Date(a.reservationDate) -
 													new Date(b.reservationDate),
 											)[0];
+										
+										// 🐛 DEBUG: Log global pour Tab3
+										if (table.number === "Tab3" || table.number === 3) {
+											console.log(`[DEBUG Tab3] Total upcoming: ${upcomingReservations.length}, nextReservation:`, nextReservation?.clientName || "null");
+										}
 
 										const resaInfo = resaMode ? getTableResa(table) : null;
 										const hasReservation = !!getTableResa(table);
@@ -1266,53 +1167,50 @@ export default function FloorPlanModal({
 											/>
 										);
 									})}
-
-									{/* Bouton swap — apparaît quand deux tables se touchent en mode Drag */}
-									{swapCandidates && dragEnabled && (() => {
-										const tA = displayTables.find(t => t._id === swapCandidates.idA);
-										const tB = displayTables.find(t => t._id === swapCandidates.idB);
-										if (!tA || !tB) return null;
-										const panA = panRefsMap.current[swapCandidates.idA];
-										const panB = panRefsMap.current[swapCandidates.idB];
-										const xA = panA ? panA.x._value : (tA.position?.x ?? 0);
-										const yA = panA ? panA.y._value : (tA.position?.y ?? 0);
-										const wA = (tA.sizeW || tA.size || 1) * 100;
-										const hA = (tA.sizeH || tA.size || 1) * 100;
-										const xB = panB ? panB.x._value : (tB.position?.x ?? 0);
-										const yB = panB ? panB.y._value : (tB.position?.y ?? 0);
-										const wB = (tB.sizeW || tB.size || 1) * 100;
-										const hB = (tB.sizeH || tB.size || 1) * 100;
-										const midX = (xA + wA / 2 + xB + wB / 2) / 2 - 24;
-										const midY = (yA + hA / 2 + yB + hB / 2) / 2 - 24;
-										return (
-											<TouchableOpacity
-												key="swap-btn"
-												style={{
-													position: 'absolute',
-													left: midX,
-													top: midY,
-													width: 48,
-													height: 48,
-													borderRadius: 24,
-													backgroundColor: THEME.colors.primary?.amber ?? '#F59E0B',
-													alignItems: 'center',
-													justifyContent: 'center',
-													zIndex: 9999,
-													elevation: 12,
-													shadowColor: '#000',
-													shadowOffset: { width: 0, height: 4 },
-													shadowOpacity: 0.4,
-													shadowRadius: 8,
-												}}
-												onPress={() => handleSwapTables(swapCandidates.idA, swapCandidates.idB)}
-												activeOpacity={0.85}
-											>
-												<Ionicons name="sync" size={22} color="#1A1A1A" />
-											</TouchableOpacity>
-										);
-									})()}
 								</View>
 							)}
+							{/* Bouton swap — positionné dans planContainer pour garantir visibilité */}
+							{swapCandidates && dragEnabled && (() => {
+								const tA = displayTables.find(t => t._id === swapCandidates.idA);
+								const tB = displayTables.find(t => t._id === swapCandidates.idB);
+								if (!tA || !tB) return null;
+								const xA = tA.position?.x ?? 0;
+								const yA = tA.position?.y ?? 0;
+								const wA = (tA.sizeW || tA.size || 1) * 100;
+								const hA = (tA.sizeH || tA.size || 1) * 100;
+								const xB = tB.position?.x ?? 0;
+								const yB = tB.position?.y ?? 0;
+								const wB = (tB.sizeW || tB.size || 1) * 100;
+								const hB = (tB.sizeH || tB.size || 1) * 100;
+								const midX = (xA + wA / 2 + xB + wB / 2) / 2 - 24;
+								const midY = (yA + hA / 2 + yB + hB / 2) / 2 - 24;
+								return (
+									<TouchableOpacity
+										key="swap-btn"
+										style={{
+											position: 'absolute',
+											left: midX,
+											top: midY,
+											width: 48,
+											height: 48,
+											borderRadius: 24,
+											backgroundColor: THEME.colors.primary?.amber ?? '#F59E0B',
+											alignItems: 'center',
+											justifyContent: 'center',
+											zIndex: 9999,
+											elevation: 12,
+											shadowColor: '#000',
+											shadowOffset: { width: 0, height: 4 },
+											shadowOpacity: 0.4,
+											shadowRadius: 8,
+										}}
+										onPress={() => handleSwapTables(swapCandidates.idA, swapCandidates.idB)}
+										activeOpacity={0.85}
+									>
+										<Ionicons name="sync" size={22} color="#1A1A1A" />
+									</TouchableOpacity>
+								);
+							})()}
 						</View>
 						{/* Footer */}
 						<View style={styles.footer}>
@@ -1898,14 +1796,6 @@ const createStyles = (THEME) =>
 		toggleButtonActive: {
 			backgroundColor: THEME.colors.primary.amber,
 			borderColor: THEME.colors.primary.amber,
-		},
-		toggleButtonSaveActive: {
-			borderColor: "#10B981",
-			backgroundColor: "rgba(16,185,129,0.12)",
-		},
-		toggleButtonSavePending: {
-			borderColor: THEME.colors.primary.amber,
-			backgroundColor: "rgba(245,158,11,0.12)",
 		},
 		toggleButtonDisabled: {
 			opacity: 0.35,

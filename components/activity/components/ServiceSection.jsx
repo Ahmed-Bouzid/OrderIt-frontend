@@ -11,6 +11,26 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../hooks/useTheme";
 
+// Construit un map { _id → label } : prénom seul, ou "Prénom I." si deux prénoms identiques
+function buildDisplayNames(serverList) {
+	const firstNameCount = {};
+	for (const srv of serverList) {
+		const first = (srv.name || "").trim().split(/\s+/)[0] || "";
+		if (first) firstNameCount[first] = (firstNameCount[first] || 0) + 1;
+	}
+	const map = {};
+	for (const srv of serverList) {
+		if (!srv._id) continue;
+		const parts = (srv.name || "").trim().split(/\s+/);
+		const first = parts[0] || "Serveur";
+		const lastInitial = parts[1]?.[0]?.toUpperCase();
+		map[srv._id] = (firstNameCount[first] > 1 && lastInitial)
+			? `${first} ${lastInitial}.`
+			: first;
+	}
+	return map;
+}
+
 export const ServiceSection = React.memo(
 	({
 		activeReservation,
@@ -40,21 +60,23 @@ export const ServiceSection = React.memo(
 		// Nombre de serveurs en ligne
 		const onlineCount = onlineServers.length;
 
+		// Map _id → label d'affichage (prénom seul ou "Prénom I." si doublon)
+		const displayNames = useMemo(() => buildDisplayNames(safeServers), [safeServers]);
+
 		const serverDisplayName = useMemo(() => {
-			if (activeServer?.name) {
-				return activeServer.name;
-			}
-			if (activeReservation?.serverId?.name) {
-				return activeReservation.serverId.name;
-			}
-			if (activeReservation?.openedBy) {
-				return activeReservation.openedBy;
-			}
+			const serverId = activeServer?._id ?? activeReservation?.serverId?._id;
+			if (serverId && displayNames[serverId]) return displayNames[serverId];
+			// Fallback : extraire le prénom depuis le nom complet
+			const fullName = activeServer?.name
+				|| activeReservation?.serverId?.name
+				|| activeReservation?.openedBy;
+			if (fullName) return fullName.trim().split(/\s+/)[0];
 			return "Non assigné";
 		}, [
 			activeServer,
 			activeReservation?.serverId,
 			activeReservation?.openedBy,
+			displayNames,
 		]);
 
 		if (!activeReservation) {
@@ -199,7 +221,7 @@ export const ServiceSection = React.memo(
 																	isSelected && localStyles.modalNameSelected,
 																]}
 															>
-																{srv.name || "Serveur"}
+																{displayNames[srv._id] || "Serveur"}
 															</Text>
 															{srv.email && (
 																<Text style={localStyles.modalEmail}>

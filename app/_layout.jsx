@@ -5,6 +5,7 @@
 
 import React, { useState } from "react";
 import { View, TouchableOpacity, StyleSheet, Platform } from "react-native";
+import { GestureHandlerRootView } from "react-native-gesture-handler";
 import { Stack } from "expo-router";
 import { SocketProvider } from "../src/stores/SocketContext";
 import ScreenProtectionWrapper from "../components/ScreenProtectionWrapper";
@@ -41,6 +42,7 @@ export default function RootLayout() {
 	const isAuthenticated = Boolean(userId && restaurantId);
 
 	return (
+		<GestureHandlerRootView style={s.root}>
 		<ScreenProtectionWrapper protectionKey="app-global">
 			<SocketProvider>
 				<View style={s.root}>
@@ -91,6 +93,7 @@ export default function RootLayout() {
 				</View>
 			</SocketProvider>
 		</ScreenProtectionWrapper>
+		</GestureHandlerRootView>
 	);
 }
 

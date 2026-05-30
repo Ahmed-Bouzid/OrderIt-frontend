@@ -24,11 +24,9 @@ import useWebReservationStore from "../../src/stores/useWebReservationStore";
 export default function WebReservationsModal({ visible, onClose }) {
 	const THEME = useTheme();
 	const reservations = useReservationStore((state) => state.reservations);
-	const { seenIds, markAllAsSeen, markAsSeen } = useWebReservationStore((state) => ({
-		seenIds: state.seenIds,
-		markAllAsSeen: state.markAllAsSeen,
-		markAsSeen: state.markAsSeen,
-	}));
+	const seenIds = useWebReservationStore((state) => state.seenIds);
+	const markAllAsSeen = useWebReservationStore((state) => state.markAllAsSeen);
+	const markAsSeen = useWebReservationStore((state) => state.markAsSeen);
 	
 	// Filtrer uniquement les réservations "À distance" non vues
 	const webReservations = useMemo(() => {

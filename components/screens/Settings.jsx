@@ -36,10 +36,12 @@ import {
 import FeedbackModal from "../modals/FeedbackModal";
 import feedbackService from "../../services/feedbackService";
 import AccountingScreen from "./AccountingScreen";
+import ZReportScreen from "./ZReportScreen";
 import AnalyticsScreen from "./AnalyticsScreen";
 import MessagingScreen from "./MessagingScreen";
 import { useFeatures } from "../../hooks/useFeatures";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
+import { API_CONFIG } from "../../src/config/apiConfig";
 import {
 	AccountingGuard,
 	AnalyticsGuard,
@@ -66,6 +68,9 @@ export default function Settings() {
 
 	// ⭐ État comptabilité
 	const [showAccountingScreen, setShowAccountingScreen] = useState(false);
+
+	// ⭐ État Z de caisse
+	const [showZReport, setShowZReport] = useState(false);
 
 	// ⭐ État CRM Performance
 	const [showCRMScreen, setShowCRMScreen] = useState(false);
@@ -135,7 +140,7 @@ export default function Settings() {
 
 	const loadMessagingStatus = useCallback(async () => {
 		try {
-			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/messaging-status/${restaurantId}`;
+			const url = `${API_CONFIG.baseURL}/client-messages/messaging-status/${restaurantId}`;
 			const response = await fetch(url);
 			if (response.ok) {
 				const data = await response.json();
@@ -152,7 +157,7 @@ export default function Settings() {
 		setLoadingMessaging(true);
 		try {
 			const token = await useUserStore.getState().getToken();
-			const url = `${process.env.EXPO_PUBLIC_API_URL}/client-messages/toggle-messaging/${restaurantId}`;
+			const url = `${API_CONFIG.baseURL}/client-messages/toggle-messaging/${restaurantId}`;
 
 			const response = await fetch(url, {
 				method: "PUT",
@@ -568,7 +573,7 @@ alignItems: "center",
 justifyContent: "center",
 paddingVertical: THEME.spacing.md,
 paddingHorizontal: THEME.spacing.lg,
-borderRadius: THEME.borderRadius.lg,
+borderRadius: THEME.radius.lg,
 width: "100%",
 }}
 >
@@ -1187,6 +1192,49 @@ Personnaliser le thème
 							/>
 						</TouchableOpacity>
 
+						{/* Z de caisse — Admin/Manager uniquement */}
+						{canAccessManagerPortal && (
+							<TouchableOpacity
+								style={[
+									settingsStyles.themeLabelRow,
+									{
+										backgroundColor: THEME.colors.background.elevated,
+										borderRadius: THEME.radius.lg,
+										padding: THEME.spacing.lg,
+										borderLeftWidth: 4,
+										borderLeftColor: "#ef4444",
+										shadowColor: "#ef4444",
+										shadowOffset: { width: 0, height: 2 },
+										shadowOpacity: 0.12,
+										shadowRadius: 8,
+										elevation: 3,
+										marginTop: THEME.spacing.md,
+									},
+								]}
+								onPress={() => setShowZReport(true)}
+								activeOpacity={0.8}
+							>
+								<Ionicons
+									name="receipt-outline"
+									size={24}
+									color="#ef4444"
+								/>
+								<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+									<Text style={settingsStyles.settingLabel}>
+										Z de caisse
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Clôture de caisse — Admin / Manager
+									</Text>
+								</View>
+								<Ionicons
+									name="chevron-forward"
+									size={20}
+									color={THEME.colors.text.secondary}
+								/>
+							</TouchableOpacity>
+						)}
+
 						{/* Fonctionnalités disponibles */}
 						<View style={settingsStyles.themeSection}>
 							<Text style={settingsStyles.settingLabel}>
@@ -1663,6 +1711,14 @@ Personnaliser le thème
 			{/* AccountingScreen Modal */}
 			{showAccountingScreen && (
 				<AccountingScreen onClose={() => setShowAccountingScreen(false)} />
+			)}
+
+			{/* Z de caisse Modal */}
+			{showZReport && (
+				<ZReportScreen
+					restaurantId={restaurantId}
+					onClose={() => setShowZReport(false)}
+				/>
 			)}
 
 			{/* CRM Performance Modal */}

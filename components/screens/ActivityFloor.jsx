@@ -432,7 +432,7 @@ const FALLBACK_POSITIONS = [
 	{ x: 700, y: 520 }, { x: 100, y: 700 },
 ];
 
-const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations = [], onPress, onPositionSave }) => {
+const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations = [], onPress, onPositionSave, onRegisterPan }) => {
 	const [isDragging, setIsDragging] = useState(false);
 
 	const isFree = !session;
@@ -483,6 +483,10 @@ const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations =
 	useEffect(() => { onPressRef.current = onPress; }, [onPress]);
 	useEffect(() => { onPositionSaveRef.current = onPositionSave; }, [onPositionSave]);
 	useEffect(() => { tableRef.current = table; }, [table]);
+	// Expose pan + largeur au parent pour détection d'overlap
+	useEffect(() => {
+		if (onRegisterPan) onRegisterPan(table._id, pan, cardW);
+	}, []); // eslint-disable-line react-hooks/exhaustive-deps
 
 	const panResponder = useRef(
 		PanResponder.create({
@@ -736,6 +740,12 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	// Z de caisse déplacé dans Réglages → Comptabilité
 	const isManager = useUserStore((state) => state.role === "admin" || state.userType === "admin");
 
+	// ─── Swap de tables ───────────────────────────────────────
+	const [swapCandidates, setSwapCandidates] = useState(null); // { idA, idB }
+	const panRefsMap = useRef({}); // tableId → { pan, cardW }
+	const tablesRef = useRef([]);
+	useEffect(() => { tablesRef.current = tables; }, [tables]);
+
 	// Utilisateur actuel (fallback waiter si pas de serveurs)
 	const currentUserId = useUserStore((state) => state.userId);
 	const currentUserEmail = useUserStore((state) => state.email);
@@ -777,6 +787,49 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			return true;
 		});
 	}, [activeFilter, activeSessions, ALL_TABLE_IDS]);
+
+	// Bouton swap — affiché quand deux tables se touchent
+	const swapButtonEl = useMemo(() => {
+		if (!swapCandidates) return null;
+		const tA = tables.find(t => t._id.toString() === swapCandidates.idA);
+		const tB = tables.find(t => t._id.toString() === swapCandidates.idB);
+		if (!tA || !tB) return null;
+		const refA = panRefsMap.current[swapCandidates.idA];
+		const refB = panRefsMap.current[swapCandidates.idB];
+		const xA = refA ? refA.pan.x._value : (tA.position?.x ?? 0);
+		const yA = refA ? refA.pan.y._value : (tA.position?.y ?? 0);
+		const wA = refA?.cardW ?? 168;
+		const xB = refB ? refB.pan.x._value : (tB.position?.x ?? 0);
+		const yB = refB ? refB.pan.y._value : (tB.position?.y ?? 0);
+		const wB = refB?.cardW ?? 168;
+		const midX = (xA + wA / 2 + xB + wB / 2) / 2 - 24;
+		const midY = (yA + 84 + yB + 84) / 2 - 24;
+		return (
+			<TouchableOpacity
+				style={{
+					position: 'absolute',
+					left: midX,
+					top: midY,
+					width: 48,
+					height: 48,
+					borderRadius: 24,
+					backgroundColor: '#FBBF24',
+					alignItems: 'center',
+					justifyContent: 'center',
+					zIndex: 9999,
+					elevation: 12,
+					shadowColor: '#FBBF24',
+					shadowOffset: { width: 0, height: 0 },
+					shadowOpacity: 0.7,
+					shadowRadius: 8,
+				}}
+				onPress={() => handleSwapTables(swapCandidates.idA, swapCandidates.idB)}
+				activeOpacity={0.85}
+			>
+				<Ionicons name="sync" size={22} color="#1A1A1A" />
+			</TouchableOpacity>
+		);
+	}, [swapCandidates, tables, handleSwapTables]); // eslint-disable-line react-hooks/exhaustive-deps
 	const fetchSessions = useCounterTableStore((state) =>
 		state.fetchSessions,
 	);
@@ -856,7 +909,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.then((data) => {
 				if (Array.isArray(data)) {
 					setUpcomingReservations(data);
-					console.log(`[ActivityFloor] ✅ ${data.length} réservations upcoming`);
 				}
 			})
 			.catch((err) => console.warn("[ActivityFloor] fetch upcoming reservations:", err));
@@ -960,11 +1012,54 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			} catch (err) {
 				console.warn("[ActivityFloor] Erreur save position:", err);
 			}
+
+			// Détection overlap → propose le swap
+			const CARD_H = 168;
+			const refA = panRefsMap.current[tableId];
+			const cardWA = refA?.cardW ?? 168;
+			for (const other of tablesRef.current) {
+				if (other._id.toString() === tableId.toString()) continue;
+				const refB = panRefsMap.current[other._id];
+				const xB = refB ? refB.pan.x._value : (other.position?.x ?? 0);
+				const yB = refB ? refB.pan.y._value : (other.position?.y ?? 0);
+				const cardWB = refB?.cardW ?? 168;
+				const overlaps =
+					position.x < xB + cardWB &&
+					position.x + cardWA > xB &&
+					position.y < yB + CARD_H &&
+					position.y + CARD_H > yB;
+				if (overlaps) {
+					setSwapCandidates({ idA: tableId.toString(), idB: other._id.toString() });
+					return;
+				}
+			}
+			setSwapCandidates(null);
 		},
 		[authFetch],
 	);
 
 	// Sauvegarder les modifications d'une table (numéro + capacité)
+	// Échanger les numéros de deux tables
+	const handleSwapTables = useCallback(async (idA, idB) => {
+		try {
+			const result = await authFetch('/tables/swap', {
+				method: 'POST',
+				body: { idA, idB },
+			});
+			if (result?.tableA && result?.tableB) {
+				setTables(prev => prev.map(t => {
+					if (t._id.toString() === idA) return { ...t, number: result.tableA.number };
+					if (t._id.toString() === idB) return { ...t, number: result.tableB.number };
+					return t;
+				}));
+			}
+			setSwapCandidates(null);
+		} catch (err) {
+			console.error('[ActivityFloor] handleSwapTables:', err);
+			Alert.alert('Erreur', "Impossible d'échanger les tables");
+		}
+	}, [authFetch]);
+
 	const saveTableEdit = useCallback(
 		async (number, capacity) => {
 			if (!editModalTable) return;
@@ -1212,9 +1307,13 @@ const ActivityFloor = ({ restaurantInfo }) => {
 										upcomingReservations={upcomingReservations}
 										onPress={() => handleTableTap(tableId)}
 										onPositionSave={saveTablePosition}
+										onRegisterPan={(id, panRef, w) => {
+											panRefsMap.current[id] = { pan: panRef, cardW: w };
+										}}
 									/>
 								);
 							})}
+							{swapButtonEl}
 						</View>
 					)}
 				</View>

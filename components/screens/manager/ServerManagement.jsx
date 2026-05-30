@@ -2,6 +2,7 @@ import React, { useState, useEffect, useCallback } from "react";
 import {
 	View,
 	Text,
+	Image,
 	FlatList,
 	TouchableOpacity,
 	TextInput,
@@ -12,6 +13,8 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
+import * as ImagePicker from "expo-image-picker";
+import * as ImageManipulator from "expo-image-manipulator";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getItem as getSecureItem } from "../../../utils/secureStorage";
 import useThemeStore from "../../../src/stores/useThemeStore";
@@ -227,6 +230,50 @@ export default function ServerManagement({ theme: parentTheme }) {
 		[fetchServers, refreshServersStore],
 	);
 
+	// Uploader une photo de profil
+	const handlePickAvatar = useCallback(
+		async (server) => {
+			try {
+				const { status } = await ImagePicker.requestMediaLibraryPermissionsAsync();
+				if (status !== "granted") {
+					Alert.alert("Permission requise", "Accès à la galerie nécessaire pour choisir une photo");
+					return;
+				}
+				const result = await ImagePicker.launchImageLibraryAsync({
+					mediaTypes: ImagePicker.MediaTypeOptions.Images,
+					allowsEditing: true,
+					aspect: [1, 1],
+					quality: 0.8,
+				});
+				if (result.canceled) return;
+
+				const manipResult = await ImageManipulator.manipulateAsync(
+					result.assets[0].uri,
+					[{ resize: { width: 200, height: 200 } }],
+					{ compress: 0.65, format: ImageManipulator.SaveFormat.JPEG, base64: true },
+				);
+
+				const avatarDataUrl = `data:image/jpeg;base64,${manipResult.base64}`;
+				const token = await getSecureItem("@access_token");
+				const response = await fetch(`${API_URL}/servers/${server._id}/avatar`, {
+					method: "PATCH",
+					headers: {
+						Authorization: `Bearer ${token}`,
+						"Content-Type": "application/json",
+					},
+					body: JSON.stringify({ avatar: avatarDataUrl }),
+				});
+				if (!response.ok) throw new Error("Erreur mise à jour photo");
+				fetchServers();
+				refreshServersStore?.();
+			} catch (err) {
+				console.error("Erreur photo profil:", err);
+				Alert.alert("Erreur", "Impossible de mettre à jour la photo");
+			}
+		},
+		[fetchServers, refreshServersStore],
+	);
+
 	// Rendu d'un serveur
 	const renderServer = useCallback(
 		({ item }) => {
@@ -235,9 +282,30 @@ export default function ServerManagement({ theme: parentTheme }) {
 				? THEME.colors.role.manager
 				: THEME.colors.role.server;
 			const roleLabel = isManager ? "Manager" : "Serveur";
+			const initials = item.name
+				? item.name.trim().split(/\s+/).map((p) => p[0]).join("").slice(0, 2).toUpperCase()
+				: "?";
 
 			return (
 				<View style={styles.serverCard}>
+					{/* Avatar avec bouton camera */}
+					<TouchableOpacity
+						style={styles.avatarWrap}
+						onPress={() => handlePickAvatar(item)}
+						activeOpacity={0.75}
+					>
+						{item.avatar ? (
+							<Image source={{ uri: item.avatar }} style={styles.avatarImg} />
+						) : (
+							<View style={styles.avatarPlaceholder}>
+								<Text style={styles.avatarInitials}>{initials}</Text>
+							</View>
+						)}
+						<View style={styles.cameraOverlay}>
+							<Ionicons name="camera" size={11} color="#fff" />
+						</View>
+					</TouchableOpacity>
+
 					<View style={styles.serverInfo}>
 						<View style={styles.serverHeader}>
 							<Text style={styles.serverName}>{item.name}</Text>
@@ -284,7 +352,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 				</View>
 			);
 		},
-		[openModal, handleDelete],
+		[openModal, handleDelete, handlePickAvatar, styles],
 	);
 
 	// État vide
@@ -593,6 +661,42 @@ const createStyles = (THEME) =>
 			marginBottom: THEME.spacing.md,
 			flexDirection: "row",
 			alignItems: "center",
+			gap: THEME.spacing.md,
+		},
+		avatarWrap: {
+			width: 44,
+			height: 44,
+			borderRadius: 22,
+			position: "relative",
+		},
+		avatarImg: {
+			width: 44,
+			height: 44,
+			borderRadius: 22,
+		},
+		avatarPlaceholder: {
+			width: 44,
+			height: 44,
+			borderRadius: 22,
+			backgroundColor: "#334155",
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		avatarInitials: {
+			color: "#F8FAFC",
+			fontSize: 15,
+			fontWeight: "700",
+		},
+		cameraOverlay: {
+			position: "absolute",
+			bottom: 0,
+			right: 0,
+			width: 18,
+			height: 18,
+			borderRadius: 9,
+			backgroundColor: "#FBBF24",
+			alignItems: "center",
+			justifyContent: "center",
 		},
 		serverInfo: {
 			flex: 1,

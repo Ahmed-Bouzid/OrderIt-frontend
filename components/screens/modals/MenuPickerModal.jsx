@@ -5,7 +5,7 @@
  * Réutilise la structure menu (catégories Plats/Boissons/Desserts)
  */
 
-import React, { useState, useMemo } from "react";
+import React, { useState, useMemo, useEffect } from "react";
 import {
 	Modal,
 	View,
@@ -14,20 +14,31 @@ import {
 	TouchableOpacity,
 	ScrollView,
 	Dimensions,
+	ActivityIndicator,
 } from "react-native";
-import { BlurView } from "expo-blur";
-import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../hooks/useTheme";
 import useCounterCartStore from "../../../src/stores/useCounterCartStore";
+import counterService from "../../../services/counterService";
 
-const MenuPickerModal = ({ visible, onClose, tableId }) => {
+const { height: SCREEN_HEIGHT } = Dimensions.get("window");
+
+const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 	const THEME = useTheme();
-	const [activeCategory, setActiveCategory] = useState("plat");
+	const [activeCategory, setActiveCategory] = useState(null);
+	const [products, setProducts] = useState([]);
+	const [isLoading, setIsLoading] = useState(false);
 
 	const addItem = useCounterCartStore((state) => state.addItem);
-	const cartTotal = useCounterCartStore((state) =>
-		state.getCartTotal(tableId),
+	const setQty = useCounterCartStore((state) => state.setQty);
+	const removeItem = useCounterCartStore((state) => state.removeItem);
+	// Réactif : carts[tableId] se met à jour à chaque ajout
+	// ✅ useMemo pour éviter nouvelle référence [] → boucle infinie
+	const rawCart = useCounterCartStore((state) => state.carts[tableId]);
+	const cart = useMemo(() => rawCart || [], [rawCart]);
+	const cartTotal = useMemo(
+		() => cart.reduce((sum, i) => sum + i.price * i.quantity, 0),
+		[cart],
 	);
 
 	const dynamicStyles = useMemo(
@@ -35,88 +46,56 @@ const MenuPickerModal = ({ visible, onClose, tableId }) => {
 		[THEME],
 	);
 
-	// Fake menu items par catégorie (à remplacer par des vrais produits)
-	const menuItems = {
-		plat: [
-			{
-				id: "p1",
-				name: "Burger Maison",
-				price: 11,
-				category: "plat",
-			},
-			{
-				id: "p2",
-				name: "Pizza 4 fromages",
-				price: 14,
-				category: "plat",
-			},
-			{
-				id: "p3",
-				name: "Salade César",
-				price: 9.5,
-				category: "plat",
-			},
-			{
-				id: "p4",
-				name: "Pâtes carbonara",
-				price: 12,
-				category: "plat",
-			},
-		],
-		boisson: [
-			{
-				id: "b1",
-				name: "Coca 33cl",
-				price: 3,
-				category: "boisson",
-			},
-			{
-				id: "b2",
-				name: "Eau plate 50cl",
-				price: 2,
-				category: "boisson",
-			},
-			{
-				id: "b3",
-				name: "Jus d'orange",
-				price: 3.5,
-				category: "boisson",
-			},
-		],
-		dessert: [
-			{
-				id: "d1",
-				name: "Tiramisu",
-				price: 6,
-				category: "dessert",
-			},
-			{
-				id: "d2",
-				name: "Chocolate cake",
-				price: 5.5,
-				category: "dessert",
-			},
-			{
-				id: "d3",
-				name: "Crème brûlée",
-				price: 7,
-				category: "dessert",
-			},
-		],
-	};
+	// Charger les produits réels au montage
+	useEffect(() => {
+		if (!visible || !restaurantId) return;
+		let cancelled = false;
+		const load = async () => {
+			setIsLoading(true);
+			try {
+				const data = await counterService.getProducts(restaurantId);
+				if (!cancelled) {
+					setProducts(data);
+					// Sélectionner automatiquement la première catégorie
+					if (data.length > 0) {
+						const firstCat = data[0].category ?? "autre";
+						setActiveCategory(firstCat);
+					}
+				}
+			} finally {
+				if (!cancelled) setIsLoading(false);
+			}
+		};
+		load();
+		return () => { cancelled = true; };
+	}, [visible, restaurantId]);
 
-	const categories = [
-		{ id: "plat", label: "🍔 Plats", icon: "restaurant-outline" },
-		{ id: "boisson", label: "🥤 Boissons", icon: "wine-outline" },
-		{ id: "dessert", label: "🍰 Desserts", icon: "ice-cream-outline" },
-	];
+	// Catégories dynamiques déduites des produits
+	const categories = useMemo(() => {
+		const seen = new Set();
+		const cats = [];
+		products.forEach((p) => {
+			const cat = p.category ?? "autre";
+			if (!seen.has(cat)) {
+				seen.add(cat);
+				cats.push({ id: cat, label: cat.charAt(0).toUpperCase() + cat.slice(1) });
+			}
+		});
+		return cats;
+	}, [products]);
+
+	// Produits de la catégorie active
+	const visibleProducts = useMemo(
+		() => products.filter((p) => (p.category ?? "autre") === activeCategory),
+		[products, activeCategory],
+	);
 
 	const handleAddItem = (item) => {
 		addItem(tableId, {
-			productId: item.id,
+			productId: item._id ?? item.id,
 			name: item.name,
 			price: item.price,
-			category: item.category,
+			category: item.category ?? "autre",
 			quantity: 1,
 		});
 	};
@@ -127,29 +106,21 @@ const MenuPickerModal = ({ visible, onClose, tableId }) => {
 		<Modal
 			visible={visible}
 			transparent
-			animationType="slide"
+			animationType="fade"
 			onRequestClose={onClose}
 		>
-			<BlurView intensity={90} style={dynamicStyles.blur}>
-				<View style={dynamicStyles.container}>
+			<View style={dynamicStyles.overlay}>
+				<View style={dynamicStyles.sheet}>
 					{/* Header */}
-					<LinearGradient
-						colors={[
-							THEME.colors.background.elevated,
-							THEME.colors.background.dark,
-						]}
-						start={{ x: 0, y: 0 }}
-						end={{ x: 1, y: 1 }}
-						style={dynamicStyles.header}
-					>
+					<View style={dynamicStyles.header}>
 						<TouchableOpacity
 							onPress={onClose}
 							style={dynamicStyles.closeButton}
 						>
 							<Ionicons
-								name="chevron-back"
-								size={28}
-								color={THEME.colors.primary.amber}
+								name="close"
+								size={22}
+								color="#94A3B8"
 							/>
 						</TouchableOpacity>
 						<Text style={dynamicStyles.headerTitle}>
@@ -160,7 +131,7 @@ const MenuPickerModal = ({ visible, onClose, tableId }) => {
 								🛒 {cartTotal.toFixed(0)}€
 							</Text>
 						</View>
-					</LinearGradient>
+					</View>
 
 					{/* Tabs catégories */}
 					<View style={dynamicStyles.categoryTabs}>
@@ -189,85 +160,172 @@ const MenuPickerModal = ({ visible, onClose, tableId }) => {
 
 					{/* Menu items */}
 					<ScrollView style={dynamicStyles.content}>
-						{menuItems[activeCategory].map((item) => (
-							<TouchableOpacity
-								key={item.id}
-								onPress={() => handleAddItem(item)}
-								style={dynamicStyles.menuItem}
-							>
-								<View style={dynamicStyles.menuItemContent}>
-									<Text style={dynamicStyles.menuItemName}>
-										{item.name}
-									</Text>
-									<Text style={dynamicStyles.menuItemPrice}>
-										{item.price.toFixed(2)}€
-									</Text>
-								</View>
-								<View style={dynamicStyles.addButton}>
-									<Ionicons
-										name="add"
-										size={24}
-										color={THEME.colors.primary.amber}
-									/>
-								</View>
-							</TouchableOpacity>
-						))}
+						{isLoading ? (
+							<ActivityIndicator
+								size="large"
+								color={THEME.colors.primary.amber}
+								style={{ marginTop: 32 }}
+							/>
+						) : visibleProducts.length === 0 ? (
+							<Text style={dynamicStyles.emptyText}>
+								Aucun produit dans cette catégorie
+							</Text>
+						) : (
+							visibleProducts.map((item) => (
+								<TouchableOpacity
+									key={item._id ?? item.id}
+									onPress={() => handleAddItem(item)}
+									style={dynamicStyles.menuItem}
+								>
+									<View style={dynamicStyles.menuItemContent}>
+										<Text style={dynamicStyles.menuItemName}>
+											{item.name}
+										</Text>
+										<Text style={dynamicStyles.menuItemPrice}>
+											{item.price?.toFixed(2)}€
+										</Text>
+									</View>
+									<View style={dynamicStyles.addButton}>
+										<Ionicons
+											name="add"
+											size={24}
+											color={THEME.colors.primary.amber}
+										/>
+									</View>
+								</TouchableOpacity>
+							))
+						)}
 					</ScrollView>
+
+					{/* Cart summary */}
+					{cart.length > 0 && (
+						<View style={dynamicStyles.cartSummary}>
+							<ScrollView
+								style={dynamicStyles.cartScroll}
+								showsVerticalScrollIndicator={false}
+							>
+								{cart.map((item) => (
+									<View key={item.tempId} style={dynamicStyles.cartRow}>
+										<Text
+											style={dynamicStyles.cartItemName}
+											numberOfLines={1}
+											ellipsizeMode="tail"
+										>
+											{item.name}
+										</Text>
+										<View style={dynamicStyles.cartItemControls}>
+											<TouchableOpacity
+												onPress={() => setQty(tableId, item.tempId, item.quantity - 1)}
+												style={dynamicStyles.qtyBtn}
+											>
+												<Ionicons name="remove" size={14} color="#94A3B8" />
+											</TouchableOpacity>
+											<Text style={dynamicStyles.qtyValue}>{item.quantity}</Text>
+											<TouchableOpacity
+												onPress={() => setQty(tableId, item.tempId, item.quantity + 1)}
+												style={dynamicStyles.qtyBtn}
+											>
+												<Ionicons name="add" size={14} color="#94A3B8" />
+											</TouchableOpacity>
+										</View>
+										<Text style={dynamicStyles.cartItemPrice}>
+											{(item.price * item.quantity).toFixed(2)}€
+										</Text>
+										<TouchableOpacity
+											onPress={() => removeItem(tableId, item.tempId)}
+											style={dynamicStyles.deleteBtn}
+										>
+											<Ionicons name="trash-outline" size={14} color="#EF4444" />
+										</TouchableOpacity>
+									</View>
+								))}
+							</ScrollView>
+							<View style={dynamicStyles.cartTotal}>
+								<Text style={dynamicStyles.cartTotalLabel}>
+									{cart.reduce((s, i) => s + i.quantity, 0)} article{cart.reduce((s, i) => s + i.quantity, 0) > 1 ? "s" : ""}
+								</Text>
+								<Text style={dynamicStyles.cartTotalAmount}>
+									{cartTotal.toFixed(2)} €
+								</Text>
+							</View>
+						</View>
+					)}
 
 					{/* Footer */}
 					<View style={dynamicStyles.footer}>
 						<TouchableOpacity
 							onPress={onClose}
-							style={dynamicStyles.footerButton}
+							style={[
+								dynamicStyles.footerButton,
+								cart.length === 0 && dynamicStyles.footerButtonDisabled,
+							]}
+							disabled={cart.length === 0}
 						>
-							<Text style={dynamicStyles.footerButtonText}>
-								✓ Valider et retour à la table
+							<Text style={[
+								dynamicStyles.footerButtonText,
+								cart.length === 0 && dynamicStyles.footerButtonTextDisabled,
+							]}>
+								{cart.length === 0
+									? "Aucun plat sélectionné"
+									: `✓ Valider ${cart.reduce((s, i) => s + i.quantity, 0)} plat${cart.reduce((s, i) => s + i.quantity, 0) > 1 ? "s" : ""} — ${cartTotal.toFixed(2)} €`
+								}
 							</Text>
 						</TouchableOpacity>
 					</View>
 				</View>
-			</BlurView>
+			</View>
 		</Modal>
 	);
 };
 
 const createStyles = (THEME) =>
 	StyleSheet.create({
-		blur: {
+		// Overlay centré — identique TableDetailModal
+		overlay: {
 			flex: 1,
-			justifyContent: "flex-end",
+			backgroundColor: "rgba(0,0,0,0.70)",
+			justifyContent: "center",
+			alignItems: "center",
+			paddingHorizontal: 16,
+			paddingVertical: 12,
 		},
-
-		container: {
-			maxHeight: "85%",
-			backgroundColor: THEME.colors.background.dark,
-			borderTopLeftRadius: 20,
-			borderTopRightRadius: 20,
-			flexDirection: "column",
+		sheet: {
+			backgroundColor: "#1E293B",
+			borderRadius: 20,
+			width: "100%",
+			maxWidth: 520,
+			flex: 0,
+			flexShrink: 1,
+			minHeight: "78%",
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.08)",
+			overflow: "hidden",
 		},
 
 		header: {
 			flexDirection: "row",
 			alignItems: "center",
 			paddingHorizontal: 16,
-			paddingVertical: 12,
+			paddingVertical: 14,
+			borderBottomWidth: 1,
+			borderBottomColor: "rgba(255,255,255,0.07)",
 			gap: 12,
 		},
 
 		closeButton: {
-			padding: 8,
+			padding: 4,
 		},
 
 		headerTitle: {
 			flex: 1,
 			fontSize: 16,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F8FAFC",
 		},
 
 		cartBadge: {
-			paddingHorizontal: 12,
-			paddingVertical: 6,
+			paddingHorizontal: 10,
+			paddingVertical: 5,
 			backgroundColor: THEME.colors.primary.amber,
 			borderRadius: 6,
 		},
@@ -275,26 +333,26 @@ const createStyles = (THEME) =>
 		cartBadgeText: {
 			fontSize: 12,
 			fontWeight: "700",
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 		},
 
 		categoryTabs: {
 			flexDirection: "row",
 			paddingHorizontal: 16,
-			paddingVertical: 8,
+			paddingVertical: 10,
 			gap: 8,
 			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
+			borderBottomColor: "rgba(255,255,255,0.07)",
+			flexWrap: "wrap",
 		},
 
 		categoryTab: {
-			flex: 1,
-			paddingVertical: 8,
-			paddingHorizontal: 12,
+			paddingVertical: 7,
+			paddingHorizontal: 14,
 			borderRadius: 6,
-			backgroundColor: "transparent",
+			backgroundColor: "rgba(255,255,255,0.05)",
 			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
+			borderColor: "rgba(255,255,255,0.1)",
 		},
 
 		categoryTabActive: {
@@ -305,18 +363,26 @@ const createStyles = (THEME) =>
 		categoryTabText: {
 			fontSize: 12,
 			fontWeight: "600",
-			color: THEME.colors.text.muted,
+			color: "#94A3B8",
 			textAlign: "center",
 		},
 
 		categoryTabTextActive: {
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 		},
 
 		content: {
 			flex: 1,
 			paddingHorizontal: 16,
 			paddingVertical: 12,
+		},
+
+		emptyText: {
+			fontSize: 13,
+			color: "#64748B",
+			fontStyle: "italic",
+			paddingVertical: 24,
+			textAlign: "center",
 		},
 
 		menuItem: {
@@ -326,10 +392,10 @@ const createStyles = (THEME) =>
 			paddingVertical: 12,
 			paddingHorizontal: 12,
 			marginBottom: 8,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "rgba(255,255,255,0.04)",
 			borderRadius: 8,
 			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
+			borderColor: "rgba(255,255,255,0.07)",
 		},
 
 		menuItemContent: {
@@ -339,38 +405,135 @@ const createStyles = (THEME) =>
 		menuItemName: {
 			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
-			marginBottom: 4,
+			color: "#F8FAFC",
+			marginBottom: 3,
 		},
 
 		menuItemPrice: {
 			fontSize: 12,
-			color: THEME.colors.text.muted,
+			color: "#94A3B8",
 		},
 
 		addButton: {
-			paddingHorizontal: 12,
+			paddingHorizontal: 8,
 		},
 
 		footer: {
 			paddingHorizontal: 16,
-			paddingVertical: 12,
+			paddingVertical: 14,
 			borderTopWidth: 1,
-			borderTopColor: THEME.colors.border.subtle,
+			borderTopColor: "rgba(255,255,255,0.07)",
+		},
+
+		// Cart summary
+		cartSummary: {
+			borderTopWidth: 1,
+			borderTopColor: "rgba(255,255,255,0.07)",
+			backgroundColor: "rgba(0,0,0,0.25)",
+			paddingHorizontal: 16,
+			paddingTop: 10,
+			paddingBottom: 0,
+		},
+
+		cartScroll: {
+			maxHeight: SCREEN_HEIGHT * 0.18,
+		},
+
+		cartRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 8,
+			paddingVertical: 6,
+			borderBottomWidth: 1,
+			borderBottomColor: "rgba(255,255,255,0.05)",
+		},
+
+		cartItemName: {
+			flex: 1,
+			fontSize: 13,
+			fontWeight: "500",
+			color: "#E2E8F0",
+		},
+
+		cartItemControls: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 4,
+		},
+
+		qtyBtn: {
+			width: 24,
+			height: 24,
+			borderRadius: 4,
+			backgroundColor: "rgba(255,255,255,0.07)",
+			alignItems: "center",
+			justifyContent: "center",
+		},
+
+		qtyValue: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: "#F8FAFC",
+			minWidth: 22,
+			textAlign: "center",
+		},
+
+		cartItemPrice: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: THEME.colors.primary.amber,
+			minWidth: 52,
+			textAlign: "right",
+		},
+
+		deleteBtn: {
+			width: 24,
+			height: 24,
+			alignItems: "center",
+			justifyContent: "center",
+		},
+
+		cartTotal: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingVertical: 10,
+		},
+
+		cartTotalLabel: {
+			fontSize: 12,
+			fontWeight: "600",
+			color: "#64748B",
+			textTransform: "uppercase",
+			letterSpacing: 0.5,
+		},
+
+		cartTotalAmount: {
+			fontSize: 16,
+			fontWeight: "800",
+			color: "#F8FAFC",
 		},
 
 		footerButton: {
-			paddingVertical: 12,
+			paddingVertical: 13,
 			paddingHorizontal: 16,
 			backgroundColor: THEME.colors.primary.amber,
-			borderRadius: 8,
+			borderRadius: 10,
+		},
+
+		footerButtonDisabled: {
+			backgroundColor: "rgba(255,255,255,0.06)",
 		},
 
 		footerButtonText: {
-			fontSize: 13,
+			fontSize: 14,
 			fontWeight: "700",
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 			textAlign: "center",
+		},
+
+		footerButtonTextDisabled: {
+			color: "#475569",
 		},
 	});
 
