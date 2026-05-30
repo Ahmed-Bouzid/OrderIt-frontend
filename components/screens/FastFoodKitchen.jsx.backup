@@ -409,7 +409,7 @@ export default function FastFoodKitchen() {
 
 		return reservations
 			.filter((r) => {
-				if (r.status === "cancelled") return false;
+				if (r.status === "annulée") return false;
 
 				const reservationDate = new Date(r.reservationDate || r.createdAt);
 				const reservationIsToday =
@@ -561,7 +561,7 @@ export default function FastFoodKitchen() {
 			const resaOrders = ordersMap[item._id] || [];
 			const isPaid =
 				paidReservationIds.has(item._id) ||
-				item.status === "completed" ||
+				item.status === "terminée" ||
 				(resaOrders.length > 0 &&
 					resaOrders.every((o) => o.paymentStatus === "paid"));
 			return (

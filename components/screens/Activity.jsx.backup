@@ -459,7 +459,7 @@ export default function Activity() {
 	const handleUpdateStatus = useCallback(
 		async (reservationId, newStatus) => {
 			// ⭐ Bloquer l'ouverture d'une réservation qui n'est pas pour aujourd'hui
-			if (newStatus === "confirmed" && activeReservation?.reservationDate) {
+			if (newStatus === "ouverte" && activeReservation?.reservationDate) {
 				const today = new Date();
 				today.setHours(0, 0, 0, 0);
 				const resaDate = new Date(activeReservation.reservationDate);
@@ -674,7 +674,7 @@ export default function Activity() {
 				// ⭐ Si montant = 0 OU déjà payé, on peut fermer
 				const updated = await markReservationAsFinished(reservationId);
 
-				if (updated && updated.status === "completed") {
+				if (updated && updated.status === "terminée") {
 					// ⭐ Nettoyer le cache et AsyncStorage AVANT de changer activeId
 					clearCachedActiveId();
 					await AsyncStorage.removeItem("activeReservationId");
@@ -951,7 +951,7 @@ export default function Activity() {
 					)}
 
 				{/* Popup principal Premium */}
-				{activeReservation && activeReservation.status === "confirmed" && (
+				{activeReservation && activeReservation.status === "ouverte" && (
 					<View style={activityStyles.popupMainWrapper}>
 						{/* Carte principale */}
 						<View

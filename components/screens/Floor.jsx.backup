@@ -186,7 +186,7 @@ export default function Floor({ onStart }) {
 			const d = new Date(r.reservationDate || r.createdAt);
 			return (
 				serverId === userId &&
-				r.status === "confirmed" &&
+				r.status === "ouverte" &&
 				d >= todayStart &&
 				d < todayEnd
 			);
@@ -253,10 +253,10 @@ export default function Floor({ onStart }) {
 		};
 
 		const enCours = reservations.filter(
-			(r) => r.status !== "completed" && isToday(r) && isMyReservation(r),
+			(r) => r.status !== "terminée" && isToday(r) && isMyReservation(r),
 		);
 		const payees = reservations.filter(
-			(r) => r.status === "completed" && isToday(r) && isMyReservation(r),
+			(r) => r.status === "terminée" && isToday(r) && isMyReservation(r),
 		);
 
 		return {
@@ -560,10 +560,10 @@ export default function Floor({ onStart }) {
 
 			const reservation = event.data;
 
-			// Mise à jour des réservations à venir (status "pending" uniquement)
+			// Mise à jour des réservations à venir (status "en attente" uniquement)
 			switch (event.type) {
 				case "created":
-					if (reservation.status === "pending") {
+					if (reservation.status === "en attente") {
 						setUpcomingReservations((prev) => {
 							const exists = prev.some((r) => r._id === reservation._id);
 							return exists ? prev : [...prev, reservation];
@@ -577,7 +577,7 @@ export default function Floor({ onStart }) {
 							.map((r) =>
 								r._id === reservation._id ? { ...r, ...reservation } : r,
 							)
-							.filter((r) => r.status === "pending"), // Retirer si status changé
+							.filter((r) => r.status === "en attente"), // Retirer si status changé
 					);
 					break;
 

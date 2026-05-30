@@ -22,7 +22,7 @@ import { isFastService } from "../../utils/categoryUtils";
 // Configuration des statuts (les couleurs restent les mêmes pour clarté visuelle)
 const getStatusConfig = (status, gradients) => {
 	const statusMap = {
-		"pending": {
+		"en attente": {
 			color: "#FBBF24",
 			bg: "rgba(251, 191, 36, 0.15)",
 			gradient: gradients?.primary || ["#FBBF24", "#F59E0B"],
@@ -63,7 +63,7 @@ const getStatusConfig = (status, gradients) => {
 			gradient: gradients?.danger || ["#F43F5E", "#E11D48"],
 		},
 	};
-	return statusMap[status?.toLowerCase()] || statusMap["pending"];
+	return statusMap[status?.toLowerCase()] || statusMap["en attente"];
 };
 
 const ReservationCard = React.memo(
@@ -94,20 +94,20 @@ const ReservationCard = React.memo(
 
 		// Statut effectif
 		const effectiveStatus = reservation
-			? reservation.isPresent && reservation.status === "pending"
+			? reservation.isPresent && reservation.status === "en attente"
 				? "present"
-				: reservation.status || "pending"
-			: "pending";
+				: reservation.status || "en attente"
+			: "en attente";
 
 		const statusConfig = getStatusConfig(effectiveStatus, gradients);
 		const isActive =
-			effectiveStatus === "present" || effectiveStatus === "confirmed";
+			effectiveStatus === "present" || effectiveStatus === "ouverte";
 
 		// ⭐ Détermine si les champs sont modifiables (pas terminée ni annulée)
 		const isEditable =
-			effectiveStatus !== "completed" &&
+			effectiveStatus !== "terminée" &&
 			effectiveStatus !== "termine" &&
-			effectiveStatus !== "cancelled" &&
+			effectiveStatus !== "annulée" &&
 			effectiveStatus !== "annulee";
 
 		// ⭐ Calcul du temps écoulé depuis arrivalTime
@@ -255,8 +255,8 @@ const ReservationCard = React.memo(
 									{/* Badge sans table */}
 									{!isSnackMode &&
 										!reservation.tableId &&
-										effectiveStatus !== "completed" &&
-										effectiveStatus !== "cancelled" && (
+										effectiveStatus !== "terminée" &&
+										effectiveStatus !== "annulée" && (
 											<View style={styles.noTableBadge}>
 												<Ionicons name="warning" size={10} color="#EF4444" />
 												<Text style={styles.noTableBadgeText}>Sans table</Text>

@@ -200,16 +200,16 @@ export default function FloorPlanModal({
 			const matches = reservations.filter(
 				(r) =>
 					toId(r.tableId) === tableIdStr &&
-					r.status !== "completed" &&
-					r.status !== "cancelled",
+					r.status !== "terminée" &&
+					r.status !== "annulée",
 			);
-			// En cours : SEULEMENT statut "confirmed" (service actif)
-			const enCours = matches.find((r) => r.status === "confirmed") || null;
+			// En cours : SEULEMENT statut "ouverte" (service actif)
+			const enCours = matches.find((r) => r.status === "ouverte") || null;
 			if (enCours) return { resa: enCours, type: "en_cours" };
-			// Futur : toute resa "pending" (peu importe la date)
+			// Futur : toute resa "en attente" (peu importe la date)
 			const futur =
 				matches
-					.filter((r) => r.status === "pending")
+					.filter((r) => r.status === "en attente")
 					.sort(
 						(a, b) => new Date(a.reservationDate) - new Date(b.reservationDate),
 					)[0] || null;
@@ -259,8 +259,8 @@ export default function FloorPlanModal({
 				todayEnd.setHours(23, 59, 59, 999);
 				const active = data.filter(
 					(r) =>
-						r.status !== "completed" &&
-						r.status !== "cancelled" &&
+						r.status !== "terminée" &&
+						r.status !== "annulée" &&
 						r.restaurantId?.toString() === restaurantId?.toString() &&
 						new Date(r.reservationDate) >= todayStart &&
 						new Date(r.reservationDate) <= todayEnd,
@@ -784,7 +784,7 @@ export default function FloorPlanModal({
 												}}
 												activeOpacity={0.7}
 											>
-												<View style={[styles.leftResaRowDot, { backgroundColor: r.status === 'confirmed' ? '#EF4444' : '#3B82F6' }]} />
+												<View style={[styles.leftResaRowDot, { backgroundColor: r.status === 'ouverte' ? '#EF4444' : '#3B82F6' }]} />
 												<View style={{ flex: 1 }}>
 													<Text style={[styles.leftResaRowName, !isLinked && styles.leftResaRowNameMuted]} numberOfLines={1}>
 														{r.clientName || '—'}

@@ -200,7 +200,7 @@ export default function Dashboard() {
 	const handleUpdateStatus = useCallback(
 		async (id, status, reservation) => {
 			// ⭐ Vérifier que la réservation est pour aujourd'hui avant d'ouvrir
-			if (status === "confirmed" && reservation?.reservationDate) {
+			if (status === "ouverte" && reservation?.reservationDate) {
 				const today = new Date();
 				today.setHours(0, 0, 0, 0);
 				const resaDate = new Date(reservation.reservationDate);

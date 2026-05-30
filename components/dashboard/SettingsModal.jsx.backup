@@ -100,11 +100,11 @@ const SettingsModal = React.memo(
 
 		if (!reservation || !visible) return null;
 
-		const effectiveStatus = reservation.status || "pending";
+		const effectiveStatus = reservation.status || "en attente";
 
 		const getStatusInfo = () => {
-			// Affiche "Présent" si isPresent=true ET status="pending"
-			if (reservation.isPresent && effectiveStatus === "pending") {
+			// Affiche "Présent" si isPresent=true ET status="en attente"
+			if (reservation.isPresent && effectiveStatus === "en attente") {
 				return {
 					icon: "checkmark-circle-outline",
 					color: THEME.colors.status.success,
@@ -113,25 +113,25 @@ const SettingsModal = React.memo(
 			}
 
 			switch (effectiveStatus) {
-				case "pending":
+				case "en attente":
 					return {
 						icon: "time-outline",
 						color: THEME.colors.status.warning,
 						label: "En attente",
 					};
-				case "confirmed":
+				case "ouverte":
 					return {
 						icon: "restaurant-outline",
 						color: THEME.colors.primary.sky,
 						label: "Ouverte",
 					};
-				case "completed":
+				case "terminée":
 					return {
 						icon: "checkmark-done-outline",
 						color: THEME.colors.text.muted,
 						label: "Terminée",
 					};
-				case "cancelled":
+				case "annulée":
 					return {
 						icon: "close-circle-outline",
 						color: THEME.colors.status.error,
@@ -347,7 +347,7 @@ const SettingsModal = React.memo(
 									) : (
 										<>
 											{/* En attente, pas présent */}
-											{effectiveStatus === "pending" &&
+											{effectiveStatus === "en attente" &&
 												!reservation.isPresent && (
 													<>
 														<ActionButton
@@ -368,7 +368,7 @@ const SettingsModal = React.memo(
 												)}
 
 											{/* En attente + présent */}
-											{effectiveStatus === "pending" &&
+											{effectiveStatus === "en attente" &&
 												reservation.isPresent && (
 													<>
 														<ActionButton
@@ -392,7 +392,7 @@ const SettingsModal = React.memo(
 															onPress={() =>
 																onUpdateStatus?.(
 																	reservation._id,
-																	"confirmed",
+																	"ouverte",
 																	reservation,
 																)
 															}
@@ -402,7 +402,7 @@ const SettingsModal = React.memo(
 												)}
 
 											{/* Ouverte */}
-											{effectiveStatus === "confirmed" && (
+											{effectiveStatus === "ouverte" && (
 												<>
 													<ActionButton
 														icon="card-outline"
@@ -451,7 +451,7 @@ const SettingsModal = React.memo(
 															}
 															onUpdateStatus?.(
 																reservation._id,
-																"completed",
+																"terminée",
 																reservation,
 															);
 														}}
@@ -461,7 +461,7 @@ const SettingsModal = React.memo(
 											)}
 
 											{/* Terminée */}
-											{effectiveStatus === "completed" && (
+											{effectiveStatus === "terminée" && (
 												<ActionButton
 													icon="add-circle"
 													label="Recréer la réservation"
@@ -475,7 +475,7 @@ const SettingsModal = React.memo(
 											)}
 
 											{/* Annulée */}
-											{effectiveStatus === "cancelled" && (
+											{effectiveStatus === "annulée" && (
 												<>
 													<ActionButton
 														icon="add-circle"

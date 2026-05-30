@@ -245,7 +245,7 @@ export default function Payment({
 					{
 						method: "PUT",
 						body: {
-							status: isFullPayment ? "fermee" : "confirmed",
+							status: isFullPayment ? "fermee" : "ouverte",
 							paidAmount: newPaidAmount,
 							remainingAmount: remainingAmount,
 							paymentMethod: "Carte",
