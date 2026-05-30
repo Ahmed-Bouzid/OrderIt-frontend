@@ -14,7 +14,7 @@ import {
 	StyleSheet,
 	Animated,
 } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
+import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
@@ -156,6 +156,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 			transparent={true}
 			onRequestClose={handleClose}
 		>
+			<GestureHandlerRootView style={{ flex: 1 }}>
 			<TouchableOpacity 
 				style={styles.modalOverlay}
 				activeOpacity={1}
@@ -209,6 +210,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 					</View>
 				</TouchableWithoutFeedback>
 			</TouchableOpacity>
+			</GestureHandlerRootView>
 		</Modal>
 	);
 }
