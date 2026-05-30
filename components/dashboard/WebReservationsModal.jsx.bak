@@ -1,6 +1,6 @@
 /**
  * 📱 WebReservationsModal - Liste des réservations en ligne
- * Affichage type "inbox" des réservations "online"
+ * Affichage type "inbox" des réservations "À distance"
  * Permet de consulter sans valider
  */
 import React, { useMemo } from "react";
@@ -28,10 +28,10 @@ export default function WebReservationsModal({ visible, onClose }) {
 	const markAllAsSeen = useWebReservationStore((state) => state.markAllAsSeen);
 	const markAsSeen = useWebReservationStore((state) => state.markAsSeen);
 	
-	// Filtrer uniquement les réservations "online" non vues
+	// Filtrer uniquement les réservations "À distance" non vues
 	const webReservations = useMemo(() => {
 		return reservations
-			.filter((r) => r.reservationSource === "online" && !seenIds.has(r._id)) // Exclure les vues
+			.filter((r) => r.reservationSource === "À distance" && !seenIds.has(r._id)) // Exclure les vues
 			.sort((a, b) => {
 				// Trier par date de réservation (plus récent en premier)
 				const dateA = new Date(a.reservationDate);

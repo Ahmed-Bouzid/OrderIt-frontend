@@ -263,7 +263,7 @@ const ReservationCard = React.memo(
 											</View>
 										)}
 									{/* ⭐ Badge réservation web */}
-									{reservation.reservationSource === "online" && (
+									{reservation.reservationSource === "À distance" && (
 										<View style={styles.webReservationBadge}>
 											<Ionicons name="globe-outline" size={10} color="#3B82F6" />
 											<Text style={styles.webReservationBadgeText}>Web</Text>

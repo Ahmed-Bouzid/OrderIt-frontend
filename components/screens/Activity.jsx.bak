@@ -1017,17 +1017,17 @@ export default function Activity() {
 									<Text style={activityStyles.headerInfoText}>
 										<Ionicons
 											name={
-												activeReservation.reservationSource === "online"
+												activeReservation.reservationSource === "À distance"
 													? "call-outline"
 													: activeReservation.reservationSource ===
-														  "walk_in"
+														  "Sans réservation"
 														? "walk-outline"
 														: "location-outline"
 											}
 											size={14}
 											color={THEME.colors.text.muted}
 										/>{" "}
-										{activeReservation.reservationSource || "on_site"}
+										{activeReservation.reservationSource || "Sur place"}
 									</Text>
 								</View>
 
