@@ -103,6 +103,7 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	const [currentView, setCurrentView] = useState("table");
 	const [isSending, setIsSending] = useState(false);
 	const [isClosing, setIsClosing] = useState(false);
+	const [isRequestingBill, setIsRequestingBill] = useState(false);
 
 	// States pour l'encaissement
 	const [discounts, setDiscounts] = useState([]);
@@ -173,10 +174,18 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	};
 
 	const handleRequestBill = async () => {
+		setIsRequestingBill(true);
 		try {
 			await actions.requestBill();
+			Alert.alert(
+				"✓ Addition demandée",
+				"L'addition est prête à être encaissée.",
+				[{ text: "OK" }]
+			);
 		} catch (err) {
 			Alert.alert("Erreur", err.message);
+		} finally {
+			setIsRequestingBill(false);
 		}
 	};
 
@@ -955,9 +964,19 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 
 									<TouchableOpacity
 										onPress={handleRequestBill}
-										style={styles.actionBtn}
+										disabled={isRequestingBill || session?.billStatus === "bill_requested"}
+										style={[
+											styles.actionBtn,
+											(isRequestingBill || session?.billStatus === "bill_requested") && styles.actionDisabled,
+										]}
 									>
-										<Text style={styles.actionBtnText}>€ Demander addition</Text>
+										{isRequestingBill ? (
+											<ActivityIndicator size="small" color="#F8FAFC" />
+										) : (
+											<Text style={styles.actionBtnText}>
+												{session?.billStatus === "bill_requested" ? "✓ Addition demandée" : "€ Demander addition"}
+											</Text>
+										)}
 									</TouchableOpacity>
 
 									<TouchableOpacity
