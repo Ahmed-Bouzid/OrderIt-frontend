@@ -194,6 +194,20 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	};
 
 	const handleEncaisser = async () => {
+		// ✅ Si panier non vide → envoyer automatiquement en cuisine d'abord
+		if (cart.length > 0) {
+			setIsSending(true);
+			try {
+				await actions.sendToCook();
+			} catch (err) {
+				Alert.alert("Erreur", "Impossible d'envoyer les plats en cuisine : " + err.message);
+				setIsSending(false);
+				return;
+			} finally {
+				setIsSending(false);
+			}
+		}
+
 		const isZero = finalTotal === 0;
 
 		// Si 0€ → demander la raison
@@ -948,13 +962,15 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 
 									<TouchableOpacity
 										onPress={() => setCurrentView("encaisser")}
-										disabled={isClosing || cart.length > 0}
-										style={[styles.actionBtn, styles.actionBtnEncaisser, (isClosing || cart.length > 0) && styles.actionDisabled]}
+										disabled={isClosing}
+										style={[styles.actionBtn, styles.actionBtnEncaisser, isClosing && styles.actionDisabled]}
 									>
-										{isClosing ? (
+										{isClosing || isSending ? (
 											<ActivityIndicator size="small" color="#fff" />
 										) : (
-											<Text style={[styles.actionBtnText, styles.actionBtnEncaisserText]}>✓ Encaisser &amp; libérer</Text>
+											<Text style={[styles.actionBtnText, styles.actionBtnEncaisserText]}>
+												{cart.length > 0 ? "✓ Envoyer + Encaisser" : "✓ Encaisser & libérer"}
+											</Text>
 										)}
 									</TouchableOpacity>
 								</View>
