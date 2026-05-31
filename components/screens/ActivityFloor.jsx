@@ -50,11 +50,19 @@ const CANVAS_COLS = IS_PHONE ? 1 : 2; // pour auto-layout des tables sans positi
 const formatTableLabel = (number) =>
 	/^\d+$/.test(String(number ?? "")) ? `T${number}` : String(number ?? "?");
 
-/** Formate le badge "prochaine réservation" : Marie · 15/06 13:00 */
+/** Formate le badge "prochaine réservation" : Marie · 13:00 / dem. 13:00 / 15/06 13:00 */
 const formatResaBadge = (reservation) => {
 	const resaDate = new Date(reservation.reservationDate);
+	const now = new Date();
 	const name = reservation.clientName ? reservation.clientName.slice(0, 10) : "";
 	const time = reservation.reservationTime || "";
+	const todayStr = now.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+	const resaStr = resaDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+	const tomorrowDate = new Date(now);
+	tomorrowDate.setDate(now.getDate() + 1);
+	const tomorrowStr = tomorrowDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+	if (resaStr === todayStr) return `${name} · ${time}`;
+	if (resaStr === tomorrowStr) return `${name} · dem. ${time}`;
 	const day = resaDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
 	return `${name} · ${day} ${time}`;
 };
