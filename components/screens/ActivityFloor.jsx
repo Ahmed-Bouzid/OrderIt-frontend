@@ -33,6 +33,7 @@ import counterService from "../../services/counterService";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 
 import useUserStore from "../../src/stores/useUserStore";
+import useReservationStore from "../../src/stores/useReservationStore";
 
 // Composants réutilisés
 import FloorPlanModal from "../floor/FloorPlanModal";
@@ -762,6 +763,8 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	// Store
 	const rawSessions = useCounterTableStore((state) => state.sessions[restaurantId]);
 	const activeSessions = useMemo(() => rawSessions || [], [rawSessions]);
+	const reservations = useReservationStore((state) => state.reservations);
+	
 	const stats = useMemo(
 		() => ({
 			total: activeSessions.length,
@@ -771,6 +774,27 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		}),
 		[activeSessions],
 	);
+	
+	/**
+	 * Vérifie s'il y a une réservation prévue dans les 2 prochaines heures sur cette table
+	 */
+	const checkUpcomingReservation = useCallback((tableId) => {
+		const now = new Date();
+		const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+		
+		return reservations.find((r) => {
+			// Vérifier si c'est pour cette table
+			const resaTableId = typeof r.tableId === 'object' ? r.tableId._id : r.tableId;
+			if (resaTableId !== tableId) return false;
+			
+			// Vérifier si c'est une réservation active (en attente ou confirmée)
+			if (!['en attente', 'ouverte', 'pending', 'confirmed'].includes(r.status)) return false;
+			
+			// Vérifier si la réservation est dans les 2 prochaines heures
+			const resaDate = new Date(r.reservationDate);
+			return resaDate >= now && resaDate <= twoHoursLater;
+		});
+	}, [reservations]);
 
 	const ALL_TABLE_IDS = useMemo(
 		() => (tables ?? []).map((t) => t._id.toString()),
@@ -875,6 +899,9 @@ const ActivityFloor = ({ restaurantInfo }) => {
 					setTables(tablesState || []);
 					// Hydrater le store sessions (équivalent fetchReservations dans Activity)
 					hydrateSessionsFromTables(id, tablesState);
+					
+					// ✅ Charger les réservations pour vérifier les tables avec réservations à venir
+					await useReservationStore.getState().fetchReservations();
 				}
 			} catch (err) {
 				console.error("[ActivityFloor] Erreur init:", err);
@@ -891,6 +918,13 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		if (!socket || !restaurantId) return;
 
 		attachSocketListener(socket);
+		
+		// ✅ Attacher aussi les listeners WebSocket pour les réservations
+		const unsubscribeReservations = useReservationStore.getState().attachSocketListener(socket);
+		
+		return () => {
+			if (unsubscribeReservations) unsubscribeReservations();
+		};
 	}, [socket, restaurantId, attachSocketListener]);
 
 	// Fetch serveurs du restaurant (mode comptoir)
@@ -962,15 +996,48 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		setSelectedTableId(tableId);
 		const session = activeSessions.find((s) => s.tableId === tableId);
 		if (!session) {
-			// Table libre → picker de serveur
-			// Pré-sélectionner l'utilisateur actuel si aucun serveur n'est enregistré
+			// Table libre → vérifier s'il y a une réservation prévue dans les 2h
+			const upcomingResa = checkUpcomingReservation(tableId);
+			
+			if (upcomingResa) {
+				const resaDate = new Date(upcomingResa.reservationDate);
+				const timeLeft = Math.round((resaDate - new Date()) / 60000); // minutes restantes
+				const formattedTime = upcomingResa.reservationTime || resaDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+				
+				Alert.alert(
+					"⚠️ Réservation prévue",
+					`Une réservation est prévue dans ${timeLeft} min (${formattedTime}).\n\n` +
+					`Client: ${upcomingResa.clientName}\n` +
+					`Personnes: ${upcomingResa.nbPersonnes}\n\n` +
+					`Voulez-vous quand même ouvrir cette table maintenant ?`,
+					[
+						{
+							text: "Annuler",
+							style: "cancel",
+							onPress: () => setSelectedTableId(null)
+						},
+						{
+							text: "Ouvrir quand même",
+							style: "destructive",
+							onPress: () => {
+								// Continuer le flow normal
+								setSelectedWaiter(servers.length === 0 ? currentUser : null);
+								setServerPickerTableId(tableId);
+							}
+						}
+					]
+				);
+				return;
+			}
+			
+			// Pas de réservation à venir → picker de serveur
 			setSelectedWaiter(servers.length === 0 ? currentUser : null);
 			setServerPickerTableId(tableId);
 		} else {
 			// Table occupée → directement le détail
 			setShowTableDetail(true);
 		}
-	}, [activeSessions, servers, currentUser]);
+	}, [activeSessions, servers, currentUser, checkUpcomingReservation]);
 
 	// Confirmation du serveur → ouvre la session puis la modale
 	const handleConfirmWaiter = useCallback(async () => {
