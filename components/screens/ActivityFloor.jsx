@@ -984,9 +984,28 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				waiter?.name ?? null,
 				waiter?._id ?? null,
 			);
-			// Injecter la session dans le store immédiatement pour éviter le spinner
+			// Injecter la session dans le store immédiatement
 			if (session) {
 				useCounterTableStore.getState().openSession(restaurantId, serverPickerTableId, session);
+				
+				// ✅ ATTENDRE que le store contienne la session AVANT d'ouvrir la modale
+				// Sinon : modale s'ouvre avec tableSession=null → spinner infini
+				const maxWait = 500;
+				const startWait = Date.now();
+				while (Date.now() - startWait < maxWait) {
+					const currentStore = useCounterTableStore.getState();
+					const sessions = currentStore.sessions[restaurantId] || [];
+					const sessionTableId = typeof session.tableId === 'object' ? session.tableId._id : session.tableId;
+					const found = sessions.find(s => {
+						const storeTableId = typeof s.tableId === 'object' ? s.tableId._id : s.tableId;
+						return String(storeTableId) === String(sessionTableId) && s.billStatus !== "closed";
+					});
+					if (found) {
+						console.log(`[ActivityFloor] ✅ Store mis à jour après ${Date.now() - startWait}ms`);
+						break;
+					}
+					await new Promise(resolve => setTimeout(resolve, 10));
+				}
 			}
 		} catch (err) {
 			console.warn("[ActivityFloor] openSession:", err);
