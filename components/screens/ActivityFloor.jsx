@@ -1065,7 +1065,31 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			setShowTableDetail(true);
 		} catch (err) {
 			console.warn("[ActivityFloor] openSession échoué:", err);
-			// Si erreur → ne pas ouvrir la modale
+			
+			// ✅ Si HTTP 409 (table déjà occupée) → recharger l'état et ouvrir le détail
+			if (err.message?.includes("409")) {
+				Alert.alert(
+					"Table déjà occupée",
+					"Cette table a déjà une session active. Rechargement...",
+					[{ text: "OK", onPress: async () => {
+						// Recharger l'état des tables depuis le serveur
+						try {
+							const tablesState = await counterService.getTablesState(restaurantId);
+							if (tablesState && tablesState.length > 0) {
+								setTables(tablesState);
+								hydrateSessionsFromTables(restaurantId, tablesState);
+								
+								// Ouvrir automatiquement le détail de la table (maintenant marquée comme occupée)
+								setShowTableDetail(true);
+							}
+						} catch (refreshErr) {
+							console.error("[ActivityFloor] Erreur rechargement après 409:", refreshErr);
+						}
+					}}]
+				);
+			}
+			
+			// Fermer les modales de sélection serveur
 			setServerPickerTableId(null);
 			setSelectedWaiter(null);
 		}
