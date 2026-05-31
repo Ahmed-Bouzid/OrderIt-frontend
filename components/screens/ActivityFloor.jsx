@@ -1083,6 +1083,30 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		} catch (err) {
 			console.warn("[ActivityFloor] openSession échoué:", err);
 			
+			// ✅ Si réservation présente détectée → proposer d'ouvrir la réservation
+			if (err.message?.includes("TABLE_HAS_PENDING_RESERVATION")) {
+				const [_, reservationId, clientName] = err.message.split(":");
+				
+				Alert.alert(
+					"Réservation présente",
+					`Une réservation pour "${clientName}" est marquée présente pour cette table.\n\nPour ouvrir cette table, vous devez d'abord ouvrir la réservation dans l'onglet Dashboard.`,
+					[
+						{ text: "Annuler", style: "cancel" },
+						{ 
+							text: "Aller au Dashboard", 
+							onPress: () => {
+								// TODO: Navigation vers Dashboard avec focus sur cette réservation
+								console.log(`[ActivityFloor] Rediriger vers réservation ${reservationId}`);
+							}
+						}
+					]
+				);
+				
+				setServerPickerTableId(null);
+				setSelectedWaiter(null);
+				return;
+			}
+			
 			// ✅ Si HTTP 409 (table déjà occupée) → recharger l'état et ouvrir le détail
 			if (err.message?.includes("409")) {
 				Alert.alert(

@@ -33,10 +33,15 @@ const counterService = {
 			if (!response.ok) {
 				const elapsed = Date.now() - startTime;
 				console.error(`[Counter] openSession FAIL after ${elapsed}ms: HTTP ${response.status}`);
+			
+			// ✅ Parser le body d'erreur pour récupérer le message détaillé
+			try {
+				const errorData = await response.json();
+				const errorMessage = errorData.message || `HTTP ${response.status}`;
+				throw new Error(errorMessage);
+			} catch (parseErr) {
 				throw new Error(`HTTP ${response.status}`);
 			}
-
-			const data = await response.json();
 			const elapsed = Date.now() - startTime;
 			console.log(`[Counter] openSession SUCCESS in ${elapsed}ms`);
 			
