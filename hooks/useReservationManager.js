@@ -42,7 +42,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 	// ⭐ Filtre : admin voit tout, serveur voit uniquement SES réservations
 	const filterMyReservations = useCallback(
 		(resas) => {
-			const opened = resas.filter((r) => r.status === "ouverte");
+			const opened = resas.filter((r) => r.status === "confirmed");
 			if (isAdmin) return opened; // Admin voit toutes les réservations ouvertes
 			return opened.filter((r) => isMyReservation(r, userId));
 		},
@@ -80,7 +80,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			if (saved) {
 				// ⭐ Valider que la réservation existe ET est ouverte ET m'appartient
 				const savedResa = reservations.find((r) => r._id === saved);
-				if (savedResa && savedResa.status === "ouverte" && (isAdmin || isMyReservation(savedResa, userId))) {
+				if (savedResa && savedResa.status === "confirmed" && (isAdmin || isMyReservation(savedResa, userId))) {
 					setActiveId(saved);
 					// updateCachedActiveId supprimé (inutile)
 				} else {
@@ -121,8 +121,8 @@ export const useReservationManager = (reservations, fetchReservations) => {
 				// Si la réservation n'existe plus OU est fermée/annulée
 				if (
 					!activeResa ||
-					activeResa.status === "terminée" ||
-					activeResa.status === "annulée"
+					activeResa.status === "completed" ||
+					activeResa.status === "cancelled"
 				) {
 					setActiveId(null);
 					setActiveReservation(null);
@@ -168,7 +168,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		// ⭐ Ne pas mettre à jour si la réservation est fermée/annulée
 		if (
 			reservation &&
-			(reservation.status === "terminée" || reservation.status === "annulée")
+			(reservation.status === "completed" || reservation.status === "cancelled")
 		) {
 			return;
 		}
@@ -306,7 +306,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 					`${API_CONFIG.baseURL}/reservations/${reservationId}/status`,
 					{
 						method: "PUT",
-						body: { status: "terminée" },
+						body: { status: "completed" },
 					},
 				);
 				return response;
@@ -326,7 +326,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 					`${API_CONFIG.baseURL}/reservations/${reservationId}/status`,
 					{
 						method: "PUT",
-						body: { status: "ouverte" },
+						body: { status: "confirmed" },
 					},
 				);
 
@@ -377,7 +377,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 	);
 
 	// Ouvrir prochaine réservation
-	// ⭐ RÈGLE MÉTIER: Seules les réservations isPresent=true ET status="en attente" peuvent être ouvertes
+	// ⭐ RÈGLE MÉTIER: Seules les réservations isPresent=true ET status="pending" peuvent être ouvertes
 	const openNextReservation = useCallback(async () => {
 		// ⭐ IMPORTANT: Utiliser les données du state (synchronisées avec WebSocket)
 		// Le state `reservations` vient maintenant du store Zustand via useActivityData
@@ -387,7 +387,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 		// ⭐ Helper pour extraire les 6 derniers caractères de l'ID
 		const getShortId = (id) => (id ? id.slice(-6) : null);
 
-		// ⭐ Debug : afficher les réservations ouvrables (isPresent=true ET status="en attente")
+		// ⭐ Debug : afficher les réservations ouvrables (isPresent=true ET status="pending")
 		// UTILISER freshReservations au lieu de reservations
 		// ⭐ CORRECTION: Comparer avec les bons formats d'ID (openedReservations utilise 'id' court)
 		// ⭐ Helper : vérifier si la date est aujourd'hui
@@ -407,7 +407,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			);
 			return (
 				r.isPresent === true &&
-				r.status === "en attente" &&
+				r.status === "pending" &&
 				!isAlreadyOpened &&
 				isToday(r.reservationDate)
 			);
@@ -424,7 +424,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 			const nonTodayPresent = freshReservations.filter(
 				(r) =>
 					r.isPresent === true &&
-					r.status === "en attente" &&
+					r.status === "pending" &&
 					!isToday(r.reservationDate),
 			);
 
@@ -446,7 +446,7 @@ export const useReservationManager = (reservations, fetchReservations) => {
 
 		const updatedResa = await markReservationAsOpened(nextResa._id);
 
-		if (!updatedResa || updatedResa.status !== "ouverte") {
+		if (!updatedResa || updatedResa.status !== "confirmed") {
 			console.error("❌ Échec de l'ouverture de la réservation");
 			Alert.alert("Erreur", "Impossible d'ouvrir la réservation");
 			return null;

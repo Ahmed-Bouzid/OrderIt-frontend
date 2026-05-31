@@ -203,15 +203,15 @@ const DailyStatsModal = ({
 	const stats = useMemo(() => {
 		const all = reservations;
 		const active = all.filter((r) =>
-			["en attente", "actives", "present", "ouverte"].includes(
+			["pending", "actives", "present", "confirmed"].includes(
 				(r.status || "").toLowerCase(),
 			),
 		);
 		const done = all.filter((r) =>
-			["terminée", "termine"].includes((r.status || "").toLowerCase()),
+			["completed", "termine"].includes((r.status || "").toLowerCase()),
 		);
 		const cancelled = all.filter((r) =>
-			["annulée", "annulee"].includes((r.status || "").toLowerCase()),
+			["cancelled", "annulee"].includes((r.status || "").toLowerCase()),
 		);
 
 		// Couverts
@@ -249,11 +249,11 @@ const DailyStatsModal = ({
 		// Par statut
 		const by_status = {
 			"En attente": all.filter((r) =>
-				["en attente", "actives"].includes((r.status || "").toLowerCase()),
+				["pending", "actives"].includes((r.status || "").toLowerCase()),
 			).length,
 			Présent: all.filter((r) => (r.status || "").toLowerCase() === "present")
 				.length,
-			Ouverte: all.filter((r) => (r.status || "").toLowerCase() === "ouverte")
+			Ouverte: all.filter((r) => (r.status || "").toLowerCase() === "confirmed")
 				.length,
 			Terminée: done.length,
 			Annulée: cancelled.length,

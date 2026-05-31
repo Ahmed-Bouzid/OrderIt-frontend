@@ -22,7 +22,7 @@ import { isFastService } from "../../utils/categoryUtils";
 // Configuration des statuts (les couleurs restent les mêmes pour clarté visuelle)
 const getStatusConfig = (status, gradients) => {
 	const statusMap = {
-		"en attente": {
+		"pending": {
 			color: "#FBBF24",
 			bg: "rgba(251, 191, 36, 0.15)",
 			gradient: gradients?.primary || ["#FBBF24", "#F59E0B"],
@@ -63,7 +63,7 @@ const getStatusConfig = (status, gradients) => {
 			gradient: gradients?.danger || ["#F43F5E", "#E11D48"],
 		},
 	};
-	return statusMap[status?.toLowerCase()] || statusMap["en attente"];
+	return statusMap[status?.toLowerCase()] || statusMap["pending"];
 };
 
 const ReservationCard = React.memo(
@@ -94,20 +94,20 @@ const ReservationCard = React.memo(
 
 		// Statut effectif
 		const effectiveStatus = reservation
-			? reservation.isPresent && reservation.status === "en attente"
+			? reservation.isPresent && reservation.status === "pending"
 				? "present"
-				: reservation.status || "en attente"
-			: "en attente";
+				: reservation.status || "pending"
+			: "pending";
 
 		const statusConfig = getStatusConfig(effectiveStatus, gradients);
 		const isActive =
-			effectiveStatus === "present" || effectiveStatus === "ouverte";
+			effectiveStatus === "present" || effectiveStatus === "confirmed";
 
 		// ⭐ Détermine si les champs sont modifiables (pas terminée ni annulée)
 		const isEditable =
-			effectiveStatus !== "terminée" &&
+			effectiveStatus !== "completed" &&
 			effectiveStatus !== "termine" &&
-			effectiveStatus !== "annulée" &&
+			effectiveStatus !== "cancelled" &&
 			effectiveStatus !== "annulee";
 
 		// ⭐ Calcul du temps écoulé depuis arrivalTime
@@ -255,15 +255,15 @@ const ReservationCard = React.memo(
 									{/* Badge sans table */}
 									{!isSnackMode &&
 										!reservation.tableId &&
-										effectiveStatus !== "terminée" &&
-										effectiveStatus !== "annulée" && (
+										effectiveStatus !== "completed" &&
+										effectiveStatus !== "cancelled" && (
 											<View style={styles.noTableBadge}>
 												<Ionicons name="warning" size={10} color="#EF4444" />
 												<Text style={styles.noTableBadgeText}>Sans table</Text>
 											</View>
 										)}
 									{/* ⭐ Badge réservation web */}
-									{reservation.reservationSource === "À distance" && (
+									{reservation.reservationSource === "online" && (
 										<View style={styles.webReservationBadge}>
 											<Ionicons name="globe-outline" size={10} color="#3B82F6" />
 											<Text style={styles.webReservationBadgeText}>Web</Text>

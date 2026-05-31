@@ -292,7 +292,7 @@ export default function CreateFastFoodOrderModal({
 				restaurantId,
 				reservationDate: now.toISOString(),
 				reservationTime: `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}`,
-				status: "ouverte",
+				status: "confirmed",
 				...(serverId && { serverId }),
 			};
 

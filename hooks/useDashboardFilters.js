@@ -14,7 +14,7 @@ export const useDashboardFilters = (
 	const isSimplifiedMode = SIMPLIFIED_CATEGORIES.includes(category);
 
 	// Filtre par défaut selon la catégorie
-	const defaultFilter = isSimplifiedMode ? "ouverte" : "actives";
+	const defaultFilter = isSimplifiedMode ? "confirmed" : "actives";
 	const [filter, setFilter] = useState(defaultFilter);
 	const [searchQuery, setSearchQuery] = useState("");
 
@@ -29,7 +29,7 @@ export const useDashboardFilters = (
 						isSimplifiedMode &&
 						(savedFilter === "actives" || savedFilter === "present")
 					) {
-						setFilter("ouverte");
+						setFilter("confirmed");
 					} else {
 						setFilter(savedFilter);
 					}
@@ -107,12 +107,12 @@ export const useDashboardFilters = (
 				case "actives":
 					// 📅 Logique adaptée selon la date
 					if (isPastDate) {
-						// Date passée : pas de réservations "en attente" (devrait être terminée/annulée)
+						// Date passée : pas de réservations "pending" (devrait être terminée/annulée)
 						result = [];
 					} else {
-						// Toutes les "en attente" (présent ou non)
+						// Toutes les "pending" (présent ou non)
 						result = dateFilteredReservations.filter(
-							(r) => r?.status === "en attente",
+							(r) => r?.status === "pending",
 						);
 					}
 					break;
@@ -126,29 +126,29 @@ export const useDashboardFilters = (
 						result = dateFilteredReservations.filter(
 							(r) =>
 								r?.isPresent === true &&
-								(r?.status === "en attente" || r?.status === "ouverte"),
+								(r?.status === "pending" || r?.status === "confirmed"),
 						);
 					}
 					break;
 
-				case "ouverte":
+				case "confirmed":
 					// 📅 "Ouverte" : toutes les dates (passé, aujourd'hui, futur)
 					result = dateFilteredReservations.filter(
-						(r) => r?.status === "ouverte",
+						(r) => r?.status === "confirmed",
 					);
 					break;
 
-				case "terminée":
+				case "completed":
 					// 📅 "Terminée" visible à tout moment
 					result = dateFilteredReservations.filter(
-						(r) => r?.status === "terminée",
+						(r) => r?.status === "completed",
 					);
 					break;
 
-				case "annulée":
+				case "cancelled":
 					// 📅 "Annulée" visible à tout moment
 					result = dateFilteredReservations.filter(
-						(r) => r?.status === "annulée",
+						(r) => r?.status === "cancelled",
 					);
 					break;
 

@@ -459,7 +459,7 @@ export default function Activity() {
 	const handleUpdateStatus = useCallback(
 		async (reservationId, newStatus) => {
 			// ⭐ Bloquer l'ouverture d'une réservation qui n'est pas pour aujourd'hui
-			if (newStatus === "ouverte" && activeReservation?.reservationDate) {
+			if (newStatus === "confirmed" && activeReservation?.reservationDate) {
 				const today = new Date();
 				today.setHours(0, 0, 0, 0);
 				const resaDate = new Date(activeReservation.reservationDate);
@@ -674,7 +674,7 @@ export default function Activity() {
 				// ⭐ Si montant = 0 OU déjà payé, on peut fermer
 				const updated = await markReservationAsFinished(reservationId);
 
-				if (updated && updated.status === "terminée") {
+				if (updated && updated.status === "completed") {
 					// ⭐ Nettoyer le cache et AsyncStorage AVANT de changer activeId
 					clearCachedActiveId();
 					await AsyncStorage.removeItem("activeReservationId");
@@ -951,7 +951,7 @@ export default function Activity() {
 					)}
 
 				{/* Popup principal Premium */}
-				{activeReservation && activeReservation.status === "ouverte" && (
+				{activeReservation && activeReservation.status === "confirmed" && (
 					<View style={activityStyles.popupMainWrapper}>
 						{/* Carte principale */}
 						<View
@@ -1017,17 +1017,17 @@ export default function Activity() {
 									<Text style={activityStyles.headerInfoText}>
 										<Ionicons
 											name={
-												activeReservation.reservationSource === "À distance"
+												activeReservation.reservationSource === "online"
 													? "call-outline"
 													: activeReservation.reservationSource ===
-														  "Sans réservation"
+														  "walk_in"
 														? "walk-outline"
 														: "location-outline"
 											}
 											size={14}
 											color={THEME.colors.text.muted}
 										/>{" "}
-										{activeReservation.reservationSource || "Sur place"}
+										{activeReservation.reservationSource || "on_site"}
 									</Text>
 								</View>
 

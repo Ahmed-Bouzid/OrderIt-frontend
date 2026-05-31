@@ -41,7 +41,7 @@ const checkUnassignedUrgent = (reservations) => {
 	const nowMin = now.getHours() * 60 + now.getMinutes();
 
 	const unassigned = reservations.filter((r) => {
-		const s = ["en attente", "actives", "present"].includes(
+		const s = ["pending", "actives", "present"].includes(
 			(r.status || "").toLowerCase(),
 		);
 		return s && !getTableId(r);
@@ -68,7 +68,7 @@ const checkUnassignedUrgent = (reservations) => {
  * Sugère d'y placer une réservation ou de le proposer à la vente
  */
 const checkFreeSlots = (reservations, tables, turnoverTime = 90) => {
-	const ACTIVE = ["en attente", "actives", "present", "ouverte"];
+	const ACTIVE = ["pending", "actives", "present", "confirmed"];
 	const suggestions = [];
 
 	tables.forEach((t) => {
@@ -122,11 +122,11 @@ const checkFreeSlots = (reservations, tables, turnoverTime = 90) => {
  */
 const checkIdleTables = (reservations, tables) => {
 	const ACTIVE = [
-		"en attente",
+		"pending",
 		"actives",
 		"present",
-		"ouverte",
-		"terminée",
+		"confirmed",
+		"completed",
 		"termine",
 	];
 	const activeIds = new Set(
@@ -154,7 +154,7 @@ const checkIdleTables = (reservations, tables) => {
 const checkNoShowRisk = (reservations) => {
 	const atRisk = reservations.filter(
 		(r) =>
-			["en attente", "actives"].includes((r.status || "").toLowerCase()) &&
+			["pending", "actives"].includes((r.status || "").toLowerCase()) &&
 			!r.phone,
 	);
 	if (atRisk.length < 2) return null;
@@ -173,7 +173,7 @@ const checkNoShowRisk = (reservations) => {
  */
 const checkUpsellOpportunity = (reservations, tables) => {
 	const done = reservations.filter((r) =>
-		["terminée", "termine"].includes((r.status || "").toLowerCase()),
+		["completed", "termine"].includes((r.status || "").toLowerCase()),
 	);
 	if (done.length < 3) return null;
 

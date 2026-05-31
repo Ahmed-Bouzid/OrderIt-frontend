@@ -40,19 +40,19 @@ const ALL_FILTERS = [
 		color: "#10B981",
 	},
 	{
-		key: "ouverte",
+		key: "confirmed",
 		label: "Ouverte",
 		icon: "restaurant-outline",
 		color: "#0EA5E9",
 	},
 	{
-		key: "terminée",
+		key: "completed",
 		label: "Terminée",
 		icon: "checkmark-done-outline",
 		color: "#64748B",
 	},
 	{
-		key: "annulée",
+		key: "cancelled",
 		label: "Annulée",
 		icon: "close-circle-outline",
 		color: "#F43F5E",

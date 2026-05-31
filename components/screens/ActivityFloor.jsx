@@ -33,6 +33,7 @@ import counterService from "../../services/counterService";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 
 import useUserStore from "../../src/stores/useUserStore";
+import useReservationStore from "../../src/stores/useReservationStore";
 
 // Composants réutilisés
 import FloorPlanModal from "../floor/FloorPlanModal";
@@ -48,6 +49,23 @@ const CANVAS_COLS = IS_PHONE ? 1 : 2; // pour auto-layout des tables sans positi
 /** Formate l'affichage du numéro de table */
 const formatTableLabel = (number) =>
 	/^\d+$/.test(String(number ?? "")) ? `T${number}` : String(number ?? "?");
+
+/** Formate le badge "prochaine réservation" : Marie · 13:00 / dem. 13:00 / 15/06 13:00 */
+const formatResaBadge = (reservation) => {
+	const resaDate = new Date(reservation.reservationDate);
+	const now = new Date();
+	const name = reservation.clientName ? reservation.clientName.slice(0, 10) : "";
+	const time = reservation.reservationTime || "";
+	const todayStr = now.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+	const resaStr = resaDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+	const tomorrowDate = new Date(now);
+	tomorrowDate.setDate(now.getDate() + 1);
+	const tomorrowStr = tomorrowDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit", year: "numeric" });
+	if (resaStr === todayStr) return `${name} · ${time}`;
+	if (resaStr === tomorrowStr) return `${name} · dem. ${time}`;
+	const day = resaDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+	return `${name} · ${day} ${time}`;
+};
 
 // ─── EditTableModal ──────────────────────────────────────────────────────────
 const EditTableModal = ({ visible, table, onClose, onSave }) => {
@@ -621,7 +639,7 @@ const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations =
 			{nextReservation && (
 				<View style={dcStyles.reservationBadge}>
 					<Text style={dcStyles.reservationText} numberOfLines={1}>
-						{nextReservation.clientName} à {nextReservation.reservationTime}
+						{formatResaBadge(nextReservation)}
 					</Text>
 				</View>
 			)}
@@ -762,6 +780,8 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	// Store
 	const rawSessions = useCounterTableStore((state) => state.sessions[restaurantId]);
 	const activeSessions = useMemo(() => rawSessions || [], [rawSessions]);
+	const reservations = useReservationStore((state) => state.reservations);
+	
 	const stats = useMemo(
 		() => ({
 			total: activeSessions.length,
@@ -771,6 +791,30 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		}),
 		[activeSessions],
 	);
+	
+	/**
+	 * Vérifie s'il y a une réservation prévue dans les 2 prochaines heures sur cette table
+	 */
+	const checkUpcomingReservation = useCallback((tableId) => {
+		const now = new Date();
+		const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
+		
+		return reservations.find((r) => {
+			// ✅ Skip si pas de table assignée (réservations web sans table)
+			if (!r.tableId) return false;
+			
+			// Vérifier si c'est pour cette table
+			const resaTableId = typeof r.tableId === 'object' ? r.tableId._id : r.tableId;
+			if (resaTableId !== tableId) return false;
+			
+			// Vérifier si c'est une réservation active (en attente ou confirmée)
+			if (!['en attente', 'ouverte', 'pending', 'confirmed'].includes(r.status)) return false;
+			
+			// Vérifier si la réservation est dans les 2 prochaines heures
+			const resaDate = new Date(r.reservationDate);
+			return resaDate >= now && resaDate <= twoHoursLater;
+		});
+	}, [reservations]);
 
 	const ALL_TABLE_IDS = useMemo(
 		() => (tables ?? []).map((t) => t._id.toString()),
@@ -875,6 +919,9 @@ const ActivityFloor = ({ restaurantInfo }) => {
 					setTables(tablesState || []);
 					// Hydrater le store sessions (équivalent fetchReservations dans Activity)
 					hydrateSessionsFromTables(id, tablesState);
+					
+					// ✅ Charger les réservations pour vérifier les tables avec réservations à venir
+					await useReservationStore.getState().fetchReservations();
 				}
 			} catch (err) {
 				console.error("[ActivityFloor] Erreur init:", err);
@@ -891,6 +938,13 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		if (!socket || !restaurantId) return;
 
 		attachSocketListener(socket);
+		
+		// ✅ Attacher aussi les listeners WebSocket pour les réservations
+		const unsubscribeReservations = useReservationStore.getState().attachSocketListener(socket);
+		
+		return () => {
+			if (unsubscribeReservations) unsubscribeReservations();
+		};
 	}, [socket, restaurantId, attachSocketListener]);
 
 	// Fetch serveurs du restaurant (mode comptoir)
@@ -962,21 +1016,55 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		setSelectedTableId(tableId);
 		const session = activeSessions.find((s) => s.tableId === tableId);
 		if (!session) {
-			// Table libre → picker de serveur
-			// Pré-sélectionner l'utilisateur actuel si aucun serveur n'est enregistré
+			// Table libre → vérifier s'il y a une réservation prévue dans les 2h
+			const upcomingResa = checkUpcomingReservation(tableId);
+			
+			if (upcomingResa) {
+				const resaDate = new Date(upcomingResa.reservationDate);
+				const timeLeft = Math.round((resaDate - new Date()) / 60000); // minutes restantes
+				const formattedTime = upcomingResa.reservationTime || resaDate.toLocaleTimeString('fr-FR', { hour: '2-digit', minute: '2-digit' });
+				
+				Alert.alert(
+					"⚠️ Réservation prévue",
+					`Une réservation est prévue dans ${timeLeft} min (${formattedTime}).\n\n` +
+					`Client: ${upcomingResa.clientName}\n` +
+					`Personnes: ${upcomingResa.nbPersonnes}\n\n` +
+					`Voulez-vous quand même ouvrir cette table maintenant ?`,
+					[
+						{
+							text: "Annuler",
+							style: "cancel",
+							onPress: () => setSelectedTableId(null)
+						},
+						{
+							text: "Ouvrir quand même",
+							style: "destructive",
+							onPress: () => {
+								// Continuer le flow normal
+								setSelectedWaiter(servers.length === 0 ? currentUser : null);
+								setServerPickerTableId(tableId);
+							}
+						}
+					]
+				);
+				return;
+			}
+			
+			// Pas de réservation à venir → picker de serveur
 			setSelectedWaiter(servers.length === 0 ? currentUser : null);
 			setServerPickerTableId(tableId);
 		} else {
 			// Table occupée → directement le détail
 			setShowTableDetail(true);
 		}
-	}, [activeSessions, servers, currentUser]);
+	}, [activeSessions, servers, currentUser, checkUpcomingReservation]);
 
 	// Confirmation du serveur → ouvre la session puis la modale
 	const handleConfirmWaiter = useCallback(async () => {
 		if (!serverPickerTableId || !restaurantId) return;
 		// Utiliser le waiter sélectionné ou l'utilisateur actuel comme fallback
 		const waiter = selectedWaiter ?? currentUser;
+		
 		try {
 			const session = await counterService.openSession(
 				restaurantId,
@@ -984,16 +1072,68 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				waiter?.name ?? null,
 				waiter?._id ?? null,
 			);
-			// Injecter la session dans le store immédiatement pour éviter le spinner
+			// Injecter la session dans le store immédiatement
 			if (session) {
 				useCounterTableStore.getState().openSession(restaurantId, serverPickerTableId, session);
 			}
+			// Ouvrir la modale
+			setServerPickerTableId(null);
+			setSelectedWaiter(null);
+			setShowTableDetail(true);
 		} catch (err) {
-			console.warn("[ActivityFloor] openSession:", err);
+			console.warn("[ActivityFloor] openSession échoué:", err);
+			
+			// ✅ Si réservation présente détectée → proposer d'ouvrir la réservation
+			if (err.message?.includes("TABLE_HAS_PENDING_RESERVATION")) {
+				const [_, reservationId, clientName] = err.message.split(":");
+				
+				Alert.alert(
+					"Réservation présente",
+					`Une réservation pour "${clientName}" est marquée présente pour cette table.\n\nPour ouvrir cette table, vous devez d'abord ouvrir la réservation dans l'onglet Dashboard.`,
+					[
+						{ text: "Annuler", style: "cancel" },
+						{ 
+							text: "Aller au Dashboard", 
+							onPress: () => {
+								// TODO: Navigation vers Dashboard avec focus sur cette réservation
+								console.log(`[ActivityFloor] Rediriger vers réservation ${reservationId}`);
+							}
+						}
+					]
+				);
+				
+				setServerPickerTableId(null);
+				setSelectedWaiter(null);
+				return;
+			}
+			
+			// ✅ Si HTTP 409 (table déjà occupée) → recharger l'état et ouvrir le détail
+			if (err.message?.includes("409")) {
+				Alert.alert(
+					"Table déjà occupée",
+					"Cette table a déjà une session active. Rechargement...",
+					[{ text: "OK", onPress: async () => {
+						// Recharger l'état des tables depuis le serveur
+						try {
+							const tablesState = await counterService.getTablesState(restaurantId);
+							if (tablesState && tablesState.length > 0) {
+								setTables(tablesState);
+								hydrateSessionsFromTables(restaurantId, tablesState);
+								
+								// Ouvrir automatiquement le détail de la table (maintenant marquée comme occupée)
+								setShowTableDetail(true);
+							}
+						} catch (refreshErr) {
+							console.error("[ActivityFloor] Erreur rechargement après 409:", refreshErr);
+						}
+					}}]
+				);
+			}
+			
+			// Fermer les modales de sélection serveur
+			setServerPickerTableId(null);
+			setSelectedWaiter(null);
 		}
-		setServerPickerTableId(null);
-		setSelectedWaiter(null);
-		setShowTableDetail(true);
 	}, [serverPickerTableId, restaurantId, selectedWaiter, currentUser]);
 
 	// Sauvegarder la position d'une table après drag

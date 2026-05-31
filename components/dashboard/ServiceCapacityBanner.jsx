@@ -21,8 +21,8 @@ const ServiceCapacityBanner = React.memo(
 				const count = reservations.filter((r) => {
 					if (
 						!r?.reservationTime ||
-						r.status === "annulée" ||
-						r.status === "terminée"
+						r.status === "cancelled" ||
+						r.status === "completed"
 					)
 						return false;
 					const hour = parseInt(r.reservationTime.split(":")[0], 10);

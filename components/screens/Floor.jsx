@@ -186,7 +186,7 @@ export default function Floor({ onStart }) {
 			const d = new Date(r.reservationDate || r.createdAt);
 			return (
 				serverId === userId &&
-				r.status === "ouverte" &&
+				r.status === "confirmed" &&
 				d >= todayStart &&
 				d < todayEnd
 			);
@@ -253,10 +253,10 @@ export default function Floor({ onStart }) {
 		};
 
 		const enCours = reservations.filter(
-			(r) => r.status !== "terminée" && isToday(r) && isMyReservation(r),
+			(r) => r.status !== "completed" && isToday(r) && isMyReservation(r),
 		);
 		const payees = reservations.filter(
-			(r) => r.status === "terminée" && isToday(r) && isMyReservation(r),
+			(r) => r.status === "completed" && isToday(r) && isMyReservation(r),
 		);
 
 		return {
@@ -560,10 +560,10 @@ export default function Floor({ onStart }) {
 
 			const reservation = event.data;
 
-			// Mise à jour des réservations à venir (status "en attente" uniquement)
+			// Mise à jour des réservations à venir (status "pending" uniquement)
 			switch (event.type) {
 				case "created":
-					if (reservation.status === "en attente") {
+					if (reservation.status === "pending") {
 						setUpcomingReservations((prev) => {
 							const exists = prev.some((r) => r._id === reservation._id);
 							return exists ? prev : [...prev, reservation];
@@ -577,7 +577,7 @@ export default function Floor({ onStart }) {
 							.map((r) =>
 								r._id === reservation._id ? { ...r, ...reservation } : r,
 							)
-							.filter((r) => r.status === "en attente"), // Retirer si status changé
+							.filter((r) => r.status === "pending"), // Retirer si status changé
 					);
 					break;
 
@@ -655,6 +655,7 @@ export default function Floor({ onStart }) {
 			fetchOrders();
 			fetchLowStock(); // 📦 Charger aussi les stocks
 			fetchUpcomingReservations(); // 📅 Charger réservations à venir
+			fetchReservations(); // 📋 Charger toutes les réservations pour le store
 			// En mode Comptoir : charger l'état des tables (TableSession)
 			if (enableComptoir) {
 				authFetch(`/counter/tables/${restaurantId}`, { method: "GET" })
@@ -667,7 +668,7 @@ export default function Floor({ onStart }) {
 			const interval = setInterval(fetchOrders, 60000); // 1 min au lieu de 30s
 			return () => clearInterval(interval);
 		}
-	}, [restaurantId, fetchOrders, fetchLowStock]);
+	}, [restaurantId, fetchOrders, fetchLowStock, fetchReservations]);
 
 	// Extraire tous les items avec métadonnées (exclure "autre")
 	// 🔒 Serveur : uniquement les items de SES commandes

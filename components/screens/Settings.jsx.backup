@@ -1,0 +1,2018 @@
+/**
+ * Settings.jsx - Écran Réglages Premium
+ * Design spatial cohérent avec le reste de l'application
+ * Support Mode Clair / Mode Sombre / Mode Ocean
+ */
+import React, { useEffect, useState, useMemo, useCallback } from "react";
+import {
+	View,
+	Text,
+	TouchableOpacity,
+	Alert,
+	StyleSheet,
+	ScrollView,
+	Switch,
+	Modal,
+	FlatList,
+} from "react-native";
+import { useRouter } from "expo-router";
+import { LinearGradient } from "expo-linear-gradient";
+import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
+import useThemeStore, {
+	THEME_MODES,
+	FONT_SIZES,
+} from "../../src/stores/useThemeStore";
+import { useTheme } from "../../hooks/useTheme";
+import useUserStore from "../../src/stores/useUserStore";
+import { clearAllUserData } from "../../utils/storageHelper";
+import {
+	ServerManagement,
+	MenuManagement,
+	SecuritySettings,
+	TableManagement,
+	CRMPerformance,
+} from "./manager";
+import FeedbackModal from "../modals/FeedbackModal";
+import feedbackService from "../../services/feedbackService";
+import AccountingScreen from "./AccountingScreen";
+import ZReportScreen from "./ZReportScreen";
+import AnalyticsScreen from "./AnalyticsScreen";
+import MessagingScreen from "./MessagingScreen";
+import { useFeatures } from "../../hooks/useFeatures";
+import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
+import { API_CONFIG } from "../../src/config/apiConfig";
+import {
+	AccountingGuard,
+	AnalyticsGuard,
+	MessagingGuard,
+	TableAssistantGuard,
+} from "../FeatureGuard";
+
+export default function Settings() {
+	const router = useRouter();
+	const { themeMode, initTheme, setThemeMode, fontSize, setFontSize } =
+		useThemeStore();
+	const { isManager, email, role, userType, init: initUser, category } =
+		useUserStore();
+
+	// État pour la section active du menu
+	const [activeSection, setActiveSection] = useState("account");
+
+	// État pour la modale feedback
+	const [showFeedbackModal, setShowFeedbackModal] = useState(false);
+
+	// 🏪 État Comptoir (mode dev)
+	const [enableComptoir, setEnableComptoir] = useState(false);
+	const [loadingComptoir, setLoadingComptoir] = useState(false);
+
+	// ⭐ État comptabilité
+	const [showAccountingScreen, setShowAccountingScreen] = useState(false);
+
+	// ⭐ État Z de caisse
+	const [showZReport, setShowZReport] = useState(false);
+
+	// ⭐ État CRM Performance
+	const [showCRMScreen, setShowCRMScreen] = useState(false);
+	// ⭐ État Messagerie Interne
+	const [showInternalMessagingScreen, setShowInternalMessagingScreen] =
+		useState(false);
+
+	// ⭐ État Analytics IA
+	const [showAnalyticsScreen, setShowAnalyticsScreen] = useState(false);
+
+	// ⭐ État messagerie
+	const [isMessagingEnabled, setIsMessagingEnabled] = useState(true);
+	const [loadingMessaging, setLoadingMessaging] = useState(false);
+	const { restaurantId } = useUserStore();
+
+	// ⭐ État onboarding wizard
+	const [onboardingComplete, setOnboardingComplete] = useState(true);
+
+	// ⭐ Utiliser useTheme() pour avoir le thème complet avec typography scalée
+	const THEME = useTheme();
+
+	// ⭐ Hook pour vérifier les fonctionnalités premium (API)
+	// Gardé uniquement pour hasFeedback (pas d'équivalent dans useFeatureLevel)
+	const { hasFeedback } = useFeatures();
+
+	// 🔧 Feature level (developer overrides) — source unique de vérité pour le portail manager
+	const {
+		hasChatClient,
+		hasStatistiques,
+		hasAutoTables,
+		isComplete,
+		hasAiHeatmap,
+		hasAiStrategicSlots,
+	} = useFeatureLevel();
+
+	// ⭐ Styles dynamiques selon le thème
+	const settingsStyles = useMemo(() => createStyles(THEME), [THEME]);
+
+	// 🛡️ SÉCURITÉ: Vérification stricte pour développeur (pas basé sur isDeveloper store)
+	const isRealDeveloper =
+		email === "ahmed.waraiotoko@developer.com" || role === "developer";
+
+	// Vérifier si l'utilisateur est manager ou admin
+	// isManager est un booléen calculé dans le store (role === 'admin' || userType === 'admin')
+	const canAccessManagerPortal =
+		isManager || role === "admin" || userType === "admin" || isRealDeveloper;
+
+	// Initialiser le thème et l'utilisateur au montage
+	useEffect(() => {
+		initTheme();
+		initUser();
+		AsyncStorage.getItem("onboardingComplete").then((val) => {
+			setOnboardingComplete(val === "true");
+		});
+		// Charger la pref Comptoir
+		AsyncStorage.getItem("enableComptoir").then((val) => {
+			setEnableComptoir(val === "true");
+		});
+	}, [initTheme, initUser]);
+
+	// 💬 Charger statut messagerie
+	useEffect(() => {
+		if (restaurantId) {
+			loadMessagingStatus();
+		}
+	}, [restaurantId, loadMessagingStatus]);
+
+	const loadMessagingStatus = useCallback(async () => {
+		try {
+			const url = `${API_CONFIG.baseURL}/client-messages/messaging-status/${restaurantId}`;
+			const response = await fetch(url);
+			if (response.ok) {
+				const data = await response.json();
+				setIsMessagingEnabled(data.isMessagingEnabled);
+			}
+		} catch (error) {
+			if (error.name !== "AbortError") {
+				console.error("❌ Erreur chargement statut messagerie:", error);
+			}
+		}
+	}, [restaurantId]);
+
+	const toggleMessaging = async (value) => {
+		setLoadingMessaging(true);
+		try {
+			const token = await useUserStore.getState().getToken();
+			const url = `${API_CONFIG.baseURL}/client-messages/toggle-messaging/${restaurantId}`;
+
+			const response = await fetch(url, {
+				method: "PUT",
+				headers: {
+					Authorization: `Bearer ${token}`,
+					"Content-Type": "application/json",
+				},
+				body: JSON.stringify({ isEnabled: value }),
+			});
+
+			if (response.ok) {
+				setIsMessagingEnabled(value);
+			} else {
+				throw new Error(`Erreur ${response.status}`);
+			}
+		} catch (error) {
+			if (error.name === "AbortError") {
+				console.warn("⏱️ Toggle messagerie annulé (timeout)");
+			} else {
+				console.error("❌ Erreur toggle messagerie:", error);
+			}
+			Alert.alert(
+				"Erreur",
+				"Impossible de modifier les paramètres de messagerie",
+			);
+			// Reset
+			setIsMessagingEnabled(!value);
+		} finally {
+			setLoadingMessaging(false);
+		}
+	};
+
+	const handleLogout = async () => {
+		Alert.alert("Déconnexion", "Es-tu sûr de vouloir te déconnecter ?", [
+			{
+				text: "Annuler",
+				onPress: () => {},
+				style: "cancel",
+			},
+			{
+				text: "Déconnecter",
+				onPress: async () => {
+					try {
+						// ⭐ Nettoyage centralisé
+						await clearAllUserData();
+
+						// 🧭 Redirection vers la connexion
+						router.replace("/login");
+					} catch (error) {
+						console.error("❌ Erreur lors de la déconnexion:", error);
+						Alert.alert("Erreur", "Impossible de se déconnecter");
+					}
+				},
+				style: "destructive",
+			},
+		]);
+	};
+
+	const handleFeedbackSubmit = async (feedbackData) => {
+		try {
+			await feedbackService.sendFeedback(feedbackData);
+			Alert.alert(
+				"Merci !",
+				"Votre feedback a bien été envoyé à l'équipe SunnyGo.",
+				[{ text: "OK" }],
+			);
+		} catch (error) {
+			if (error.name === "AbortError") {
+				console.warn("⏱️ Feedback annulé (timeout)");
+			} else {
+				console.error("[Settings] Erreur envoi feedback:", error);
+			}
+			Alert.alert(
+				"Erreur",
+				"Impossible d'envoyer le feedback. Réessayez plus tard.",
+				[{ text: "OK" }],
+			);
+		}
+	};
+
+	// 🏪 Handler Comptoir
+	const handleToggleComptoir = async (value) => {
+		setLoadingComptoir(true);
+		try {
+			setEnableComptoir(value);
+			await AsyncStorage.setItem("enableComptoir", value ? "true" : "false");
+			Alert.alert(
+				"✅ Mode Comptoir",
+				value
+					? "Mode Comptoir activé. Redémarrez l'app pour voir le changement."
+					: "Mode Comptoir désactivé.",
+			);
+		} catch (error) {
+			console.error("[Settings] Erreur toggle Comptoir:", error);
+			Alert.alert("Erreur", "Impossible de mettre à jour la pref Comptoir");
+		} finally {
+			setLoadingComptoir(false);
+		}
+	};
+
+
+
+	// Rendu de la section active
+	const renderActiveSection = () => {
+		switch (activeSection) {
+			case "appearance":
+				return (
+					<>
+						<Text style={settingsStyles.sectionHeaderText}>Apparence</Text>
+
+						{/* Sélecteur de thème */}
+						<View style={settingsStyles.themeSection}>
+							<View style={settingsStyles.themeLabelRow}>
+								<Ionicons
+									name="color-palette-outline"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+									<Text style={settingsStyles.settingLabel}>Thème</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Choisissez l&apos;apparence de l&apos;application
+									</Text>
+								</View>
+							</View>
+
+							{/* Boutons de sélection du thème */}
+							<View style={settingsStyles.themeSelector}>
+								{/* Dark Mode */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										themeMode === THEME_MODES.DARK &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => setThemeMode(THEME_MODES.DARK)}
+								>
+									<View
+										style={[
+											settingsStyles.themePreview,
+											{ backgroundColor: "#0C0F17" },
+										]}
+									>
+										<Ionicons name="moon" size={20} color="#F59E0B" />
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											themeMode === THEME_MODES.DARK &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										Sombre
+									</Text>
+								</TouchableOpacity>
+
+								{/* Light Mode */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										themeMode === THEME_MODES.LIGHT &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => setThemeMode(THEME_MODES.LIGHT)}
+								>
+									<View
+										style={[
+											settingsStyles.themePreview,
+											{ backgroundColor: "#F8FAFC" },
+										]}
+									>
+										<Ionicons name="sunny" size={20} color="#D97706" />
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											themeMode === THEME_MODES.LIGHT &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										Clair
+									</Text>
+								</TouchableOpacity>
+
+								{/* Ocean Mode */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										themeMode === THEME_MODES.OCEAN &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => setThemeMode(THEME_MODES.OCEAN)}
+								>
+									<View
+										style={[
+											settingsStyles.themePreview,
+											{ backgroundColor: "#0A1628" },
+										]}
+									>
+										<Ionicons name="water" size={20} color="#06B6D4" />
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											themeMode === THEME_MODES.OCEAN &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										Ocean
+									</Text>
+								</TouchableOpacity>
+
+								{/* Cloud Mode */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										themeMode === THEME_MODES.CLOUD &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => setThemeMode(THEME_MODES.CLOUD)}
+								>
+									<View
+										style={[
+											settingsStyles.themePreview,
+											{ backgroundColor: "#EFF6FF" },
+										]}
+									>
+										<Ionicons name="cloud" size={20} color="#38BDF8" />
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											themeMode === THEME_MODES.CLOUD &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										Cloud
+									</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+
+						{/* Sélecteur de taille de police */}
+						<View style={settingsStyles.themeSection}>
+							<View style={settingsStyles.themeLabelRow}>
+								<Ionicons
+									name="text-outline"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+									<Text style={settingsStyles.settingLabel}>
+										Taille de police
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Ajustez la taille du texte
+									</Text>
+								</View>
+							</View>
+
+							{/* Boutons de sélection de la taille */}
+							<View style={settingsStyles.themeSelector}>
+								{/* Small */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										fontSize === FONT_SIZES.SMALL &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => {
+										setFontSize(FONT_SIZES.SMALL);
+									}}
+									activeOpacity={0.7}
+								>
+									<View style={settingsStyles.fontSizePreview}>
+										<Text
+											style={[
+												settingsStyles.fontSizePreviewText,
+												{
+													fontSize: 14,
+													color:
+														fontSize === FONT_SIZES.SMALL
+															? THEME.colors.primary.amber
+															: THEME.colors.text.muted,
+												},
+											]}
+										>
+											Aa
+										</Text>
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											fontSize === FONT_SIZES.SMALL &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										S
+									</Text>
+								</TouchableOpacity>
+
+								{/* Medium */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										fontSize === FONT_SIZES.MEDIUM &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => {
+										setFontSize(FONT_SIZES.MEDIUM);
+									}}
+									activeOpacity={0.7}
+								>
+									<View style={settingsStyles.fontSizePreview}>
+										<Text
+											style={[
+												settingsStyles.fontSizePreviewText,
+												{
+													fontSize: 18,
+													color:
+														fontSize === FONT_SIZES.MEDIUM
+															? THEME.colors.primary.amber
+															: THEME.colors.text.muted,
+												},
+											]}
+										>
+											Aa
+										</Text>
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											fontSize === FONT_SIZES.MEDIUM &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										M
+									</Text>
+								</TouchableOpacity>
+
+								{/* Large */}
+								<TouchableOpacity
+									style={[
+										settingsStyles.themeOption,
+										fontSize === FONT_SIZES.LARGE &&
+											settingsStyles.themeOptionActive,
+									]}
+									onPress={() => {
+										setFontSize(FONT_SIZES.LARGE);
+									}}
+									activeOpacity={0.7}
+								>
+									<View style={settingsStyles.fontSizePreview}>
+										<Text
+											style={[
+												settingsStyles.fontSizePreviewText,
+												{
+													fontSize: 22,
+													color:
+														fontSize === FONT_SIZES.LARGE
+															? THEME.colors.primary.amber
+															: THEME.colors.text.muted,
+												},
+											]}
+										>
+											Aa
+										</Text>
+									</View>
+									<Text
+										style={[
+											settingsStyles.themeOptionLabel,
+											fontSize === FONT_SIZES.LARGE &&
+												settingsStyles.themeOptionLabelActive,
+										]}
+									>
+										L
+									</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+
+{/* 🎨 Section Personnalisation thème client */}
+<View style={settingsStyles.themeSection}>
+<View style={settingsStyles.themeLabelRow}>
+<Ionicons
+name="brush-outline"
+size={24}
+color={THEME.colors.primary.amber}
+/>
+<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+<Text style={settingsStyles.settingLabel}>
+Thème client
+</Text>
+<Text style={settingsStyles.settingDescription}>
+Personnalisez l&apos;apparence du menu client
+</Text>
+</View>
+</View>
+
+{/* Bouton personnaliser */}
+<TouchableOpacity
+style={[
+settingsStyles.themeOption,
+{ width: "100%", marginTop: THEME.spacing.md }
+]}
+onPress={() => router.push("/theme-editor")}
+>
+<LinearGradient
+colors={[THEME.colors.primary.amber, "#D97706"]}
+style={{
+flexDirection: "row",
+alignItems: "center",
+justifyContent: "center",
+paddingVertical: THEME.spacing.md,
+paddingHorizontal: THEME.spacing.lg,
+borderRadius: THEME.radius.lg,
+width: "100%",
+}}
+>
+<Ionicons name="color-palette" size={20} color="#FFF" />
+<Text style={{ color: "#FFF", fontWeight: "600", marginLeft: 8 }}>
+Personnaliser le thème
+</Text>
+</LinearGradient>
+</TouchableOpacity>
+</View>
+
+					</>
+				);
+
+			case "account":
+				return (
+					<>
+						{/* 🛡️ Section développeur - SÉCURITÉ RENFORCÉE */}
+						{isRealDeveloper && (
+							<View style={settingsStyles.developerCard}>
+								<View style={settingsStyles.developerHeader}>
+									<Ionicons name="code-slash" size={24} color="#f59e0b" />
+									<Text style={settingsStyles.developerTitle}>
+										Mode Développeur
+									</Text>
+								</View>
+								<Text style={settingsStyles.developerSubtitle}>
+									Accès développeur vérifié par email
+								</Text>
+								<TouchableOpacity
+									style={settingsStyles.developerButton}
+									onPress={() => {
+										// 🛡️ Double vérification sécurité avant navigation
+										if (!isRealDeveloper) {
+											console.warn("🚨 TENTATIVE D'ACCÈS NON AUTORISÉE!", {
+												email,
+												role,
+											});
+											return;
+										}
+										router.push("/developer-selector");
+									}}
+								>
+									<Ionicons name="swap-horizontal" size={18} color="#fff" />
+									<Text style={settingsStyles.developerButtonText}>
+										Changer de restaurant
+									</Text>
+								</TouchableOpacity>
+							</View>
+						)}
+
+						{/* Infos utilisateur */}
+						<View style={settingsStyles.infoCard}>
+							<View style={settingsStyles.infoRow}>
+								<Ionicons
+									name="mail-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<Text style={settingsStyles.infoLabel}>Email</Text>
+								<Text style={settingsStyles.infoValue}>
+									{email || "Non défini"}
+								</Text>
+							</View>
+							<View style={settingsStyles.infoDivider} />
+							<View style={settingsStyles.infoRow}>
+								<Ionicons
+									name="shield-outline"
+									size={18}
+									color={THEME.colors.text.muted}
+								/>
+								<Text style={settingsStyles.infoLabel}>Rôle</Text>
+								<Text style={settingsStyles.infoValue}>
+									{role || userType || "Serveur"}
+								</Text>
+							</View>
+						</View>
+
+						{/* Bouton de déconnexion */}
+						<TouchableOpacity
+							style={settingsStyles.logoutButton}
+							onPress={handleLogout}
+						>
+							<LinearGradient
+								colors={["#F43F5E", "#E11D48"]}
+								start={{ x: 0, y: 0 }}
+								end={{ x: 1, y: 0 }}
+								style={settingsStyles.logoutGradient}
+							>
+								<Ionicons name="log-out-outline" size={20} color="#FFF" />
+								<Text style={settingsStyles.logoutText}>Déconnexion</Text>
+							</LinearGradient>
+						</TouchableOpacity>
+					</>
+				);
+
+			case "onboarding":
+				return <OnboardingWizard />;
+
+			case "servers":
+				return <ServerManagement />;
+
+			case "tables":
+				return (
+					<TableAssistantGuard fallback={null}>
+						<TableManagement />
+					</TableAssistantGuard>
+				);
+
+			case "menu":
+				return <MenuManagement />;
+
+			case "security":
+				return <SecuritySettings />;
+
+			case "crm":
+				return (
+					<AnalyticsGuard fallback={null}>
+						{/* Titre principal */}
+						<Text style={settingsStyles.sectionHeaderText}>
+							📊 CRM Performance
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="people"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Analyse des performances d`&apos;`équipe
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Suivez les performances de vos serveurs : CA, réservations,
+										satisfaction client, temps de service, et bien plus.
+										Graphiques détaillés et statistiques avancées.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Lancement de l'interface CRM */}
+						<TouchableOpacity
+							style={[
+								settingsStyles.themeLabelRow,
+								{
+									backgroundColor: THEME.colors.background.elevated,
+									borderRadius: THEME.radius.lg,
+									padding: THEME.spacing.lg,
+									borderLeftWidth: 4,
+									borderLeftColor: THEME.colors.primary.amber,
+									shadowColor: THEME.colors.primary.amber,
+									shadowOffset: { width: 0, height: 2 },
+									shadowOpacity: 0.1,
+									shadowRadius: 8,
+									elevation: 3,
+								},
+							]}
+							onPress={() => setShowCRMScreen(true)}
+							activeOpacity={0.8}
+						>
+							<Ionicons
+								name="stats-chart"
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+								<Text style={settingsStyles.settingLabel}>
+									Ouvrir le module CRM Performance
+								</Text>
+								<Text style={settingsStyles.settingDescription}>
+									Tableau de bord RH et statistiques avancées
+								</Text>
+							</View>
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
+
+						{/* Fonctionnalités disponibles */}
+						<View style={settingsStyles.themeSection}>
+							<Text style={settingsStyles.settingLabel}>
+								Fonctionnalités disponibles
+							</Text>
+							<View style={{ gap: 12, marginTop: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Réservations ouvertes/fermées par employé
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										CA par employé (espèces / CB)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Produits add-ons vendus (upsell)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Temps moyen de service par réservation
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Temps d`&apos;`attente avant ouverture (tampon)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Note moyenne satisfaction client
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Graphiques Donut interactifs
+									</Text>
+								</View>
+							</View>
+						</View>
+					</AnalyticsGuard>
+				);
+
+			case "internal-messaging":
+				return (
+					<MessagingGuard fallback={null}>
+						{/* Titre principal */}
+						<Text style={settingsStyles.sectionHeaderText}>
+							📨 Messagerie Interne
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="chatbox-ellipses"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Communication manager → serveurs
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Envoyez des demandes de réunion, planning, zonning ou
+										coaching. Suivi complet avec historique et statut des
+										réponses.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Lancement de l'interface messagerie interne */}
+						<TouchableOpacity
+							style={[
+								settingsStyles.themeLabelRow,
+								{
+									backgroundColor: THEME.colors.background.elevated,
+									borderRadius: THEME.radius.lg,
+									padding: THEME.spacing.lg,
+									borderLeftWidth: 4,
+									borderLeftColor: THEME.colors.primary.amber,
+									shadowColor: THEME.colors.primary.amber,
+									shadowOffset: { width: 0, height: 2 },
+									shadowOpacity: 0.1,
+									shadowRadius: 8,
+									elevation: 3,
+								},
+							]}
+							onPress={() => setShowInternalMessagingScreen(true)}
+							activeOpacity={0.8}
+						>
+							<Ionicons
+								name="mail"
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+								<Text style={settingsStyles.settingLabel}>
+									Ouvrir la messagerie interne
+								</Text>
+								<Text style={settingsStyles.settingDescription}>
+									Boite de réception des équipes et réponses rapides
+								</Text>
+							</View>
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
+
+						{/* Fonctionnalités disponibles */}
+						<View style={settingsStyles.themeSection}>
+							<Text style={settingsStyles.settingLabel}>
+								Fonctionnalités disponibles
+							</Text>
+							<View style={{ gap: 12, marginTop: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Demandes de réunion, planning, zonning, coaching
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Historique complet des decisions
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Notifications temps reel (WebSocket)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Suivi des statuts (en attente / accepte / refuse)
+									</Text>
+								</View>
+							</View>
+						</View>
+					</MessagingGuard>
+				);
+
+			case "messaging":
+				return (
+					<MessagingGuard fallback={null}>
+						<Text style={settingsStyles.sectionHeaderText}>💬 Chat Client</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="information-circle"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Messagerie bidirectionnelle
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Permet aux clients d&apos;envoyer des messages aux serveurs
+										(demandes, questions) et aux serveurs de répondre avec des
+										messages prédéfinis en temps réel.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Toggle activation */}
+						<View style={settingsStyles.themeSection}>
+							<View
+								style={[
+									settingsStyles.themeLabelRow,
+									{
+										justifyContent: "space-between",
+										alignItems: "center",
+									},
+								]}
+							>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										flex: 1,
+									}}
+								>
+									<Ionicons
+										name="chatbubbles"
+										size={24}
+										color={THEME.colors.primary.amber}
+									/>
+									<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+										<Text style={settingsStyles.settingLabel}>
+											Activer la messagerie
+										</Text>
+										<Text style={settingsStyles.settingDescription}>
+											{isMessagingEnabled
+												? "Les clients peuvent envoyer des messages"
+												: "Messagerie désactivée pour ce restaurant"}
+										</Text>
+									</View>
+								</View>
+
+								<Switch
+									value={isMessagingEnabled}
+									onValueChange={toggleMessaging}
+									disabled={loadingMessaging}
+									trackColor={{
+										false: "#767577",
+										true: THEME.colors.primary.amber,
+									}}
+									thumbColor={isMessagingEnabled ? "#fff" : "#f4f3f4"}
+								/>
+							</View>
+						</View>
+
+						{/* Statistiques */}
+						<View style={settingsStyles.infoCard}>
+							<Text style={[settingsStyles.settingLabel, { marginBottom: 16 }]}>
+								📊 Fonctionnalités
+							</Text>
+
+							<View style={{ gap: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Messages prédéfinis clients
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Réponses rapides serveurs
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Notifications temps réel (WebSocket)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Conversation bidirectionnelle
+									</Text>
+								</View>
+							</View>
+						</View>
+					</MessagingGuard>
+				);
+
+			case "accounting":
+				return (
+					<AccountingGuard fallback={null}>
+						{/* Titre principal */}
+						<Text style={settingsStyles.sectionHeaderText}>
+							📊 Comptabilité & Finances
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="analytics"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Gestion financière complète
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Accédez aux données comptables du restaurant : revenus,
+										analyses par produit, export Excel/PDF, métriques de
+										performance et rapports financiers détaillés.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Lancement de l'interface comptabilité */}
+						<TouchableOpacity
+							style={[
+								settingsStyles.themeLabelRow,
+								{
+									backgroundColor: THEME.colors.background.elevated,
+									borderRadius: THEME.radius.lg,
+									padding: THEME.spacing.lg,
+									borderLeftWidth: 4,
+									borderLeftColor: THEME.colors.primary.amber,
+									shadowColor: THEME.colors.primary.amber,
+									shadowOffset: { width: 0, height: 2 },
+									shadowOpacity: 0.1,
+									shadowRadius: 8,
+									elevation: 3,
+								},
+							]}
+							onPress={() => setShowAccountingScreen(true)}
+							activeOpacity={0.8}
+						>
+							<Ionicons
+								name="trending-up"
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+								<Text style={settingsStyles.settingLabel}>
+									Ouvrir le module comptabilité
+								</Text>
+								<Text style={settingsStyles.settingDescription}>
+									Dashboard financier, rapports et exports
+								</Text>
+							</View>
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
+
+						{/* Z de caisse — Admin/Manager uniquement */}
+						{canAccessManagerPortal && (
+							<TouchableOpacity
+								style={[
+									settingsStyles.themeLabelRow,
+									{
+										backgroundColor: THEME.colors.background.elevated,
+										borderRadius: THEME.radius.lg,
+										padding: THEME.spacing.lg,
+										borderLeftWidth: 4,
+										borderLeftColor: "#ef4444",
+										shadowColor: "#ef4444",
+										shadowOffset: { width: 0, height: 2 },
+										shadowOpacity: 0.12,
+										shadowRadius: 8,
+										elevation: 3,
+										marginTop: THEME.spacing.md,
+									},
+								]}
+								onPress={() => setShowZReport(true)}
+								activeOpacity={0.8}
+							>
+								<Ionicons
+									name="receipt-outline"
+									size={24}
+									color="#ef4444"
+								/>
+								<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+									<Text style={settingsStyles.settingLabel}>
+										Z de caisse
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Clôture de caisse — Admin / Manager
+									</Text>
+								</View>
+								<Ionicons
+									name="chevron-forward"
+									size={20}
+									color={THEME.colors.text.secondary}
+								/>
+							</TouchableOpacity>
+						)}
+
+						{/* Fonctionnalités disponibles */}
+						<View style={settingsStyles.themeSection}>
+							<Text style={settingsStyles.settingLabel}>
+								Fonctionnalités disponibles
+							</Text>
+							<View style={{ gap: 12, marginTop: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Revenus totaux et par période
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Analyse par produit et catégorie
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Graphiques de tendances (LineChart)
+									</Text>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons name="checkmark-circle" size={20} color="#22c55e" />
+									<Text style={settingsStyles.settingDescription}>
+										Export CSV/Excel des données
+									</Text>
+								</View>
+							</View>
+						</View>
+					</AccountingGuard>
+				);
+
+			case "analytics-ai":
+				return (
+					<>
+						{/* Titre principal */}
+						<Text style={settingsStyles.sectionHeaderText}>
+							✨ Analytics IA
+						</Text>
+
+						{/* Carte explication */}
+						<View style={settingsStyles.infoCard}>
+							<View style={{ flexDirection: "row", gap: 12, marginBottom: 12 }}>
+								<Ionicons
+									name="sparkles"
+									size={24}
+									color={THEME.colors.primary.amber}
+								/>
+								<View style={{ flex: 1 }}>
+									<Text
+										style={[settingsStyles.settingLabel, { marginBottom: 6 }]}
+									>
+										Analyse intelligente des réservations
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Heatmap d’occupation par jour et créneau, identification des
+										périodes creuses et recommandations stratégiques pour
+										optimiser votre taux de remplissage.
+									</Text>
+								</View>
+							</View>
+						</View>
+
+						{/* Lancement de l'interface Analytics */}
+						<TouchableOpacity
+							style={[
+								settingsStyles.themeLabelRow,
+								{
+									backgroundColor: THEME.colors.background.elevated,
+									borderRadius: THEME.radius.lg,
+									padding: THEME.spacing.lg,
+									borderLeftWidth: 4,
+									borderLeftColor: THEME.colors.primary.amber,
+									shadowColor: THEME.colors.primary.amber,
+									shadowOffset: { width: 0, height: 2 },
+									shadowOpacity: 0.1,
+									shadowRadius: 8,
+									elevation: 3,
+								},
+							]}
+							onPress={() => setShowAnalyticsScreen(true)}
+							activeOpacity={0.8}
+						>
+							<Ionicons
+								name="grid"
+								size={24}
+								color={THEME.colors.primary.amber}
+							/>
+							<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+								<Text style={settingsStyles.settingLabel}>
+									Ouvrir le module Analytics IA
+								</Text>
+								<Text style={settingsStyles.settingDescription}>
+									Heatmap d’occupation et créneaux stratégiques
+								</Text>
+							</View>
+							<Ionicons
+								name="chevron-forward"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
+
+						{/* Fonctionnalités disponibles */}
+						<View style={settingsStyles.themeSection}>
+							<Text style={settingsStyles.settingLabel}>
+								Fonctionnalités disponibles
+							</Text>
+							<View style={{ gap: 12, marginTop: 12 }}>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons
+										name="grid-outline"
+										size={18}
+										color={THEME.colors.primary.amber}
+									/>
+									<View style={{ flex: 1 }}>
+										<Text style={settingsStyles.settingLabel}>
+											Heatmap d’occupation
+										</Text>
+										<Text style={settingsStyles.settingDescription}>
+											Visualisation par jour et créneau horaire
+										</Text>
+									</View>
+								</View>
+								<View
+									style={{
+										flexDirection: "row",
+										alignItems: "center",
+										gap: 10,
+									}}
+								>
+									<Ionicons
+										name="bulb-outline"
+										size={18}
+										color={THEME.colors.primary.amber}
+									/>
+									<View style={{ flex: 1 }}>
+										<Text style={settingsStyles.settingLabel}>
+											Créneaux stratégiques
+										</Text>
+										<Text style={settingsStyles.settingDescription}>
+											Identification des périodes sous-exploitées
+										</Text>
+									</View>
+								</View>
+							</View>
+						</View>
+					</>
+				);
+
+			case "developer-features":
+				return (
+					<>
+						<Text style={settingsStyles.sectionHeaderText}>
+							🔧 Features en développement
+						</Text>
+
+
+
+						<View
+							style={{
+								marginTop: 16,
+								paddingHorizontal: 12,
+								paddingVertical: 10,
+								backgroundColor: `rgba(245, 158, 11, 0.08)`,
+								borderRadius: 8,
+								borderLeftWidth: 3,
+								borderLeftColor: THEME.colors.primary.amber,
+							}}
+						>
+							<Text
+								style={[
+									settingsStyles.settingDescription,
+									{ fontSize: 11, color: THEME.colors.text.secondary },
+								]}
+							>
+								⚠️ Ces features sont actuellement en développement. Redémarrez l'app après activation pour que le changement prenne effet.
+							</Text>
+						</View>
+					</>
+				);
+
+			default:
+				return null;
+		}
+	};
+
+	// Menu Item Component
+	const MenuItem = ({ icon, label, section }) => {
+		const isActive = activeSection === section;
+		return (
+			<TouchableOpacity
+				style={[
+					settingsStyles.menuItem,
+					isActive && settingsStyles.menuItemActive,
+				]}
+				onPress={() => setActiveSection(section)}
+				activeOpacity={0.7}
+			>
+				{isActive && (
+					<LinearGradient
+						colors={[`${THEME.colors.primary.amber}15`, "transparent"]}
+						style={StyleSheet.absoluteFill}
+						start={{ x: 0, y: 0 }}
+						end={{ x: 1, y: 0 }}
+					/>
+				)}
+				<Ionicons
+					name={icon}
+					size={18}
+					color={
+						isActive ? THEME.colors.primary.amber : THEME.colors.text.muted
+					}
+				/>
+				<Text
+					style={[
+						settingsStyles.menuItemText,
+						isActive && settingsStyles.menuItemTextActive,
+					]}
+				>
+					{label}
+				</Text>
+				{isActive && <View style={settingsStyles.menuActiveIndicator} />}
+			</TouchableOpacity>
+		);
+	};
+
+	return (
+		<View style={settingsStyles.container}>
+			{/* Background */}
+			<LinearGradient
+				colors={[THEME.colors.background.dark, THEME.colors.background.card]}
+				style={StyleSheet.absoluteFill}
+			/>
+			{/* Container des colonnes */}
+			<View style={{ flexDirection: "row", flex: 1 }}>
+				{/* Sidebar - Menu des options */}
+				<View style={settingsStyles.sidebar}>
+					{/* Header */}
+					<View style={settingsStyles.sidebarHeader}>
+						<Ionicons
+							name="settings-outline"
+							size={22}
+							color={THEME.colors.primary.amber}
+						/>
+						<Text style={settingsStyles.sidebarTitle}>Réglages</Text>
+					</View>
+
+					<ScrollView showsVerticalScrollIndicator={false}>
+						{/* Menu items de base - accessible à tous */}
+						<MenuItem icon="person-outline" label="Compte" section="account" />
+						<MenuItem
+							icon="color-palette-outline"
+							label="Thème"
+							section="appearance"
+						/>
+						<MenuItem
+							icon="lock-closed-outline"
+							label="Sécurité"
+							section="security"
+						/>
+
+						{/* Section Manager - visible uniquement pour managers/admins */}
+						{canAccessManagerPortal && (
+							<>
+								<View style={settingsStyles.sectionDivider}>
+									<LinearGradient
+										colors={[
+											"transparent",
+											THEME.colors.border.subtle,
+											"transparent",
+										]}
+										start={{ x: 0, y: 0 }}
+										end={{ x: 1, y: 0 }}
+										style={{ height: 1 }}
+									/>
+									<Text style={settingsStyles.sectionLabel}>
+										Portail Manager
+									</Text>
+								</View>
+
+								{/* ⭐ Setup rapide — visible si onboarding non terminé */}
+								{!onboardingComplete && (
+									<TouchableOpacity
+										style={[
+											settingsStyles.menuItem,
+											{
+												backgroundColor:
+													"rgba(245, 158, 11, 0.1)",
+												borderWidth: 1,
+												borderColor:
+													"rgba(245, 158, 11, 0.3)",
+												borderRadius: 10,
+												marginBottom: 6,
+											},
+										]}
+										onPress={() =>
+											router.push("/onboarding")
+										}
+									>
+										<Ionicons
+											name="rocket-outline"
+											size={20}
+											color="#F59E0B"
+										/>
+										<Text
+											style={[
+												settingsStyles.menuItemText,
+												{ color: "#F59E0B", fontWeight: "600" },
+											]}
+										>
+											Setup rapide
+										</Text>
+										<Text style={{ flex: 1 }} />
+										<Ionicons
+											name="chevron-forward"
+											size={18}
+											color="#F59E0B"
+										/>
+									</TouchableOpacity>
+								)}
+
+								<MenuItem
+									icon="people-outline"
+									label="Serveurs"
+									section="servers"
+								/>
+								{hasAutoTables && (
+									<MenuItem
+										icon="grid-outline"
+										label="Tables"
+										section="tables"
+									/>
+								)}
+								<MenuItem
+									icon="restaurant-outline"
+									label="Menu"
+									section="menu"
+								/>
+								{isComplete && (
+									<MenuItem
+										icon="analytics-outline"
+										label="Comptabilité"
+										section="accounting"
+									/>
+								)}
+								{hasStatistiques && (
+									<MenuItem
+										icon="stats-chart-outline"
+										label="CRM Performance"
+										section="crm"
+									/>
+								)}
+								<MenuItem
+									icon="mail-outline"
+									label="Messagerie Interne"
+									section="internal-messaging"
+								/>
+								{hasChatClient && (
+									<MenuItem
+										icon="chatbubbles-outline"
+										label="Chat-Client"
+										section="messaging"
+									/>
+								)}
+								{(hasAiHeatmap || hasAiStrategicSlots) && (
+									<MenuItem
+										icon="sparkles-outline"
+										label="Analytics IA"
+										section="analytics-ai"
+									/>
+								)}
+								{/* Features en développement - Visibles si admin ET resto en mode fastfood */}
+								{isManager && category === "fastfood" && (
+									<MenuItem
+										icon="hammer-outline"
+										label="Features Dev"
+										section="developer-features"
+									/>
+								)}
+							</>
+						)}
+
+						{/* Feedback - accessible seulement si fonctionnalité activée */}
+						{hasFeedback && (
+							<TouchableOpacity
+								style={settingsStyles.menuItem}
+								onPress={() => setShowFeedbackModal(true)}
+							>
+								<Ionicons
+									name="chatbox-ellipses-outline"
+									size={20}
+									color={THEME.colors.text.secondary}
+								/>
+								<Text style={settingsStyles.menuItemText}>Feedback</Text>
+								<Text> </Text>
+								<Ionicons
+									name="chevron-forward"
+									size={18}
+									color={THEME.colors.text.secondary}
+								/>
+							</TouchableOpacity>
+						)}
+					</ScrollView>
+				</View>
+
+				{/* Séparateur vertical */}
+				<LinearGradient
+					colors={["transparent", THEME.colors.border.subtle, "transparent"]}
+					style={{ width: 1 }}
+				/>
+
+				{/* Colonne principale - Contenu */}
+				<View style={settingsStyles.mainContent}>
+					{/* Scroll uniquement pour les sections sans FlatList */}
+					{[
+						"appearance",
+						"account",
+						"security",
+						"messaging",
+						"internal-messaging",
+						"accounting",
+					].includes(activeSection) ? (
+						<ScrollView
+							showsVerticalScrollIndicator={false}
+							contentContainerStyle={{ paddingBottom: 40 }}
+						>
+							{renderActiveSection()}
+						</ScrollView>
+					) : (
+						<View style={{ flex: 1 }}>{renderActiveSection()}</View>
+					)}
+
+					{/* Version app */}
+					{(activeSection === "appearance" || activeSection === "account") && (
+						<Text style={settingsStyles.versionText}>SunnyGo v1.0.0</Text>
+					)}
+				</View>
+			</View>
+
+			{/* AccountingScreen Modal */}
+			{showAccountingScreen && (
+				<AccountingScreen onClose={() => setShowAccountingScreen(false)} />
+			)}
+
+			{/* Z de caisse Modal */}
+			{showZReport && (
+				<ZReportScreen
+					restaurantId={restaurantId}
+					onClose={() => setShowZReport(false)}
+				/>
+			)}
+
+			{/* CRM Performance Modal */}
+			{showCRMScreen && (
+				<CRMPerformance onClose={() => setShowCRMScreen(false)} />
+			)}
+
+			{/* Messagerie Interne Modal */}
+			{showInternalMessagingScreen && (
+				<MessagingScreen
+					onClose={() => setShowInternalMessagingScreen(false)}
+				/>
+			)}
+
+			{/* Analytics IA Modal */}
+			{showAnalyticsScreen && (
+				<AnalyticsScreen onClose={() => setShowAnalyticsScreen(false)} />
+			)}
+
+			{/* Modale Feedback */}
+			<FeedbackModal
+				visible={showFeedbackModal}
+				onClose={() => setShowFeedbackModal(false)}
+				onSubmit={handleFeedbackSubmit}
+				userContext={{
+					email,
+					role,
+					userType,
+				}}
+			/>
+		</View>
+	);
+}
+
+// Styles Premium (générés dynamiquement)
+const createStyles = (THEME) =>
+	StyleSheet.create({
+		container: {
+			flex: 1,
+			backgroundColor: THEME.colors.background.dark,
+		},
+		sidebar: {
+			width: 280,
+			backgroundColor: THEME.colors.background.card,
+			padding: THEME.spacing.lg,
+		},
+		sidebarHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginBottom: THEME.spacing.xl,
+			paddingBottom: THEME.spacing.lg,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		sidebarTitle: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginLeft: THEME.spacing.md,
+		},
+		menuItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.md,
+			marginVertical: THEME.spacing.xs,
+			borderRadius: THEME.radius.md,
+			overflow: "hidden",
+			position: "relative",
+		},
+		menuItemActive: {
+			borderLeftWidth: 3,
+			borderLeftColor: THEME.colors.primary.amber,
+		},
+		menuItemText: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "500",
+			color: THEME.colors.text.secondary,
+			marginLeft: THEME.spacing.md,
+		},
+		menuItemTextActive: {
+			color: THEME.colors.primary.amber,
+			fontWeight: "600",
+		},
+		menuActiveIndicator: {
+			position: "absolute",
+			left: 0,
+			top: 0,
+			bottom: 0,
+			width: 3,
+			backgroundColor: THEME.colors.primary.amber,
+		},
+		sectionDivider: {
+			marginTop: THEME.spacing.xl,
+			marginBottom: THEME.spacing.md,
+		},
+		sectionLabel: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: "600",
+			color: THEME.colors.text.muted,
+			marginTop: THEME.spacing.sm,
+			textTransform: "uppercase",
+			letterSpacing: 0.5,
+		},
+		mainContent: {
+			flex: 1,
+			backgroundColor: THEME.colors.background.dark,
+			padding: THEME.spacing["2xl"],
+		},
+		sectionHeaderText: {
+			fontSize: THEME.typography.sizes.xl,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginBottom: THEME.spacing.xl,
+		},
+		settingRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			padding: THEME.spacing.lg,
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.lg,
+			marginBottom: THEME.spacing.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		settingLabel: {
+			fontSize: THEME.typography.sizes.base,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginBottom: 4,
+		},
+		settingDescription: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.muted,
+			lineHeight: 18,
+		},
+		infoCard: {
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		infoRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+		},
+		infoLabel: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.muted,
+			marginLeft: THEME.spacing.md,
+			flex: 1,
+		},
+		infoValue: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+		},
+		infoDivider: {
+			height: 1,
+			backgroundColor: THEME.colors.border.subtle,
+			marginVertical: THEME.spacing.xs,
+		},
+		logoutButton: {
+			marginTop: THEME.spacing.xl,
+			borderRadius: THEME.radius.lg,
+			overflow: "hidden",
+		},
+		logoutGradient: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.xl,
+		},
+		logoutText: {
+			fontSize: THEME.typography.sizes.base,
+			fontWeight: "600",
+			color: "#FFF",
+			marginLeft: THEME.spacing.sm,
+		},
+		versionText: {
+			fontSize: THEME.typography.sizes.xs,
+			color: THEME.colors.text.muted,
+			textAlign: "center",
+			position: "absolute",
+			bottom: THEME.spacing.lg,
+			left: 0,
+			right: 0,
+		},
+		// ⭐ Styles pour le sélecteur de thème
+		themeSection: {
+			backgroundColor: THEME.colors.background.elevated,
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.lg,
+			marginBottom: THEME.spacing.lg,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+		},
+		themeLabelRow: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginBottom: THEME.spacing.lg,
+		},
+		themeSelector: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			gap: THEME.spacing.sm,
+		},
+		themeOption: {
+			flex: 1,
+			alignItems: "center",
+			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: THEME.spacing.sm,
+			borderRadius: THEME.radius.lg,
+			backgroundColor: "transparent",
+		},
+		themeOptionActive: {
+			backgroundColor: `${THEME.colors.primary.amber}10`,
+		},
+		themePreview: {
+			width: 48,
+			height: 48,
+			borderRadius: THEME.radius.md,
+			alignItems: "center",
+			justifyContent: "center",
+			marginBottom: THEME.spacing.sm,
+		},
+		fontSizePreview: {
+			width: 48,
+			height: 48,
+			borderRadius: THEME.radius.md,
+			alignItems: "center",
+			justifyContent: "center",
+			marginBottom: THEME.spacing.sm,
+			backgroundColor: THEME.colors.background.dark,
+		},
+		fontSizePreviewText: {
+			fontWeight: "700",
+			color: THEME.colors.text.secondary,
+		},
+		themeOptionLabel: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: "500",
+			color: THEME.colors.text.muted,
+		},
+		themeOptionLabelActive: {
+			color: THEME.colors.primary.amber,
+			fontWeight: "600",
+		},
+		// Style spécifique pour le bouton feedback
+		feedbackButton: {
+			borderWidth: 1,
+			borderColor: THEME.colors.primary.amber,
+			backgroundColor: `${THEME.colors.primary.amber}15`,
+		},
+		// ⭐ Styles développeur
+		developerCard: {
+			backgroundColor: "#0a0e1a",
+			borderRadius: THEME.radius.lg,
+			padding: THEME.spacing.lg,
+			marginBottom: THEME.spacing.lg,
+			borderWidth: 2,
+			borderColor: "#f59e0b",
+		},
+		developerHeader: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: THEME.spacing.md,
+			marginBottom: THEME.spacing.sm,
+		},
+		developerTitle: {
+			fontSize: THEME.typography.sizes.md,
+			fontWeight: "700",
+			color: "#f59e0b",
+		},
+		developerSubtitle: {
+			fontSize: THEME.typography.sizes.sm,
+			color: THEME.colors.text.muted,
+			marginBottom: THEME.spacing.md,
+		},
+		developerButton: {
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			gap: THEME.spacing.sm,
+			backgroundColor: "#f59e0b",
+			paddingVertical: THEME.spacing.md,
+			borderRadius: THEME.radius.md,
+		},
+		developerButtonText: {
+			fontSize: THEME.typography.sizes.sm,
+			fontWeight: "600",
+			color: "#fff",
+		},
+	});

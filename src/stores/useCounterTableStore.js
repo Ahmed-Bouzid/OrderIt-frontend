@@ -79,14 +79,17 @@ const useCounterTableStore = create((set, get) => ({
 			const sessions = state.sessions[restaurantId] || [];
 
 			// Vérifier si elle existe déjà (par tableId)
-			const exists = sessions.find((s) => s.tableId === tableId);
+			// ✅ Gérer tableId string OU objet populate
+			const normalizeId = (id) => typeof id === 'object' ? id._id : id;
+			const targetId = normalizeId(tableId);
+			const exists = sessions.find((s) => normalizeId(s.tableId) === targetId);
 			if (exists) {
 				// Remplacer (mise à jour)
 				return {
 					sessions: {
 						...state.sessions,
 						[restaurantId]: sessions.map((s) =>
-							s.tableId === tableId ? session : s,
+							normalizeId(s.tableId) === targetId ? session : s,
 						),
 					},
 				};

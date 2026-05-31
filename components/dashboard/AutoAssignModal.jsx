@@ -262,9 +262,9 @@ const AutoAssignModal = React.memo(
 				// L'API renvoie soit un tableau soit { reservations: [...] }
 				const list = Array.isArray(data) ? data : (data?.reservations ?? []);
 
-				// Filtrer : uniquement "en attente" ou "ouverte"
+				// Filtrer : uniquement "pending" ou "confirmed"
 				const filtered = list.filter((r) =>
-					["en attente", "ouverte"].includes(r.status),
+					["pending", "confirmed"].includes(r.status),
 				);
 
 				// Construire les lignes avec statut initial

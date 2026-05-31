@@ -10,7 +10,7 @@
 /**
  * Catégories considérées comme "fast service" (pas de réservations complètes)
  * Pour ces catégories:
- * - Pas de bouton "en attente" / "présent"
+ * - Pas de bouton "pending" / "présent"
  * - Pas de calendrier (juste aujourd'hui)
  * - Formulaire simplifié (pas de tél, pas d'heure, pas de table)
  */

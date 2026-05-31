@@ -26,7 +26,7 @@ const SLOT_DURATION = 30; // minutes
 
 // Couleurs par statut
 const STATUS_COLORS = {
-	"en attente": { bg: "rgba(251,191,36,0.18)", border: "#FBBF24" },
+	"pending": { bg: "rgba(251,191,36,0.18)", border: "#FBBF24" },
 	actives: { bg: "rgba(251,191,36,0.18)", border: "#FBBF24" },
 	present: { bg: "rgba(16,185,129,0.18)", border: "#10B981" },
 	ouverte: { bg: "rgba(14,165,233,0.18)", border: "#0EA5E9" },
@@ -171,7 +171,7 @@ const AgendaView = React.memo(
 
 		// Réservations actives du jour
 		const dayReservations = useMemo(() => {
-			const statuts = ["en attente", "actives", "present", "ouverte"];
+			const statuts = ["pending", "actives", "present", "confirmed"];
 			return reservations.filter((r) =>
 				statuts.includes((r.status || "").toLowerCase()),
 			);

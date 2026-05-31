@@ -435,7 +435,7 @@ export const THEME = {
 // ==================== HELPERS ====================
 export const getStatusColor = (status) => {
 	const statusMap = {
-		"en attente": COLORS.status.waiting,
+		"pending": COLORS.status.waiting,
 		actives: COLORS.status.waiting,
 		present: COLORS.status.present,
 		ouverte: COLORS.status.open,
@@ -449,7 +449,7 @@ export const getStatusColor = (status) => {
 
 export const getStatusGradient = (status) => {
 	const gradientMap = {
-		"en attente": ["#FBBF24", "#F59E0B"],
+		"pending": ["#FBBF24", "#F59E0B"],
 		actives: ["#FBBF24", "#F59E0B"],
 		present: ["#10B981", "#059669"],
 		ouverte: ["#0EA5E9", "#0284C7"],

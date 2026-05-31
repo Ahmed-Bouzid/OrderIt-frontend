@@ -48,7 +48,10 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 	const rawTableSessions = useCounterTableStore((state) => state.sessions[actualRestaurantId]);
 	const tableSession = useMemo(() => {
 		const sessions = rawTableSessions || [];
-		return sessions.find((s) => s.tableId === tableId && s.billStatus !== "closed") || null;
+		// ✅ Gérer tableId string OU objet populate
+		const normalizeId = (id) => typeof id === 'object' ? id._id : id;
+		const targetId = normalizeId(tableId);
+		return sessions.find((s) => normalizeId(s.tableId) === targetId && s.billStatus !== "closed") || null;
 	}, [rawTableSessions, tableId]);
 	// ✅ Extraire sessionId stable pour éviter boucle infinie (tableSession change de ref à chaque mutation store)
 	const sessionId = tableSession?._id;

@@ -52,7 +52,7 @@ const useReservationStore = create((set, get) => ({
 						});
 						
 						// ⭐ Notification si c'est une réservation web
-						if (data.reservationSource === "À distance") {
+						if (data.reservationSource === "online") {
 							// Importer le store de notifications et afficher un toast
 							import('./useNotificationStore').then(({ default: useNotificationStore }) => {
 								useNotificationStore.getState().showToast({

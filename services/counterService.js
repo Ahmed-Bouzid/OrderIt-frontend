@@ -12,7 +12,10 @@ const counterService = {
 	 * Ouvrir une session table (ou récupérer l'existante)
 	 */
 	async openSession(restaurantId, tableId, waiterName = null, waiterId = null) {
+		const startTime = Date.now(); // ✅ Timer pour diagnostiquer
 		try {
+			console.log(`[Counter] openSession START: restaurantId=${restaurantId} tableId=${tableId}`);
+			
 			const response = await fetchWithAuth(
 				`${API_CONFIG.baseURL}/counter/sessions`,
 				{
@@ -28,12 +31,27 @@ const counterService = {
 			);
 
 			if (!response.ok) {
+				const elapsed = Date.now() - startTime;
+				console.error(`[Counter] openSession FAIL after ${elapsed}ms: HTTP ${response.status}`);
+			
+			// ✅ Parser le body d'erreur pour récupérer le message détaillé
+			try {
+				const errorData = await response.json();
+				const errorMessage = errorData.message || `HTTP ${response.status}`;
+				throw new Error(errorMessage);
+			} catch (parseErr) {
 				throw new Error(`HTTP ${response.status}`);
 			}
+		}
 
-			return await response.json();
+			const data = await response.json();
+			const elapsed = Date.now() - startTime;
+			console.log(`[Counter] openSession SUCCESS in ${elapsed}ms`);
+			
+			return data;
 		} catch (err) {
-			console.error("[Counter] Erreur ouverture session:", err);
+			const elapsed = Date.now() - startTime;
+			console.error(`[Counter] openSession ERROR after ${elapsed}ms:`, err.message);
 			throw err;
 		}
 	},
@@ -111,7 +129,14 @@ const counterService = {
 			);
 
 			if (!response.ok) {
-				throw new Error(`HTTP ${response.status}`);
+				// Logger le message exact du backend pour diagnostiquer
+				let serverMsg = "";
+				try {
+					const errBody = await response.json();
+					serverMsg = errBody?.message || JSON.stringify(errBody);
+				} catch (_) {}
+				console.error(`[Counter] closeSession HTTP ${response.status}: ${serverMsg}`);
+				throw new Error(`HTTP ${response.status}: ${serverMsg}`);
 			}
 
 			return await response.json();

@@ -1,6 +1,6 @@
 /**
  * 📱 WebReservationsModal - Liste des réservations en ligne
- * Affichage type "inbox" des réservations "À distance"
+ * Affichage type "inbox" des réservations "online"
  * Permet de consulter sans valider
  */
 import React, { useMemo } from "react";
@@ -14,7 +14,7 @@ import {
 	StyleSheet,
 	Animated,
 } from "react-native";
-import { Swipeable } from "react-native-gesture-handler";
+import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
@@ -28,10 +28,10 @@ export default function WebReservationsModal({ visible, onClose }) {
 	const markAllAsSeen = useWebReservationStore((state) => state.markAllAsSeen);
 	const markAsSeen = useWebReservationStore((state) => state.markAsSeen);
 	
-	// Filtrer uniquement les réservations "À distance" non vues
+	// Filtrer uniquement les réservations "online" non vues
 	const webReservations = useMemo(() => {
 		return reservations
-			.filter((r) => r.reservationSource === "À distance" && !seenIds.has(r._id)) // Exclure les vues
+			.filter((r) => r.reservationSource === "online" && !seenIds.has(r._id)) // Exclure les vues
 			.sort((a, b) => {
 				// Trier par date de réservation (plus récent en premier)
 				const dateA = new Date(a.reservationDate);
@@ -58,10 +58,10 @@ export default function WebReservationsModal({ visible, onClose }) {
 	
 	const getStatusColor = (status) => {
 		const statusMap = {
-			"en attente": THEME.colors.status.warning,
+			"pending": THEME.colors.status.warning,
 			"present": THEME.colors.status.success,
-			"terminée": THEME.colors.text.muted,
-			"annulée": THEME.colors.status.error,
+			"completed": THEME.colors.text.muted,
+			"cancelled": THEME.colors.status.error,
 		};
 		return statusMap[status] || THEME.colors.text.muted;
 	};
@@ -156,6 +156,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 			transparent={true}
 			onRequestClose={handleClose}
 		>
+			<GestureHandlerRootView style={{ flex: 1 }}>
 			<TouchableOpacity 
 				style={styles.modalOverlay}
 				activeOpacity={1}
@@ -209,6 +210,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 					</View>
 				</TouchableWithoutFeedback>
 			</TouchableOpacity>
+			</GestureHandlerRootView>
 		</Modal>
 	);
 }

@@ -170,7 +170,7 @@ export const SettingsModal = ({
 							{/* Actions */}
 							<View style={modalStyles.actionsContainer}>
 								{/* Si réservation en attente */}
-								{status === "en attente" && (
+								{status === "pending" && (
 									<>
 										{/* Présent / Absent toggle */}
 										{!activeReservation?.isPresent ? (
@@ -198,7 +198,7 @@ export const SettingsModal = ({
 										{activeReservation?.isPresent && (
 											<ActionButton
 												onPress={() =>
-													handleUpdateStatus(activeReservation?._id, "ouverte")
+													handleUpdateStatus(activeReservation?._id, "confirmed")
 												}
 												colors={[
 													MODAL_THEME.colors.info,
@@ -224,12 +224,12 @@ export const SettingsModal = ({
 								)}
 
 								{/* Si réservation ouverte */}
-								{status === "ouverte" && (
+								{status === "confirmed" && (
 									<>
 										{/* Remettre en attente */}
 										<ActionButton
 											onPress={() =>
-												handleUpdateStatus(activeReservation?._id, "en attente")
+												handleUpdateStatus(activeReservation?._id, "pending")
 											}
 											colors={[
 												MODAL_THEME.colors.warning,
@@ -252,10 +252,10 @@ export const SettingsModal = ({
 								)}
 
 								{/* Si réservation annulée */}
-								{status === "annulée" && (
+								{status === "cancelled" && (
 									<ActionButton
 										onPress={() =>
-											handleUpdateStatus(activeReservation?._id, "en attente")
+											handleUpdateStatus(activeReservation?._id, "pending")
 										}
 										colors={[
 											MODAL_THEME.colors.success,
@@ -267,7 +267,7 @@ export const SettingsModal = ({
 								)}
 
 								{/* Si réservation terminée */}
-								{status === "terminée" && (
+								{status === "completed" && (
 									<View style={modalStyles.infoBox}>
 										<Ionicons
 											name="information-circle"
@@ -281,7 +281,7 @@ export const SettingsModal = ({
 								)}
 
 								{/* Annuler (sauf si terminée ou annulée) */}
-								{status !== "terminée" && status !== "annulée" && (
+								{status !== "completed" && status !== "cancelled" && (
 									<ActionButton
 										onPress={handleCancelReservation}
 										colors={[

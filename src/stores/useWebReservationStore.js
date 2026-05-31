@@ -1,6 +1,6 @@
 /**
  * Store pour gérer les notifications de réservations web
- * - Compteur de nouvelles réservations "À distance" non consultées
+ * - Compteur de nouvelles réservations "online" non consultées
  * - Liste des réservations web pour affichage dans le modal
  */
 import { create } from "zustand";
@@ -32,7 +32,7 @@ const useWebReservationStore = create((set, get) => ({
 	updateUnreadCount: (allReservations) => {
 		const { seenIds } = get();
 		const webReservations = allReservations.filter(
-			(r) => r.reservationSource === "À distance"
+			(r) => r.reservationSource === "online"
 		);
 		const unread = webReservations.filter((r) => !seenIds.has(r._id)).length;
 		set({ unreadCount: unread });
@@ -41,7 +41,7 @@ const useWebReservationStore = create((set, get) => ({
 	// Marquer toutes les réservations web actuelles comme vues
 	markAllAsSeen: async (allReservations) => {
 		const webReservations = allReservations.filter(
-			(r) => r.reservationSource === "À distance"
+			(r) => r.reservationSource === "online"
 		);
 		const webIds = webReservations.map((r) => r._id);
 		const newSeenIds = new Set([...get().seenIds, ...webIds]);

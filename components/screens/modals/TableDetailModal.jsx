@@ -103,6 +103,7 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	const [currentView, setCurrentView] = useState("table");
 	const [isSending, setIsSending] = useState(false);
 	const [isClosing, setIsClosing] = useState(false);
+	const [isRequestingBill, setIsRequestingBill] = useState(false);
 
 	// States pour l'encaissement
 	const [discounts, setDiscounts] = useState([]);
@@ -173,10 +174,18 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	};
 
 	const handleRequestBill = async () => {
+		setIsRequestingBill(true);
 		try {
 			await actions.requestBill();
+			Alert.alert(
+				"✓ Addition demandée",
+				"L'addition est prête à être encaissée.",
+				[{ text: "OK" }]
+			);
 		} catch (err) {
 			Alert.alert("Erreur", err.message);
+		} finally {
+			setIsRequestingBill(false);
 		}
 	};
 
@@ -194,6 +203,20 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	};
 
 	const handleEncaisser = async () => {
+		// ✅ Si panier non vide → envoyer automatiquement en cuisine d'abord
+		if (cart.length > 0) {
+			setIsSending(true);
+			try {
+				await actions.sendToCook();
+			} catch (err) {
+				Alert.alert("Erreur", "Impossible d'envoyer les plats en cuisine : " + err.message);
+				setIsSending(false);
+				return;
+			} finally {
+				setIsSending(false);
+			}
+		}
+
 		const isZero = finalTotal === 0;
 
 		// Si 0€ → demander la raison
@@ -941,20 +964,32 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 
 									<TouchableOpacity
 										onPress={handleRequestBill}
-										style={styles.actionBtn}
+										disabled={isRequestingBill || session?.billStatus === "bill_requested"}
+										style={[
+											styles.actionBtn,
+											(isRequestingBill || session?.billStatus === "bill_requested") && styles.actionDisabled,
+										]}
 									>
-										<Text style={styles.actionBtnText}>€ Demander addition</Text>
+										{isRequestingBill ? (
+											<ActivityIndicator size="small" color="#F8FAFC" />
+										) : (
+											<Text style={styles.actionBtnText}>
+												{session?.billStatus === "bill_requested" ? "✓ Addition demandée" : "€ Demander addition"}
+											</Text>
+										)}
 									</TouchableOpacity>
 
 									<TouchableOpacity
 										onPress={() => setCurrentView("encaisser")}
-										disabled={isClosing || cart.length > 0}
-										style={[styles.actionBtn, styles.actionBtnEncaisser, (isClosing || cart.length > 0) && styles.actionDisabled]}
+										disabled={isClosing}
+										style={[styles.actionBtn, styles.actionBtnEncaisser, isClosing && styles.actionDisabled]}
 									>
-										{isClosing ? (
+										{isClosing || isSending ? (
 											<ActivityIndicator size="small" color="#fff" />
 										) : (
-											<Text style={[styles.actionBtnText, styles.actionBtnEncaisserText]}>✓ Encaisser &amp; libérer</Text>
+											<Text style={[styles.actionBtnText, styles.actionBtnEncaisserText]}>
+												{cart.length > 0 ? "✓ Envoyer + Encaisser" : "✓ Encaisser & libérer"}
+											</Text>
 										)}
 									</TouchableOpacity>
 								</View>

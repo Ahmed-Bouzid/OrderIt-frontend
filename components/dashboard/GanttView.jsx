@@ -54,7 +54,7 @@ const HEADER_HEIGHT = 36;
 
 // ─── Couleurs statut ─────────────────────────────────────────────────────────
 const STATUS_COLORS = {
-	"en attente": {
+	"pending": {
 		bg: "rgba(251,191,36,0.22)",
 		border: "#FBBF24",
 		text: "#FBBF24",
@@ -71,7 +71,7 @@ const STATUS_COLORS = {
 	annulée: { bg: "rgba(244,63,94,0.18)", border: "#F43F5E", text: "#F43F5E" },
 	annulee: { bg: "rgba(244,63,94,0.18)", border: "#F43F5E", text: "#F43F5E" },
 };
-const DEFAULT_COLOR = STATUS_COLORS["en attente"];
+const DEFAULT_COLOR = STATUS_COLORS["pending"];
 
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const toMin = (str) => {
@@ -368,7 +368,7 @@ const GanttView = ({
 
 	// Réservations actives du jour
 	const dayReservations = useMemo(() => {
-		const statuts = ["en attente", "actives", "present", "ouverte"];
+		const statuts = ["pending", "actives", "present", "confirmed"];
 		return reservations.filter((r) =>
 			statuts.includes((r.status || "").toLowerCase()),
 		);
