@@ -783,6 +783,9 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		const twoHoursLater = new Date(now.getTime() + 2 * 60 * 60 * 1000);
 		
 		return reservations.find((r) => {
+			// ✅ Skip si pas de table assignée (réservations web sans table)
+			if (!r.tableId) return false;
+			
 			// Vérifier si c'est pour cette table
 			const resaTableId = typeof r.tableId === 'object' ? r.tableId._id : r.tableId;
 			if (resaTableId !== tableId) return false;
