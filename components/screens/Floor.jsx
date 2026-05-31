@@ -655,6 +655,7 @@ export default function Floor({ onStart }) {
 			fetchOrders();
 			fetchLowStock(); // 📦 Charger aussi les stocks
 			fetchUpcomingReservations(); // 📅 Charger réservations à venir
+			fetchReservations(); // 📋 Charger toutes les réservations pour le store
 			// En mode Comptoir : charger l'état des tables (TableSession)
 			if (enableComptoir) {
 				authFetch(`/counter/tables/${restaurantId}`, { method: "GET" })
@@ -667,7 +668,7 @@ export default function Floor({ onStart }) {
 			const interval = setInterval(fetchOrders, 60000); // 1 min au lieu de 30s
 			return () => clearInterval(interval);
 		}
-	}, [restaurantId, fetchOrders, fetchLowStock]);
+	}, [restaurantId, fetchOrders, fetchLowStock, fetchReservations]);
 
 	// Extraire tous les items avec métadonnées (exclure "autre")
 	// 🔒 Serveur : uniquement les items de SES commandes
