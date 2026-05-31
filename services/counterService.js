@@ -42,6 +42,9 @@ const counterService = {
 			} catch (parseErr) {
 				throw new Error(`HTTP ${response.status}`);
 			}
+		}
+
+			const data = await response.json();
 			const elapsed = Date.now() - startTime;
 			console.log(`[Counter] openSession SUCCESS in ${elapsed}ms`);
 			
