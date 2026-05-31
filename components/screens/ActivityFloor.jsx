@@ -977,6 +977,8 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		if (!serverPickerTableId || !restaurantId) return;
 		// Utiliser le waiter sélectionné ou l'utilisateur actuel comme fallback
 		const waiter = selectedWaiter ?? currentUser;
+		
+		let sessionCreated = false;
 		try {
 			const session = await counterService.openSession(
 				restaurantId,
@@ -1006,13 +1008,22 @@ const ActivityFloor = ({ restaurantInfo }) => {
 					}
 					await new Promise(resolve => setTimeout(resolve, 10));
 				}
+				sessionCreated = true;
 			}
 		} catch (err) {
-			console.warn("[ActivityFloor] openSession:", err);
+			console.warn("[ActivityFloor] openSession échoué:", err);
+			// ❌ Si erreur (ex: 409 table déjà occupée), ne PAS ouvrir la modale
+			setServerPickerTableId(null);
+			setSelectedWaiter(null);
+			return;
 		}
+		
+		// ✅ Ouvrir la modale SEULEMENT si session créée avec succès
 		setServerPickerTableId(null);
 		setSelectedWaiter(null);
-		setShowTableDetail(true);
+		if (sessionCreated) {
+			setShowTableDetail(true);
+		}
 	}, [serverPickerTableId, restaurantId, selectedWaiter, currentUser]);
 
 	// Sauvegarder la position d'une table après drag
