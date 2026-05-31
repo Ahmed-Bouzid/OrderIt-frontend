@@ -48,7 +48,10 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 	const rawTableSessions = useCounterTableStore((state) => state.sessions[actualRestaurantId]);
 	const tableSession = useMemo(() => {
 		const sessions = rawTableSessions || [];
-		return sessions.find((s) => s.tableId === tableId && s.billStatus !== "closed") || null;
+		// ✅ Gérer tableId string OU objet populate
+		const normalizeId = (id) => typeof id === 'object' ? id._id : id;
+		const targetId = normalizeId(tableId);
+		return sessions.find((s) => normalizeId(s.tableId) === targetId && s.billStatus !== "closed") || null;
 	}, [rawTableSessions, tableId]);
 	// ✅ Extraire sessionId stable pour éviter boucle infinie (tableSession change de ref à chaque mutation store)
 	const sessionId = tableSession?._id;
@@ -172,7 +175,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 	const actions = {
 		/**
 		 * Ouvrir la session table (action explicite du serveur)
-		 * ✅ Fix race condition : vérifier que le store est mis à jour AVANT de mettre isOpening=false
 		 */
 		openTable: async () => {
 			if (!actualRestaurantId || !tableId) return;
@@ -182,53 +184,7 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 					actualRestaurantId,
 					tableId,
 				);
-				
-				console.log(`[useCounterTable] Session reçue:`, {
-					sessionId: session._id,
-					tableId: typeof session.tableId === 'object' ? session.tableId._id : session.tableId,
-					billStatus: session.billStatus,
-					restaurantId: actualRestaurantId,
-				});
-				
 				openTableSession(actualRestaurantId, tableId, session);
-				
-				// ✅ Attendre que le store contienne la session (max 500ms)
-				const maxWait = 500;
-				const startWait = Date.now();
-				let attempts = 0;
-				while (Date.now() - startWait < maxWait) {
-					attempts++;
-					const currentStore = useCounterTableStore.getState();
-					const sessions = currentStore.sessions[actualRestaurantId] || [];
-					
-					if (attempts === 1 || attempts % 10 === 0) {
-						console.log(`[useCounterTable] Tentative ${attempts}: ${sessions.length} sessions dans le store`, 
-							sessions.map(s => ({
-								id: s._id,
-								tableId: typeof s.tableId === 'object' ? s.tableId._id : s.tableId,
-								billStatus: s.billStatus
-							}))
-						);
-					}
-					
-					// ✅ Comparer les IDs de manière robuste (tableId peut être populate ou string)
-					const sessionTableId = typeof session.tableId === 'object' ? session.tableId._id : session.tableId;
-					const found = sessions.find(s => {
-						const storeTableId = typeof s.tableId === 'object' ? s.tableId._id : s.tableId;
-						return String(storeTableId) === String(sessionTableId) && s.billStatus !== "closed";
-					});
-					
-					if (found) {
-						console.log(`[useCounterTable] ✅ Store mis à jour après ${Date.now() - startWait}ms (${attempts} tentatives)`);
-						break;
-					}
-					
-					await new Promise(resolve => setTimeout(resolve, 10));
-				}
-				
-				if (Date.now() - startWait >= maxWait) {
-					console.warn(`[useCounterTable] ⚠️ Timeout 500ms atteint - store pas mis à jour`);
-				}
 			} catch (err) {
 				console.error("[useCounterTable] Erreur ouverture session:", err);
 				throw err;
