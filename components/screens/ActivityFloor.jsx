@@ -50,6 +50,22 @@ const CANVAS_COLS = IS_PHONE ? 1 : 2; // pour auto-layout des tables sans positi
 const formatTableLabel = (number) =>
 	/^\d+$/.test(String(number ?? "")) ? `T${number}` : String(number ?? "?");
 
+/** Formate le badge "prochaine réservation" avec date lisible */
+const formatResaBadge = (reservation) => {
+	const now = new Date();
+	const resaDate = new Date(reservation.reservationDate);
+	const isToday = resaDate.toDateString() === now.toDateString();
+	const tomorrow = new Date(now);
+	tomorrow.setDate(tomorrow.getDate() + 1);
+	const isTomorrow = resaDate.toDateString() === tomorrow.toDateString();
+	const name = reservation.clientName ? reservation.clientName.slice(0, 10) : "";
+	const time = reservation.reservationTime || "";
+	if (isToday) return `${name} · ${time}`;
+	if (isTomorrow) return `${name} · demain ${time}`;
+	const day = resaDate.toLocaleDateString("fr-FR", { day: "2-digit", month: "2-digit" });
+	return `${name} · ${day} ${time}`;
+};
+
 // ─── EditTableModal ──────────────────────────────────────────────────────────
 const EditTableModal = ({ visible, table, onClose, onSave }) => {
 	const [numVal, setNumVal] = useState("");
@@ -622,7 +638,7 @@ const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations =
 			{nextReservation && (
 				<View style={dcStyles.reservationBadge}>
 					<Text style={dcStyles.reservationText} numberOfLines={1}>
-						{nextReservation.clientName} à {nextReservation.reservationTime}
+						{formatResaBadge(nextReservation)}
 					</Text>
 				</View>
 			)}
