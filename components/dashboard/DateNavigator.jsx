@@ -9,7 +9,6 @@ import {
 	TouchableOpacity,
 	StyleSheet,
 	Platform,
-	ActivityIndicator,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
@@ -32,7 +31,6 @@ export default function DateNavigator({
 	const [showDatePicker, setShowDatePicker] = useState(false);
 	const [monthlyReservationCounts, setMonthlyReservationCounts] = useState({});
 	const [showAssistantMenu, setShowAssistantMenu] = useState(false);
-	const [loading, setLoading] = useState(false);
 	const [showAutoAssignModal, setShowAutoAssignModal] = useState(false);
 	const [showWebReservationsModal, setShowWebReservationsModal] = useState(false);
 	const authFetch = useAuthFetch();
@@ -66,7 +64,7 @@ export default function DateNavigator({
 					setMonthlyReservationCounts(data);
 					onMonthlyCountsChange?.(data);
 				}
-			} catch (e) {
+			} catch (_e) {
 				// silencieux
 			}
 		},
@@ -211,20 +209,12 @@ export default function DateNavigator({
 						style={styles.assistantButton}
 						onPress={() => setShowAssistantMenu(!showAssistantMenu)}
 						activeOpacity={0.7}
-						disabled={loading}
 					>
-						{loading ? (
-							<ActivityIndicator
-								size="small"
-								color={THEME.colors.primary.amber}
-							/>
-						) : (
-							<Ionicons
-								name="sparkles"
-								size={20}
-								color={THEME.colors.primary.amber}
-							/>
-						)}
+						<Ionicons
+							name="sparkles"
+							size={20}
+							color={THEME.colors.primary.amber}
+						/>
 					</TouchableOpacity>
 
 					{/* Dropdown Menu */}
