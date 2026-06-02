@@ -206,8 +206,17 @@ export default function Floor({ onStart }) {
 			.map((r) => String(r.tableId?._id || r.tableId || ""))
 			.filter(Boolean);
 
+		// ✅ Tables depuis les sessions Comptoir actives
+		if (enableComptoir && counterTablesState.length > 0) {
+			const counterTableIds = counterTablesState
+				.filter((table) => table.sessionId) // Table occupée
+				.map((table) => String(table._id || ""))
+				.filter(Boolean);
+			tableIds.push(...counterTableIds);
+		}
+
 		return new Set(tableIds);
-	}, [isServerOnly, userId, reservations]);
+	}, [isServerOnly, userId, reservations, enableComptoir, counterTablesState]);
 
 	// Helper : vérifie si une commande appartient aux tables ouvertes du serveur
 	const isMyOrder = useCallback(
