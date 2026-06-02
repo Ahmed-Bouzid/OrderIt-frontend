@@ -1,6 +1,5 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import AsyncStorage from "@react-native-async-storage/async-storage";
-import usePresentStore from "../src/stores/usePresentStore";
 import useUserStore from "../src/stores/useUserStore";
 
 // Catégories avec filtres simplifiés (pas de "actives"/"present")
@@ -99,7 +98,6 @@ export const useDashboardFilters = (
 		const today = normalizeDate(new Date());
 
 		const isPastDate = selectedDay < today;
-		const isToday = selectedDay === today;
 
 		try {
 			let result = [];

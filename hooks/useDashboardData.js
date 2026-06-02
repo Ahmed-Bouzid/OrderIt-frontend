@@ -54,6 +54,7 @@ export const useDashboardData = () => {
 		};
 
 		loadData();
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, []); // ✅ Exécuté une seule fois au montage
 
 	// Rafraîchir les tables périodiquement
@@ -73,7 +74,7 @@ export const useDashboardData = () => {
 				} else if (Array.isArray(tablesData)) {
 					setTables(tablesData);
 				}
-			} catch (error) {
+			} catch (_error) {
 				// Silencieux pour éviter spam logs
 			}
 		};
@@ -86,6 +87,7 @@ export const useDashboardData = () => {
 		return () => {
 			if (interval) clearInterval(interval);
 		};
+	// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [loading]); // ✅ Dépend uniquement de loading
 
 	// ⭐ Écouter les mises à jour de réservations via WebSocket

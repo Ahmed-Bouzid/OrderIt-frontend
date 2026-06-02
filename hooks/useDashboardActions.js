@@ -8,7 +8,7 @@ import usePresentStore from "../src/stores/usePresentStore";
 export const useDashboardActions = (fetchReservations) => {
 	const authFetch = useAuthFetch();
 	const [activeReservation, setActiveReservation] = useState(null);
-	const { markAsPresent, removePresent, cleanup } = usePresentStore();
+	const { markAsPresent, cleanup } = usePresentStore();
 
 	// Rafraîchir une réservation spécifique
 	const refreshActiveReservation = useCallback(
@@ -105,6 +105,7 @@ export const useDashboardActions = (fetchReservations) => {
 			const result = await proceedWithStatusUpdate(id, newStatus);
 			return result;
 		},
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[authFetch, fetchReservations, cleanup],
 	);
 
@@ -176,6 +177,7 @@ export const useDashboardActions = (fetchReservations) => {
 				],
 			);
 		},
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 		[authFetch, fetchReservations],
 	);
 
