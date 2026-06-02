@@ -86,7 +86,6 @@ const ReservationCard = React.memo(
 		const isSnackMode = useMemo(() => isFastService(category), [category]);
 
 		// Animation refs
-		const scaleAnim = useRef(new Animated.Value(1)).current;
 		const glowAnim = useRef(new Animated.Value(0)).current;
 
 		// ⭐ State pour le temps écoulé (mise à jour chaque minute)
@@ -156,23 +155,6 @@ const ReservationCard = React.memo(
 		}, [isActive, glowAnim, reservation]);
 
 		if (!reservation) return null;
-		// Handlers
-		const handlePressIn = () => {
-			Animated.spring(scaleAnim, {
-				toValue: 0.97,
-				friction: 8,
-				useNativeDriver: true,
-			}).start();
-		};
-
-		const handlePressOut = () => {
-			Animated.spring(scaleAnim, {
-				toValue: 1,
-				friction: 5,
-				useNativeDriver: true,
-			}).start();
-		};
-
 		// Formatters
 		const formatDate = (date) => {
 			if (!date) return "-";
@@ -195,7 +177,7 @@ const ReservationCard = React.memo(
 
 		return (
 			<Animated.View
-				style={[styles.container, { transform: [{ scale: scaleAnim }] }]}
+				style={styles.container}
 			>
 				<View style={styles.touchable}>
 					{/* Glow effect pour les cartes actives */}
