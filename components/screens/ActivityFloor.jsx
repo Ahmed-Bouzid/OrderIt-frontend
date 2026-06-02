@@ -15,8 +15,6 @@ import {
 	TouchableOpacity,
 	Dimensions,
 	ActivityIndicator,
-	ScrollView,
-	RefreshControl,
 	PanResponder,
 	Animated,
 	Alert,
@@ -43,8 +41,6 @@ const IS_PHONE = SCREEN_W < 600;
 const CARD_SIZE = IS_PHONE ? 336 : 384;
 const CARD_GAP = 12;
 const CANVAS_PADDING = 12;
-const CANVAS_COLS = IS_PHONE ? 1 : 2; // pour auto-layout des tables sans position
-
 /** Formate l'affichage du numéro de table */
 const formatTableLabel = (number) =>
 	/^\d+$/.test(String(number ?? "")) ? `T${number}` : String(number ?? "?");
@@ -747,8 +743,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	const [selectedTableId, setSelectedTableId] = useState(null);
 	const [showFloorPlan, setShowFloorPlan] = useState(false);
 	const [showTableDetail, setShowTableDetail] = useState(false);
-	const [isLoading, setIsLoading] = useState(false);
-	const [isRefreshing, setIsRefreshing] = useState(false);
 	const [isLoadingTables, setIsLoadingTables] = useState(true);
 	const [activeFilter, setActiveFilter] = useState("Toutes");
 	const [editModalTable, setEditModalTable] = useState(null); // {tableId, table}
@@ -873,9 +867,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			</TouchableOpacity>
 		);
 	}, [swapCandidates, tables, handleSwapTables]); // eslint-disable-line react-hooks/exhaustive-deps
-	const fetchSessions = useCounterTableStore((state) =>
-		state.fetchSessions,
-	);
 	const attachSocketListener = useCounterTableStore((state) =>
 		state.attachSocketListener,
 	);
@@ -975,7 +966,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	const handleRefresh = useCallback(async () => {
 		if (!restaurantId) return;
 
-		setIsRefreshing(true);
 		try {
 			const tablesState = await counterService.getTablesState(restaurantId).catch((err) => {
 				console.error("[ActivityFloor] getTablesState failed (refresh):", err?.message, err);
@@ -987,10 +977,8 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			}
 		} catch (err) {
 			console.error("[ActivityFloor] Erreur refresh:", err);
-		} finally {
-			setIsRefreshing(false);
 		}
-	}, [restaurantId, fetchSessions]);
+	}, [restaurantId, hydrateSessionsFromTables]);
 
 	// Styles dynamiques
 	const dynamicStyles = useMemo(() => createStyles(THEME), [THEME]);
@@ -1008,17 +996,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		},
 		[activeSessions],
 	);
-
-	// Compter les tables par status
-	const tableStats = useMemo(() => {
-		return {
-			free: activeSessions.filter((s) => s.billStatus === "closed").length,
-			occupied: activeSessions.filter((s) => s.billStatus === "open").length,
-			billRequested: activeSessions.filter(
-				(s) => s.billStatus === "bill_requested",
-			).length,
-		};
-	}, [activeSessions]);
 
 	// Handler tap table
 	const handleTableTap = useCallback((tableId) => {
@@ -1105,7 +1082,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 							text: "Aller au Dashboard", 
 							onPress: () => {
 								// TODO: Navigation vers Dashboard avec focus sur cette réservation
-								console.log(`[ActivityFloor] Rediriger vers réservation ${reservationId}`);
 							}
 						}
 					]
@@ -1601,11 +1577,6 @@ const createStyles = (THEME) =>
 			gap: 8,
 			flexGrow: 0,
 		},
-		filterBarContent: {
-			flexDirection: "row",
-			alignItems: "center",
-			gap: 8,
-		},
 		filterButton: {
 			paddingVertical: 7,
 			paddingHorizontal: 16,
@@ -1683,82 +1654,10 @@ const createStyles = (THEME) =>
 			padding: 12,
 			minHeight: 200,
 		},
-		gridContainer: {
-			flexDirection: "row",
-			flexWrap: "wrap",
-			gap: CARD_GAP,
-		},
 		canvas: {
 			position: "relative",
 			width: "100%",
 			minHeight: 280,
-		},
-
-		// ─── Table cards ───────────────────────────────────────
-		tableCard: {
-			width: CARD_SIZE,
-			height: CARD_SIZE,
-			borderRadius: 28,
-			justifyContent: "center",
-			alignItems: "center",
-			borderWidth: 2,
-			borderColor: "rgba(100,116,139,0.3)",
-		},
-		tableCardFree: {
-			backgroundColor: "rgba(30,41,59,0.5)",
-			borderColor: "rgba(100,116,139,0.2)",
-		},
-		tableCardOccupied: {
-			backgroundColor: "rgba(74,222,128,0.12)",
-			borderColor: "rgba(74,222,128,0.5)",
-		},
-		tableCardBillRequested: {
-			backgroundColor: "rgba(251,191,36,0.15)",
-			borderColor: "rgba(251,191,36,0.6)",
-		},
-		tableNumber: {
-			fontSize: IS_PHONE ? 36 : 40,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-		},
-		tableNumberFree: {
-			color: THEME.colors.text.muted,
-		},
-		tableNumberOccupied: {
-			color: "#4ADE80",
-		},
-		tableNumberBill: {
-			color: "#FBBF24",
-		},
-		tableDots: {
-			fontSize: 22,
-			color: "#4ADE80",
-			letterSpacing: 4,
-			marginTop: 8,
-		},
-		tableAmountOccupied: {
-			fontSize: IS_PHONE ? 20 : 22,
-			fontWeight: "600",
-			color: "#4ADE80",
-			marginTop: 8,
-		},
-		tableBillIcon: {
-			fontSize: 32,
-			color: "#FBBF24",
-			fontWeight: "700",
-			marginTop: 8,
-		},
-		tableAmountBill: {
-			fontSize: IS_PHONE ? 20 : 22,
-			fontWeight: "600",
-			color: "#FBBF24",
-			marginTop: 8,
-		},
-		tableStatusFree: {
-			fontSize: 16,
-			color: THEME.colors.text.muted,
-			fontWeight: "500",
-			marginTop: 10,
 		},
 
 		// ─── Empty states ──────────────────────────────────────
