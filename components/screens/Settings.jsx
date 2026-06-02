@@ -13,7 +13,6 @@ import {
 	ScrollView,
 	Switch,
 	Modal,
-	FlatList,
 } from "react-native";
 import { useRouter } from "expo-router";
 import { LinearGradient } from "expo-linear-gradient";
