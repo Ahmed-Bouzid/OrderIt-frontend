@@ -166,12 +166,15 @@ export default function Floor({ onStart }) {
 	const userRole = useUserStore((state) => state.role);
 	const isManager = useUserStore((state) => state.isManager);
 	const enableComptoir = useUserStore((state) => state.enableComptoir);
+	const restaurantIdFromStore = useUserStore((state) => state.restaurantId);
 	const isServerOnly = userRole === "server" && !isManager;
 
 	// 🏪 Comptoir mode : état live des tables (TableSession)
 	const [counterTablesState, setCounterTablesState] = useState([]);
 	
 	// 💰 Stats caisse depuis l'API (en cours + payées du jour)
+	// 🔑 callId pour ignorer les réponses obsolètes (race condition Render cold start)
+	const caisseStatsCallIdRef = useRef(0);
 	const [caisseStatsFromAPI, setCaisseStatsFromAPI] = useState({
 		enCours: { count: 0, montant: 0, sessions: [] },
 		payees: { count: 0, montant: 0, sessions: [] },
@@ -274,15 +277,31 @@ export default function Floor({ onStart }) {
 
 	// 💰 Fetch stats caisse (en cours + payées du jour)
 	const fetchCaisseStats = useCallback(async () => {
-		if (!restaurantId || !enableComptoir) return;
+		const restId = restaurantIdFromStore || restaurantId;
+		console.log("[Caisse] fetchCaisseStats — restId:", restId, "enableComptoir:", enableComptoir);
+		if (!restId || !enableComptoir) return;
+
+		// 🔑 Anti-race condition : seule la réponse du dernier appel est appliquée
+		const callId = ++caisseStatsCallIdRef.current;
 
 		try {
-			const stats = await counterService.getCaisseStats(restaurantId);
+			const stats = await counterService.getCaisseStats(restId);
+			// Ignorer si un appel plus récent a déjà été lancé
+			if (callId !== caisseStatsCallIdRef.current) return;
+			console.log("[Caisse] En cours:", stats.enCours.count, "tables →", stats.enCours.montant + "€");
+			console.log("[Caisse] Payées:", stats.payees.count, "tables →", stats.payees.montant + "€");
 			setCaisseStatsFromAPI(stats);
 		} catch (err) {
 			console.error("[Floor] Erreur fetch stats caisse:", err);
 		}
-	}, [restaurantId, enableComptoir]);
+	}, [restaurantIdFromStore, restaurantId, enableComptoir]);
+
+	// 💰 Charger les stats caisse dès que restaurantId + enableComptoir sont disponibles
+	useEffect(() => {
+		if (restaurantId && enableComptoir) {
+			fetchCaisseStats();
+		}
+	}, [restaurantId, enableComptoir, fetchCaisseStats]);
 
 	// Connecter le socket au montage
 	useEffect(() => {
@@ -390,6 +409,7 @@ export default function Floor({ onStart }) {
 	const loadRestaurantId = async () => {
 		try {
 			const id = await AsyncStorage.getItem("restaurantId");
+			console.log("[Caisse] AsyncStorage restaurantId:", id);
 			if (id) {
 				setRestaurantId(id);
 			}
@@ -693,11 +713,33 @@ export default function Floor({ onStart }) {
 	// Extraire tous les items avec métadonnées (exclure "autre")
 	// 🔒 Serveur : uniquement les items de SES commandes
 	const allItems = useMemo(() => {
+		const normalizeCategoryToStandard = (category) => {
+			const cat = (category || "autre").toLowerCase().trim();
+			if (["cafés", "café", "coffee", "cocktails", "cocktail", "jus frais", "jus", "juice",
+				"matcha", "milkshakes", "milkshake", "smoothies", "smoothie", "boissons", "boisson"].includes(cat)) {
+				return "boisson";
+			}
+			if (["salé", "sale", "plats", "plat", "principal", "main", "formule"].includes(cat)) {
+				return "plat";
+			}
+			if (["entrée", "entree", "entrées", "entrees", "starter"].includes(cat)) {
+				return "entree";
+			}
+			if (["desserts", "dessert", "sucré", "sucre", "sweet"].includes(cat)) {
+				return "dessert";
+			}
+			if (["boisson", "entree", "plat", "dessert", "nouveautes"].includes(cat)) {
+				return cat;
+			}
+			return "autre";
+		};
+
 		const items = orders
 			.filter(isMyOrder)
 			.flatMap((order) =>
 				order.items.map((item) => ({
 					...item,
+					category: normalizeCategoryToStandard(item.category),
 					orderId: order._id,
 					tableNumber: order.tableId?.number || "?",
 					serverName:
@@ -791,29 +833,54 @@ export default function Floor({ onStart }) {
 
 	// 💰 Caisse : afficher le ticket de caisse
 	const handleCaisseShowReceipt = useCallback(
-		(reservation) => {
-			const resaOrders = orders.filter(
-				(o) =>
-					(o.reservationId?._id?.toString() || o.reservationId?.toString()) ===
-					reservation._id?.toString(),
-			);
-			const merged = {};
-			resaOrders.forEach((order) => {
-				(order.items || []).forEach((item) => {
-					const key = item.productId?._id || item.productId || item.name;
-					if (merged[key]) {
-						merged[key].quantity += item.quantity || 1;
-					} else {
-						merged[key] = { ...item };
-					}
+		async (reservation) => {
+			let orderItems = [];
+
+			if (reservation.source === "counter") {
+				// Mode Comptoir : orders liés par tableSessionId (filtre unique, pas besoin d'autres params)
+				try {
+					const sessionOrders = await counterService.getSessionOrders(
+						reservation._id,
+					);
+					sessionOrders.forEach((order) => {
+						(order.items || []).forEach((item) => {
+							orderItems.push(item);
+						});
+					});
+				} catch (err) {
+					console.error("[Floor] Erreur fetch orders ticket:", err);
+				}
+			} else {
+				// Mode Activity : orders liés par reservationId
+				const resaOrders = orders.filter(
+					(o) =>
+						(o.reservationId?._id?.toString() || o.reservationId?.toString()) ===
+						reservation._id?.toString(),
+				);
+				resaOrders.forEach((order) => {
+					(order.items || []).forEach((item) => {
+						orderItems.push(item);
+					});
 				});
+			}
+
+			// Fusionner les items identiques
+			const merged = {};
+			orderItems.forEach((item) => {
+				const key = item.productId?._id || item.productId || item.name;
+				if (merged[key]) {
+					merged[key].quantity += item.quantity || 1;
+				} else {
+					merged[key] = { ...item };
+				}
 			});
+
 			setReceiptTargetCaisse({
 				reservation,
 				items: Object.values(merged),
 			});
 		},
-		[orders],
+		[orders, restaurantIdFromStore, restaurantId],
 	);
 
 	// ⭐ BLOC3/C1 — Réinitialiser une table manuellement (fermer session)
@@ -1674,6 +1741,7 @@ export default function Floor({ onStart }) {
 					onClose={() => setReceiptTargetCaisse(null)}
 					reservation={receiptTargetCaisse.reservation}
 					items={receiptTargetCaisse.items}
+					amount={receiptTargetCaisse.reservation.totalAmount || 0}
 					paymentMethod={
 						receiptTargetCaisse.reservation.paymentMethod || "Autre"
 					}
