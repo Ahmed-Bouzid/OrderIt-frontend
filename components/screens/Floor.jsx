@@ -788,13 +788,24 @@ export default function Floor({ onStart }) {
 	// Items filtrés par catégorie active
 	const filteredItems = useMemo(() => {
 		if (!activeCategory) return [];
+		const statusPriority = {
+			preparing: 1,
+			confirmed: 2,
+			ready: 3,
+			served: 4,
+			cancelled: 5,
+		};
 		return allItems
 			.filter((item) => item.category === activeCategory)
-			.sort(
-				(a, b) =>
+			.sort((a, b) => {
+				const priorityA = statusPriority[a.itemStatus] || 99;
+				const priorityB = statusPriority[b.itemStatus] || 99;
+				if (priorityA !== priorityB) return priorityA - priorityB;
+				return (
 					new Date(a.startTime || a.createdAt) -
-					new Date(b.startTime || b.createdAt),
-			);
+					new Date(b.startTime || b.createdAt)
+				);
+			});
 	}, [allItems, activeCategory]);
 
 	// Gérer changement de catégorie
