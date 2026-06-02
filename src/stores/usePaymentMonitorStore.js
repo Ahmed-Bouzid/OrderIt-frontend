@@ -264,19 +264,10 @@ const usePaymentMonitorStore = create((set, get) => ({
 				: `/payments/today?tzOffsetMinutes=${encodeURIComponent(tzOffsetMinutes)}`;
 			const nowIso = new Date().toISOString();
 
-			console.log("[PaymentsMonitor] fetchTodayPayments", {
-				resolvedRestaurantId,
-				query,
-			});
-
 			const data = await authFetch(query);
 
 			if (data?.success && Array.isArray(data.payments)) {
 				const payments = data.payments.map(normalizePaymentForUI);
-				console.log("[PaymentsMonitor] payments loaded", {
-					count: payments.length,
-					restaurantId: resolvedRestaurantId,
-				});
 				set({
 					payments,
 					kpis: computeKPIs(payments),

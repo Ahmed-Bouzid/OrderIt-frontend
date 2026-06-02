@@ -200,8 +200,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 			
 			setIsOpening(true);
 			try {
-				console.log(`[Counter] openTable START → table=${tableId} restaurant=${actualRestaurantId}`);
-				
 				const session = await counterService.openSession(
 					actualRestaurantId,
 					tableId,
@@ -209,7 +207,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				openTableSession(actualRestaurantId, tableId, session);
 				
 				const elapsed = Date.now() - startTime;
-				console.log(`[Counter] openTable SUCCESS in ${elapsed}ms → session=${session._id}`);
 			} catch (err) {
 				const elapsed = Date.now() - startTime;
 				console.error(`[Counter] openTable FAIL after ${elapsed}ms:`, err.message);
@@ -336,8 +333,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 			if (!tableSession) throw new Error("Aucune session active");
 			
 			try {
-				console.log(`[Counter] cancelOrder START → order=${orderId} table=${tableId}`);
-				
 				await authFetch(`/orders/${orderId}/cancel`, { method: "PATCH" });
 				await refreshSessionOrders();
 
@@ -354,7 +349,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				});
 				
 				const elapsed = Date.now() - startTime;
-				console.log(`[Counter] cancelOrder SUCCESS in ${elapsed}ms → newTotal=${newTotal.toFixed(2)}€`);
 			} catch (err) {
 				const elapsed = Date.now() - startTime;
 				console.error(`[Counter] cancelOrder FAIL after ${elapsed}ms:`, err.message);
@@ -370,17 +364,14 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				throw new Error("Aucune session active");
 			}
 
-			const startTime = Date.now(); // ✅ Timer
+			const startTime = Date.now();
 			try {
-				console.log(`[Counter] requestBill START → session=${tableSession._id} table=${tableId}`);
-				
 				const updated = await counterService.requestBill(tableSession._id);
 				updateTableSession(actualRestaurantId, tableSession._id, {
 					billStatus: "bill_requested",
 				});
 				
 				const elapsed = Date.now() - startTime;
-				console.log(`[Counter] requestBill SUCCESS in ${elapsed}ms`);
 				return updated;
 			} catch (err) {
 				const elapsed = Date.now() - startTime;
@@ -395,7 +386,7 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 		 * @param {Array} discounts - Liste des réductions (optionnel)
 		 */
 		closeTable: async (paymentMethod, discounts = []) => {
-			const startTime = Date.now(); // ✅ Timer
+			const startTime = Date.now();
 			
 			// ✅ Validation stricte
 			if (!tableSession) {
@@ -406,8 +397,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 			}
 
 			try {
-				console.log(`[Counter] closeTable START → session=${tableSession._id} table=${tableId} method=${paymentMethod} discounts=${discounts.length}`);
-				
 				const closed = await counterService.closeSession(
 					tableSession._id,
 					paymentMethod,
@@ -419,7 +408,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				clearCart(tableId);
 				
 				const elapsed = Date.now() - startTime;
-				console.log(`[Counter] closeTable SUCCESS in ${elapsed}ms → finalAmount=${closed.pricing?.finalAmount?.toFixed(2)}€`);
 				return closed;
 			} catch (err) {
 				const elapsed = Date.now() - startTime;
