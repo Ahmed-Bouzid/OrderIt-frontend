@@ -31,7 +31,6 @@ import useCounterTableStore from "../../src/stores/useCounterTableStore";
 import useSocket from "../../hooks/useSocket";
 import counterService from "../../services/counterService";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
-
 import useUserStore from "../../src/stores/useUserStore";
 import useReservationStore from "../../src/stores/useReservationStore";
 
@@ -791,7 +790,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		}),
 		[activeSessions],
 	);
-	
+
 	/**
 	 * Vérifie s'il y a une réservation prévue dans les 2 prochaines heures sur cette table
 	 */
@@ -888,6 +887,8 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	 */
 	const hydrateSessionsFromTables = useCallback((restaurantIdParam, tablesWithState) => {
 		if (!tablesWithState || !restaurantIdParam) return;
+		
+		let hydratedCount = 0;
 		tablesWithState.forEach((table) => {
 			if (table.status !== "free" && table.sessionId) {
 				const sessionObj = {
@@ -901,8 +902,10 @@ const ActivityFloor = ({ restaurantInfo }) => {
 					source: "counter",
 				};
 				useCounterTableStore.getState().openSession(restaurantIdParam, sessionObj.tableId, sessionObj);
+				hydratedCount++;
 			}
 		});
+		
 	}, []);
 
 	// Initialiser restaurantId
@@ -995,7 +998,13 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	// Retourner la session d'une table (pour affichage)
 	const getTableSession = useCallback(
 		(tableId) => {
-			return activeSessions.find((s) => s.tableId === tableId) || null;
+			return activeSessions.find((s) => {
+				// ✅ Normaliser tableId (peut être string ou objet)
+				const sessionTableId = typeof s.tableId === 'object' && s.tableId?._id 
+					? s.tableId._id 
+					: s.tableId;
+				return sessionTableId === tableId || sessionTableId?.toString() === tableId?.toString();
+			}) || null;
 		},
 		[activeSessions],
 	);

@@ -129,10 +129,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 			return;
 		}
 
-		console.log(
-			`[useCounterTable] table=${tableId} session=${String(sessionId)} restaurant=${actualRestaurantId}`,
-		);
-
 		let cancelled = false;
 		const load = async () => {
 			const orders = await counterService.getSessionOrders(
@@ -278,9 +274,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 			// 🔑 Récupérer serverId depuis la session (assigné à l'ouverture de table)
 			const serverId = tableSession?.serverId || userId; // Fallback sur userId si manquant
 
-			console.log(`[Counter] sendToCook START → table=${tableId} session=${tableSession._id} total=${total.toFixed(2)}€ items=${items.length}`);
-			console.log(`[Counter] 🔑 serverId pour assignation: ${serverId || "❌ MANQUANT"}`);
-
 			// POST /orders via authFetch — retry auto sur 5xx, logs body erreur automatiques
 			const order = await authFetch(`${API_CONFIG.baseURL}/orders`, {
 				method: "POST",
@@ -320,7 +313,6 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				});
 
 				const elapsed = Date.now() - startTime;
-				console.log(`[Counter] sendToCook SUCCESS in ${elapsed}ms → order=${order._id} grandTotal=${newTotal.toFixed(2)}€`);
 
 				return order;
 			} catch (err) {

@@ -335,33 +335,33 @@ const AutoAssignModal = React.memo(
 
 				const dateString = selectedDate.toISOString().split("T")[0];
 				const result = await authFetch(
-					`${process.env.EXPO_PUBLIC_API_URL}/assistant/auto-assign-tables`,
-					{
-						method: "POST",
-						body: JSON.stringify({ restaurantId, date: dateString }),
-					},
-				);
+				`${API_CONFIG.baseURL}/assistant/auto-assign-tables`,
+				{
+					method: "POST",
+					body: JSON.stringify({ restaurantId, date: dateString }),
+				},
+			);
 
-				if (result?.status === "success" || result?.details) {
-					const details = result.details || {};
-					const assigned = details.assigned || [];
-					const reassigned = details.reassigned || [];
-					const unassigned = details.unassigned || [];
+			if (result?.status === "success" || result?.details) {
+				const details = result.details || {};
+				const assigned = details.assigned || [];
+				const reassigned = details.reassigned || [];
+				const unassigned = details.unassigned || [];
 
-					// Mettre à jour les lignes avec le résultat
-					setRows((prev) =>
-						prev.map((row) => {
-							const wasAssigned = assigned.find(
-								(a) => a.reservationId?.toString() === row._id?.toString(),
-							);
-							const wasReassigned = reassigned.find(
-								(a) => a.reservationId?.toString() === row._id?.toString(),
-							);
-							const wasUnassigned = unassigned.find(
-								(a) => a.reservationId?.toString() === row._id?.toString(),
-							);
+				// Mettre à jour les lignes avec le résultat
+				setRows((prev) =>
+					prev.map((row) => {
+						const wasAssigned = assigned.find(
+							(a) => a.reservationId?.toString() === row._id?.toString(),
+						);
+						const wasReassigned = reassigned.find(
+							(a) => a.reservationId?.toString() === row._id?.toString(),
+						);
+						const wasUnassigned = unassigned.find(
+							(a) => a.reservationId?.toString() === row._id?.toString(),
+						);
 
-							if (wasAssigned) {
+						if (wasAssigned) {
 								return {
 									...row,
 									assignStatus: "assigned",
@@ -412,11 +412,11 @@ const AutoAssignModal = React.memo(
 
 				const dateString = selectedDate.toISOString().split("T")[0];
 				const result = await authFetch(
-					`${process.env.EXPO_PUBLIC_API_URL}/assistant/clear-assignments`,
-					{
-						method: "POST",
-						body: JSON.stringify({ restaurantId, date: dateString }),
-					},
+				`${API_CONFIG.baseURL}/assistant/clear-assignments`,
+				{
+					method: "POST",
+					body: JSON.stringify({ restaurantId, date: dateString }),
+				},
 				);
 
 				if (result?.status === "success") {

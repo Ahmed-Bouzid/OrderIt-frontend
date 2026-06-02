@@ -15,16 +15,22 @@ const useWebReservationStore = create((set, get) => ({
 	// Compteur de nouvelles réservations (jauge visuelle)
 	unreadCount: 0,
 	
+	// ✅ Flag pour savoir si le store a été initialisé depuis AsyncStorage
+	isInitialized: false,
+	
 	// Initialiser depuis AsyncStorage
 	init: async () => {
 		try {
 			const stored = await AsyncStorage.getItem(STORAGE_KEY);
 			if (stored) {
 				const ids = JSON.parse(stored);
-				set({ seenIds: new Set(ids) });
+				set({ seenIds: new Set(ids), isInitialized: true });
+			} else {
+				set({ isInitialized: true });
 			}
 		} catch (error) {
 			console.error("[WebReservationStore] Erreur init:", error);
+			set({ isInitialized: true }); // ✅ Marquer comme initialisé même en cas d'erreur
 		}
 	},
 	
@@ -35,6 +41,7 @@ const useWebReservationStore = create((set, get) => ({
 			(r) => r.reservationSource === "online"
 		);
 		const unread = webReservations.filter((r) => !seenIds.has(r._id)).length;
+		
 		set({ unreadCount: unread });
 	},
 	
@@ -46,11 +53,13 @@ const useWebReservationStore = create((set, get) => ({
 		const webIds = webReservations.map((r) => r._id);
 		const newSeenIds = new Set([...get().seenIds, ...webIds]);
 		
+		console.log(`[WebReservationStore] markAllAsSeen: Marquage de ${webIds.length} réservations comme vues`);
 		set({ seenIds: newSeenIds, unreadCount: 0 });
 		
 		// Persister dans AsyncStorage
 		try {
 			await AsyncStorage.setItem(STORAGE_KEY, JSON.stringify([...newSeenIds]));
+			console.log(`[WebReservationStore] markAllAsSeen: Persisté ${newSeenIds.size} IDs dans AsyncStorage`);
 		} catch (error) {
 			console.error("[WebReservationStore] Erreur persist:", error);
 		}
@@ -71,7 +80,7 @@ const useWebReservationStore = create((set, get) => ({
 	
 	// Reset (pour tests)
 	reset: async () => {
-		set({ seenIds: new Set(), unreadCount: 0 });
+		set({ seenIds: new Set(), unreadCount: 0, isInitialized: false });
 		try {
 			await AsyncStorage.removeItem(STORAGE_KEY);
 		} catch (error) {

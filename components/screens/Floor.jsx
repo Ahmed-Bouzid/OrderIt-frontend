@@ -38,6 +38,7 @@ import useUserStore from "../../src/stores/useUserStore";
 import { useTheme } from "../../hooks/useTheme";
 import useSocket from "../../hooks/useSocket";
 import { ReceiptModal } from "../receipt";
+import counterService from "../../services/counterService";
 
 // ─────────────── Menu Item Component ───────────────
 const MenuItem = React.memo(
@@ -169,6 +170,13 @@ export default function Floor({ onStart }) {
 
 	// 🏪 Comptoir mode : état live des tables (TableSession)
 	const [counterTablesState, setCounterTablesState] = useState([]);
+	const [closedSessionsToday, setClosedSessionsToday] = useState([]);
+	
+	// 💰 Stats caisse depuis l'API (en cours + payées du jour)
+	const [caisseStatsFromAPI, setCaisseStatsFromAPI] = useState({
+		enCours: { count: 0, montant: 0, sessions: [] },
+		payees: { count: 0, montant: 0, sessions: [] },
+	});
 
 	// 🔒 Tables des réservations ouvertes du serveur connecté
 	const myOpenTableIds = useMemo(() => {
@@ -181,6 +189,7 @@ export default function Floor({ onStart }) {
 		);
 		const todayEnd = new Date(todayStart.getTime() + 24 * 60 * 60 * 1000);
 
+		// ✅ Tables depuis les réservations (mode Activity)
 		const myResas = reservations.filter((r) => {
 			const serverId = String(r.serverId?._id || r.serverId || "");
 			const d = new Date(r.reservationDate || r.createdAt);
@@ -196,8 +205,19 @@ export default function Floor({ onStart }) {
 			.map((r) => String(r.tableId?._id || r.tableId || ""))
 			.filter(Boolean);
 
+		// ✅ Tables depuis les sessions Comptoir actives (billStatus !== "closed")
+		if (enableComptoir && counterTablesState.length > 0) {
+			const counterTableIds = counterTablesState
+				.filter((table) => table.sessionId) // Table occupée
+				.map((table) => String(table._id || ""))
+				.filter(Boolean);
+			
+			console.log(`[Floor] myOpenTableIds → Activity=${tableIds.length} Comptoir=${counterTableIds.length}`);
+			tableIds.push(...counterTableIds);
+		}
+
 		return new Set(tableIds);
-	}, [isServerOnly, userId, reservations]);
+	}, [isServerOnly, userId, reservations, enableComptoir, counterTablesState]);
 
 	// Helper : vérifie si une commande appartient aux tables ouvertes du serveur
 	const isMyOrder = useCallback(
@@ -221,21 +241,17 @@ export default function Floor({ onStart }) {
 		[isServerOnly, userId],
 	);
 
-	// ⭐ Stats Caisse dynamiques — Comptoir: TableSession / Activity: Réservations
+	// ⭐ Stats Caisse dynamiques — Comptoir: API stats / Activity: Réservations
 	const caisseStats = useMemo(() => {
 		if (enableComptoir) {
-			// Mode Comptoir : lire les tables ouvertes (TableSession)
-			const enCours = counterTablesState.filter((t) => t.status !== "free");
+			// Mode Comptoir : utiliser les stats depuis l'API (inclut les payées du jour)
 			return {
-				enCoursCount: enCours.length,
-				enCoursMontant: enCours.reduce(
-					(sum, t) => sum + (t.totalAmount || 0),
-					0,
-				),
-				enCoursList: enCours,
-				payeesCount: 0,
-				payeesMontant: 0,
-				payeesList: [],
+				enCoursCount: caisseStatsFromAPI.enCours.count,
+				enCoursMontant: caisseStatsFromAPI.enCours.montant,
+				enCoursList: caisseStatsFromAPI.enCours.sessions,
+				payeesCount: caisseStatsFromAPI.payees.count,
+				payeesMontant: caisseStatsFromAPI.payees.montant,
+				payeesList: caisseStatsFromAPI.payees.sessions,
 			};
 		}
 
@@ -267,12 +283,34 @@ export default function Floor({ onStart }) {
 			payeesMontant: payees.reduce((sum, r) => sum + (r.totalAmount || 0), 0),
 			payeesList: payees,
 		};
-	}, [enableComptoir, counterTablesState, reservations, isMyReservation]);
+	}, [enableComptoir, caisseStatsFromAPI, reservations, isMyReservation]);
+
+	// 💰 LOG: Montant "Payées" dès que caisseStats change
+	useEffect(() => {
+	}, [caisseStats.payeesMontant, caisseStats.payeesCount]);
 
 	// Connecter le socket au montage
 	useEffect(() => {
 		connect();
 	}, [connect]);
+
+	// 💰 Charger les stats caisse quand restaurantId est disponible
+	useEffect(() => {
+		if (!restaurantId || !enableComptoir) {
+			return;
+		}
+
+		const fetchStats = async () => {
+			try {
+				const stats = await counterService.getCaisseStats(restaurantId);
+				setCaisseStatsFromAPI(stats);
+			} catch (err) {
+				console.error("[Floor] Erreur fetch stats caisse:", err);
+			}
+		};
+		
+		fetchStats();
+	}, [restaurantId, enableComptoir]);
 
 	// Vérifier la connexion socket périodiquement (moins fréquemment)
 	useEffect(() => {
@@ -377,9 +415,17 @@ export default function Floor({ onStart }) {
 			const id = await AsyncStorage.getItem("restaurantId");
 			if (id) {
 				setRestaurantId(id);
+				if (enableComptoir) {
+					try {
+						const stats = await counterService.getCaisseStats(id);
+						setCaisseStatsFromAPI(stats);
+					} catch (err) {
+						console.error("❌ [Floor] Erreur fetch stats caisse:", err);
+					}
+				}
 			}
 		} catch (error) {
-			console.error("❌ [STOCK] Erreur chargement restaurantId:", error);
+			console.error("❌ [Floor] Erreur chargement restaurantId:", error);
 		}
 	};
 
@@ -640,7 +686,15 @@ export default function Floor({ onStart }) {
 				.then((data) => {
 					if (data?.tables) setCounterTablesState(data.tables);
 				})
-				.catch(() => {});
+				.catch((err) => console.error("❌ [Floor] Erreur fetch tables:", err));
+			
+			if (restaurantId) {
+				counterService.getCaisseStats(restaurantId)
+					.then((stats) => {
+						setCaisseStatsFromAPI(stats);
+					})
+					.catch((err) => console.error("❌ [Floor] Erreur refresh stats:", err));
+			}
 		};
 
 		on("table-session", refreshCounterTables);
@@ -662,22 +716,56 @@ export default function Floor({ onStart }) {
 					.then((data) => {
 						if (data?.tables) setCounterTablesState(data.tables);
 					})
-					.catch(() => {});
+					.catch((err) => console.error("❌ [Floor] Erreur fetch initial:", err));
 			}
 			// Réduire l'intervalle puisque WebSocket gère les updates
 			const interval = setInterval(fetchOrders, 60000); // 1 min au lieu de 30s
 			return () => clearInterval(interval);
 		}
-	}, [restaurantId, fetchOrders, fetchLowStock, fetchReservations]);
+	}, [restaurantId, fetchOrders, fetchLowStock, fetchReservations, enableComptoir]);
 
 	// Extraire tous les items avec métadonnées (exclure "autre")
 	// 🔒 Serveur : uniquement les items de SES commandes
 	const allItems = useMemo(() => {
+		// ✅ Mapping catégories personnalisées → catégories standards
+		const normalizeCategoryToStandard = (category) => {
+			const cat = (category || "autre").toLowerCase().trim();
+			
+			// Boissons
+			if (["cafés", "café", "coffee", "cocktails", "cocktail", "jus frais", "jus", "juice", 
+			     "matcha", "milkshakes", "milkshake", "smoothies", "smoothie", "boissons", "boisson"].includes(cat)) {
+				return "boisson";
+			}
+			
+			// Plats / Salé
+			if (["salé", "sale", "plats", "plat", "principal", "main", "formule"].includes(cat)) {
+				return "plat";
+			}
+			
+			// Entrées
+			if (["entrée", "entree", "entrées", "entrees", "starter"].includes(cat)) {
+				return "entree";
+			}
+			
+			// Desserts
+			if (["desserts", "dessert", "sucré", "sucre", "sweet"].includes(cat)) {
+				return "dessert";
+			}
+			
+			// Autres catégories standards reconnues
+			if (["boisson", "entree", "plat", "dessert", "nouveautes"].includes(cat)) {
+				return cat;
+			}
+			
+			return "autre";
+		};
+		
 		const items = orders
 			.filter(isMyOrder)
 			.flatMap((order) =>
 				order.items.map((item) => ({
 					...item,
+					category: normalizeCategoryToStandard(item.category), // ✅ Normalisation
 					orderId: order._id,
 					tableNumber: order.tableId?.number || "?",
 					serverName:
@@ -686,6 +774,7 @@ export default function Floor({ onStart }) {
 				})),
 			)
 			.filter((item) => item.category && item.category !== "autre");
+		
 		return items;
 	}, [orders, isMyOrder]);
 
@@ -726,13 +815,33 @@ export default function Floor({ onStart }) {
 	// Items filtrés par catégorie active
 	const filteredItems = useMemo(() => {
 		if (!activeCategory) return [];
+		
+		// ✅ Tri multi-critères : statut puis date
+		const statusPriority = {
+			preparing: 1,
+			confirmed: 2,
+			ready: 3,
+			served: 4,
+			cancelled: 5,
+		};
+		
 		return allItems
 			.filter((item) => item.category === activeCategory)
-			.sort(
-				(a, b) =>
+			.sort((a, b) => {
+				// 1. Trier par statut (actifs en haut, servis/annulés en bas)
+				const priorityA = statusPriority[a.itemStatus] || 99;
+				const priorityB = statusPriority[b.itemStatus] || 99;
+				
+				if (priorityA !== priorityB) {
+					return priorityA - priorityB;
+				}
+				
+				// 2. À statut égal, trier par date (plus ancien en premier)
+				return (
 					new Date(a.startTime || a.createdAt) -
-					new Date(b.startTime || b.createdAt),
-			);
+					new Date(b.startTime || b.createdAt)
+				);
+			});
 	}, [allItems, activeCategory]);
 
 	// Gérer changement de catégorie
@@ -771,14 +880,43 @@ export default function Floor({ onStart }) {
 
 	// 💰 Caisse : afficher le ticket de caisse
 	const handleCaisseShowReceipt = useCallback(
-		(reservation) => {
-			const resaOrders = orders.filter(
-				(o) =>
-					(o.reservationId?._id?.toString() || o.reservationId?.toString()) ===
-					reservation._id?.toString(),
-			);
+		async (sessionOrReservation) => {
+			// ✅ Détecter le mode : Comptoir (tableSessionId) vs Activity (reservationId)
+			const isComptoir = enableComptoir && sessionOrReservation.source === "counter";
+			const targetId = sessionOrReservation._id?.toString();
+			
+			// ✅ PRIORITÉ : Utiliser totalAmount depuis la session/réservation (déjà calculé par le backend)
+			const totalAmount = sessionOrReservation.totalAmount || sessionOrReservation.pricing?.finalAmount || 0;
+			
+			// ✅ Filtrer les orders selon le mode (pour récupérer les items à afficher)
+			let targetOrders = orders.filter((o) => {
+				if (isComptoir) {
+					// Mode Comptoir : filtrer par tableSessionId
+					const orderSessionId = o.tableSessionId?._id?.toString() || o.tableSessionId?.toString();
+					return orderSessionId === targetId;
+				} else {
+					// Mode Activity : filtrer par reservationId
+					const orderReservationId = o.reservationId?._id?.toString() || o.reservationId?.toString();
+					return orderReservationId === targetId;
+				}
+			});
+			
+			// ✅ Si aucun order trouvé et mode Comptoir : fetcher depuis l'API
+			if (targetOrders.length === 0 && isComptoir) {
+				console.log(`[Floor] Aucun order en cache, fetch API pour session ${targetId}`);
+				try {
+					const result = await authFetch(`/orders?tableSessionId=${targetId}`, { method: "GET" });
+					const fetchedOrders = result.orders || result || [];
+					console.log(`[Floor] Orders fetchés: ${fetchedOrders.length}`);
+					targetOrders = fetchedOrders;
+				} catch (err) {
+					console.error("[Floor] Erreur fetch orders session:", err);
+				}
+			}
+			
+			// ✅ Merge items (même logique qu'avant)
 			const merged = {};
-			resaOrders.forEach((order) => {
+			targetOrders.forEach((order) => {
 				(order.items || []).forEach((item) => {
 					const key = item.productId?._id || item.productId || item.name;
 					if (merged[key]) {
@@ -788,12 +926,18 @@ export default function Floor({ onStart }) {
 					}
 				});
 			});
+			
+			const mergedItems = Object.values(merged);
+			
+			console.log(`[Floor] handleCaisseShowReceipt → mode=${isComptoir ? "comptoir" : "activity"} targetId=${targetId} total=${totalAmount.toFixed(2)}€ (depuis session) orders=${targetOrders.length} items=${mergedItems.length}`);
+			
 			setReceiptTargetCaisse({
-				reservation,
-				items: Object.values(merged),
+				reservation: sessionOrReservation, // Peut être une session ou une réservation
+				items: mergedItems,
+				amount: totalAmount, // ✅ Montant depuis la session (source de vérité)
 			});
 		},
-		[orders],
+		[orders, enableComptoir, authFetch],
 	);
 
 	// ⭐ BLOC3/C1 — Réinitialiser une table manuellement (fermer session)
@@ -1549,7 +1693,7 @@ export default function Floor({ onStart }) {
 												>
 													<Text style={floorStyles.caisseDetailName}>
 														{enableComptoir
-															? `Table ${r.number || "?"}`
+															? `Table ${r.tableNumber || "?"}`
 															: r.clientName || "Client"}
 													</Text>
 													<Text style={floorStyles.caisseDetailAmount}>
@@ -1596,7 +1740,9 @@ export default function Floor({ onStart }) {
 									<View style={floorStyles.caisseDetailSection}>
 										{caisseStats.payeesList.length === 0 ? (
 											<Text style={floorStyles.caisseDetailEmpty}>
-												Aucune réservation payée
+												{enableComptoir
+													? "Aucune table payée aujourd'hui"
+													: "Aucune réservation payée"}
 											</Text>
 										) : (
 											caisseStats.payeesList.map((r) => (
@@ -1607,7 +1753,9 @@ export default function Floor({ onStart }) {
 													activeOpacity={0.7}
 												>
 													<Text style={floorStyles.caisseDetailName}>
-														{r.clientName || "Client"}
+														{enableComptoir
+															? `Table ${r.tableNumber || "?"}`
+															: r.clientName || "Client"}
 													</Text>
 													<Text style={floorStyles.caisseDetailAmount}>
 														{(r.totalAmount || 0).toFixed(2)}€
@@ -1654,6 +1802,7 @@ export default function Floor({ onStart }) {
 					onClose={() => setReceiptTargetCaisse(null)}
 					reservation={receiptTargetCaisse.reservation}
 					items={receiptTargetCaisse.items}
+					amount={receiptTargetCaisse.amount} // ✅ AJOUT : passer le montant total
 					paymentMethod={
 						receiptTargetCaisse.reservation.paymentMethod || "Autre"
 					}

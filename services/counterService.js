@@ -19,13 +19,10 @@ import { fetchWithAuth } from "../utils/tokenManager";
 const apiCall = async (name, url, options = {}) => {
 	const startTime = Date.now();
 	try {
-		console.log(`[Counter] ${name} START`);
-		
 		const response = await fetchWithAuth(url, options);
 		
 		if (!response.ok) {
 			const elapsed = Date.now() - startTime;
-			// Tenter de parser le message d'erreur backend
 			let errorMsg = `HTTP ${response.status}`;
 			try {
 				const errorData = await response.json();
@@ -36,8 +33,6 @@ const apiCall = async (name, url, options = {}) => {
 		}
 		
 		const data = await response.json();
-		const elapsed = Date.now() - startTime;
-		console.log(`[Counter] ${name} SUCCESS in ${elapsed}ms`);
 		return data;
 	} catch (err) {
 		const elapsed = Date.now() - startTime;

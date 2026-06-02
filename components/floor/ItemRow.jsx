@@ -42,41 +42,68 @@ const STATUS_CONFIG = {
 
 const ItemRow = React.memo(({ item, onUpdateStatus, THEME }) => {
 	const [isUpdating, setIsUpdating] = useState(false);
+	const [lastTap, setLastTap] = useState(0);
 
 	const statusConfig =
 		STATUS_CONFIG[item.itemStatus] || STATUS_CONFIG.confirmed;
 	const isCompleted =
 		item.itemStatus === "served" || item.itemStatus === "cancelled";
 
-	// Menu long press
-	const handleLongPress = () => {
-		if (isCompleted) return;
+	// ✅ Double tap handler
+	const handleDoubleTap = () => {
+		const now = Date.now();
+		const DOUBLE_TAP_DELAY = 300; // ms
 
-		const actions = [
-			{
-				text: "Marquer comme Servi",
-				onPress: () => handleStatusChange("served"),
-			},
-			{
-				text: "Annuler",
-				onPress: () => handleStatusChange("cancelled"),
-				style: "destructive",
-			},
-			{ text: "Fermer", style: "cancel" },
-		];
-
-		Alert.alert("Actions", `${item.name} - Table ${item.tableNumber}`, actions);
+		if (now - lastTap < DOUBLE_TAP_DELAY) {
+			// Double tap détecté !
+			handleToggleStatus();
+			setLastTap(0); // Reset pour éviter triple tap
+		} else {
+			setLastTap(now);
+		}
 	};
 
-	const handleStatusChange = async (newStatus) => {
+	// ✅ Toggle entre servi ↔ en préparation
+	const handleToggleStatus = async () => {
 		if (isUpdating) return;
+		
+		// Annulé = état final, pas de toggle
+		if (item.itemStatus === "cancelled") return;
 
+		const newStatus = item.itemStatus === "served" ? "preparing" : "served";
+		
 		setIsUpdating(true);
 		try {
 			await onUpdateStatus(item.orderId, item._id, newStatus);
 		} finally {
 			setIsUpdating(false);
 		}
+	};
+
+	// 🚨 Long press → Annuler définitivement (action destructive)
+	const handleLongPress = () => {
+		if (item.itemStatus === "cancelled") return; // Déjà annulé
+
+		Alert.alert(
+			"Annuler cet item ?",
+			`${item.name} - Table ${item.tableNumber}`,
+			[
+				{
+					text: "Annuler l'item",
+					style: "destructive",
+					onPress: async () => {
+						if (isUpdating) return;
+						setIsUpdating(true);
+						try {
+							await onUpdateStatus(item.orderId, item._id, "cancelled");
+						} finally {
+							setIsUpdating(false);
+						}
+					},
+				},
+				{ text: "Retour", style: "cancel" },
+			]
+		);
 	};
 
 	const styles = useMemo(
@@ -87,8 +114,9 @@ const ItemRow = React.memo(({ item, onUpdateStatus, THEME }) => {
 	return (
 		<TouchableOpacity
 			style={styles.container}
+			onPress={handleDoubleTap}
 			onLongPress={handleLongPress}
-			disabled={isCompleted}
+			disabled={item.itemStatus === "cancelled"}
 			activeOpacity={0.7}
 		>
 			{/* Ligne 1: Plat + Status */}

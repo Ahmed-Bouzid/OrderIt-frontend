@@ -39,17 +39,20 @@ export default function DateNavigator({
 	
 	// 🔔 Stores pour notifications de réservations web
 	const reservations = useReservationStore((state) => state.reservations);
-	const { unreadCount, init, updateUnreadCount } = useWebReservationStore();
+	const { unreadCount, init, updateUnreadCount, isInitialized } = useWebReservationStore();
 	
 	// Initialiser le store au montage
 	useEffect(() => {
 		init();
 	}, [init]);
 	
-	// Calculer le compteur non lus à chaque changement de réservations
+	// Calculer le compteur non lus uniquement après initialisation
 	useEffect(() => {
+		// ✅ Attendre que le store soit initialisé depuis AsyncStorage
+		if (!isInitialized) return;
+		
 		updateUnreadCount(reservations);
-	}, [reservations, updateUnreadCount]);
+	}, [reservations, isInitialized, updateUnreadCount]);
 
 	const fetchMonthlyCounts = useCallback(
 		async (year, month) => {

@@ -23,10 +23,14 @@ import {
 	ActivityIndicator,
 	Alert,
 	SafeAreaView,
+	Modal,
+	Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import zReportService from "../../services/zReportService";
+
+const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // ────────────────────────────────────────────────────────────────────────────
 // Sous-composant : ligne de détail (label / valeur)
@@ -69,6 +73,8 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 	const [historyMeta, setHistoryMeta] = useState(null);
 	const [loadingHistory, setLoadingHistory] = useState(false);
 	const [historyVisible, setHistoryVisible] = useState(false);
+	const [selectedZReport, setSelectedZReport] = useState(null); // Z sélectionné pour détail
+	const [loadingDetail, setLoadingDetail] = useState(false);
 	const [error, setError] = useState("");
 
 	// ── Période par défaut : aujourd'hui 00h00 → maintenant ───────────────
@@ -156,20 +162,180 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 		}
 	}, [historyVisible, restaurantId]);
 
+	// ── Sélection d'un Z pour afficher le détail ─────────────────────────
+	const handleSelectReport = useCallback(async (reportId) => {
+		setLoadingDetail(true);
+		setError("");
+		try {
+			const detail = await zReportService.getById(reportId, restaurantId);
+			setSelectedZReport(detail);
+		} catch (e) {
+			setError(e.message || "Erreur chargement détail.");
+		} finally {
+			setLoadingDetail(false);
+		}
+	}, [restaurantId]);
+
+	// ── Retour depuis le détail vers l'historique ────────────────────────
+	const handleBackToHistory = useCallback(() => {
+		setSelectedZReport(null);
+	}, []);
+
 	// ── Rendu ─────────────────────────────────────────────────────────────
 	return (
-		<SafeAreaView style={styles.safeArea}>
-			{/* ── Header ──────────────────────────────────────────────── */}
-			<View style={styles.header}>
-				<Text style={styles.title}>Z de caisse</Text>
-				<TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Fermer">
-					<Ionicons name="close" size={22} color={THEME.colors.text.primary} />
-				</TouchableOpacity>
-			</View>
+		<Modal
+			visible={true}
+			transparent={true}
+			animationType="fade"
+			onRequestClose={onClose}
+		>
+			<View style={styles.modalOverlay}>
+				<View style={styles.modalContainer}>
+					{/* ── Header ──────────────────────────────────────────────── */}
+					<View style={styles.header}>
+						<Text style={styles.title}>Z de caisse</Text>
+						<TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Fermer">
+							<Ionicons name="close" size={22} color={THEME.colors.text.primary} />
+						</TouchableOpacity>
+					</View>
 
-			<ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-				{/* ── Période ─────────────────────────────────────────── */}
-				<View style={styles.section}>
+					<ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
+						{/* ── DÉTAIL D'UN Z SÉLECTIONNÉ ─────────────────────────── */}
+						{selectedZReport ? (
+					<View>
+						{/* Bouton retour */}
+						<TouchableOpacity
+							style={[styles.btn, styles.btnGhost, { marginBottom: 16 }]}
+							onPress={handleBackToHistory}
+						>
+							<Ionicons
+								name="arrow-back"
+								size={18}
+								color={THEME.colors.text.primary}
+								style={{ marginRight: 8 }}
+							/>
+							<Text style={[styles.btnText, { color: THEME.colors.text.primary }]}>
+								Retour à l'historique
+							</Text>
+						</TouchableOpacity>
+
+						{/* En-tête du Z */}
+						<View style={styles.detailHeader}>
+							<Text style={styles.detailTitle}>Z #{selectedZReport.sequenceNumber}</Text>
+							<Text style={styles.detailDate}>
+								Généré le {new Date(selectedZReport.createdAt).toLocaleDateString("fr-FR", {
+									weekday: "long", day: "numeric", month: "long", year: "numeric"
+								})} à {new Date(selectedZReport.createdAt).toLocaleTimeString("fr-FR", {
+									hour: "2-digit", minute: "2-digit"
+								})}
+							</Text>
+						</View>
+
+						{/* Période couverte */}
+						<View style={styles.section}>
+							<Text style={styles.sectionLabel}>Période couverte</Text>
+							<Text style={styles.periodText}>
+								{new Date(selectedZReport.periodStart).toLocaleDateString("fr-FR", {
+									weekday: "long", day: "numeric", month: "long"
+								})}
+								{" · "}
+								{new Date(selectedZReport.periodStart).toLocaleTimeString("fr-FR", {
+									hour: "2-digit", minute: "2-digit"
+								})}
+								{" → "}
+								{new Date(selectedZReport.periodEnd).toLocaleTimeString("fr-FR", {
+									hour: "2-digit", minute: "2-digit"
+								})}
+							</Text>
+						</View>
+
+						{/* Chiffres clés */}
+						<View style={styles.previewCard}>
+							<Row label="CA brut" value={zReportService.formatCents(selectedZReport.grossSalesCents)} styles={styles} />
+							{selectedZReport.totalRefundsCents > 0 && (
+								<Row label="Remboursements" value={`-${zReportService.formatCents(selectedZReport.totalRefundsCents)}`} styles={styles} />
+							)}
+							<View style={styles.divider} />
+							<Row label="CA net" value={zReportService.formatCents(selectedZReport.netSalesCents)} bold styles={styles} />
+							<View style={styles.divider} />
+
+							{/* Ventilation paiements */}
+							{selectedZReport.paymentBreakdown?.map((p) => (
+								<Row
+									key={p.method}
+									label={`${METHOD_LABEL[p.method] || p.method} (${p.ticketCount} ticket${p.ticketCount > 1 ? "s" : ""})`}
+									value={zReportService.formatCents(p.amountCents)}
+									styles={styles}
+								/>
+							))}
+
+							<View style={styles.divider} />
+
+							{/* Statistiques tickets */}
+							<Row label="Nombre de tickets" value={String(selectedZReport.ticketCount)} styles={styles} />
+							<Row label="Panier moyen" value={zReportService.formatCents(selectedZReport.avgBasketCents)} styles={styles} />
+							{selectedZReport.maxTicketCents > 0 && (
+								<Row label="Ticket max" value={zReportService.formatCents(selectedZReport.maxTicketCents)} styles={styles} />
+							)}
+
+							{/* Écart caisse */}
+							{(selectedZReport.openingFloatCents > 0 || selectedZReport.closingCountCents > 0) && (
+								<>
+									<View style={styles.divider} />
+									<Row
+										label="Fond de caisse initial"
+										value={zReportService.formatCents(selectedZReport.openingFloatCents)}
+										styles={styles}
+									/>
+									<Row
+										label="Espèces comptées"
+										value={zReportService.formatCents(selectedZReport.closingCountCents)}
+										styles={styles}
+									/>
+									<Row
+										label="Espèces attendues"
+										value={zReportService.formatCents(
+											selectedZReport.openingFloatCents +
+											(selectedZReport.paymentBreakdown?.find(p => p.method === "cash")?.amountCents || 0)
+										)}
+										styles={styles}
+									/>
+									<Row
+										label="Écart caisse"
+										value={zReportService.formatVariance(selectedZReport.cashVarianceCents)}
+										color={
+											selectedZReport.cashVarianceCents === 0
+												? "#22C55E"
+												: selectedZReport.cashVarianceCents > 0
+												? "#F59E0B"
+												: "#EF4444"
+										}
+										bold
+										styles={styles}
+									/>
+								</>
+							)}
+
+							{/* Notes */}
+							{selectedZReport.notes && (
+								<>
+									<View style={styles.divider} />
+									<View style={styles.section}>
+										<Text style={styles.sectionLabel}>Notes</Text>
+										<Text style={styles.periodText}>{selectedZReport.notes}</Text>
+									</View>
+								</>
+							)}
+						</View>
+
+						{/* Espace bas */}
+						<View style={{ height: 40 }} />
+					</View>
+						) : (
+							<>
+								{/* ── CRÉATION NOUVEAU Z ────────────────────────────── */}
+								{/* ── Période ─────────────────────────────────────────── */}
+								<View style={styles.section}>
 					<Text style={styles.sectionLabel}>Période</Text>
 					<Text style={styles.periodText}>
 						{periodStart.toLocaleDateString("fr-FR", {
@@ -358,7 +524,12 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 							<Text style={styles.emptyText}>Aucun Z généré pour ce restaurant.</Text>
 						) : (
 							history.map((z) => (
-								<View key={z._id} style={styles.historyItem}>
+								<TouchableOpacity 
+									key={z._id} 
+									style={styles.historyItem}
+									onPress={() => handleSelectReport(z._id)}
+									activeOpacity={0.7}
+								>
 									<View style={{ flex: 1 }}>
 										<Text style={styles.historyTitle}>Z #{z.sequenceNumber}</Text>
 										<Text style={styles.historyMeta}>
@@ -367,10 +538,18 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 											{z.generatedBy?.name ?? "—"}
 										</Text>
 									</View>
-									<Text style={styles.historyAmount}>
-										{zReportService.formatCents(z.netSalesCents)}
-									</Text>
-								</View>
+									<View style={{ alignItems: "flex-end" }}>
+										<Text style={styles.historyAmount}>
+											{zReportService.formatCents(z.netSalesCents)}
+										</Text>
+										<Ionicons 
+											name="chevron-forward" 
+											size={18} 
+											color={THEME.colors.text.muted}
+											style={{ marginTop: 2 }}
+										/>
+									</View>
+								</TouchableOpacity>
 							))
 						)}
 						{historyMeta?.hasMore && (
@@ -381,8 +560,12 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 
 				{/* Espace bas de page */}
 				<View style={{ height: 40 }} />
-			</ScrollView>
-		</SafeAreaView>
+				</>
+				)}
+				</ScrollView>
+			</View>
+		</View>
+		</Modal>
 	);
 }
 
@@ -391,9 +574,25 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 // ────────────────────────────────────────────────────────────────────────────
 const createStyles = (THEME) =>
 	StyleSheet.create({
-		safeArea: {
+		// ─── Modal Overlay & Container ─────────────────────────────
+		modalOverlay: {
 			flex: 1,
+			backgroundColor: "rgba(0, 0, 0, 0.6)",
+			justifyContent: "center",
+			alignItems: "center",
+			padding: 20,
+		},
+		modalContainer: {
+			width: Math.min(SCREEN_WIDTH - 40, 600),
+			height: SCREEN_HEIGHT * 0.85,
 			backgroundColor: THEME.colors.background.dark,
+			borderRadius: 16,
+			overflow: "hidden",
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 8 },
+			shadowOpacity: 0.3,
+			shadowRadius: 16,
+			elevation: 10,
 		},
 
 		// ─── Header ────────────────────────────────────────────────
@@ -577,6 +776,28 @@ const createStyles = (THEME) =>
 			fontSize: 15,
 			fontWeight: "700",
 			color: THEME.colors.text.primary,
+		},
+
+		// ─── Détail d'un Z ─────────────────────────────────────────
+		detailHeader: {
+			backgroundColor: THEME.colors.background.elevated,
+			borderWidth: 1,
+			borderColor: THEME.colors.border.subtle,
+			borderRadius: 12,
+			padding: 20,
+			marginBottom: 16,
+			alignItems: "center",
+		},
+		detailTitle: {
+			fontSize: 24,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginBottom: 8,
+		},
+		detailDate: {
+			fontSize: 13,
+			color: THEME.colors.text.secondary,
+			textAlign: "center",
 		},
 		emptyText: {
 			fontSize: 13,

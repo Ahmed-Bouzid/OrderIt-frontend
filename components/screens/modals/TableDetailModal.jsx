@@ -145,16 +145,6 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 		return Math.max(0, subtotal);
 	}, [grandTotal, discounts, sessionOrders]);
 
-	// 🔍 Log de diagnostic pour tracer le décalage
-	React.useEffect(() => {
-		if (visible && session) {
-			console.log(`[TableDetailModal] table=${tableId} session=${session._id} sentTotal=${sentTotal.toFixed(2)}€ cartTotal=${cartTotal.toFixed(2)}€ grandTotal=${grandTotal.toFixed(2)}€ orders=${sessionOrders.length}`);
-			sessionOrders.forEach((o, i) => {
-				console.log(`  [Order ${i+1}] id=${o._id} status=${o.orderStatus} total=${o.totalAmount?.toFixed(2) || 0}€`);
-			});
-		}
-	}, [visible, session, sentTotal, cartTotal, grandTotal, sessionOrders, tableId]);
-
 	const styles = useMemo(() => createStyles(THEME), [THEME]);
 
 	// ─── Handlers ────────────────────────────────────────────────────────
