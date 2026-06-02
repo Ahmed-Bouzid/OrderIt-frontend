@@ -5,7 +5,6 @@
 import React, {
 	useState,
 	useCallback,
-	useRef,
 	useEffect,
 	useMemo,
 } from "react";
@@ -19,7 +18,6 @@ import {
 	Platform,
 	ScrollView,
 	StyleSheet,
-	Animated,
 	Dimensions,
 	Alert,
 	ActivityIndicator,
@@ -204,7 +202,7 @@ const TableSelector = React.memo(
 
 // ─────────────── Main Component ───────────────
 const NewReservationModal = React.memo(
-	({ visible, onClose, onCreate, tables, theme, initialData = null }) => {
+	({ visible, onClose, onCreate, tables, initialData = null }) => {
 		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const authFetch = useAuthFetch();
@@ -242,7 +240,6 @@ const NewReservationModal = React.memo(
 		const [loadingTables, setLoadingTables] = useState(false);
 
 		// ⭐ Assistant de réservations
-		const [assistantVisible, setAssistantVisible] = useState(false);
 		const [assistantResult, setAssistantResult] = useState(null);
 		const [assistantLoading, setAssistantLoading] = useState(false);
 
@@ -363,17 +360,6 @@ const NewReservationModal = React.memo(
 
 		const modalStyles = useMemo(() => createStyles(THEME), [THEME]);
 
-		// Animation
-		const slideAnim = useRef(new Animated.Value(0)).current;
-
-		useEffect(() => {
-			Animated.timing(slideAnim, {
-				toValue: step,
-				duration: 300,
-				useNativeDriver: true,
-			}).start();
-		}, [step]);
-
 		const resetForm = useCallback(() => {
 			setStep(1);
 			setClientName("");
@@ -428,7 +414,6 @@ const NewReservationModal = React.memo(
 			}
 
 			setAssistantLoading(true);
-			setAssistantVisible(true);
 			setAssistantResult(null);
 
 			try {
@@ -1524,16 +1509,6 @@ const createStyles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			gap: THEME.spacing.sm,
-		},
-		assistantButton: {
-			width: 44,
-			height: 44,
-			borderRadius: 22,
-			backgroundColor: `${THEME.colors.primary.amber}20`,
-			alignItems: "center",
-			justifyContent: "center",
-			borderWidth: 2,
-			borderColor: `${THEME.colors.primary.amber}40`,
 		},
 		infoButton: {
 			width: 44,
