@@ -10,8 +10,6 @@ import React, {
 	useCallback,
 	useRef,
 } from "react";
-import { useTheme } from "../../hooks/useTheme";
-import styles from "../styles";
 import Login from "../../app/login";
 import {
 	View,
@@ -124,7 +122,7 @@ export default function Activity() {
 		const interval = setInterval(() => setNow(Date.now()), 1000);
 		return () => clearInterval(interval);
 	}, []);
-	const { themeMode, theme, initTheme } = useThemeStore();
+	const { theme, initTheme } = useThemeStore();
 	const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 	const authFetch = useAuthFetch();
 	const activityStyles = useMemo(() => createStyles(THEME), [THEME]);
@@ -849,44 +847,6 @@ export default function Activity() {
 		() => openedReservations.filter((r) => r._id !== activeId),
 		[openedReservations, activeId],
 	);
-
-	// Render step 2 (validation)
-	const renderValidationItems = useMemo(() => {
-		if (!activeReservation || step !== 2) return null;
-
-		return activeReservation.orderItems
-			.filter((i) => i.quantity > 0)
-			.map((i, index) => {
-				const product = products.find((p) => p._id === i.productId);
-				// Utiliser i.name (nom enrichi avec options) si présent, sinon product?.name
-				const displayName = i.name || product?.name;
-				return (
-					<View key={`${i.productId}-${index}`} style={styles.productRow}>
-						<Text style={[{ flex: 1 }, { color: theme.textColor }]}>
-							{displayName}
-						</Text>
-						<Text
-							style={{
-								width: 400,
-								textAlign: "center",
-								color: theme.textColor,
-							}}
-						>
-							{i.quantity}
-						</Text>
-						<Text
-							style={{
-								width: 60,
-								textAlign: "right",
-								color: theme.textColor,
-							}}
-						>
-							{product?.price}€
-						</Text>
-					</View>
-				);
-			});
-	}, [activeReservation, step, products, theme]);
 
 	// Afficher skeleton pendant chargement du token OU des données
 	if (isTokenLoading || isLoading) {
@@ -1635,31 +1595,6 @@ const createStyles = (THEME) =>
 			fontWeight: THEME.typography.weights.bold,
 			color: THEME.colors.text.primary,
 		},
-		internalText: {
-			fontSize: THEME.typography.sizes.xs,
-			color: THEME.colors.text.muted,
-			marginTop: 2,
-		},
-		badge: {
-			flexDirection: "row",
-			alignItems: "center",
-			paddingVertical: THEME.spacing.xs,
-			paddingHorizontal: THEME.spacing.sm,
-			borderRadius: THEME.radius.full,
-			marginLeft: THEME.spacing.sm,
-		},
-		badgeDot: {
-			width: 6,
-			height: 6,
-			borderRadius: 3,
-			backgroundColor: THEME.colors.status.success,
-			marginRight: THEME.spacing.xs,
-		},
-		badgeText: {
-			fontSize: THEME.typography.sizes.xs,
-			fontWeight: THEME.typography.weights.semibold,
-			color: THEME.colors.status.success,
-		},
 		headerInfo: {
 			flex: 1,
 			marginLeft: THEME.spacing.lg,
@@ -1678,36 +1613,6 @@ const createStyles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			gap: THEME.spacing.sm,
-		},
-		notificationButton: {
-			width: 44,
-			height: 44,
-			borderRadius: THEME.radius.md,
-			backgroundColor: THEME.colors.background.elevated,
-			alignItems: "center",
-			justifyContent: "center",
-			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
-			position: "relative",
-		},
-		notificationBadge: {
-			position: "absolute",
-			top: -4,
-			right: -4,
-			minWidth: 20,
-			height: 20,
-			borderRadius: 10,
-			backgroundColor: "#ef4444",
-			alignItems: "center",
-			justifyContent: "center",
-			paddingHorizontal: 6,
-			borderWidth: 2,
-			borderColor: THEME.colors.background.dark,
-		},
-		notificationBadgeText: {
-			fontSize: 10,
-			fontWeight: "700",
-			color: "#fff",
 		},
 		settingsButton: {
 			width: 44,
@@ -1769,22 +1674,6 @@ const createStyles = (THEME) =>
 			borderColor: "rgba(245, 158, 11, 0.3)",
 			borderStyle: "dashed",
 		},
-		// 🎬 Styles pour l'animation Card Stack
-		exitCard: {
-			position: "absolute",
-			top: 0,
-			left: 0,
-			right: 0,
-			bottom: 0,
-			zIndex: 10,
-		},
-		exitCardContent: {
-			flex: 1,
-			alignItems: "center",
-			justifyContent: "center",
-			backgroundColor: THEME.colors.background.card,
-		},
-
 		// 📋 Styles pour le Récapitulatif (step 3)
 		recapContainer: {
 			flex: 1,
