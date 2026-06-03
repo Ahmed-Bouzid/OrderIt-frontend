@@ -24,9 +24,9 @@ import {
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import useSocket from "../../hooks/useSocket";
+import { useTheme } from "../../hooks/useTheme";
 
 export default function FloorPlanModal({
 	visible,
@@ -36,9 +36,9 @@ export default function FloorPlanModal({
 	focusTableId = null,
 	upcomingReservations = [],
 }) {
-	const THEME = useTheme();
 	const authFetch = useAuthFetch();
-	const styles = useMemo(() => createStyles(THEME), [THEME]);
+	const THEME = useTheme();
+			const styles = useMemo(() => createStyles(THEME), [THEME]);
 
 	// Mode simulation pour salles 2 et 3
 	const isSimulation = roomNumber > 1;
@@ -431,14 +431,12 @@ export default function FloorPlanModal({
 
 		// Détection overlap — au moment du drop, données les plus fraîches
 		if (!dragEnabledRef.current) {
-			console.log('[SWAP] skip — drag not enabled');
 			return;
 		}
 		const allTables = tablesRef.current;
 		const moved = allTables.find(t => t._id === tableId);
 		const wA = (moved?.sizeW || moved?.size || 1) * 100;
 		const hA = (moved?.sizeH || moved?.size || 1) * 100;
-		console.log('[SWAP] drop', { tableId, newPosition, tablesCount: allTables.length, wA, hA, movedFound: !!moved });
 		for (const other of allTables) {
 			if (other._id === tableId) continue;
 			const panB = panRefsMap.current[other._id];
@@ -448,10 +446,8 @@ export default function FloorPlanModal({
 			const hB = (other.sizeH || other.size || 1) * 100;
 			const overlap = newPosition.x < xB + wB && newPosition.x + wA > xB &&
 				newPosition.y < yB + hB && newPosition.y + hA > yB;
-			console.log('[SWAP] check vs', other._id, { xA: newPosition.x, yA: newPosition.y, wA, hA, xB, yB, wB, hB, overlap, hasPan: !!panB });
 			if (overlap) {
 				setSwapCandidates({ idA: tableId, idB: other._id });
-				console.log('[SWAP] overlap detected!', tableId, other._id);
 				return;
 			}
 		}
@@ -637,7 +633,7 @@ export default function FloorPlanModal({
 							</Text>
 							{!isSimulation && (
 								<TouchableOpacity onPress={handleCreateTable} style={styles.leftPanelAddBtn}>
-									<Ionicons name="add" size={18} color={THEME.colors.primary.amber} />
+									<Ionicons name="add" size={18} color={"#F59E0B"} />
 								</TouchableOpacity>
 							)}
 						</View>
@@ -836,7 +832,7 @@ export default function FloorPlanModal({
 									<Ionicons
 										name="calendar-outline"
 										size={20}
-										color={resaMode ? "#fff" : THEME.colors.text.muted}
+										color={resaMode ? "#fff" : "#64748B"}
 									/>
 									<Text
 										style={[
@@ -864,10 +860,10 @@ export default function FloorPlanModal({
 										size={20}
 										color={
 											resaMode
-												? THEME.colors.text.muted + "40"
+												? "#64748B" + "40"
 												: dragEnabled
 													? "#fff"
-													: THEME.colors.text.muted
+													: "#64748B"
 										}
 									/>
 									<Text
@@ -898,10 +894,10 @@ export default function FloorPlanModal({
 										size={20}
 										color={
 											resaMode
-												? THEME.colors.text.muted + "40"
+												? "#64748B" + "40"
 												: resizeEnabled
 													? "#fff"
-													: THEME.colors.text.muted
+													: "#64748B"
 										}
 									/>
 									<Text
@@ -929,10 +925,10 @@ export default function FloorPlanModal({
 										size={20}
 										color={
 											resaMode
-												? THEME.colors.text.muted + "40"
+												? "#64748B" + "40"
 												: snapToGrid
 													? "#fff"
-													: THEME.colors.text.muted
+													: "#64748B"
 										}
 									/>
 									<Text
@@ -959,10 +955,10 @@ export default function FloorPlanModal({
 										size={20}
 										color={
 											resaMode
-												? THEME.colors.text.muted + "40"
+												? "#64748B" + "40"
 												: showGrid
 													? "#fff"
-													: THEME.colors.text.muted
+													: "#64748B"
 										}
 									/>
 									<Text
@@ -981,7 +977,7 @@ export default function FloorPlanModal({
 								<Ionicons
 									name="close"
 									size={24}
-									color={THEME.colors.text.primary}
+									color={"#F1F5F9"}
 								/>
 							</TouchableOpacity>
 						</View>
@@ -998,7 +994,7 @@ export default function FloorPlanModal({
 									{ dir: 'bottom', icon: 'arrow-down', label: 'B' },
 								].map(({ dir, icon, label }) => (
 									<TouchableOpacity key={dir} style={[styles.alignBtn, !selectedTableId && styles.alignBtnDisabled]} onPress={() => alignTable(dir)} disabled={!selectedTableId}>
-										<Ionicons name={icon} size={14} color={selectedTableId ? THEME.colors.primary.amber : THEME.colors.text.muted} />
+										<Ionicons name={icon} size={14} color={selectedTableId ? "#F59E0B" : "#64748B"} />
 										<Text style={[styles.alignBtnText, selectedTableId && styles.alignBtnTextActive]}>{label}</Text>
 									</TouchableOpacity>
 								))}
@@ -1085,7 +1081,7 @@ export default function FloorPlanModal({
 										<Ionicons
 											name="close"
 											size={16}
-											color={THEME.colors.text.muted}
+											color={"#64748B"}
 										/>
 									</TouchableOpacity>
 								</View>
@@ -1095,7 +1091,7 @@ export default function FloorPlanModal({
 									<Ionicons
 										name="restaurant-outline"
 										size={64}
-										color={THEME.colors.text.muted}
+										color={"#64748B"}
 									/>
 									<Text style={styles.emptyStateTitle}>Aucune table</Text>
 									<Text style={styles.emptyStateText}>
@@ -1118,7 +1114,6 @@ export default function FloorPlanModal({
 												
 												// 🐛 DEBUG: Log pour Tab3
 												if (table.number === "Tab3" || table.number === 3) {
-													console.log(`[DEBUG Tab3] Resa ${r.clientName}: tableId=${tableId}, table._id=${table._id}, match=${match}`);
 												}
 												
 												return match;
@@ -1131,7 +1126,6 @@ export default function FloorPlanModal({
 										
 										// 🐛 DEBUG: Log global pour Tab3
 										if (table.number === "Tab3" || table.number === 3) {
-											console.log(`[DEBUG Tab3] Total upcoming: ${upcomingReservations.length}, nextReservation:`, nextReservation?.clientName || "null");
 										}
 
 										const resaInfo = resaMode ? getTableResa(table) : null;
@@ -1713,7 +1707,7 @@ const createStyles = (THEME) =>
 	StyleSheet.create({
 		overlay: {
 			flex: 1,
-			backgroundColor: "rgba(0, 0, 0, 0.5)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 			justifyContent: "flex-start",
 			alignItems: "flex-start",
 		},
@@ -1723,7 +1717,7 @@ const createStyles = (THEME) =>
 			top: 120,
 			right: 0,
 			bottom: 0,
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: "#0F172A",
 			borderRadius: 0,
 			borderWidth: 0,
 			overflow: "hidden",
@@ -1751,11 +1745,11 @@ const createStyles = (THEME) =>
 		title: {
 			fontSize: THEME.typography.sizes.xl,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 		subtitle: {
 			fontSize: THEME.typography.sizes.sm,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginLeft: -40,
 		},
 		headerActions: {
@@ -1772,7 +1766,7 @@ const createStyles = (THEME) =>
 			width: 36,
 			height: 36,
 			borderRadius: 18,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			alignItems: "center",
 			justifyContent: "center",
 		},
@@ -1789,13 +1783,13 @@ const createStyles = (THEME) =>
 			paddingHorizontal: 12,
 			paddingVertical: 8,
 			borderRadius: 8,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderWidth: 1,
 			borderColor: THEME.colors.border.default,
 		},
 		toggleButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
+			borderColor: "#F59E0B",
 		},
 		toggleButtonDisabled: {
 			opacity: 0.35,
@@ -1814,7 +1808,7 @@ const createStyles = (THEME) =>
 			alignItems: "center",
 			paddingHorizontal: 16,
 			paddingVertical: 10,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderBottomWidth: 1,
 			borderBottomColor: THEME.colors.border.default,
 			gap: 10,
@@ -1828,22 +1822,22 @@ const createStyles = (THEME) =>
 		resaInfoBandText: {
 			flex: 1,
 			fontSize: THEME.typography.sizes.sm,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		resaInfoBandBold: {
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 		toggleButtonText: {
 			fontSize: THEME.typography.sizes.sm,
 			fontWeight: "600",
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		toggleButtonTextActive: {
 			color: "#fff",
 		},
 		toggleButtonTextDisabled: {
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		planContainer: {
 			flex: 1,
@@ -1858,13 +1852,13 @@ const createStyles = (THEME) =>
 		emptyStateTitle: {
 			fontSize: THEME.typography.sizes.xl,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginTop: 20,
 			marginBottom: 8,
 		},
 		emptyStateText: {
 			fontSize: THEME.typography.sizes.md,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textAlign: "center",
 		},
 		tablesContainer: {
@@ -1886,12 +1880,12 @@ const createStyles = (THEME) =>
 		},
 		footerText: {
 			fontSize: THEME.typography.sizes.sm,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			fontWeight: "600",
 		},
 		footerHint: {
 			fontSize: THEME.typography.sizes.xs,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginTop: 4,
 		},
 		savePlanButton: {
@@ -1900,7 +1894,7 @@ const createStyles = (THEME) =>
 			gap: 6,
 			paddingHorizontal: 16,
 			paddingVertical: 10,
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
 			borderRadius: 10,
 		},
 		savePlanText: {
@@ -1911,7 +1905,7 @@ const createStyles = (THEME) =>
 		// Modale d'édition
 		editModal: {
 			...StyleSheet.absoluteFillObject,
-			backgroundColor: "rgba(0, 0, 0, 0.7)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 			justifyContent: "center",
 			alignItems: "center",
 			zIndex: 9999,
@@ -1919,7 +1913,7 @@ const createStyles = (THEME) =>
 		editContainer: {
 			width: "85%",
 			maxWidth: 400,
-			backgroundColor: THEME.colors.background.primary,
+			backgroundColor: "#0F172A",
 			borderRadius: 20,
 			padding: 24,
 			...Platform.select({
@@ -1937,20 +1931,20 @@ const createStyles = (THEME) =>
 		editTitle: {
 			fontSize: THEME.typography.sizes.xl,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 20,
 			textAlign: "center",
 		},
 		editInput: {
 			paddingHorizontal: 20,
 			paddingVertical: 16,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: 12,
 			borderWidth: 2,
-			borderColor: THEME.colors.primary.amber,
+			borderColor: "#F59E0B",
 			fontSize: THEME.typography.sizes.xxl || 24,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			textAlign: "center",
 			marginBottom: 24,
 		},
@@ -1968,10 +1962,10 @@ const createStyles = (THEME) =>
 			gap: 6,
 		},
 		editButtonSave: {
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
 		},
 		editButtonCancel: {
-			backgroundColor: THEME.colors.text.muted + "40",
+			backgroundColor: "#64748B" + "40",
 		},
 		editButtonText: {
 			fontSize: THEME.typography.sizes.md,
@@ -1980,69 +1974,69 @@ const createStyles = (THEME) =>
 		},
 		// Number stepper (modal)
 		numberStepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16, marginBottom: 24 },
-		numberStepperBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: THEME.colors.background.elevated, borderWidth: 1, borderColor: THEME.colors.border.default, alignItems: 'center', justifyContent: 'center' },
-		numberStepperBtnText: { fontSize: 28, fontWeight: '300', color: THEME.colors.primary.amber, lineHeight: 34 },
+		numberStepperBtn: { width: 48, height: 48, borderRadius: 12, backgroundColor: "#243447", borderWidth: 1, borderColor: THEME.colors.border.default, alignItems: 'center', justifyContent: 'center' },
+		numberStepperBtnText: { fontSize: 28, fontWeight: '300', color: "#F59E0B", lineHeight: 34 },
 		numberStepperValue: { alignItems: 'center', minWidth: 80 },
-		numberStepperNum: { fontSize: 40, fontWeight: '700', color: THEME.colors.text.primary },
-		numberStepperSub: { fontSize: 10, color: THEME.colors.text.muted, marginTop: 2 },
+		numberStepperNum: { fontSize: 40, fontWeight: '700', color: "#F1F5F9" },
+		numberStepperSub: { fontSize: 10, color: "#64748B", marginTop: 2 },
 		// Feature 5 — Alignment toolbar
-		alignToolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: THEME.colors.background.elevated, borderBottomWidth: 1, borderBottomColor: THEME.colors.border.default, gap: 6 },
-		alignBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: THEME.colors.background.card, borderWidth: 1, borderColor: THEME.colors.border.default },
+		alignToolbar: { flexDirection: 'row', alignItems: 'center', paddingHorizontal: 12, paddingVertical: 6, backgroundColor: "#243447", borderBottomWidth: 1, borderBottomColor: THEME.colors.border.default, gap: 6 },
+		alignBtn: { flexDirection: 'row', alignItems: 'center', gap: 3, paddingHorizontal: 8, paddingVertical: 5, borderRadius: 6, backgroundColor: "#1E293B", borderWidth: 1, borderColor: THEME.colors.border.default },
 		alignBtnDisabled: { opacity: 0.35 },
-		alignBtnText: { fontSize: 9, fontWeight: '700', color: THEME.colors.text.muted },
-		alignBtnTextActive: { color: THEME.colors.primary.amber },
-		alignHint: { flex: 1, fontSize: 9, color: THEME.colors.text.muted, textAlign: 'right' },
+		alignBtnText: { fontSize: 9, fontWeight: '700', color: "#64748B" },
+		alignBtnTextActive: { color: "#F59E0B" },
+		alignHint: { flex: 1, fontSize: 9, color: "#64748B", textAlign: 'right' },
 		// Feature 4 — Properties panel
-		propertiesPanel: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 260, backgroundColor: THEME.colors.background.card + 'F2', borderRightWidth: 1, borderRightColor: THEME.colors.border.default, zIndex: 200 },
+		propertiesPanel: { position: 'absolute', left: 0, top: 0, bottom: 0, width: 260, backgroundColor: "#1E293B" + 'F2', borderRightWidth: 1, borderRightColor: THEME.colors.border.default, zIndex: 200 },
 		propsPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', padding: 14, borderBottomWidth: 1, borderBottomColor: THEME.colors.border.default },
-		propsPanelTitle: { fontSize: 15, fontWeight: '700', color: THEME.colors.primary.amber },
-		propsPanelClose: { width: 28, height: 28, borderRadius: 14, backgroundColor: THEME.colors.background.elevated, alignItems: 'center', justifyContent: 'center' },
-		propsSectionLabel: { fontSize: 10, fontWeight: '700', color: THEME.colors.text.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
+		propsPanelTitle: { fontSize: 15, fontWeight: '700', color: "#F59E0B" },
+		propsPanelClose: { width: 28, height: 28, borderRadius: 14, backgroundColor: "#243447", alignItems: 'center', justifyContent: 'center' },
+		propsSectionLabel: { fontSize: 10, fontWeight: '700', color: "#64748B", textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 6 },
 		propsStepperRow: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 16 },
-		propsStepperBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: THEME.colors.background.elevated, borderWidth: 1, borderColor: THEME.colors.border.default, alignItems: 'center', justifyContent: 'center' },
-		propsStepperBtnText: { fontSize: 18, fontWeight: '700', color: THEME.colors.text.primary },
-		propsStepperValue: { fontSize: 24, fontWeight: '700', color: THEME.colors.text.primary, minWidth: 40, textAlign: 'center' },
+		propsStepperBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#243447", borderWidth: 1, borderColor: THEME.colors.border.default, alignItems: 'center', justifyContent: 'center' },
+		propsStepperBtnText: { fontSize: 18, fontWeight: '700', color: "#F1F5F9" },
+		propsStepperValue: { fontSize: 24, fontWeight: '700', color: "#F1F5F9", minWidth: 40, textAlign: 'center' },
 		propsQuickSeatsRow: { flexDirection: 'row', flexWrap: 'wrap', gap: 6 },
-		propsQuickSeatBtn: { width: 32, height: 32, borderRadius: 6, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: THEME.colors.background.elevated, alignItems: 'center', justifyContent: 'center' },
-		propsQuickSeatBtnActive: { backgroundColor: THEME.colors.primary.amber, borderColor: THEME.colors.primary.amber },
-		propsQuickSeatText: { fontSize: 12, fontWeight: '600', color: THEME.colors.text.muted },
+		propsQuickSeatBtn: { width: 32, height: 32, borderRadius: 6, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: "#243447", alignItems: 'center', justifyContent: 'center' },
+		propsQuickSeatBtnActive: { backgroundColor: "#F59E0B", borderColor: "#F59E0B" },
+		propsQuickSeatText: { fontSize: 12, fontWeight: '600', color: "#64748B" },
 		propsQuickSeatTextActive: { color: '#000' },
-		propsStatusBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: THEME.colors.background.elevated, marginBottom: 6, gap: 8 },
+		propsStatusBtn: { flexDirection: 'row', alignItems: 'center', paddingVertical: 8, paddingHorizontal: 10, borderRadius: 8, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: "#243447", marginBottom: 6, gap: 8 },
 		propsStatusDot: { width: 8, height: 8, borderRadius: 4 },
-		propsStatusLabel: { fontSize: 13, fontWeight: '500', color: THEME.colors.text.secondary },
+		propsStatusLabel: { fontSize: 13, fontWeight: '500', color: "#94A3B8" },
 		propsShapeRow: { flexDirection: 'row', gap: 8 },
-		propsShapeBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: THEME.colors.background.elevated, alignItems: 'center' },
-		propsShapeBtnActive: { backgroundColor: THEME.colors.primary.amber + '22', borderColor: THEME.colors.primary.amber },
-		propsShapeText: { fontSize: 12, color: THEME.colors.text.muted },
-		propsShapeTextActive: { fontSize: 12, color: THEME.colors.primary.amber, fontWeight: '700' },
+		propsShapeBtn: { flex: 1, paddingVertical: 8, borderRadius: 8, borderWidth: 1, borderColor: THEME.colors.border.default, backgroundColor: "#243447", alignItems: 'center' },
+		propsShapeBtnActive: { backgroundColor: "#F59E0B" + '22', borderColor: "#F59E0B" },
+		propsShapeText: { fontSize: 12, color: "#64748B" },
+		propsShapeTextActive: { fontSize: 12, color: "#F59E0B", fontWeight: '700' },
 		propsResaCard: { backgroundColor: '#C9A84C11', borderWidth: 1, borderColor: '#C9A84C44', borderRadius: 10, padding: 12 },
 		propsResaName: { fontSize: 13, fontWeight: '700', color: '#C9A84C' },
-		propsResaDetail: { fontSize: 11, color: THEME.colors.text.muted, marginTop: 4 },
+		propsResaDetail: { fontSize: 11, color: "#64748B", marginTop: 4 },
 		propsDeleteBtn: { flexDirection: 'row', alignItems: 'center', justifyContent: 'center', gap: 8, paddingVertical: 12, borderRadius: 10, backgroundColor: '#EF444422', borderWidth: 1, borderColor: '#EF444444', marginTop: 8 },
 		propsDeleteText: { fontSize: 13, fontWeight: '600', color: '#EF4444' },
-		propsAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 12, marginBottom: 0, paddingVertical: 10, borderRadius: 10, backgroundColor: THEME.colors.primary.amber + '22', borderWidth: 1, borderColor: THEME.colors.primary.amber + '66', justifyContent: 'center' },
-		propsAddBtnText: { fontSize: 13, fontWeight: '700', color: THEME.colors.primary.amber },
-		propsResaMiniCard: { paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, backgroundColor: THEME.colors.background.elevated, borderWidth: 1, borderColor: THEME.colors.border.subtle, marginBottom: 5 },
+		propsAddBtn: { flexDirection: 'row', alignItems: 'center', gap: 8, margin: 12, marginBottom: 0, paddingVertical: 10, borderRadius: 10, backgroundColor: "#F59E0B" + '22', borderWidth: 1, borderColor: "#F59E0B" + '66', justifyContent: 'center' },
+		propsAddBtnText: { fontSize: 13, fontWeight: '700', color: "#F59E0B" },
+		propsResaMiniCard: { paddingVertical: 7, paddingHorizontal: 10, borderRadius: 8, backgroundColor: "#243447", borderWidth: 1, borderColor: THEME.colors.border.subtle, marginBottom: 5 },
 		propsResaMiniCardLinked: { backgroundColor: '#C9A84C11', borderColor: '#C9A84C44' },
-		propsResaMiniName: { fontSize: 12, fontWeight: '700', color: THEME.colors.text.primary },
-		propsResaMiniDetail: { fontSize: 10, color: THEME.colors.text.muted, marginTop: 2 },
-		leftPanel: { position: 'absolute', left: 0, top: 120, bottom: 0, width: 281, backgroundColor: THEME.colors.background.card, borderRightWidth: 1, borderRightColor: THEME.colors.border.default, zIndex: 10 },
+		propsResaMiniName: { fontSize: 12, fontWeight: '700', color: "#F1F5F9" },
+		propsResaMiniDetail: { fontSize: 10, color: "#64748B", marginTop: 2 },
+		leftPanel: { position: 'absolute', left: 0, top: 120, bottom: 0, width: 281, backgroundColor: "#1E293B", borderRightWidth: 1, borderRightColor: THEME.colors.border.default, zIndex: 10 },
 		leftPanelHeader: { flexDirection: 'row', alignItems: 'center', justifyContent: 'space-between', paddingHorizontal: 16, borderBottomWidth: 1, borderBottomColor: THEME.colors.border.default },
-		leftPanelTitle: { fontSize: 14, fontWeight: '700', color: THEME.colors.primary.amber },
-		leftPanelAddBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: THEME.colors.background.elevated, borderWidth: 1, borderColor: THEME.colors.primary.amber + '60', alignItems: 'center', justifyContent: 'center' },
+		leftPanelTitle: { fontSize: 14, fontWeight: '700', color: "#F59E0B" },
+		leftPanelAddBtn: { width: 32, height: 32, borderRadius: 8, backgroundColor: "#243447", borderWidth: 1, borderColor: "#F59E0B" + '60', alignItems: 'center', justifyContent: 'center' },
 		leftPanelDivider: { height: 1, backgroundColor: THEME.colors.border.default, marginVertical: 12 },
-		leftPanelSectionTitle: { fontSize: 10, fontWeight: '700', color: THEME.colors.text.muted, textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingHorizontal: 14 },
+		leftPanelSectionTitle: { fontSize: 10, fontWeight: '700', color: "#64748B", textTransform: 'uppercase', letterSpacing: 0.8, marginBottom: 8, paddingHorizontal: 14 },
 		leftResaCard: { backgroundColor: '#C9A84C11', borderWidth: 1, borderColor: '#C9A84C44', borderRadius: 10, padding: 12, marginBottom: 8 },
 		leftResaName: { fontSize: 13, fontWeight: '700', color: '#C9A84C' },
-		leftResaDetail: { fontSize: 11, color: THEME.colors.text.muted, marginTop: 3 },
+		leftResaDetail: { fontSize: 11, color: "#64748B", marginTop: 3 },
 		leftResaStatus: { marginTop: 6, alignSelf: 'flex-start', paddingHorizontal: 8, paddingVertical: 3, borderRadius: 6 },
 		leftResaStatusText: { fontSize: 10, fontWeight: '700', color: '#fff' },
-		leftResaEmpty: { fontSize: 12, color: THEME.colors.text.muted, textAlign: 'center', paddingVertical: 16 },
+		leftResaEmpty: { fontSize: 12, color: "#64748B", textAlign: 'center', paddingVertical: 16 },
 		leftResaRow: { flexDirection: 'row', alignItems: 'center', gap: 8, paddingVertical: 8, paddingHorizontal: 14, borderRadius: 8, marginHorizontal: 8, marginBottom: 2 },
-		leftResaRowActive: { backgroundColor: THEME.colors.primary.amber + '18', borderWidth: 1, borderColor: THEME.colors.primary.amber + '40' },
+		leftResaRowActive: { backgroundColor: "#F59E0B" + '18', borderWidth: 1, borderColor: "#F59E0B" + '40' },
 		leftResaRowDot: { width: 7, height: 7, borderRadius: 4, flexShrink: 0 },
-		leftResaRowName: { fontSize: 12, fontWeight: '600', color: THEME.colors.text.primary },
-		leftResaRowNameMuted: { color: THEME.colors.text.muted },
-		leftResaRowDetail: { fontSize: 10, color: THEME.colors.text.muted, marginTop: 1 },
-		leftResaRowTable: { fontSize: 10, fontWeight: '700', color: THEME.colors.text.muted },
+		leftResaRowName: { fontSize: 12, fontWeight: '600', color: "#F1F5F9" },
+		leftResaRowNameMuted: { color: "#64748B" },
+		leftResaRowDetail: { fontSize: 10, color: "#64748B", marginTop: 1 },
+		leftResaRowTable: { fontSize: 10, fontWeight: '700', color: "#64748B" },
 	});

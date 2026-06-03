@@ -12,18 +12,17 @@ import {
 	ActivityIndicator,
 	Alert,
 	StyleSheet,
+	Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
-import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme } from "../../utils/themeUtils";
+import { useTheme } from "../../hooks/useTheme";
 
 export default function ApplyStyleModal({ visible, onClose }) {
-	const { themeMode } = useThemeStore();
-	const THEME = React.useMemo(() => getTheme(themeMode), [themeMode]);
-	const authFetch = useAuthFetch();
+	const THEME = useTheme();
+		const authFetch = useAuthFetch();
 
 	// États
 	const [loading, setLoading] = useState(false);
@@ -141,13 +140,13 @@ export default function ApplyStyleModal({ visible, onClose }) {
 	return (
 		<Modal visible={visible} transparent animationType="fade">
 			<BlurView intensity={40} style={StyleSheet.absoluteFill}>
-				<View style={styles_local.overlay}>
-					<View style={styles_local.container}>
+				<Pressable style={styles_local.overlay} onPress={onClose}>
+					<Pressable onPress={() => {}} style={styles_local.container}>
 						{/* Header */}
 						<LinearGradient
 							colors={[
-								THEME.colors.primary.amber,
-								THEME.colors.primary.amberDark,
+								"#F59E0B",
+								"#D97706",
 							]}
 							style={styles_local.header}
 						>
@@ -168,7 +167,7 @@ export default function ApplyStyleModal({ visible, onClose }) {
 							<View style={styles_local.loadingContainer}>
 								<ActivityIndicator
 									size="large"
-									color={THEME.colors.primary.amber}
+									color={"#F59E0B"}
 								/>
 								<Text style={styles_local.loadingText}>Chargement...</Text>
 							</View>
@@ -215,8 +214,8 @@ export default function ApplyStyleModal({ visible, onClose }) {
 													size={20}
 													color={
 														selectedRestaurant?._id === resto._id
-															? THEME.colors.primary.amber
-															: THEME.colors.text.secondary
+															? "#F59E0B"
+															: "#94A3B8"
 													}
 												/>
 												<View style={styles_local.cardInfo}>
@@ -232,7 +231,7 @@ export default function ApplyStyleModal({ visible, onClose }) {
 												<Ionicons
 													name="checkmark-circle"
 													size={24}
-													color={THEME.colors.primary.amber}
+													color={"#F59E0B"}
 												/>
 											)}
 										</TouchableOpacity>
@@ -265,8 +264,8 @@ export default function ApplyStyleModal({ visible, onClose }) {
 													size={20}
 													color={
 														selectedStyle?.id === style.id
-															? THEME.colors.primary.amber
-															: THEME.colors.text.secondary
+															? "#F59E0B"
+															: "#94A3B8"
 													}
 												/>
 												<View style={styles_local.cardInfo}>
@@ -288,7 +287,7 @@ export default function ApplyStyleModal({ visible, onClose }) {
 												<Ionicons
 													name="checkmark-circle"
 													size={24}
-													color={THEME.colors.primary.amber}
+													color={"#F59E0B"}
 												/>
 											)}
 										</TouchableOpacity>
@@ -316,8 +315,8 @@ export default function ApplyStyleModal({ visible, onClose }) {
 							>
 								<LinearGradient
 									colors={[
-										THEME.colors.primary.amber,
-										THEME.colors.primary.amberDark,
+										"#F59E0B",
+										"#D97706",
 									]}
 									style={styles_local.applyButtonGradient}
 								>
@@ -334,8 +333,8 @@ export default function ApplyStyleModal({ visible, onClose }) {
 								</LinearGradient>
 							</TouchableOpacity>
 						</View>
-					</View>
-				</View>
+					</Pressable>
+				</Pressable>
 			</BlurView>
 		</Modal>
 	);
@@ -347,13 +346,13 @@ const createStyles = (THEME) =>
 			flex: 1,
 			justifyContent: "center",
 			alignItems: "center",
-			backgroundColor: "rgba(0,0,0,0.5)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 		},
 		container: {
 			width: "90%",
 			maxWidth: 600,
 			maxHeight: "80%",
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: THEME.radius.xl,
 			overflow: "hidden",
 		},
@@ -361,13 +360,13 @@ const createStyles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			paddingHorizontal: THEME.spacing.lg,
-			paddingVertical: THEME.spacing.lg,
+			paddingHorizontal: 16,
+			paddingVertical: 16,
 		},
 		headerLeft: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: THEME.spacing.md,
+			gap: 12,
 		},
 		headerTitle: {
 			fontSize: THEME.typography.sizes.xl,
@@ -375,7 +374,7 @@ const createStyles = (THEME) =>
 			color: "#fff",
 		},
 		closeButton: {
-			padding: THEME.spacing.sm,
+			padding: 8,
 		},
 		loadingContainer: {
 			flex: 1,
@@ -384,41 +383,41 @@ const createStyles = (THEME) =>
 			paddingVertical: THEME.spacing["3xl"],
 		},
 		loadingText: {
-			marginTop: THEME.spacing.md,
+			marginTop: 12,
 			fontSize: THEME.typography.sizes.md,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		scrollView: {
 			flex: 1,
 		},
 		section: {
-			padding: THEME.spacing.lg,
+			padding: 16,
 		},
 		sectionTitle: {
 			fontSize: THEME.typography.sizes.lg,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
-			marginBottom: THEME.spacing.md,
+			color: "#F1F5F9",
+			marginBottom: 12,
 		},
 		card: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			padding: THEME.spacing.md,
-			marginBottom: THEME.spacing.sm,
-			backgroundColor: THEME.colors.background.elevated,
+			padding: 12,
+			marginBottom: 8,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.md,
 			borderWidth: 2,
 			borderColor: "transparent",
 		},
 		cardSelected: {
-			borderColor: THEME.colors.primary.amber,
+			borderColor: "#F59E0B",
 			backgroundColor: THEME.colors.primary.light,
 		},
 		cardContent: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: THEME.spacing.md,
+			gap: 12,
 			flex: 1,
 		},
 		cardInfo: {
@@ -427,23 +426,23 @@ const createStyles = (THEME) =>
 		cardTitle: {
 			fontSize: THEME.typography.sizes.md,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 2,
 		},
 		cardSubtitle: {
 			fontSize: THEME.typography.sizes.sm,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		cardTags: {
 			fontSize: THEME.typography.sizes.xs,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginTop: 4,
 			fontStyle: "italic",
 		},
 		footer: {
 			flexDirection: "row",
-			gap: THEME.spacing.md,
-			padding: THEME.spacing.lg,
+			gap: 12,
+			padding: 16,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.default,
 		},
@@ -454,21 +453,21 @@ const createStyles = (THEME) =>
 			overflow: "hidden",
 		},
 		cancelButton: {
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			justifyContent: "center",
 			alignItems: "center",
 		},
 		cancelButtonText: {
 			fontSize: THEME.typography.sizes.md,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		applyButtonGradient: {
 			flex: 1,
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			gap: THEME.spacing.sm,
+			gap: 8,
 		},
 		applyButtonText: {
 			fontSize: THEME.typography.sizes.md,

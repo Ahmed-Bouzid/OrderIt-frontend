@@ -26,11 +26,11 @@ import {
 	ScrollView,
 	TouchableOpacity,
 	StyleSheet,
+	Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
-
 // ─── Helpers ─────────────────────────────────────────────────────────────────
 const formatDate = (d) => {
 	if (!d) return "—";
@@ -46,13 +46,12 @@ const pct = (n, total) => (total > 0 ? Math.round((n / total) * 100) : 0);
 
 // ─── Sous-composant : carte statistique ──────────────────────────────────────
 const StatCard = ({ icon, label, value, sub, color, gradient, wide }) => {
-	const THEME = useTheme();
 	return (
 		<View
 			style={[
 				cardStyles.card,
 				{
-					backgroundColor: THEME.colors.background.elevated,
+					backgroundColor: "#243447",
 					borderColor: color + "30",
 					width: wide ? "100%" : "48%",
 				},
@@ -67,10 +66,10 @@ const StatCard = ({ icon, label, value, sub, color, gradient, wide }) => {
 			<View style={cardStyles.iconWrap}>
 				<Ionicons name={icon} size={18} color={color} />
 			</View>
-			<Text style={[cardStyles.value, { color: THEME.colors.text.primary }]}>
+			<Text style={[cardStyles.value, { color: "#F1F5F9" }]}>
 				{value}
 			</Text>
-			<Text style={[cardStyles.label, { color: THEME.colors.text.muted }]}>
+			<Text style={[cardStyles.label, { color: "#64748B" }]}>
 				{label}
 			</Text>
 			{sub ? (
@@ -119,7 +118,7 @@ const ProgressBar = ({ label, value, max, color, THEME }) => {
 				<Text
 					style={{
 						fontSize: 12,
-						color: THEME.colors.text.secondary,
+						color: "#94A3B8",
 						fontWeight: "600",
 					}}
 				>
@@ -168,7 +167,7 @@ const StatusRow = ({ status, count, color, THEME }) => (
 			<Text
 				style={{
 					fontSize: 13,
-					color: THEME.colors.text.secondary,
+					color: "#94A3B8",
 					fontWeight: "500",
 					textTransform: "capitalize",
 				}}
@@ -179,7 +178,7 @@ const StatusRow = ({ status, count, color, THEME }) => (
 		<Text
 			style={{
 				fontSize: 14,
-				color: THEME.colors.text.primary,
+				color: "#F1F5F9",
 				fontWeight: "700",
 			}}
 		>
@@ -199,7 +198,6 @@ const DailyStatsModal = ({
 	const THEME = useTheme();
 	const styles = useMemo(() => createStyles(THEME), [THEME]);
 
-	// ─── Calcul des statistiques ───────────────────────────────────────────
 	const stats = useMemo(() => {
 		const all = reservations;
 		const active = all.filter((r) =>
@@ -307,11 +305,11 @@ const DailyStatsModal = ({
 		<Modal
 			visible={visible}
 			transparent
-			animationType="slide"
+			animationType="fade"
 			onRequestClose={onClose}
 		>
-			<View style={styles.overlay}>
-				<View style={styles.sheet}>
+			<Pressable style={styles.overlay} onPress={onClose}>
+				<Pressable onPress={() => {}} style={styles.sheet}>
 					{/* ── Poignée ── */}
 					<View style={styles.handle} />
 
@@ -325,7 +323,7 @@ const DailyStatsModal = ({
 							<Ionicons
 								name="close"
 								size={22}
-								color={THEME.colors.text.secondary}
+								color={"#94A3B8"}
 							/>
 						</TouchableOpacity>
 					</View>
@@ -412,7 +410,7 @@ const DailyStatsModal = ({
 							<Text
 								style={[
 									styles.sectionTitle,
-									{ color: THEME.colors.text.secondary },
+									{ color: "#94A3B8" },
 								]}
 							>
 								Remplissage par couverts
@@ -443,7 +441,7 @@ const DailyStatsModal = ({
 							<Text
 								style={[
 									styles.sectionTitle,
-									{ color: THEME.colors.text.secondary },
+									{ color: "#94A3B8" },
 								]}
 							>
 								Répartition par statut
@@ -467,7 +465,7 @@ const DailyStatsModal = ({
 								style={[
 									styles.topTableCard,
 									{
-										backgroundColor: THEME.colors.background.elevated,
+										backgroundColor: "#243447",
 										borderColor: "#F59E0B30",
 									},
 								]}
@@ -477,7 +475,7 @@ const DailyStatsModal = ({
 									<Text
 										style={[
 											styles.topTableTitle,
-											{ color: THEME.colors.text.primary },
+											{ color: "#F1F5F9" },
 										]}
 									>
 										Table {stats.top_table_label}
@@ -485,7 +483,7 @@ const DailyStatsModal = ({
 									<Text
 										style={[
 											styles.topTableSub,
-											{ color: THEME.colors.text.muted },
+											{ color: "#64748B" },
 										]}
 									>
 										Table la plus sollicitée · {stats.top_table_count}{" "}
@@ -495,8 +493,8 @@ const DailyStatsModal = ({
 							</View>
 						)}
 					</ScrollView>
-				</View>
-			</View>
+				</Pressable>
+			</Pressable>
 		</Modal>
 	);
 };
@@ -506,11 +504,11 @@ const createStyles = (THEME) =>
 	StyleSheet.create({
 		overlay: {
 			flex: 1,
-			backgroundColor: "rgba(0,0,0,0.6)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 			justifyContent: "flex-end",
 		},
 		sheet: {
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: "#0F172A",
 			borderTopLeftRadius: 24,
 			borderTopRightRadius: 24,
 			maxHeight: "88%",
@@ -537,11 +535,11 @@ const createStyles = (THEME) =>
 		title: {
 			fontSize: 18,
 			fontWeight: "800",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 		subtitle: {
 			fontSize: 12,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginTop: 2,
 			textTransform: "capitalize",
 		},
@@ -549,7 +547,7 @@ const createStyles = (THEME) =>
 			width: 36,
 			height: 36,
 			borderRadius: 18,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			alignItems: "center",
 			justifyContent: "center",
 		},

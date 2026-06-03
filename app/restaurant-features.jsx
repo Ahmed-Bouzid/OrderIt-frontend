@@ -225,6 +225,13 @@ const ALL_FEATURES = [
 		icon: "calendar-outline",
 		group: "Client & Visibilité",
 	},
+	{
+		key: "agenda",
+		title: "Agenda (onglet)",
+		description: "Onglet Agenda dans la navigation principale (réservations + planning)",
+		icon: "time-outline",
+		group: "Client & Visibilité",
+	},
 
 	// ── Système ──
 	{
@@ -274,6 +281,7 @@ const DEFAULT_ENABLED = {
 	avis_google: ["complet", "intermediaire", "minimum"],
 	reservations: ["complet", "intermediaire"],
 	calendrier: ["complet"],
+	agenda: ["complet"],
 	// Système
 	recherche_globale: ["complet", "intermediaire"],
 };

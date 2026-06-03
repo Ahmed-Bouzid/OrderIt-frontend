@@ -739,6 +739,9 @@ const ActivityFloor = ({ restaurantInfo }) => {
 
 	const [restaurantId, setRestaurantId] = useState(null);
 	const [tables, setTables] = useState([]);
+	useEffect(() => {
+		console.log("[TOUTES LES TABLES]", tables.map(t => ({ id: t._id?.toString().slice(-6), name: t.tableNumber ?? t.name ?? t._id, status: t.status, montant: t.totalAmount ?? 0 })));
+	}, [tables]);
 	const [selectedRoom, setSelectedRoom] = useState(1);
 	const [selectedTableId, setSelectedTableId] = useState(null);
 	const [showFloorPlan, setShowFloorPlan] = useState(false);
@@ -774,6 +777,10 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	const rawSessions = useCounterTableStore((state) => state.sessions[restaurantId]);
 	const activeSessions = useMemo(() => rawSessions || [], [rawSessions]);
 	const reservations = useReservationStore((state) => state.reservations);
+
+	useEffect(() => {
+		console.log("[COMPTOIR TABLES]", activeSessions.map(s => ({ table: s.tableNumber ?? s.tableName ?? s._id, montant: s.totalAmount ?? 0, status: s.billStatus })));
+	}, [activeSessions]);
 	
 	const stats = useMemo(
 		() => ({
@@ -890,6 +897,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 					totalAmount: table.totalAmount ?? 0,
 					itemsCount: table.itemsCount ?? 0,
 					openedAt: table.openedAt ?? null,
+					serverId: table.serverId ?? null,
 					source: "counter",
 				};
 				useCounterTableStore.getState().openSession(restaurantIdParam, sessionObj.tableId, sessionObj);
@@ -907,10 +915,10 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				if (id) {
 					setRestaurantId(id);
 					const tablesState = await counterService.getTablesState(id).catch((err) => {
-						console.error("[ActivityFloor] getTablesState failed:", err?.message, err);
+						console.error("[ActivityFloor] getTablesState failed (init):", err?.message, err);
 						return [];
 					});
-					setTables(tablesState || []);
+					setTables(tablesState);
 					// Hydrater le store sessions (équivalent fetchReservations dans Activity)
 					hydrateSessionsFromTables(id, tablesState);
 					
@@ -925,7 +933,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		};
 
 		init();
-	}, []);
+	}, [authFetch]);
 
 	// Attacher socket listener
 	useEffect(() => {
@@ -1041,6 +1049,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			setServerPickerTableId(tableId);
 		} else {
 			// Table occupée → directement le détail
+			console.log("[TABLE OUVERTE - déjà occupée]", { tableId, session });
 			setShowTableDetail(true);
 		}
 	}, [activeSessions, servers, currentUser, checkUpcomingReservation]);
@@ -1063,6 +1072,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				useCounterTableStore.getState().openSession(restaurantId, serverPickerTableId, session);
 			}
 			// Ouvrir la modale
+			console.log("[TABLE OUVERTE - nouvelle session]", { tableId: serverPickerTableId, session });
 			setServerPickerTableId(null);
 			setSelectedWaiter(null);
 			setShowTableDetail(true);

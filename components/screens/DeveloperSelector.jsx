@@ -155,6 +155,27 @@ export default function DeveloperSelector() {
 		loadRestaurants();
 	}, [loadRestaurants]);
 
+	// ⭐ Pré-remplir restaurantOverrides depuis les données restaurants déjà chargées
+	// Évite de repartir de zéro à chaque re-login
+	useEffect(() => {
+		if (!restaurants || restaurants.length === 0) return;
+		setRestaurantOverrides((prev) => {
+			const next = { ...prev };
+			restaurants.forEach((r) => {
+				// Ne pas écraser un override déjà chargé manuellement (via panel ouvert)
+				if (!(r._id in next) && r.featureOverrides) {
+					// featureOverrides peut être un objet plain ou une Map sérialisée
+					const overrides =
+						r.featureOverrides instanceof Map
+							? Object.fromEntries(r.featureOverrides)
+							: r.featureOverrides;
+					next[r._id] = overrides;
+				}
+			});
+			return next;
+		});
+	}, [restaurants]);
+
 	// Filtrage par recherche
 	const filteredRestaurants = useMemo(() => {
 		if (!search.trim()) return restaurants;
@@ -256,12 +277,6 @@ export default function DeveloperSelector() {
 		const originalRestaurants = [...restaurants];
 		const API_URL = process.env.EXPO_PUBLIC_API_URL;
 
-		console.log("🔄 TOGGLE MODE COMPTOIR:", {
-			restaurant: restaurant.name,
-			category: restaurant.category,
-			currentState: restaurant.enableComptoir,
-			newState: !restaurant.enableComptoir,
-		});
 
 		try {
 			// ⭐ Mode Comptoir disponible pour TOUS les types de restaurants
@@ -270,7 +285,6 @@ export default function DeveloperSelector() {
 				r._id === restaurant._id ? { ...r, enableComptoir: !r.enableComptoir } : r,
 			);
 			await initDeveloper(updatedRestaurants);
-			console.log("⏳ Update optimiste effectué");
 
 			const response = await fetchWithAuth(
 				`${API_URL}/developer/restaurants/${restaurant._id}/comptoir`,
@@ -281,13 +295,10 @@ export default function DeveloperSelector() {
 				},
 			);
 
-			console.log("📡 API Response status:", response.status || response.ok);
 
 			const data = await response.json();
-			console.log("📡 API Response data:", data);
 
 			if (response.ok && data.status === "success") {
-				console.log("✅ API SUCCESS, rafraîchissement...");
 				// Refresh
 				const refreshResponse = await fetchWithAuth(
 					`${API_URL}/developer/restaurants`,
@@ -296,22 +307,17 @@ export default function DeveloperSelector() {
 				const refreshData = await refreshResponse.json();
 				if (refreshResponse.ok) {
 					await initDeveloper(refreshData.restaurants);
-					console.log("🔄 Restaurants rafraîchis");
 				}
 
 				// ✅ Mise à jour directe Zustand → TabsLayout réagit instantanément
 				await useUserStore.getState().setEnableComptoir(data.enableComptoir);
 
-				console.log(
-					`✅ Mode Comptoir ${data.enableComptoir ? "activé ✔️" : "désactivé ❌"}`,
-				);
 
 				Alert.alert(
 					"✅ Succès",
 					`Mode Comptoir ${data.enableComptoir ? "activé" : "désactivé"}`,
 				);
 			} else {
-				console.log("❌ API ERROR");
 				// ⚠️ Rollback
 				await initDeveloper(originalRestaurants);
 				Alert.alert("Erreur", data.message || "Erreur lors du toggle Comptoir");
@@ -468,6 +474,11 @@ export default function DeveloperSelector() {
 				label: "Avis Google (post-paiement)",
 				icon: "star-outline",
 			},
+			{
+				key: "agenda",
+				label: "Onglet Agenda (réservations)",
+				icon: "time-outline",
+			},
 			ALLERGEN_FEATURE,
 			EXPORT_FEC_FEATURE,
 		],
@@ -586,6 +597,7 @@ export default function DeveloperSelector() {
 				ai_prediction: true,
 				ai_strategic_slots: true,
 				google_review: true,
+				agenda: true,
 				allergen_management: true,
 				export_comptable_fec: false,
 			},
@@ -652,6 +664,7 @@ export default function DeveloperSelector() {
 				ai_prediction: true,
 				ai_strategic_slots: true,
 				google_review: true,
+				agenda: true,
 				allergen_management: true,
 				export_comptable_fec: false,
 			},
@@ -1702,6 +1715,7 @@ export default function DeveloperSelector() {
 											ai_waiting_list: true,
 											ai_prediction: true,
 											ai_strategic_slots: true,
+											agenda: true,
 											export_comptable_fec: false,
 										},
 										"fast-food": { gestion_stocks: true, statistiques: false, export_comptable_fec: false },

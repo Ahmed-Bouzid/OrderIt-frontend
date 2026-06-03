@@ -18,7 +18,6 @@ import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
 import { useTheme } from "../../hooks/useTheme";
-
 const ReservationAssistantModal = ({
 	visible,
 	onClose,
@@ -27,7 +26,7 @@ const ReservationAssistantModal = ({
 	onSelectAlternative,
 }) => {
 	const THEME = useTheme();
-	const styles = useMemo(() => createStyles(THEME), [THEME]);
+			const styles = useMemo(() => createStyles(THEME), [THEME]);
 
 	// Animation pour l'apparition du modal
 	const fadeAnim = useRef(new Animated.Value(0)).current;
@@ -62,7 +61,7 @@ const ReservationAssistantModal = ({
 		if (loading) {
 			return {
 				icon: "sparkles",
-				color: THEME.colors.primary.amber,
+				color: "#F59E0B",
 				title: "Analyse en cours...",
 			};
 		}
@@ -89,7 +88,7 @@ const ReservationAssistantModal = ({
 			default:
 				return {
 					icon: "help-circle",
-					color: THEME.colors.text.muted,
+					color: "#64748B",
 					title: "Analyse",
 				};
 		}
@@ -98,7 +97,7 @@ const ReservationAssistantModal = ({
 	const statusConfig = getStatusConfig();
 
 	return (
-		<Modal visible={visible} transparent animationType="none">
+		<Modal visible={visible} transparent animationType="fade">
 			<View
 				style={{
 					position: "absolute",
@@ -131,8 +130,8 @@ const ReservationAssistantModal = ({
 						>
 							<LinearGradient
 								colors={[
-									`${THEME.colors.background.elevated}E6`,
-									`${THEME.colors.background.elevated}F2`,
+									"#243447E6",
+									"#243447F2",
 								]}
 								style={styles.modalContent}
 							>
@@ -160,7 +159,7 @@ const ReservationAssistantModal = ({
 										<Ionicons
 											name="close"
 											size={24}
-											color={THEME.colors.text.muted}
+											color={"#64748B"}
 										/>
 									</TouchableOpacity>
 								</View>
@@ -173,7 +172,7 @@ const ReservationAssistantModal = ({
 										<View style={styles.loadingContainer}>
 											<ActivityIndicator
 												size="large"
-												color={THEME.colors.primary.amber}
+												color={"#F59E0B"}
 											/>
 											<Text style={styles.loadingText}>
 												Analyse des disponibilités...
@@ -224,7 +223,7 @@ const ReservationAssistantModal = ({
 															<Ionicons
 																name="people"
 																size={16}
-																color={THEME.colors.text.muted}
+																color={"#64748B"}
 															/>
 															<Text style={styles.capacityText}>
 																{result.availableSeats} / {result.totalCapacity}{" "}
@@ -261,7 +260,7 @@ const ReservationAssistantModal = ({
 															<Ionicons
 																name="time"
 																size={20}
-																color={THEME.colors.primary.amber}
+																color={"#F59E0B"}
 															/>
 															<Text style={styles.alternativesTitle}>
 																Choisissez parmi ces autres horaires
@@ -328,7 +327,7 @@ const ReservationAssistantModal = ({
 																<Ionicons
 																	name="chevron-forward"
 																	size={20}
-																	color={THEME.colors.text.muted}
+																	color={"#64748B"}
 																/>
 															</TouchableOpacity>
 														))}
@@ -340,7 +339,7 @@ const ReservationAssistantModal = ({
 											<Ionicons
 												name="alert-circle-outline"
 												size={48}
-												color={THEME.colors.text.muted}
+												color={"#64748B"}
 											/>
 											<Text style={styles.emptyText}>
 												Aucun résultat disponible
@@ -355,7 +354,7 @@ const ReservationAssistantModal = ({
 										<Ionicons
 											name="information-circle"
 											size={14}
-											color={THEME.colors.text.muted}
+											color={"#64748B"}
 										/>
 										<Text style={styles.footerText}>
 											Durée estimée : {result.turnoverTime} minutes
@@ -375,7 +374,7 @@ const createStyles = (THEME) =>
 	StyleSheet.create({
 		overlay: {
 			flex: 1,
-			backgroundColor: "rgba(0,0,0,0.5)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 		},
 		backdrop: {
 			flex: 1,
@@ -420,7 +419,7 @@ const createStyles = (THEME) =>
 		title: {
 			fontSize: 20,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			flex: 1,
 		},
 		closeButton: {
@@ -436,7 +435,7 @@ const createStyles = (THEME) =>
 		loadingText: {
 			marginTop: 16,
 			fontSize: 14,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		mainMessageCard: {
 			borderRadius: 16,
@@ -457,17 +456,17 @@ const createStyles = (THEME) =>
 		},
 		mainMessageReason: {
 			fontSize: 14,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 			lineHeight: 20,
 		},
 		detailsCard: {
-			backgroundColor: `${THEME.colors.background.card}80`,
+			backgroundColor: `${"#1E293B"}80`,
 			borderRadius: 16,
 			padding: 16,
 			marginBottom: 20,
 		},
 		resultCard: {
-			backgroundColor: `${THEME.colors.background.card}80`,
+			backgroundColor: `${"#1E293B"}80`,
 			borderRadius: 16,
 			padding: 20,
 			marginBottom: 20,
@@ -475,7 +474,7 @@ const createStyles = (THEME) =>
 		reasonText: {
 			fontSize: 16,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 12,
 			lineHeight: 22,
 		},
@@ -485,22 +484,22 @@ const createStyles = (THEME) =>
 			gap: 8,
 			paddingTop: 12,
 			borderTopWidth: 1,
-			borderTopColor: `${THEME.colors.text.muted}20`,
+			borderTopColor: `${"#64748B"}20`,
 		},
 		capacityText: {
 			fontSize: 14,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		conflictsSection: {
 			marginTop: 16,
 			paddingTop: 16,
 			borderTopWidth: 1,
-			borderTopColor: `${THEME.colors.text.muted}20`,
+			borderTopColor: `${"#64748B"}20`,
 		},
 		sectionTitle: {
 			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 8,
 		},
 		conflictItem: {
@@ -512,12 +511,12 @@ const createStyles = (THEME) =>
 			width: 6,
 			height: 6,
 			borderRadius: 3,
-			backgroundColor: THEME.colors.text.muted,
+			backgroundColor: "#64748B",
 			marginRight: 8,
 		},
 		conflictText: {
 			fontSize: 13,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		alternativesSection: {
 			marginBottom: 20,
@@ -531,19 +530,19 @@ const createStyles = (THEME) =>
 		alternativesTitle: {
 			fontSize: 17,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			flex: 1,
 		},
 		alternativesSubtitle: {
 			fontSize: 13,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginBottom: 16,
 		},
 		alternativeCard: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			backgroundColor: `${THEME.colors.background.card}80`,
+			backgroundColor: `${"#1E293B"}80`,
 			borderRadius: 12,
 			padding: 16,
 			marginBottom: 12,
@@ -563,12 +562,12 @@ const createStyles = (THEME) =>
 		alternativeTime: {
 			fontSize: 18,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 2,
 		},
 		alternativeDetails: {
 			fontSize: 12,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		emptyContainer: {
 			alignItems: "center",
@@ -577,7 +576,7 @@ const createStyles = (THEME) =>
 		emptyText: {
 			marginTop: 12,
 			fontSize: 14,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textAlign: "center",
 		},
 		footer: {
@@ -588,11 +587,11 @@ const createStyles = (THEME) =>
 			marginTop: 12,
 			paddingTop: 12,
 			borderTopWidth: 1,
-			borderTopColor: `${THEME.colors.text.muted}20`,
+			borderTopColor: `${"#64748B"}20`,
 		},
 		footerText: {
 			fontSize: 12,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 	});
 

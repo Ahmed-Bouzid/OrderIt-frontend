@@ -8,43 +8,32 @@ import {
 	TextInput,
 	ActivityIndicator,
 	Alert,
+	StyleSheet,
+	Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import useThemeStore from "../../src/stores/useThemeStore";
+import { LinearGradient } from "expo-linear-gradient";
 
-/**
- * Modale de sélection d'allergènes pour un produit
- * @param {boolean} visible - Visibilité de la modale
- * @param {function} onClose - Callback de fermeture
- * @param {function} onValidate - Callback de validation (allergenIds: string[])
- * @param {string} productId - ID du produit
- * @param {function} authFetch - Hook d'authentification
- */
 export default function AllergenSelectionModal({
 	visible,
 	onClose,
 	onValidate,
 	productId,
+	productName,
 	authFetch,
 }) {
-	const { theme } = useThemeStore();
 	const [allergens, setAllergens] = useState([]);
 	const [selectedAllergens, setSelectedAllergens] = useState([]);
 	const [searchQuery, setSearchQuery] = useState("");
 	const [loading, setLoading] = useState(false);
 
-	// Charger tous les allergènes et les allergènes du produit
 	const loadData = useCallback(async () => {
 		setLoading(true);
 		try {
-			// Charger tous les allergènes
 			const allAllergens = await authFetch("/allergens");
-
-			// Charger les allergènes du produit
 			const productAllergens = await authFetch(
 				`/products/${productId}/allergens`
 			);
-
 			setAllergens(Array.isArray(allAllergens) ? allAllergens : []);
 			setSelectedAllergens(
 				Array.isArray(productAllergens)
@@ -52,8 +41,8 @@ export default function AllergenSelectionModal({
 					: []
 			);
 		} catch (error) {
-			console.error("❌ Erreur chargement allergènes:", error);
-			Alert.alert("Erreur", "Impossible de charger les allergènes");
+			console.error("Erreur chargement allergenes:", error);
+			Alert.alert("Erreur", "Impossible de charger les allergenes");
 		} finally {
 			setLoading(false);
 		}
@@ -66,12 +55,11 @@ export default function AllergenSelectionModal({
 	}, [visible, productId, loadData]);
 
 	const toggleAllergen = useCallback((allergenId) => {
-		setSelectedAllergens((prev) => {
-			if (prev.includes(allergenId)) {
-				return prev.filter((id) => id !== allergenId);
-			}
-			return [...prev, allergenId];
-		});
+		setSelectedAllergens((prev) =>
+			prev.includes(allergenId)
+				? prev.filter((id) => id !== allergenId)
+				: [...prev, allergenId]
+		);
 	}, []);
 
 	const handleValidate = async () => {
@@ -80,8 +68,8 @@ export default function AllergenSelectionModal({
 			await onValidate(selectedAllergens);
 			onClose();
 		} catch (error) {
-			console.error("❌ Erreur validation allergènes:", error);
-			Alert.alert("Erreur", "Impossible de sauvegarder les allergènes");
+			console.error("Erreur validation allergenes:", error);
+			Alert.alert("Erreur", "Impossible de sauvegarder les allergenes");
 		} finally {
 			setLoading(false);
 		}
@@ -93,69 +81,28 @@ export default function AllergenSelectionModal({
 
 	const renderAllergenItem = ({ item }) => {
 		const isSelected = selectedAllergens.includes(item._id);
-
 		return (
 			<TouchableOpacity
-				style={{
-					flexDirection: "row",
-					alignItems: "center",
-					padding: 12,
-					marginVertical: 4,
-					marginHorizontal: 8,
-					backgroundColor: isSelected
-						? theme.primaryColor || "#4CAF50"
-						: theme.cardColor || "#f5f5f5",
-					borderRadius: 8,
-					shadowColor: "#000",
-					shadowOffset: { width: 0, height: 1 },
-					shadowOpacity: 0.1,
-					shadowRadius: 2,
-					elevation: 2,
-				}}
+				style={[styles.allergenRow, isSelected && styles.allergenRowSelected]}
 				onPress={() => toggleAllergen(item._id)}
 				activeOpacity={0.7}
 			>
-				<View
-					style={{
-						width: 24,
-						height: 24,
-						borderRadius: 12,
-						backgroundColor: isSelected ? "#fff" : "transparent",
-						borderWidth: 2,
-						borderColor: isSelected ? "#fff" : theme.borderColor || "#ddd",
-						alignItems: "center",
-						justifyContent: "center",
-						marginRight: 12,
-					}}
-				>
+				<View style={[styles.checkbox, isSelected && styles.checkboxSelected]}>
 					{isSelected && (
-						<Ionicons name="checkmark" size={16} color={theme.primaryColor} />
+						<Ionicons name="checkmark" size={14} color="#F59E0B" />
 					)}
 				</View>
-
-				<Text
-					style={{
-						fontSize: 16,
-						flex: 1,
-						color: isSelected ? "#fff" : theme.textColor || "#333",
-						fontWeight: isSelected ? "600" : "400",
-					}}
-				>
-					{item.icon} {item.name}
-				</Text>
-
-				{item.description && (
-					<Text
-						style={{
-							fontSize: 12,
-							color: isSelected ? "#f0f0f0" : theme.subtextColor || "#666",
-							marginLeft: 8,
-						}}
-						numberOfLines={1}
-					>
-						{item.description}
+				<Text style={styles.allergenIcon}>{item.icon}</Text>
+				<View style={styles.allergenInfo}>
+					<Text style={[styles.allergenName, isSelected && styles.allergenNameSelected]}>
+						{item.name}
 					</Text>
-				)}
+					{item.description ? (
+						<Text style={styles.allergenDesc} numberOfLines={1}>
+							{item.description}
+						</Text>
+					) : null}
+				</View>
 			</TouchableOpacity>
 		);
 	};
@@ -163,194 +110,100 @@ export default function AllergenSelectionModal({
 	return (
 		<Modal
 			visible={visible}
-			animationType="slide"
+			animationType="fade"
 			transparent
 			onRequestClose={onClose}
 		>
-			<View
-				style={{
-					flex: 1,
-					backgroundColor: "rgba(0,0,0,0.5)",
-					justifyContent: "flex-end",
-				}}
-			>
-				<View
-					style={{
-						backgroundColor: theme.backgroundColor || "#fff",
-						borderTopLeftRadius: 20,
-						borderTopRightRadius: 20,
-						maxHeight: "80%",
-						paddingBottom: 20,
-					}}
-				>
-					{/* Header */}
-					<View
-						style={{
-							flexDirection: "row",
-							alignItems: "center",
-							justifyContent: "space-between",
-							padding: 16,
-							borderBottomWidth: 1,
-							borderBottomColor: theme.borderColor || "#eee",
-						}}
-					>
-						<Text
-							style={{
-								fontSize: 18,
-								fontWeight: "600",
-								color: theme.textColor || "#333",
-							}}
-						>
-							Allergènes du produit
-						</Text>
-						<TouchableOpacity onPress={onClose} disabled={loading}>
-							<Ionicons
-								name="close"
-								size={24}
-								color={theme.textColor || "#333"}
-							/>
+			<View style={styles.overlay}>
+				<View style={styles.sheet}>
+					<View style={styles.header}>
+						<View style={styles.headerLeft}>
+							<View style={styles.iconBox}>
+								<Ionicons name="warning" size={22} color="#F59E0B" />
+							</View>
+							<View style={{ flex: 1 }}>
+								<Text style={styles.headerTitle}>Allergenes</Text>
+								{productName ? (
+									<Text style={styles.headerSub} numberOfLines={1}>
+										{productName}
+									</Text>
+								) : null}
+							</View>
+						</View>
+						<TouchableOpacity style={styles.closeBtn} onPress={onClose}>
+							<Ionicons name="close" size={20} color="#94A3B8" />
 						</TouchableOpacity>
 					</View>
 
-					{/* Search Bar */}
-					<View style={{ paddingHorizontal: 16, paddingTop: 12 }}>
-						<View
-							style={{
-								flexDirection: "row",
-								alignItems: "center",
-								backgroundColor: theme.cardColor || "#f5f5f5",
-								borderRadius: 8,
-								paddingHorizontal: 12,
-								height: 40,
-							}}
-						>
-							<Ionicons
-								name="search"
-								size={20}
-								color={theme.subtextColor || "#999"}
-							/>
-							<TextInput
-								style={{
-									flex: 1,
-									marginLeft: 8,
-									fontSize: 16,
-									color: theme.textColor || "#333",
-								}}
-								placeholder="Rechercher un allergène..."
-								placeholderTextColor={theme.subtextColor || "#999"}
-								value={searchQuery}
-								onChangeText={setSearchQuery}
-							/>
-							{searchQuery.length > 0 && (
-								<TouchableOpacity onPress={() => setSearchQuery("")}>
-									<Ionicons name="close-circle" size={20} color="#999" />
-								</TouchableOpacity>
-							)}
-						</View>
+					<View style={styles.searchWrapper}>
+						<Ionicons name="search" size={18} color="#64748B" style={{ marginRight: 8 }} />
+						<TextInput
+							style={styles.searchInput}
+							placeholder="Rechercher un allergene..."
+							placeholderTextColor="#64748B"
+							value={searchQuery}
+							onChangeText={setSearchQuery}
+						/>
+						{searchQuery.length > 0 && (
+							<TouchableOpacity onPress={() => setSearchQuery("")}>
+								<Ionicons name="close-circle" size={18} color="#64748B" />
+							</TouchableOpacity>
+						)}
 					</View>
 
-					{/* Selection Count */}
-					<View
-						style={{
-							paddingHorizontal: 16,
-							paddingVertical: 8,
-						}}
-					>
-						<Text
-							style={{
-								fontSize: 14,
-								color: theme.subtextColor || "#666",
-							}}
-						>
-							{selectedAllergens.length} allergène(s) sélectionné(s)
+					<View style={styles.counter}>
+						<Text style={styles.counterText}>
+							{selectedAllergens.length} allergene{selectedAllergens.length !== 1 ? "s" : ""} selectionne{selectedAllergens.length !== 1 ? "s" : ""}
 						</Text>
 					</View>
 
-					{/* List */}
 					{loading ? (
-						<View
-							style={{
-								padding: 40,
-								alignItems: "center",
-								justifyContent: "center",
-							}}
-						>
-							<ActivityIndicator size="large" color={theme.primaryColor} />
+						<View style={styles.loader}>
+							<ActivityIndicator size="large" color="#F59E0B" />
 						</View>
 					) : (
 						<FlatList
 							data={filteredAllergens}
 							renderItem={renderAllergenItem}
 							keyExtractor={(item) => item._id}
-							style={{ maxHeight: 400 }}
+							style={styles.list}
+							contentContainerStyle={styles.listContent}
+							keyboardShouldPersistTaps="handled"
 							ListEmptyComponent={
-								<View style={{ padding: 40, alignItems: "center" }}>
-									<Ionicons name="sad-outline" size={48} color="#ccc" />
-									<Text
-										style={{
-											marginTop: 12,
-											fontSize: 16,
-											color: theme.subtextColor || "#999",
-										}}
-									>
-										Aucun allergène trouvé
-									</Text>
+								<View style={styles.emptyWrap}>
+									<Ionicons name="sad-outline" size={40} color="#334155" />
+									<Text style={styles.emptyText}>Aucun allergene trouve</Text>
 								</View>
 							}
 						/>
 					)}
 
-					{/* Actions */}
-					<View
-						style={{
-							flexDirection: "row",
-							paddingHorizontal: 16,
-							paddingTop: 12,
-							gap: 12,
-						}}
-					>
+					<View style={styles.footer}>
 						<TouchableOpacity
-							style={{
-								flex: 1,
-								padding: 14,
-								borderRadius: 8,
-								backgroundColor: theme.cardColor || "#f5f5f5",
-								alignItems: "center",
-							}}
+							style={styles.cancelBtn}
 							onPress={onClose}
 							disabled={loading}
 						>
-							<Text
-								style={{
-									fontSize: 16,
-									fontWeight: "600",
-									color: theme.textColor || "#333",
-								}}
-							>
-								Annuler
-							</Text>
+							<Text style={styles.cancelBtnText}>Annuler</Text>
 						</TouchableOpacity>
-
 						<TouchableOpacity
-							style={{
-								flex: 1,
-								padding: 14,
-								borderRadius: 8,
-								backgroundColor: theme.primaryColor || "#4CAF50",
-								alignItems: "center",
-							}}
+							style={styles.validateBtnWrap}
 							onPress={handleValidate}
 							disabled={loading}
+							activeOpacity={0.85}
 						>
-							{loading ? (
-								<ActivityIndicator color="#fff" />
-							) : (
-								<Text
-									style={{ fontSize: 16, fontWeight: "600", color: "#fff" }}
-								>
-									Valider
-								</Text>
-							)}
+							<LinearGradient
+								colors={["#F59E0B", "#D97706"]}
+								style={styles.validateBtn}
+								start={{ x: 0, y: 0 }}
+								end={{ x: 1, y: 0 }}
+							>
+								{loading ? (
+									<ActivityIndicator color="#fff" size="small" />
+								) : (
+									<Text style={styles.validateBtnText}>Valider</Text>
+								)}
+							</LinearGradient>
 						</TouchableOpacity>
 					</View>
 				</View>
@@ -358,3 +211,206 @@ export default function AllergenSelectionModal({
 		</Modal>
 	);
 }
+
+const styles = StyleSheet.create({
+	overlay: {
+		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.70)",
+		justifyContent: "center",
+		alignItems: "center",
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+	},
+	sheet: {
+		backgroundColor: "#1E293B",
+		borderRadius: 20,
+		width: "100%",
+		maxWidth: 520,
+		flexShrink: 1,
+		minHeight: "70%",
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.08)",
+		overflow: "hidden",
+	},
+	header: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		paddingHorizontal: 20,
+		paddingVertical: 16,
+		borderBottomWidth: 1,
+		borderBottomColor: "rgba(255,255,255,0.07)",
+	},
+	headerLeft: {
+		flexDirection: "row",
+		alignItems: "center",
+		gap: 12,
+		flex: 1,
+	},
+	iconBox: {
+		width: 40,
+		height: 40,
+		borderRadius: 10,
+		backgroundColor: "rgba(245,158,11,0.15)",
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	headerTitle: {
+		fontSize: 17,
+		fontWeight: "700",
+		color: "#F1F5F9",
+	},
+	headerSub: {
+		fontSize: 13,
+		color: "#64748B",
+		marginTop: 1,
+		maxWidth: 220,
+	},
+	closeBtn: {
+		width: 36,
+		height: 36,
+		borderRadius: 18,
+		backgroundColor: "rgba(255,255,255,0.06)",
+		alignItems: "center",
+		justifyContent: "center",
+		marginLeft: 8,
+	},
+	searchWrapper: {
+		flexDirection: "row",
+		alignItems: "center",
+		marginHorizontal: 16,
+		marginTop: 14,
+		marginBottom: 8,
+		backgroundColor: "rgba(255,255,255,0.06)",
+		borderRadius: 10,
+		paddingHorizontal: 12,
+		height: 44,
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.08)",
+	},
+	searchInput: {
+		flex: 1,
+		fontSize: 15,
+		color: "#F1F5F9",
+		height: "100%",
+	},
+	counter: {
+		paddingHorizontal: 20,
+		paddingBottom: 8,
+	},
+	counterText: {
+		fontSize: 13,
+		color: "#64748B",
+	},
+	loader: {
+		flex: 1,
+		alignItems: "center",
+		justifyContent: "center",
+		padding: 40,
+	},
+	list: {
+		flex: 1,
+	},
+	listContent: {
+		paddingHorizontal: 12,
+		paddingBottom: 8,
+	},
+	allergenRow: {
+		flexDirection: "row",
+		alignItems: "center",
+		paddingVertical: 10,
+		paddingHorizontal: 12,
+		marginVertical: 3,
+		borderRadius: 10,
+		backgroundColor: "rgba(255,255,255,0.04)",
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.06)",
+	},
+	allergenRowSelected: {
+		backgroundColor: "rgba(245,158,11,0.12)",
+		borderColor: "rgba(245,158,11,0.30)",
+	},
+	checkbox: {
+		width: 22,
+		height: 22,
+		borderRadius: 6,
+		borderWidth: 2,
+		borderColor: "#334155",
+		alignItems: "center",
+		justifyContent: "center",
+		marginRight: 10,
+	},
+	checkboxSelected: {
+		borderColor: "#F59E0B",
+		backgroundColor: "rgba(245,158,11,0.15)",
+	},
+	allergenIcon: {
+		fontSize: 20,
+		marginRight: 10,
+	},
+	allergenInfo: {
+		flex: 1,
+	},
+	allergenName: {
+		fontSize: 15,
+		color: "#CBD5E1",
+		fontWeight: "500",
+	},
+	allergenNameSelected: {
+		color: "#F1F5F9",
+		fontWeight: "600",
+	},
+	allergenDesc: {
+		fontSize: 12,
+		color: "#64748B",
+		marginTop: 2,
+	},
+	emptyWrap: {
+		padding: 40,
+		alignItems: "center",
+	},
+	emptyText: {
+		marginTop: 10,
+		fontSize: 15,
+		color: "#475569",
+	},
+	footer: {
+		flexDirection: "row",
+		paddingHorizontal: 16,
+		paddingTop: 12,
+		paddingBottom: Platform.OS === "ios" ? 32 : 20,
+		gap: 12,
+		borderTopWidth: 1,
+		borderTopColor: "rgba(255,255,255,0.07)",
+		backgroundColor: "#1E293B",
+	},
+	cancelBtn: {
+		flex: 1,
+		height: 48,
+		borderRadius: 12,
+		backgroundColor: "rgba(255,255,255,0.07)",
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	cancelBtnText: {
+		fontSize: 15,
+		fontWeight: "600",
+		color: "#94A3B8",
+	},
+	validateBtnWrap: {
+		flex: 1,
+		height: 48,
+		borderRadius: 12,
+		overflow: "hidden",
+	},
+	validateBtn: {
+		flex: 1,
+		alignItems: "center",
+		justifyContent: "center",
+	},
+	validateBtnText: {
+		fontSize: 15,
+		fontWeight: "700",
+		color: "#fff",
+	},
+});

@@ -71,7 +71,7 @@ export const ServiceSection = React.memo(
 				|| activeReservation?.serverId?.name
 				|| activeReservation?.openedBy;
 			if (fullName) return fullName.trim().split(/\s+/)[0];
-			return "Non assigné";
+			return "1 Non assigné";
 		}, [
 			activeServer,
 			activeReservation?.serverId,

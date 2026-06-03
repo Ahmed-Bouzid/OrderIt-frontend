@@ -26,6 +26,7 @@ import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import useThemeStore from "../../src/stores/useThemeStore";
+import { useTheme } from "../../hooks/useTheme";
 import { reservationService } from "../../shared-api/services/reservationService";
 import useTableStore from "../../src/stores/useRestaurantTableStore";
 import useReservationStore from "../../src/stores/useReservationStore";

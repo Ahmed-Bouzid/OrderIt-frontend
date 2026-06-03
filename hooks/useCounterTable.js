@@ -269,7 +269,8 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				const total = items.reduce((sum, i) => sum + i.price * i.quantity, 0);
 
 			// 🔑 Récupérer serverId depuis la session (assigné à l'ouverture de table)
-			const serverId = tableSession?.serverId || userId; // Fallback sur userId si manquant
+			const rawServerId = tableSession?.serverId;
+			const serverId = rawServerId?._id || rawServerId || userId; // Extraire _id si objet populé
 
 			// POST /orders via authFetch — retry auto sur 5xx, logs body erreur automatiques
 			const order = await authFetch(`${API_CONFIG.baseURL}/orders`, {

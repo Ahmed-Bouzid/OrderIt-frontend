@@ -16,7 +16,6 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
-
 // Icônes et couleurs par type d'action
 const ACTION_CONFIG = {
 	created: { icon: "add-circle", color: "#10b981", label: "Création" },
@@ -48,7 +47,6 @@ const ACTION_CONFIG = {
 
 const AuditModal = ({ visible, onClose, reservation }) => {
 	const THEME = useTheme();
-
 	const auditLog = useMemo(() => {
 		if (!reservation?.auditLog) return [];
 		// Tri décroissant (plus récent en premier)
@@ -82,7 +80,7 @@ const AuditModal = ({ visible, onClose, reservation }) => {
 		<Modal
 			visible={visible}
 			transparent
-			animationType="slide"
+			animationType="fade"
 			onRequestClose={onClose}
 		>
 			<TouchableWithoutFeedback onPress={onClose}>
@@ -92,8 +90,8 @@ const AuditModal = ({ visible, onClose, reservation }) => {
 							{/* Header */}
 							<LinearGradient
 								colors={[
-									THEME.colors.background.card,
-									THEME.colors.background.elevated,
+									"#1E293B",
+									"#243447",
 								]}
 								style={styles(THEME).header}
 							>
@@ -108,7 +106,7 @@ const AuditModal = ({ visible, onClose, reservation }) => {
 										<Ionicons
 											name="time-outline"
 											size={20}
-											color={THEME.colors.primary.indigo}
+											color={"#6366F1"}
 										/>
 									</LinearGradient>
 									<View>
@@ -125,7 +123,7 @@ const AuditModal = ({ visible, onClose, reservation }) => {
 									<Ionicons
 										name="close"
 										size={22}
-										color={THEME.colors.text.secondary}
+										color={"#94A3B8"}
 									/>
 								</TouchableOpacity>
 							</LinearGradient>
@@ -216,7 +214,7 @@ const AuditModal = ({ visible, onClose, reservation }) => {
 									<Ionicons
 										name="checkmark"
 										size={18}
-										color={THEME.colors.text.secondary}
+										color={"#94A3B8"}
 									/>
 									<Text style={styles(THEME).footerButtonText}>Fermer</Text>
 								</TouchableOpacity>
@@ -233,11 +231,11 @@ const styles = (THEME) =>
 	StyleSheet.create({
 		overlay: {
 			flex: 1,
-			backgroundColor: "rgba(0, 0, 0, 0.5)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 			justifyContent: "flex-end",
 		},
 		modalContainer: {
-			backgroundColor: THEME.colors.background.primary,
+			backgroundColor: "#0F172A",
 			borderTopLeftRadius: 24,
 			borderTopRightRadius: 24,
 			maxHeight: "85%",
@@ -251,7 +249,7 @@ const styles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			padding: THEME.spacing.lg,
+			padding: 16,
 			borderTopLeftRadius: 24,
 			borderTopRightRadius: 24,
 			borderBottomWidth: 1,
@@ -260,7 +258,7 @@ const styles = (THEME) =>
 		headerLeft: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: THEME.spacing.md,
+			gap: 12,
 		},
 		headerIconBg: {
 			width: 42,
@@ -272,18 +270,18 @@ const styles = (THEME) =>
 		modalTitle: {
 			fontSize: THEME.typography.sizes.lg,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 		modalSubtitle: {
 			fontSize: THEME.typography.sizes.sm,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 			marginTop: 2,
 		},
 		closeButton: {
 			width: 36,
 			height: 36,
 			borderRadius: 18,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			alignItems: "center",
 			justifyContent: "center",
 		},
@@ -291,26 +289,26 @@ const styles = (THEME) =>
 			flex: 1,
 		},
 		scrollContent: {
-			padding: THEME.spacing.lg,
-			paddingBottom: THEME.spacing.xl,
+			padding: 16,
+			paddingBottom: 20,
 		},
 		emptyState: {
 			alignItems: "center",
 			justifyContent: "center",
-			paddingVertical: THEME.spacing.xl * 2,
+			paddingVertical: 20 * 2,
 		},
 		emptyText: {
 			fontSize: THEME.typography.sizes.md,
 			color: THEME.colors.text.tertiary,
-			marginTop: THEME.spacing.md,
+			marginTop: 12,
 		},
 		timelineItem: {
 			flexDirection: "row",
-			marginBottom: THEME.spacing.md,
+			marginBottom: 12,
 		},
 		iconContainer: {
 			alignItems: "center",
-			marginRight: THEME.spacing.md,
+			marginRight: 12,
 		},
 		iconCircle: {
 			width: 32,
@@ -326,9 +324,9 @@ const styles = (THEME) =>
 		},
 		contentContainer: {
 			flex: 1,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: 12,
-			padding: THEME.spacing.md,
+			padding: 12,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
 		},
@@ -341,7 +339,7 @@ const styles = (THEME) =>
 		actionLabel: {
 			fontSize: THEME.typography.sizes.xs,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 			textTransform: "uppercase",
 			letterSpacing: 0.5,
 		},
@@ -352,7 +350,7 @@ const styles = (THEME) =>
 		message: {
 			fontSize: THEME.typography.sizes.md,
 			fontWeight: "500",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 4,
 		},
 		userName: {
@@ -361,7 +359,7 @@ const styles = (THEME) =>
 			fontStyle: "italic",
 		},
 		footer: {
-			padding: THEME.spacing.md,
+			padding: 12,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.subtle,
 		},
@@ -369,15 +367,15 @@ const styles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			gap: THEME.spacing.sm,
-			paddingVertical: THEME.spacing.md,
+			gap: 8,
+			paddingVertical: 12,
 			borderRadius: 12,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 		},
 		footerButtonText: {
 			fontSize: THEME.typography.sizes.md,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 	});
 

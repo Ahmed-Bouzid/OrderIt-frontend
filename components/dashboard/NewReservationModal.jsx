@@ -21,14 +21,14 @@ import {
 	Dimensions,
 	Alert,
 	ActivityIndicator,
+	Pressable,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
 import DateTimePicker from "@react-native-community/datetimepicker";
-import useThemeStore from "../../src/stores/useThemeStore";
 import useUserStore from "../../src/stores/useUserStore";
-import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
+import { useTheme } from "../../hooks/useTheme";
 import { isFastService } from "../../utils/categoryUtils";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 import { useReservationAI } from "../../hooks/useReservationAI";
@@ -40,11 +40,11 @@ const InputField = React.memo(
 	({ label, icon, required, error, children, THEME, modalStyles }) => (
 		<View style={modalStyles.inputWrapper}>
 			<View style={modalStyles.labelRow}>
-				<Ionicons name={icon} size={16} color={THEME.colors.text.muted} />
+				<Ionicons name={icon} size={16} color={"#64748B"} />
 				<Text style={modalStyles.label}>
 					{label}
 					{required && (
-						<Text style={{ color: THEME.colors.primary.amber }}> *</Text>
+						<Text style={{ color: "#F59E0B" }}> *</Text>
 					)}
 				</Text>
 			</View>
@@ -116,8 +116,8 @@ const PersonSelector = React.memo(({ value, onChange, THEME, modalStyles }) => {
 					size={20}
 					color={
 						decrementDisabled
-							? THEME.colors.text.muted
-							: THEME.colors.text.primary
+							? "#64748B"
+							: "#F1F5F9"
 					}
 				/>
 			</TouchableOpacity>
@@ -138,8 +138,8 @@ const PersonSelector = React.memo(({ value, onChange, THEME, modalStyles }) => {
 					size={20}
 					color={
 						incrementDisabled
-							? THEME.colors.text.muted
-							: THEME.colors.text.primary
+							? "#64748B"
+							: "#F1F5F9"
 					}
 				/>
 			</TouchableOpacity>
@@ -203,7 +203,6 @@ const TableSelector = React.memo(
 // ─────────────── Main Component ───────────────
 const NewReservationModal = React.memo(
 	({ visible, onClose, onCreate, tables, initialData = null }) => {
-		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const authFetch = useAuthFetch();
 
@@ -562,9 +561,9 @@ const NewReservationModal = React.memo(
 						behavior={Platform.OS === "ios" ? "padding" : "height"}
 						style={{ flex: 1 }}
 					>
-						<View style={modalStyles.overlay}>
+						<Pressable style={modalStyles.overlay} onPress={handleClose}>
 							{/* Card principale */}
-							<View style={modalStyles.card}>
+							<Pressable onPress={() => {}} style={modalStyles.card}>
 								{/* Header */}
 								<View style={modalStyles.header}>
 									<View>
@@ -588,7 +587,7 @@ const NewReservationModal = React.memo(
 										<Ionicons
 											name="close"
 											size={22}
-											color={THEME.colors.text.secondary}
+											color={"#94A3B8"}
 										/>
 									</TouchableOpacity>
 								</View>
@@ -616,7 +615,7 @@ const NewReservationModal = React.memo(
 								{/* Content */}
 								<ScrollView
 									showsVerticalScrollIndicator={false}
-									contentContainerStyle={{ paddingBottom: THEME.spacing.xl }}
+									contentContainerStyle={{ paddingBottom: 20 }}
 								>
 									{/* 🍔 Mode Snack: formulaire simplifié (nom + nb personnes) */}
 									{isSnackMode ? (
@@ -637,7 +636,7 @@ const NewReservationModal = React.memo(
 														modalStyles.input,
 														errors.clientName && modalStyles.inputError,
 													]}
-													placeholderTextColor={THEME.colors.text.muted}
+													placeholderTextColor={"#64748B"}
 												/>
 											</InputField>
 
@@ -688,7 +687,7 @@ const NewReservationModal = React.memo(
 													multiline
 													numberOfLines={2}
 													style={[modalStyles.input, { minHeight: 60 }]}
-													placeholderTextColor={THEME.colors.text.muted}
+													placeholderTextColor={"#64748B"}
 												/>
 											</InputField>
 										</View>
@@ -713,7 +712,7 @@ const NewReservationModal = React.memo(
 																modalStyles.input,
 																errors.clientName && modalStyles.inputError,
 															]}
-															placeholderTextColor={THEME.colors.text.muted}
+															placeholderTextColor={"#64748B"}
 														/>
 													</InputField>
 
@@ -734,7 +733,7 @@ const NewReservationModal = React.memo(
 																modalStyles.input,
 																errors.phone && modalStyles.inputError,
 															]}
-															placeholderTextColor={THEME.colors.text.muted}
+															placeholderTextColor={"#64748B"}
 														/>
 													</InputField>
 
@@ -779,7 +778,7 @@ const NewReservationModal = React.memo(
 													{/* Date et Heure côte à côte */}
 													<View style={modalStyles.dateTimeRow}>
 														<View
-															style={{ flex: 1, marginRight: THEME.spacing.md }}
+															style={{ flex: 1, marginRight: 12 }}
 														>
 															<InputField
 																label="Date"
@@ -838,14 +837,14 @@ const NewReservationModal = React.memo(
 																		{suggestionLoading ? (
 																			<ActivityIndicator
 																				size="small"
-																				color={THEME.colors.primary.amber}
+																				color={"#F59E0B"}
 																			/>
 																		) : (
 																			<>
 																				<Ionicons
 																					name="sparkles-outline"
 																					size={13}
-																					color={THEME.colors.primary.amber}
+																					color={"#F59E0B"}
 																				/>
 																				<Text
 																					style={modalStyles.suggestButtonText}
@@ -913,7 +912,7 @@ const NewReservationModal = React.memo(
 																	>
 																		<ActivityIndicator
 																			size="small"
-																			color={THEME.colors.primary.amber}
+																			color={"#F59E0B"}
 																		/>
 																	</View>
 																) : availableSlots.length > 0 ? (
@@ -981,7 +980,7 @@ const NewReservationModal = React.memo(
 																			<Ionicons
 																				name="information-circle-outline"
 																				size={24}
-																				color={THEME.colors.text.secondary}
+																				color={"#94A3B8"}
 																			/>
 																		</TouchableOpacity>
 																	</View>
@@ -993,13 +992,13 @@ const NewReservationModal = React.memo(
 																			marginTop: 10,
 																			padding: 12,
 																			backgroundColor:
-																				THEME.colors.background.elevated,
+																				"#243447",
 																			borderRadius: 8,
 																		}}
 																	>
 																		<Text
 																			style={{
-																				color: THEME.colors.text.primary,
+																				color: "#F1F5F9",
 																				fontSize: 14,
 																				fontWeight: "600",
 																				marginBottom: 8,
@@ -1014,7 +1013,7 @@ const NewReservationModal = React.memo(
 																		</Text>
 																		<Text
 																			style={{
-																				color: THEME.colors.text.secondary,
+																				color: "#94A3B8",
 																				fontSize: 12,
 																				marginBottom: 8,
 																			}}
@@ -1027,7 +1026,7 @@ const NewReservationModal = React.memo(
 																				<View>
 																					<Text
 																						style={{
-																							color: THEME.colors.text.primary,
+																							color: "#F1F5F9",
 																							fontSize: 12,
 																							fontWeight: "600",
 																							marginBottom: 6,
@@ -1058,7 +1057,7 @@ const NewReservationModal = React.memo(
 																								<Text
 																									style={{
 																										color:
-																											THEME.colors.text.primary,
+																											"#F1F5F9",
 																										fontSize: 13,
 																									}}
 																								>
@@ -1158,7 +1157,7 @@ const NewReservationModal = React.memo(
 														{loadingTables ? (
 															<Text
 																style={{
-																	color: THEME.colors.text.secondary,
+																	color: "#94A3B8",
 																	fontSize: 12,
 																}}
 															>
@@ -1189,7 +1188,7 @@ const NewReservationModal = React.memo(
 																modalStyles.input,
 																modalStyles.inputMultiline,
 															]}
-															placeholderTextColor={THEME.colors.text.muted}
+															placeholderTextColor={"#64748B"}
 															multiline
 															numberOfLines={2}
 														/>
@@ -1208,7 +1207,7 @@ const NewReservationModal = React.memo(
 																modalStyles.input,
 																modalStyles.inputMultiline,
 															]}
-															placeholderTextColor={THEME.colors.text.muted}
+															placeholderTextColor={"#64748B"}
 															multiline
 															numberOfLines={2}
 														/>
@@ -1231,7 +1230,7 @@ const NewReservationModal = React.memo(
 												<Ionicons
 													name="close-outline"
 													size={18}
-													color={THEME.colors.text.secondary}
+													color={"#94A3B8"}
 												/>
 												<Text style={modalStyles.cancelButtonText}>
 													Annuler
@@ -1244,8 +1243,8 @@ const NewReservationModal = React.memo(
 											>
 												<LinearGradient
 													colors={[
-														THEME.colors.primary.amber,
-														THEME.colors.primary.amberDark,
+														"#F59E0B",
+														"#D97706",
 													]}
 													start={{ x: 0, y: 0 }}
 													end={{ x: 1, y: 0 }}
@@ -1273,7 +1272,7 @@ const NewReservationModal = React.memo(
 														step === 1 ? "close-outline" : "arrow-back-outline"
 													}
 													size={18}
-													color={THEME.colors.text.secondary}
+													color={"#94A3B8"}
 												/>
 												<Text style={modalStyles.cancelButtonText}>
 													{step === 1 ? "Annuler" : "Retour"}
@@ -1286,8 +1285,8 @@ const NewReservationModal = React.memo(
 											>
 												<LinearGradient
 													colors={[
-														THEME.colors.primary.amber,
-														THEME.colors.primary.amberDark,
+														"#F59E0B",
+														"#D97706",
 													]}
 													start={{ x: 0, y: 0 }}
 													end={{ x: 1, y: 0 }}
@@ -1310,8 +1309,8 @@ const NewReservationModal = React.memo(
 										</>
 									)}
 								</View>
-							</View>
-						</View>
+							</Pressable>
+						</Pressable>
 					</KeyboardAvoidingView>
 				</Modal>
 			</>
@@ -1329,12 +1328,12 @@ const createStyles = (THEME) =>
 			backgroundColor: "rgba(12, 15, 23, 0.9)",
 			justifyContent: "center",
 			alignItems: "center",
-			padding: THEME.spacing.xl,
+			padding: 20,
 		},
 		card: {
 			width: Math.min(SCREEN_WIDTH - 48, 500),
 			maxHeight: "90%",
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: THEME.radius["2xl"],
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -1344,24 +1343,24 @@ const createStyles = (THEME) =>
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "flex-start",
-			padding: THEME.spacing.xl,
-			paddingBottom: THEME.spacing.lg,
+			padding: 20,
+			paddingBottom: 16,
 		},
 		title: {
 			fontSize: 22,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: THEME.spacing.xs,
 		},
 		subtitle: {
 			fontSize: 14,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		closeButton: {
 			width: 36,
 			height: 36,
 			borderRadius: 18,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			alignItems: "center",
 			justifyContent: "center",
 		},
@@ -1369,8 +1368,8 @@ const createStyles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			paddingHorizontal: THEME.spacing.xl,
-			paddingBottom: THEME.spacing.lg,
+			paddingHorizontal: 20,
+			paddingBottom: 16,
 		},
 		stepItem: {
 			flexDirection: "row",
@@ -1380,70 +1379,70 @@ const createStyles = (THEME) =>
 			width: 28,
 			height: 28,
 			borderRadius: 14,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			borderWidth: 2,
 			borderColor: THEME.colors.border.default,
 			alignItems: "center",
 			justifyContent: "center",
 		},
 		stepDotActive: {
-			borderColor: THEME.colors.primary.amber,
-			backgroundColor: `${THEME.colors.primary.amber}20`,
+			borderColor: "#F59E0B",
+			backgroundColor: "#F59E0B20",
 		},
 		stepDotCompleted: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
+			borderColor: "#F59E0B",
 		},
 		stepNumber: {
 			fontSize: 12,
 			fontWeight: "600",
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		stepNumberActive: {
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 		},
 		stepLine: {
 			width: 60,
 			height: 2,
 			backgroundColor: THEME.colors.border.default,
-			marginHorizontal: THEME.spacing.sm,
+			marginHorizontal: 8,
 		},
 		stepLineCompleted: {
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
 		},
 		divider: {
 			height: 1,
-			marginHorizontal: THEME.spacing.xl,
+			marginHorizontal: 20,
 		},
 		stepContent: {
-			padding: THEME.spacing.xl,
-			paddingTop: THEME.spacing.lg,
+			padding: 20,
+			paddingTop: 16,
 		},
 		inputWrapper: {
-			marginBottom: THEME.spacing.lg,
+			marginBottom: 16,
 		},
 		labelRow: {
 			flexDirection: "row",
 			alignItems: "center",
-			marginBottom: THEME.spacing.sm,
+			marginBottom: 8,
 		},
 		label: {
 			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
-			marginLeft: THEME.spacing.sm,
+			color: "#94A3B8",
+			marginLeft: 8,
 		},
 		input: {
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.lg,
-			padding: THEME.spacing.lg,
+			padding: 16,
 			fontSize: 16,
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
 		},
 		inputError: {
-			borderColor: THEME.colors.status.error,
+			borderColor: "#EF4444",
 		},
 		inputMultiline: {
 			minHeight: 70,
@@ -1451,17 +1450,17 @@ const createStyles = (THEME) =>
 		},
 		errorText: {
 			fontSize: 12,
-			color: THEME.colors.status.error,
+			color: "#EF4444",
 			marginTop: THEME.spacing.xs,
-			marginLeft: THEME.spacing.sm,
+			marginLeft: 8,
 		},
 		personSelector: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.lg,
-			padding: THEME.spacing.sm,
+			padding: 8,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
 		},
@@ -1469,7 +1468,7 @@ const createStyles = (THEME) =>
 			width: 44,
 			height: 44,
 			borderRadius: 22,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			alignItems: "center",
 			justifyContent: "center",
 			borderWidth: 1,
@@ -1485,18 +1484,18 @@ const createStyles = (THEME) =>
 		personValue: {
 			fontSize: 28,
 			fontWeight: "700",
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 		},
 		personLabel: {
 			fontSize: 12,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginTop: 2,
 		},
 		dateTimeRow: {
 			flexDirection: "row",
 		},
 		datePickerWrapper: {
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.lg,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -1508,83 +1507,83 @@ const createStyles = (THEME) =>
 		timeAssistantRow: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: THEME.spacing.sm,
+			gap: 8,
 		},
 		infoButton: {
 			width: 44,
 			height: 44,
 			borderRadius: 22,
-			backgroundColor: `${THEME.colors.text.secondary}10`,
+			backgroundColor: `${"#94A3B8"}10`,
 			alignItems: "center",
 			justifyContent: "center",
 			borderWidth: 1,
-			borderColor: `${THEME.colors.text.secondary}30`,
+			borderColor: `${"#94A3B8"}30`,
 		},
 		slotsContainer: {
 			flexDirection: "row",
 			flexWrap: "wrap",
-			gap: THEME.spacing.sm,
-			paddingVertical: THEME.spacing.sm,
+			gap: 8,
+			paddingVertical: 8,
 		},
 		slotChip: {
-			paddingVertical: THEME.spacing.sm,
-			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: 8,
+			paddingHorizontal: 12,
 			borderRadius: THEME.radius.full || 99,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 		},
 		slotChipSelected: {
-			borderColor: THEME.colors.primary.amber,
-			backgroundColor: `${THEME.colors.primary.amber}20`,
+			borderColor: "#F59E0B",
+			backgroundColor: "#F59E0B20",
 		},
 		slotChipText: {
 			fontSize: 13,
 			fontWeight: "500",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		slotChipTextSelected: {
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 			fontWeight: "700",
 		},
 		suggestButton: {
 			flexDirection: "row",
 			alignItems: "center",
 			gap: 6,
-			paddingVertical: THEME.spacing.sm,
-			paddingHorizontal: THEME.spacing.md,
-			marginBottom: THEME.spacing.sm,
+			paddingVertical: 8,
+			paddingHorizontal: 12,
+			marginBottom: 8,
 			borderRadius: THEME.radius.full || 99,
-			backgroundColor: `${THEME.colors.primary.amber}12`,
+			backgroundColor: "#F59E0B12",
 			borderWidth: 1,
-			borderColor: `${THEME.colors.primary.amber}30`,
+			borderColor: "#F59E0B30",
 			alignSelf: "flex-start",
 		},
 		suggestButtonText: {
 			fontSize: 12,
 			fontWeight: "600",
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 		},
 		suggestionPanel: {
-			marginTop: THEME.spacing.sm,
-			marginBottom: THEME.spacing.sm,
-			padding: THEME.spacing.md,
-			backgroundColor: THEME.colors.background.elevated,
+			marginTop: 8,
+			marginBottom: 8,
+			padding: 12,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.md,
 			borderWidth: 1,
-			borderColor: `${THEME.colors.primary.amber}25`,
+			borderColor: "#F59E0B25",
 		},
 		suggestionSummary: {
 			fontSize: 12,
-			color: THEME.colors.text.secondary,
-			marginBottom: THEME.spacing.sm,
+			color: "#94A3B8",
+			marginBottom: 8,
 		},
 		suggestionItem: {
 			flexDirection: "row",
 			alignItems: "center",
-			padding: THEME.spacing.md,
+			padding: 12,
 			marginBottom: THEME.spacing.xs,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: THEME.radius.sm,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -1592,84 +1591,84 @@ const createStyles = (THEME) =>
 		suggestionLabel: {
 			fontSize: 13,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 2,
 		},
 		suggestionReason: {
 			fontSize: 11,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		suggestionBadge: {
 			paddingVertical: 4,
 			paddingHorizontal: 8,
-			backgroundColor: `${THEME.colors.primary.amber}20`,
+			backgroundColor: "#F59E0B20",
 			borderRadius: THEME.radius.full || 99,
-			marginLeft: THEME.spacing.sm,
+			marginLeft: 8,
 		},
 		suggestionBadgeText: {
 			fontSize: 11,
 			fontWeight: "700",
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 		},
 		tableGrid: {
 			flexDirection: "row",
 			flexWrap: "wrap",
-			gap: THEME.spacing.sm,
+			gap: 8,
 		},
 		tableItem: {
 			minWidth: 60,
-			paddingVertical: THEME.spacing.md,
-			paddingHorizontal: THEME.spacing.lg,
-			backgroundColor: THEME.colors.background.elevated,
+			paddingVertical: 12,
+			paddingHorizontal: 16,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.md,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
 			alignItems: "center",
 		},
 		tableItemSelected: {
-			borderColor: THEME.colors.primary.amber,
-			backgroundColor: `${THEME.colors.primary.amber}15`,
+			borderColor: "#F59E0B",
+			backgroundColor: "#F59E0B15",
 		},
 		tableItemUnavailable: {
 			opacity: 0.5,
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: "#0F172A",
 		},
 		tableText: {
 			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		tableTextSelected: {
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 		},
 		tableTextUnavailable: {
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		tableOccupied: {
 			fontSize: 10,
-			color: THEME.colors.status.error,
+			color: "#EF4444",
 			marginTop: 2,
 		},
 		footer: {
 			flexDirection: "row",
 			justifyContent: "space-between",
-			padding: THEME.spacing.xl,
-			paddingTop: THEME.spacing.lg,
+			padding: 20,
+			paddingTop: 16,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.subtle,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 		},
 		cancelButton: {
 			flexDirection: "row",
 			alignItems: "center",
-			paddingVertical: THEME.spacing.md,
-			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: 12,
+			paddingHorizontal: 16,
 		},
 		cancelButtonText: {
 			fontSize: 15,
 			fontWeight: "500",
-			color: THEME.colors.text.secondary,
-			marginLeft: THEME.spacing.sm,
+			color: "#94A3B8",
+			marginLeft: 8,
 		},
 		confirmButton: {
 			borderRadius: THEME.radius.lg,
@@ -1678,14 +1677,14 @@ const createStyles = (THEME) =>
 		confirmGradient: {
 			flexDirection: "row",
 			alignItems: "center",
-			paddingVertical: THEME.spacing.md,
-			paddingHorizontal: THEME.spacing.xl,
+			paddingVertical: 12,
+			paddingHorizontal: 20,
 		},
 		confirmButtonText: {
 			fontSize: 15,
 			fontWeight: "600",
 			color: "#FFF",
-			marginRight: THEME.spacing.sm,
+			marginRight: 8,
 		},
 		// ── IA Styles ──────────────────────────────────────────────────
 		smartDurationHint: {
@@ -1695,8 +1694,8 @@ const createStyles = (THEME) =>
 			backgroundColor: "rgba(245, 158, 11, 0.08)",
 			borderRadius: THEME.radius.sm,
 			paddingVertical: 6,
-			paddingHorizontal: THEME.spacing.sm,
-			marginTop: THEME.spacing.sm,
+			paddingHorizontal: 8,
+			marginTop: 8,
 		},
 		smartDurationText: {
 			flex: 1,
@@ -1713,10 +1712,10 @@ const createStyles = (THEME) =>
 			borderWidth: 1,
 			borderColor: "rgba(245, 158, 11, 0.25)",
 			borderRadius: THEME.radius.md,
-			paddingVertical: THEME.spacing.sm,
-			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: 8,
+			paddingHorizontal: 12,
 			alignSelf: "flex-start",
-			marginBottom: THEME.spacing.sm,
+			marginBottom: 8,
 		},
 		aiAltButtonText: {
 			fontSize: 12,
@@ -1724,9 +1723,9 @@ const createStyles = (THEME) =>
 			color: "#F59E0B",
 		},
 		aiAltPanel: {
-			marginBottom: THEME.spacing.md,
-			paddingVertical: THEME.spacing.sm,
-			paddingHorizontal: THEME.spacing.sm,
+			marginBottom: 12,
+			paddingVertical: 8,
+			paddingHorizontal: 8,
 			backgroundColor: "rgba(245, 158, 11, 0.06)",
 			borderRadius: THEME.radius.md,
 			borderWidth: 1,
@@ -1757,7 +1756,7 @@ const createStyles = (THEME) =>
 		},
 		aiAltChipSub: {
 			fontSize: 10,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginTop: 1,
 		},
 	});

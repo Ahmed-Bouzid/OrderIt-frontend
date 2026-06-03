@@ -22,8 +22,7 @@ export const productService = {
 			}
 
 			const data = await response.json();
-			// console.log("✅ Produits récupérés:", data.length, "produits");
-			return data;
+			//			return data;
 		} catch (error) {
 			console.error("💥 Erreur complète dans fetchProducts:", error.message);
 			throw error;

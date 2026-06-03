@@ -17,9 +17,9 @@ import {
 import { Swipeable, GestureHandlerRootView } from "react-native-gesture-handler";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
-import { useTheme } from "../../hooks/useTheme";
 import useReservationStore from "../../src/stores/useReservationStore";
 import useWebReservationStore from "../../src/stores/useWebReservationStore";
+import { useTheme } from "../../hooks/useTheme";
 
 export default function WebReservationsModal({ visible, onClose }) {
 	const THEME = useTheme();
@@ -58,12 +58,12 @@ export default function WebReservationsModal({ visible, onClose }) {
 	
 	const getStatusColor = (status) => {
 		const statusMap = {
-			"pending": THEME.colors.status.warning,
-			"present": THEME.colors.status.success,
-			"completed": THEME.colors.text.muted,
-			"cancelled": THEME.colors.status.error,
+			"pending": "#F59E0B",
+			"present": "#22C55E",
+			"completed": "#64748B",
+			"cancelled": "#EF4444",
 		};
-		return statusMap[status] || THEME.colors.text.muted;
+		return statusMap[status] || "#64748B";
 	};
 
 	const handleDismiss = (itemId) => {
@@ -74,7 +74,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 	const renderRightActions = (itemId) => {
 		return (
 			<TouchableOpacity
-				style={[styles.deleteAction, { backgroundColor: THEME.colors.status.error }]}
+				style={[styles.deleteAction, { backgroundColor: "#EF4444" }]}
 				onPress={() => handleDismiss(itemId)}
 			>
 				<Ionicons name="trash-outline" size={22} color="#FFFFFF" />
@@ -94,10 +94,10 @@ export default function WebReservationsModal({ visible, onClose }) {
 			>
 				<TouchableOpacity 
 					activeOpacity={0.7}
-					style={[styles.mailItem, { backgroundColor: THEME.colors.background.elevated }]}
+					style={[styles.mailItem, { backgroundColor: "#243447" }]}
 				>
 				{/* Avatar avec initiale */}
-				<View style={[styles.avatar, { backgroundColor: THEME.colors.primary.amber }]}>
+				<View style={[styles.avatar, { backgroundColor: "#F59E0B" }]}>
 					<Text style={styles.avatarText}>{initials}</Text>
 				</View>
 				
@@ -106,19 +106,19 @@ export default function WebReservationsModal({ visible, onClose }) {
 					{/* Première ligne : Nom + Date */}
 					<View style={styles.mailHeader}>
 						<Text 
-							style={[styles.mailName, { color: THEME.colors.text.primary }]}
+							style={[styles.mailName, { color: "#F1F5F9" }]}
 							numberOfLines={1}
 						>
 							{item.clientName}
 						</Text>
-						<Text style={[styles.mailDate, { color: THEME.colors.text.muted }]}>
+						<Text style={[styles.mailDate, { color: "#64748B" }]}>
 							{formatDate(item.reservationDate)}
 						</Text>
 					</View>
 					
 					{/* Deuxième ligne : Heure + Personnes + Téléphone */}
 					<Text 
-						style={[styles.mailSubject, { color: THEME.colors.text.secondary }]}
+						style={[styles.mailSubject, { color: "#94A3B8" }]}
 						numberOfLines={1}
 					>
 						{item.reservationTime} • {item.nbPersonnes} pers. • {item.phone || "Pas de tél."}
@@ -127,7 +127,7 @@ export default function WebReservationsModal({ visible, onClose }) {
 					{/* Notes en aperçu si présentes */}
 					{item.notes && (
 						<Text 
-							style={[styles.mailPreview, { color: THEME.colors.text.muted }]}
+							style={[styles.mailPreview, { color: "#64748B" }]}
 							numberOfLines={2}
 						>
 							{item.notes}
@@ -163,10 +163,10 @@ export default function WebReservationsModal({ visible, onClose }) {
 				onPress={handleClose}
 			>
 				<TouchableWithoutFeedback>
-					<View style={[styles.modalContainer, { backgroundColor: THEME.colors.background.card }]}>
+					<View style={[styles.modalContainer, { backgroundColor: "#1E293B" }]}>
 					{/* Header */}
 					<LinearGradient
-						colors={[THEME.colors.primary.amber, THEME.colors.primary.dark]}
+						colors={["#F59E0B", THEME.colors.primary.dark]}
 						start={{ x: 0, y: 0 }}
 						end={{ x: 1, y: 0 }}
 						style={styles.header}
@@ -192,9 +192,9 @@ export default function WebReservationsModal({ visible, onClose }) {
 							<Ionicons
 								name="checkmark-circle-outline"
 								size={40}
-								color={THEME.colors.text.muted}
+								color={"#64748B"}
 							/>
-							<Text style={[styles.emptyText, { color: THEME.colors.text.muted }]}>
+							<Text style={[styles.emptyText, { color: "#64748B" }]}>
 								Aucune réservation en ligne
 							</Text>
 						</View>
@@ -287,7 +287,7 @@ const createStyles = (THEME) =>
 			paddingVertical: 12,
 			paddingHorizontal: 16,
 			borderBottomWidth: 0.5,
-			borderBottomColor: THEME.colors.text.muted + "20",
+			borderBottomColor: "#64748B" + "20",
 		},
 		avatar: {
 			width: 40,

@@ -24,10 +24,10 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { API_CONFIG } from "../../src/config/apiConfig";
+import { useTheme } from "../../hooks/useTheme";
 
 // ── Statut couleur d'une ligne de réservation ─────────────────────────────────
 // idle      : état initial (table déjà attribuée ou non)
@@ -137,7 +137,7 @@ const ReservationRow = React.memo(({ item, THEME, styles }) => {
 			{/* Infos réservation */}
 			<View style={styles.rowInfo}>
 				<Text
-					style={[styles.rowName, { color: THEME.colors.text.primary }]}
+					style={[styles.rowName, { color: "#F1F5F9" }]}
 					numberOfLines={1}
 				>
 					{item.clientName || "Inconnu"}
@@ -146,28 +146,28 @@ const ReservationRow = React.memo(({ item, THEME, styles }) => {
 					<Ionicons
 						name="time-outline"
 						size={12}
-						color={THEME.colors.text.muted}
+						color={"#64748B"}
 					/>
 					<Text
-						style={[styles.rowMetaText, { color: THEME.colors.text.muted }]}
+						style={[styles.rowMetaText, { color: "#64748B" }]}
 					>
 						{formatTime(item.reservationTime)}
 					</Text>
 					<Ionicons
 						name="people-outline"
 						size={12}
-						color={THEME.colors.text.muted}
+						color={"#64748B"}
 						style={{ marginLeft: 8 }}
 					/>
 					<Text
-						style={[styles.rowMetaText, { color: THEME.colors.text.muted }]}
+						style={[styles.rowMetaText, { color: "#64748B" }]}
 					>
 						{item.nbPersonnes || 1} pers.
 					</Text>
 					<Text
 						style={[
 							styles.rowMetaText,
-							{ color: THEME.colors.text.muted, marginLeft: 8 },
+							{ color: "#64748B", marginLeft: 8 },
 						]}
 					>
 						{formatDate(item.reservationDate)}
@@ -191,7 +191,7 @@ const ReservationRow = React.memo(({ item, THEME, styles }) => {
 					</>
 				) : (
 					<Text style={[styles.tableBadgeText, { color: colorConfig.text }]}>
-						Non assignée
+						2 Non assignée
 					</Text>
 				)}
 			</View>
@@ -216,7 +216,7 @@ const Legend = React.memo(({ styles, THEME }) => (
 						{ backgroundColor: STATUS_COLORS[key].border },
 					]}
 				/>
-				<Text style={[styles.legendText, { color: THEME.colors.text.muted }]}>
+				<Text style={[styles.legendText, { color: "#64748B" }]}>
 					{label}
 				</Text>
 			</View>
@@ -231,7 +231,6 @@ const AutoAssignModal = React.memo(
 		const THEME = useTheme();
 		const styles = useMemo(() => createStyles(THEME), [THEME]);
 		const authFetch = useAuthFetch();
-
 		// Animations d'entrée
 		const scaleAnim = useRef(new Animated.Value(0.92)).current;
 		const opacityAnim = useRef(new Animated.Value(0)).current;
@@ -472,7 +471,7 @@ const AutoAssignModal = React.memo(
 			<Modal
 				visible={visible}
 				transparent
-				animationType="none"
+				animationType="fade"
 				onRequestClose={onClose}
 				statusBarTranslucent
 			>
@@ -501,7 +500,7 @@ const AutoAssignModal = React.memo(
 										<Text
 											style={[
 												styles.headerTitle,
-												{ color: THEME.colors.text.primary },
+												{ color: "#F1F5F9" },
 											]}
 										>
 											Attribution automatique
@@ -509,7 +508,7 @@ const AutoAssignModal = React.memo(
 										<Text
 											style={[
 												styles.headerSubtitle,
-												{ color: THEME.colors.text.muted },
+												{ color: "#64748B" },
 											]}
 										>
 											{dateLabel}
@@ -524,7 +523,7 @@ const AutoAssignModal = React.memo(
 									<Ionicons
 										name="close"
 										size={20}
-										color={THEME.colors.text.secondary}
+										color={"#94A3B8"}
 									/>
 								</TouchableOpacity>
 							</View>
@@ -582,7 +581,7 @@ const AutoAssignModal = React.memo(
 									<Text
 										style={[
 											styles.loadingText,
-											{ color: THEME.colors.text.muted },
+											{ color: "#64748B" },
 										]}
 									>
 										Chargement des réservations…
@@ -593,12 +592,12 @@ const AutoAssignModal = React.memo(
 									<Ionicons
 										name="calendar-outline"
 										size={40}
-										color={THEME.colors.text.muted}
+										color={"#64748B"}
 									/>
 									<Text
 										style={[
 											styles.emptyText,
-											{ color: THEME.colors.text.muted },
+											{ color: "#64748B" },
 										]}
 									>
 										Aucune réservation ce jour
@@ -693,7 +692,7 @@ const createStyles = (THEME) =>
 	StyleSheet.create({
 		backdrop: {
 			...StyleSheet.absoluteFillObject,
-			backgroundColor: "rgba(0,0,0,0.65)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 		},
 		centeredView: {
 			flex: 1,
@@ -701,7 +700,7 @@ const createStyles = (THEME) =>
 			paddingHorizontal: 0,
 		},
 		modalContainer: {
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderTopLeftRadius: 24,
 			borderTopRightRadius: 24,
 			maxHeight: "88%",
@@ -758,7 +757,7 @@ const createStyles = (THEME) =>
 			height: 36,
 			borderRadius: 18,
 			backgroundColor:
-				THEME.colors.background.elevated || "rgba(255,255,255,0.07)",
+				"#243447" || "rgba(255,255,255,0.07)",
 			alignItems: "center",
 			justifyContent: "center",
 		},

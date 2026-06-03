@@ -123,7 +123,7 @@ export const ReceiptModal = ({
 		<Modal
 			visible={visible}
 			transparent
-			animationType="none"
+			animationType="fade"
 			onRequestClose={onClose}
 		>
 			<View style={styles.modalOverlay}>
@@ -240,7 +240,7 @@ const styles = StyleSheet.create({
 		top: 10,
 		right: 20,
 		zIndex: 100,
-		backgroundColor: "rgba(0,0,0,0.6)",
+		backgroundColor: "rgba(0,0,0,0.70)",
 		borderRadius: 20,
 		width: 40,
 		height: 40,

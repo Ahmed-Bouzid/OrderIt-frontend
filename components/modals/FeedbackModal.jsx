@@ -17,7 +17,6 @@ import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import ErrorLogger from "../../utils/ErrorLogger";
 import { useTheme } from "../../hooks/useTheme";
-
 const CATEGORIES = [
 	{ id: "Bug technique", icon: "bug-outline", label: "Bug technique" },
 	{
@@ -198,8 +197,8 @@ export default function FeedbackModal({
 				>
 					<LinearGradient
 						colors={[
-							THEME.colors.background.primary,
-							THEME.colors.background.secondary,
+							"#0F172A",
+							"#1A2332",
 						]}
 						style={styles.modalContent}
 					>
@@ -209,11 +208,11 @@ export default function FeedbackModal({
 								<Ionicons
 									name="chatbox-outline"
 									size={24}
-									color={THEME.colors.primary.amber}
+									color={"#F59E0B"}
 								/>
 							</View>
 							<Text
-								style={[styles.title, { color: THEME.colors.text.primary }]}
+								style={[styles.title, { color: "#F1F5F9" }]}
 							>
 								Envoyer un feedback
 							</Text>
@@ -234,7 +233,7 @@ export default function FeedbackModal({
 							<Text
 								style={[
 									styles.description,
-									{ color: THEME.colors.text.secondary },
+									{ color: "#94A3B8" },
 								]}
 							>
 								Aidez-nous à améliorer SunnyGo en partageant votre expérience ou
@@ -254,7 +253,7 @@ export default function FeedbackModal({
 										<Text
 											style={[
 												styles.errorPromptTitle,
-												{ color: THEME.colors.text.primary },
+												{ color: "#F1F5F9" },
 											]}
 										>
 											Une erreur a été détectée
@@ -262,7 +261,7 @@ export default function FeedbackModal({
 										<Text
 											style={[
 												styles.errorPromptDesc,
-												{ color: THEME.colors.text.secondary },
+												{ color: "#94A3B8" },
 											]}
 										>
 											À {formatErrorTime(recentError.timestamp)}. Voulez-vous
@@ -301,7 +300,7 @@ export default function FeedbackModal({
 
 							{/* Catégories */}
 							<Text
-								style={[styles.label, { color: THEME.colors.text.primary }]}
+								style={[styles.label, { color: "#F1F5F9" }]}
 							>
 								Catégorie *
 							</Text>
@@ -314,11 +313,11 @@ export default function FeedbackModal({
 											{
 												backgroundColor:
 													category === cat.id
-														? THEME.colors.primary.amber
+														? "#F59E0B"
 														: THEME.colors.background.tertiary,
 												borderColor:
 													category === cat.id
-														? THEME.colors.primary.amber
+														? "#F59E0B"
 														: THEME.colors.border.subtle,
 											},
 										]}
@@ -330,7 +329,7 @@ export default function FeedbackModal({
 											color={
 												category === cat.id
 													? "#000"
-													: THEME.colors.text.secondary
+													: "#94A3B8"
 											}
 										/>
 										<Text
@@ -340,7 +339,7 @@ export default function FeedbackModal({
 													color:
 														category === cat.id
 															? "#000"
-															: THEME.colors.text.secondary,
+															: "#94A3B8",
 												},
 											]}
 											numberOfLines={2}
@@ -353,7 +352,7 @@ export default function FeedbackModal({
 
 							{/* Message */}
 							<Text
-								style={[styles.label, { color: THEME.colors.text.primary }]}
+								style={[styles.label, { color: "#F1F5F9" }]}
 							>
 								Votre message * ({message.length}/500)
 							</Text>
@@ -362,7 +361,7 @@ export default function FeedbackModal({
 									styles.textInput,
 									{
 										backgroundColor: THEME.colors.background.tertiary,
-										color: THEME.colors.text.primary,
+										color: "#F1F5F9",
 										borderColor: THEME.colors.border.subtle,
 									},
 								]}
@@ -381,12 +380,12 @@ export default function FeedbackModal({
 									<Ionicons
 										name="code-slash-outline"
 										size={20}
-										color={THEME.colors.text.secondary}
+										color={"#94A3B8"}
 									/>
 									<Text
 										style={[
 											styles.switchLabel,
-											{ color: THEME.colors.text.primary },
+											{ color: "#F1F5F9" },
 										]}
 									>
 										Inclure les informations techniques
@@ -397,7 +396,7 @@ export default function FeedbackModal({
 									onValueChange={setIncludeLogs}
 									trackColor={{
 										false: THEME.colors.border.subtle,
-										true: THEME.colors.primary.amber,
+										true: "#F59E0B",
 									}}
 									thumbColor="#FFF"
 								/>
@@ -405,7 +404,7 @@ export default function FeedbackModal({
 							<Text
 								style={[
 									styles.switchHint,
-									{ color: THEME.colors.text.secondary },
+									{ color: "#94A3B8" },
 								]}
 							>
 								Logs anonymisés pour faciliter l&apos;analyse
@@ -425,7 +424,7 @@ export default function FeedbackModal({
 									<Text
 										style={[
 											styles.cancelButtonText,
-											{ color: THEME.colors.text.secondary },
+											{ color: "#94A3B8" },
 										]}
 									>
 										Annuler

@@ -20,7 +20,6 @@ import { errorHandler } from "../utils/errorHandler.js";
  */
 async function createOrder(orderData) {
 	try {
-		console.log("📦 [orderService] Création commande:", orderData);
 
 		const response = await fetch(`${API_CONFIG.BASE_URL}/orders`, {
 			method: "POST",
@@ -36,7 +35,6 @@ async function createOrder(orderData) {
 			throw new Error(data.message || data.error || "Erreur création commande");
 		}
 
-		console.log("✅ [orderService] Commande créée:", data.order?._id);
 
 		return data;
 	} catch (error) {
@@ -85,10 +83,6 @@ async function getActiveOrder() {
  */
 async function getOrdersByReservation(reservationId) {
 	try {
-		console.log(
-			"📋 [orderService] Récupération commandes réservation:",
-			reservationId,
-		);
 
 		const response = await fetch(
 			`${API_CONFIG.BASE_URL}/orders/reservation/${reservationId}`,
@@ -108,9 +102,6 @@ async function getOrdersByReservation(reservationId) {
 			);
 		}
 
-		console.log(
-			`✅ [orderService] ${data.orders?.length || 0} commandes récupérées`,
-		);
 
 		return data;
 	} catch (error) {
@@ -127,7 +118,6 @@ async function getOrdersByReservation(reservationId) {
  */
 async function markAsPaid(orderId) {
 	try {
-		console.log("💰 [orderService] Marquer comme payée:", orderId);
 
 		const response = await fetch(
 			`${API_CONFIG.BASE_URL}/orders/${orderId}/paid`,
@@ -147,7 +137,6 @@ async function markAsPaid(orderId) {
 			);
 		}
 
-		console.log("✅ [orderService] Commande marquée payée");
 
 		return data;
 	} catch (error) {
@@ -165,7 +154,6 @@ async function markAsPaid(orderId) {
  */
 async function updateStatus(orderId, status) {
 	try {
-		console.log(`🔄 [orderService] Mise à jour statut: ${orderId} → ${status}`);
 
 		const response = await fetch(
 			`${API_CONFIG.BASE_URL}/orders/${orderId}/status`,
@@ -186,7 +174,6 @@ async function updateStatus(orderId, status) {
 			);
 		}
 
-		console.log("✅ [orderService] Statut mis à jour");
 
 		return data;
 	} catch (error) {

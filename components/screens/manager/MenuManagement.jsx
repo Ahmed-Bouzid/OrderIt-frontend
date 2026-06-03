@@ -13,6 +13,7 @@ import {
 	Switch,
 	Image,
 	ScrollView,
+	Platform,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { LinearGradient } from "expo-linear-gradient";
@@ -1090,57 +1091,49 @@ export default function MenuManagement() {
 				</View>
 			</Modal>
 
-			{/* ⭐ Modal Options */}
+			{/* ⭐ Modal Options — style TableDetailModal (Comptoir) */}
 			<Modal
 				visible={optionsModalVisible}
 				transparent
-				animationType="slide"
-				statusBarTranslucent={false}
+				animationType="fade"
 				onRequestClose={() => setOptionsModalVisible(false)}
 			>
-				<View style={styles.modalOverlay}>
-					<View style={styles.optionsModalContent}>
-						<View style={styles.modalHeader}>
-							<View style={styles.modalTitleRow}>
-								<Ionicons
-									name="settings-outline"
-									size={24}
-									color={THEME.colors.primary}
-								/>
-								<Text style={styles.modalTitle}>
-									Options pour {currentProductForOptions?.name}
-								</Text>
+				<View style={styles.optionsOverlay}>
+					<View style={styles.optionsSheet}>
+						{/* ── HEADER ─────────────────────────── */}
+						<View style={styles.optionsHeader}>
+							<View style={styles.optionsHeaderLeft}>
+								<View style={styles.optionsIconBox}>
+									<Ionicons name="settings-outline" size={20} color="#FBBF24" />
+								</View>
+								<View style={{ flex: 1 }}>
+									<Text style={styles.optionsHeaderTitle}>Options du plat</Text>
+									<Text style={styles.optionsHeaderSub} numberOfLines={1}>
+										{currentProductForOptions?.name}
+									</Text>
+								</View>
 							</View>
 							<TouchableOpacity
-								style={styles.modalCloseButton}
 								onPress={() => setOptionsModalVisible(false)}
+								style={styles.optionsCloseBtn}
 							>
-								<Ionicons
-									name="close"
-									size={24}
-									color={THEME.colors.text.secondary}
-								/>
+								<Ionicons name="close" size={20} color="#94A3B8" />
 							</TouchableOpacity>
 						</View>
 
+						{/* ── LISTE + FORMULAIRE ─────────────── */}
 						<ScrollView
 							showsVerticalScrollIndicator={false}
-							style={styles.optionsScrollView}
-							contentContainerStyle={{ paddingBottom: 10 }}
+							style={styles.optionsScroll}
+							contentContainerStyle={styles.optionsScrollContent}
+							keyboardShouldPersistTaps="handled"
 						>
-							{/* Liste des options existantes */}
 							{loadingOptions ? (
-								<ActivityIndicator size="small" color={THEME.colors.primary} />
+								<ActivityIndicator size="small" color="#FBBF24" style={{ marginVertical: 20 }} />
 							) : productOptions.length === 0 ? (
 								<View style={styles.emptyOptionsContainer}>
-									<Ionicons
-										name="list-outline"
-										size={32}
-										color={THEME.colors.text.muted}
-									/>
-									<Text style={styles.emptyOptionsText}>
-										Aucune option pour ce plat
-									</Text>
+									<Ionicons name="list-outline" size={32} color="#475569" />
+									<Text style={styles.emptyOptionsText}>Aucune option pour ce plat</Text>
 								</View>
 							) : (
 								productOptions.map((option) => (
@@ -1148,49 +1141,48 @@ export default function MenuManagement() {
 										<View style={styles.optionInfo}>
 											<Text style={styles.optionName}>{option.name}</Text>
 											{option.price > 0 && (
-												<Text style={styles.optionPrice}>
-													+{option.price.toFixed(2)}€
-												</Text>
+												<Text style={styles.optionPrice}>+{option.price.toFixed(2)}€</Text>
 											)}
 										</View>
 										<TouchableOpacity
 											onPress={() => handleDeleteOption(option._id)}
 											style={styles.deleteOptionButton}
 										>
-											<Ionicons
-												name="trash-outline"
-												size={18}
-												color={THEME.colors.status.error}
-											/>
+											<Ionicons name="trash-outline" size={18} color="#EF4444" />
 										</TouchableOpacity>
 									</View>
 								))
 							)}
 
-							{/* Formulaire ajout option */}
 							<View style={styles.addOptionForm}>
-								<Text style={styles.formLabel}>Ajouter une option</Text>
-								<View style={styles.inputWrapper}>
+								<Text style={styles.addOptionFormLabel}>Ajouter une option</Text>
+								<View style={styles.optionsInputWrapper}>
 									<TextInput
-										style={styles.input}
+										style={styles.optionsInput}
 										placeholder="Nom de l'option (ex: coulis de fraise)"
-										placeholderTextColor={THEME.colors.text.muted}
+										placeholderTextColor="#475569"
 										value={newOptionName}
 										onChangeText={setNewOptionName}
+										returnKeyType="next"
 									/>
 								</View>
-								<View style={styles.inputWrapper}>
+								<View style={styles.optionsInputWrapper}>
 									<TextInput
-										style={styles.input}
+										style={styles.optionsInput}
 										placeholder="Prix supplémentaire (optionnel)"
-										placeholderTextColor={THEME.colors.text.muted}
+										placeholderTextColor="#475569"
 										value={newOptionPrice}
 										onChangeText={setNewOptionPrice}
 										keyboardType="decimal-pad"
+										returnKeyType="done"
 									/>
-									<Text style={styles.inputSuffix}>€</Text>
+									<Text style={styles.optionsInputSuffix}>€</Text>
 								</View>
-								<TouchableOpacity onPress={handleAddOption}>
+								<TouchableOpacity
+									onPress={handleAddOption}
+									aktiveOpacity={0.85}
+									style={styles.addOptionBtnWrap}
+								>
 									<LinearGradient
 										colors={["#F59E0B", "#D97706"]}
 										start={{ x: 0, y: 0 }}
@@ -1198,21 +1190,20 @@ export default function MenuManagement() {
 										style={styles.addOptionButton}
 									>
 										<Ionicons name="add" size={20} color="#FFFFFF" />
-										<Text style={styles.addOptionButtonText}>
-											Ajouter l&apos;option
-										</Text>
+										<Text style={styles.addOptionButtonText}>Ajouter l&apos;option</Text>
 									</LinearGradient>
 								</TouchableOpacity>
 							</View>
 						</ScrollView>
 
-						{/* Bouton Fermer en zone fixe */}
-						<View style={styles.optionsModalFooter}>
+						{/* ── FOOTER ─────────────────────────── */}
+						<View style={styles.optionsFooter}>
 							<TouchableOpacity
-								style={styles.closeOptionsButton}
+								style={styles.optionsCloseFullBtn}
 								onPress={() => setOptionsModalVisible(false)}
+								activeOpacity={0.85}
 							>
-								<Text style={styles.closeOptionsButtonText}>Fermer</Text>
+								<Text style={styles.optionsCloseFullBtnText}>Fermer</Text>
 							</TouchableOpacity>
 						</View>
 					</View>
@@ -1225,6 +1216,7 @@ export default function MenuManagement() {
 				onClose={() => setAllergensModalVisible(false)}
 				onValidate={handleValidateAllergens}
 				productId={currentProductForAllergens?._id}
+				productName={currentProductForAllergens?.name}
 				authFetch={authFetch}
 			/>
 		</View>
@@ -1744,20 +1736,75 @@ const createStyles = (THEME) =>
 			color: THEME.colors.text.secondary,
 			marginTop: THEME.spacing.sm,
 		},
-		// Options Modal
-		optionsModalContent: {
-			width: "90%",
-			maxWidth: 450,
-			maxHeight: "80%",
-			backgroundColor: THEME.colors.card,
-			borderRadius: THEME.radius.xl,
+		// Options Modal — style TableDetailModal (Comptoir)
+		optionsOverlay: {
+			flex: 1,
+			backgroundColor: "rgba(0,0,0,0.70)",
+			justifyContent: "center",
+			alignItems: "center",
+			paddingHorizontal: 16,
+			paddingVertical: 12,
+		},
+		optionsSheet: {
+			backgroundColor: "#1E293B",
+			borderRadius: 20,
+			width: "100%",
+			maxWidth: 520,
+			flexShrink: 1,
+			minHeight: "78%",
 			borderWidth: 1,
-			borderColor: THEME.colors.border,
+			borderColor: "rgba(255,255,255,0.08)",
 			overflow: "hidden",
 		},
-		optionsScrollView: {
-			paddingHorizontal: THEME.spacing.lg,
-			paddingVertical: THEME.spacing.md,
+		optionsHeader: {
+			flexDirection: "row",
+			alignItems: "flex-start",
+			paddingHorizontal: 20,
+			paddingTop: 20,
+			paddingBottom: 14,
+			borderBottomWidth: 1,
+			borderBottomColor: "rgba(255,255,255,0.07)",
+		},
+		optionsHeaderLeft: {
+			flex: 1,
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 12,
+		},
+		optionsIconBox: {
+			width: 38,
+			height: 38,
+			backgroundColor: "rgba(251,191,36,0.12)",
+			borderRadius: 12,
+			justifyContent: "center",
+			alignItems: "center",
+		},
+		optionsHeaderTitle: {
+			fontSize: 20,
+			fontWeight: "700",
+			color: "#F8FAFC",
+			marginBottom: 3,
+		},
+		optionsHeaderSub: {
+			fontSize: 13,
+			color: "#64748B",
+		},
+		optionsCloseBtn: {
+			width: 32,
+			height: 32,
+			borderRadius: 16,
+			backgroundColor: "rgba(255,255,255,0.07)",
+			alignItems: "center",
+			justifyContent: "center",
+			marginLeft: 12,
+		},
+		optionsScroll: {
+			flex: 1,
+		},
+		optionsScrollContent: {
+			paddingHorizontal: 20,
+			paddingTop: 16,
+			paddingBottom: 16,
 		},
 		emptyOptionsContainer: {
 			alignItems: "center",
@@ -1766,17 +1813,17 @@ const createStyles = (THEME) =>
 		emptyOptionsText: {
 			textAlign: "center",
 			fontSize: 14,
-			color: THEME.colors.text.muted,
-			marginTop: THEME.spacing.sm,
+			color: "#64748B",
+			marginTop: 8,
 		},
 		optionItem: {
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "center",
-			paddingVertical: THEME.spacing.md,
-			paddingHorizontal: THEME.spacing.sm,
+			paddingVertical: 14,
+			paddingHorizontal: 4,
 			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border,
+			borderBottomColor: "rgba(255,255,255,0.07)",
 		},
 		optionInfo: {
 			flex: 1,
@@ -1784,53 +1831,88 @@ const createStyles = (THEME) =>
 		optionName: {
 			fontSize: 16,
 			fontWeight: "500",
-			color: THEME.colors.text.primary,
+			color: "#F8FAFC",
 		},
 		optionPrice: {
 			fontSize: 14,
-			color: THEME.colors.status.success,
+			color: "#22C55E",
 			marginTop: 2,
 		},
 		deleteOptionButton: {
-			padding: THEME.spacing.sm,
+			padding: 8,
 		},
 		addOptionForm: {
-			marginTop: THEME.spacing.lg,
-			paddingTop: THEME.spacing.lg,
+			marginTop: 20,
+			paddingTop: 20,
 			borderTopWidth: 1,
-			borderTopColor: THEME.colors.border,
+			borderTopColor: "rgba(255,255,255,0.07)",
+		},
+		addOptionFormLabel: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: "#94A3B8",
+			marginBottom: 12,
+			textTransform: "uppercase",
+			letterSpacing: 0.5,
+		},
+		optionsInputWrapper: {
+			flexDirection: "row",
+			alignItems: "center",
+			backgroundColor: "rgba(255,255,255,0.06)",
+			borderRadius: 12,
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.10)",
+			marginBottom: 12,
+			height: 48,
+		},
+		optionsInput: {
+			flex: 1,
+			paddingHorizontal: 16,
+			fontSize: 15,
+			color: "#F8FAFC",
+			height: "100%",
+		},
+		optionsInputSuffix: {
+			paddingRight: 16,
+			fontSize: 16,
+			color: "#94A3B8",
+			fontWeight: "600",
+		},
+		addOptionBtnWrap: {
+			borderRadius: 12,
+			overflow: "hidden",
+			marginTop: 8,
 		},
 		addOptionButton: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			gap: THEME.spacing.sm,
-			paddingVertical: THEME.spacing.md,
-			borderRadius: THEME.radius.md,
-			marginTop: THEME.spacing.sm,
+			gap: 8,
+			height: 48,
+			borderRadius: 12,
 		},
 		addOptionButtonText: {
 			color: "#FFFFFF",
 			fontWeight: "700",
 			fontSize: 16,
 		},
-		optionsModalFooter: {
-			paddingHorizontal: THEME.spacing.lg,
-			paddingVertical: THEME.spacing.md,
+		optionsFooter: {
+			paddingHorizontal: 20,
+			paddingTop: 16,
+			paddingBottom: Platform.OS === "ios" ? 32 : 20,
 			borderTopWidth: 1,
-			borderTopColor: THEME.colors.border,
+			borderTopColor: "rgba(255,255,255,0.07)",
 		},
-		closeOptionsButton: {
-			backgroundColor: THEME.colors.inputBg,
-			paddingVertical: THEME.spacing.md,
-			borderRadius: THEME.radius.md,
+		optionsCloseFullBtn: {
+			backgroundColor: "#F9FAFB",
+			height: 48,
+			borderRadius: 12,
 			alignItems: "center",
-			borderWidth: 1,
-			borderColor: THEME.colors.border,
+			justifyContent: "center",
 		},
-		closeOptionsButtonText: {
-			color: THEME.colors.text.secondary,
+		optionsCloseFullBtnText: {
+			color: "#111827",
 			fontWeight: "600",
-			fontSize: 16,
+			fontSize: 15,
 		},
 	});

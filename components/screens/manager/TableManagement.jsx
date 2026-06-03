@@ -50,6 +50,7 @@ export default function TableManagement() {
 	const authFetch = useAuthFetch();
 
 	const [tables, setTables] = useState([]);
+	const [counterTables, setCounterTables] = useState([]);
 	const [loading, setLoading] = useState(true);
 	const [modalVisible, setModalVisible] = useState(false);
 	const [editingTable, setEditingTable] = useState(null);
@@ -78,10 +79,21 @@ export default function TableManagement() {
 
 		setLoading(true);
 		try {
+			// Tables statiques (structure : numéro, capacité, etc.)
 			const data = await authFetch(`/tables/restaurant/${restaurantId}`, {
 				method: "GET",
 			});
 			setTables(Array.isArray(data) ? data : []);
+
+			// Statut temps réel depuis les sessions actives
+			try {
+				const counterData = await authFetch(`/counter/tables/${restaurantId}`, {
+					method: "GET",
+				});
+				setCounterTables(Array.isArray(counterData?.tables) ? counterData.tables : []);
+			} catch {
+				// Silencieux : on garde counterTables vide, stats se baseront sur Table.status
+			}
 		} catch (error) {
 			console.error("❌ Erreur chargement tables:", error);
 			Alert.alert("Erreur", "Impossible de charger les tables");
@@ -310,11 +322,12 @@ export default function TableManagement() {
 		);
 	};
 
-	// Stats rapides
+	// Stats rapides — statut temps réel depuis counterTables si dispo, sinon fallback Table.status
 	const getStats = () => {
-		const available = tables.filter((t) => t.status === "available").length;
-		const occupied = tables.filter((t) => t.status === "occupied").length;
-		const unavailable = tables.filter((t) => t.status === "unavailable").length;
+		const source = counterTables.length > 0 ? counterTables : tables;
+		const available = source.filter((t) => t.status === "available" || t.status === "free").length;
+		const occupied = source.filter((t) => t.status === "occupied" || t.status === "bill_requested").length;
+		const unavailable = source.filter((t) => t.status === "unavailable").length;
 		const totalCapacity = tables.reduce((sum, t) => sum + (t.capacity || 0), 0);
 		return {
 			available,

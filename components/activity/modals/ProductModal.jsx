@@ -8,6 +8,7 @@ import {
 	Animated,
 	ScrollView,
 	Image,
+	Pressable,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { LinearGradient } from "expo-linear-gradient";
@@ -113,14 +114,16 @@ export const ProductModal = ({ visible, onClose, product, theme }) => {
 			animationType="fade"
 			onRequestClose={safeOnClose}
 		>
-			<View
+			<Pressable
 				style={{
 					flex: 1,
 					backgroundColor: "rgba(10,18,36,0.55)",
 					justifyContent: "center",
 					alignItems: "center",
 				}}
+				onPress={safeOnClose}
 			>
+				<Pressable onPress={() => {}}>
 				<BlurView
 					intensity={60}
 					tint="dark"
@@ -359,7 +362,8 @@ export const ProductModal = ({ visible, onClose, product, theme }) => {
 						</TouchableOpacity>
 					</LinearGradient>
 				</BlurView>
-			</View>
+				</Pressable>
+			</Pressable>
 		</Modal>
 	);
 };

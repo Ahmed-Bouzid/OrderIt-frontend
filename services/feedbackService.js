@@ -77,10 +77,6 @@ class FeedbackService {
 				logs: enrichedLogs,
 			};
 
-			console.log("[FeedbackService] Envoi feedback:", {
-				category: payload.category,
-				includeLogs: payload.includeLogs,
-			});
 
 			const response = await fetch(this.baseURL, {
 				method: "POST",
@@ -94,10 +90,6 @@ class FeedbackService {
 				throw new Error(data.message || "Erreur lors de l'envoi du feedback");
 			}
 
-			console.log(
-				"[FeedbackService] Feedback envoyé avec succès:",
-				data.feedbackId,
-			);
 			return data;
 		} catch (error) {
 			console.error("[FeedbackService] Erreur sendFeedback:", error);
@@ -170,7 +162,6 @@ class FeedbackService {
 				);
 			}
 
-			console.log("[FeedbackService] Feedback mis à jour:", feedbackId);
 			return data;
 		} catch (error) {
 			console.error("[FeedbackService] Erreur updateFeedback:", error);
@@ -200,7 +191,6 @@ class FeedbackService {
 				);
 			}
 
-			console.log("[FeedbackService] Feedback supprimé:", feedbackId);
 			return data;
 		} catch (error) {
 			console.error("[FeedbackService] Erreur deleteFeedback:", error);

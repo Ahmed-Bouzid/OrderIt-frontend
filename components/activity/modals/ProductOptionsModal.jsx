@@ -7,6 +7,7 @@ import {
 	ActivityIndicator,
 	ScrollView,
 	Animated,
+	Pressable,
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
@@ -98,15 +99,17 @@ export const ProductOptionsModal = ({
 			animationType="fade"
 			onRequestClose={onClose}
 		>
-			<View
+			<Pressable
 				style={{
 					flex: 1,
 					backgroundColor: MODAL_THEME.colors.overlay,
 					justifyContent: "center",
 					alignItems: "center",
 				}}
+				onPress={onClose}
 			>
-				<View
+				<Pressable
+					onPress={() => {}}
 					style={{
 						width: 360,
 						minHeight: 220,
@@ -265,8 +268,8 @@ export const ProductOptionsModal = ({
 							</Text>
 						</LinearGradient>
 					</TouchableOpacity>
-				</View>
-			</View>
+				</Pressable>
+			</Pressable>
 		</Modal>
 	);
 };

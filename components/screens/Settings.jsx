@@ -38,7 +38,6 @@ import AccountingScreen from "./AccountingScreen";
 import ZReportScreen from "./ZReportScreen";
 import AnalyticsScreen from "./AnalyticsScreen";
 import MessagingScreen from "./MessagingScreen";
-import { useFeatures } from "../../hooks/useFeatures";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 import { API_CONFIG } from "../../src/config/apiConfig";
 import {
@@ -90,10 +89,6 @@ export default function Settings() {
 
 	// ⭐ Utiliser useTheme() pour avoir le thème complet avec typography scalée
 	const THEME = useTheme();
-
-	// ⭐ Hook pour vérifier les fonctionnalités premium (API)
-	// Gardé uniquement pour hasFeedback (pas d'équivalent dans useFeatureLevel)
-	const { hasFeedback } = useFeatures();
 
 	// 🔧 Feature level (developer overrides) — source unique de vérité pour le portail manager
 	const {
@@ -1650,26 +1645,24 @@ Personnaliser le thème
 							</>
 						)}
 
-						{/* Feedback - accessible seulement si fonctionnalité activée */}
-						{hasFeedback && (
-							<TouchableOpacity
-								style={settingsStyles.menuItem}
-								onPress={() => setShowFeedbackModal(true)}
-							>
-								<Ionicons
-									name="chatbox-ellipses-outline"
-									size={20}
-									color={THEME.colors.text.secondary}
-								/>
-								<Text style={settingsStyles.menuItemText}>Feedback</Text>
-								<Text> </Text>
-								<Ionicons
-									name="chevron-forward"
-									size={18}
-									color={THEME.colors.text.secondary}
-								/>
-							</TouchableOpacity>
-						)}
+						{/* Feedback - toujours accessible */}
+						<TouchableOpacity
+							style={settingsStyles.menuItem}
+							onPress={() => setShowFeedbackModal(true)}
+						>
+							<Ionicons
+								name="chatbox-ellipses-outline"
+								size={20}
+								color={THEME.colors.text.secondary}
+							/>
+							<Text style={settingsStyles.menuItemText}>Feedback</Text>
+							<Text> </Text>
+							<Ionicons
+								name="chevron-forward"
+								size={18}
+								color={THEME.colors.text.secondary}
+							/>
+						</TouchableOpacity>
 					</ScrollView>
 				</View>
 

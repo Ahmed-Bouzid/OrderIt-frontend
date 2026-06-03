@@ -20,12 +20,10 @@ const SECURE_STORE_KEYS = [
 ];
 
 export async function clearAllAppData() {
-	console.log("🗑️ Nettoyage complet des données locales...");
 
 	// 1. AsyncStorage
 	try {
 		await AsyncStorage.clear();
-		console.log("✅ AsyncStorage vidé");
 	} catch (e) {
 		console.error("❌ Erreur AsyncStorage :", e);
 	}
@@ -34,13 +32,11 @@ export async function clearAllAppData() {
 	for (const key of SECURE_STORE_KEYS) {
 		try {
 			await SecureStore.deleteItemAsync(key);
-			console.log(`✅ SecureStore supprimé : ${key}`);
 		} catch (e) {
 			// Clé inexistante – ignoré
 		}
 	}
 
-	console.log("🎉 Nettoyage terminé – Reconnecte-toi maintenant");
 }
 
 // Exécution directe si appelé hors composant

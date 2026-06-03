@@ -100,7 +100,7 @@ const RefundModal = ({ payment, visible, onClose, onConfirm }) => {
 		<Modal
 			visible={visible}
 			transparent
-			animationType="none"
+			animationType="fade"
 			onRequestClose={onClose}
 		>
 			<Animated.View style={[s.overlay, { opacity: fadeAnim }]}>

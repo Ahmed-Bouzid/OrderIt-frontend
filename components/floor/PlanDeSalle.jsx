@@ -210,7 +210,7 @@ const PlanDeSalle = React.memo(() => {
 					...item,
 					orderId: order._id,
 					tableNumber: order.tableId?.number || "?",
-					serverName: order.serverId?.name || "Non assigné",
+					serverName: order.serverId?.name || "3 Non assigné",
 					orderCreatedAt: order.createdAt,
 					itemStartTime: item.startTime || order.createdAt, // Timer depuis startTime ou createdAt
 					orderStatus: order.orderStatus,

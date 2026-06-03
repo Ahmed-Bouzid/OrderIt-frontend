@@ -19,7 +19,6 @@ const files = [
 ];
 
 files.forEach((filePath) => {
-	console.log(`\n📝 Traitement de ${path.basename(filePath)}...`);
 
 	let content = fs.readFileSync(filePath, "utf8");
 	let changes = 0;
@@ -38,9 +37,6 @@ files.forEach((filePath) => {
 		if (matches > 0) {
 			content = content.replace(pattern, replacement);
 			changes += matches;
-			console.log(
-				`  ✅ ${matches} remplacement(s) : ${pattern} → ${replacement}`
-			);
 		}
 	});
 
@@ -50,7 +46,6 @@ files.forEach((filePath) => {
 			"const modalStyles = StyleSheet.create({",
 			"const createModalStyles = (THEME) => StyleSheet.create({"
 		);
-		console.log(`  ✅ Converti modalStyles en createModalStyles(THEME)`);
 		changes++;
 	}
 
@@ -59,17 +54,13 @@ files.forEach((filePath) => {
 			"const tableStyles = StyleSheet.create({",
 			"const createTableStyles = (THEME) => StyleSheet.create({"
 		);
-		console.log(`  ✅ Converti tableStyles en createTableStyles(THEME)`);
 		changes++;
 	}
 
 	// Sauvegarder
 	if (changes > 0) {
 		fs.writeFileSync(filePath, content, "utf8");
-		console.log(`\n✨ ${changes} modification(s) appliquée(s) avec succès !`);
 	} else {
-		console.log(`\n⏭️  Aucune modification nécessaire`);
 	}
 });
 
-console.log("\n✅ Conversion terminée !\n");

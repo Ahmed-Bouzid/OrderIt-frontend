@@ -7,6 +7,7 @@ import {
 	StyleSheet,
 	Modal,
 	Animated,
+	Pressable,
 	Dimensions,
 	TouchableOpacity,
 } from "react-native";
@@ -519,6 +520,7 @@ export const PremiumTPEModal = ({
 			<Animated.View style={[styles.backdrop, { opacity: backdropOpacity }]}>
 				<BlurView intensity={30} style={StyleSheet.absoluteFill} tint="dark" />
 			</Animated.View>
+			<Pressable style={StyleSheet.absoluteFill} onPress={() => onCancelRef.current?.()} />
 
 			{/* TPE Container */}
 			<Animated.View

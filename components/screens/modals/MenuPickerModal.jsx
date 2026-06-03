@@ -15,11 +15,12 @@ import {
 	ScrollView,
 	Dimensions,
 	ActivityIndicator,
+	Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "../../../hooks/useTheme";
 import useCounterCartStore from "../../../src/stores/useCounterCartStore";
 import counterService from "../../../services/counterService";
+import { useTheme } from "../../../hooks/useTheme";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -109,8 +110,8 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 			animationType="fade"
 			onRequestClose={onClose}
 		>
-			<View style={dynamicStyles.overlay}>
-				<View style={dynamicStyles.sheet}>
+			<Pressable style={dynamicStyles.overlay} onPress={onClose}>
+				<Pressable onPress={() => {}} style={dynamicStyles.sheet}>
 					{/* Header */}
 					<View style={dynamicStyles.header}>
 						<TouchableOpacity
@@ -163,7 +164,7 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 						{isLoading ? (
 							<ActivityIndicator
 								size="large"
-								color={THEME.colors.primary.amber}
+								color={"#F59E0B"}
 								style={{ marginTop: 32 }}
 							/>
 						) : visibleProducts.length === 0 ? (
@@ -189,7 +190,7 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 										<Ionicons
 											name="add"
 											size={24}
-											color={THEME.colors.primary.amber}
+											color={"#F59E0B"}
 										/>
 									</View>
 								</TouchableOpacity>
@@ -272,9 +273,9 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 							</Text>
 						</TouchableOpacity>
 					</View>
-				</View>
-			</View>
-		</Modal>
+				</Pressable>
+			</Pressable>
+	</Modal>
 	);
 };
 
@@ -326,14 +327,14 @@ const createStyles = (THEME) =>
 		cartBadge: {
 			paddingHorizontal: 10,
 			paddingVertical: 5,
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
 			borderRadius: 6,
 		},
 
 		cartBadgeText: {
 			fontSize: 12,
 			fontWeight: "700",
-			color: "#0F172A",
+			color: "#1E293B",
 		},
 
 		categoryTabs: {
@@ -356,8 +357,8 @@ const createStyles = (THEME) =>
 		},
 
 		categoryTabActive: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
+			borderColor: "#F59E0B",
 		},
 
 		categoryTabText: {
@@ -368,7 +369,7 @@ const createStyles = (THEME) =>
 		},
 
 		categoryTabTextActive: {
-			color: "#0F172A",
+			color: "#1E293B",
 		},
 
 		content: {
@@ -481,7 +482,7 @@ const createStyles = (THEME) =>
 		cartItemPrice: {
 			fontSize: 13,
 			fontWeight: "600",
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 			minWidth: 52,
 			textAlign: "right",
 		},
@@ -517,7 +518,7 @@ const createStyles = (THEME) =>
 		footerButton: {
 			paddingVertical: 13,
 			paddingHorizontal: 16,
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
 			borderRadius: 10,
 		},
 
@@ -528,7 +529,7 @@ const createStyles = (THEME) =>
 		footerButtonText: {
 			fontSize: 14,
 			fontWeight: "700",
-			color: "#0F172A",
+			color: "#1E293B",
 			textAlign: "center",
 		},
 

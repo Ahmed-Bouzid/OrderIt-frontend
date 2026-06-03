@@ -34,8 +34,8 @@ import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getItem as getSecureItem } from "../../utils/secureStorage";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
-import { useTheme } from "../../hooks/useTheme";
 import { API_CONFIG } from "../../src/config/apiConfig";
+import { useTheme } from "../../hooks/useTheme";
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -372,13 +372,13 @@ export default function CreateFastFoodOrderModal({
 	);
 
 	// ─── Styles dynamiques ───────────────────────────────────────────────────
-	const styles = useMemo(() => createStyles(THEME), [THEME]);
+			const styles = useMemo(() => createStyles(THEME), [THEME]);
 
 	return (
 		<Modal
 			transparent
 			visible={visible}
-			animationType="none"
+			animationType="fade"
 			onRequestClose={onClose}
 			statusBarTranslucent
 		>
@@ -588,7 +588,7 @@ export default function CreateFastFoodOrderModal({
 												<TextInput
 													style={styles.input}
 													placeholder="Ex : Thomas"
-													placeholderTextColor={THEME.colors.text.muted}
+													placeholderTextColor={"#64748B"}
 													value={clientName}
 													onChangeText={setClientName}
 													maxLength={50}
@@ -599,7 +599,7 @@ export default function CreateFastFoodOrderModal({
 												<TextInput
 													style={styles.input}
 													placeholder="1"
-													placeholderTextColor={THEME.colors.text.muted}
+													placeholderTextColor={"#64748B"}
 													value={nbPersonnes}
 													onChangeText={setNbPersonnes}
 													keyboardType="number-pad"
@@ -731,13 +731,13 @@ const createStyles = (THEME) =>
 			backgroundColor: "rgba(12, 15, 23, 0.88)",
 			justifyContent: "center",
 			alignItems: "center",
-			padding: THEME.spacing.xl,
+			padding: 20,
 		},
 		// Carte centrée
 		card: {
 			width: Math.min(SCREEN_WIDTH - 48, 480),
 			height: SCREEN_HEIGHT * 0.82,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: THEME.radius["2xl"],
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -748,8 +748,8 @@ const createStyles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			paddingHorizontal: THEME.spacing.xl,
-			paddingVertical: THEME.spacing.lg,
+			paddingHorizontal: 20,
+			paddingVertical: 16,
 		},
 		headerContent: {
 			flexDirection: "row",
@@ -778,19 +778,19 @@ const createStyles = (THEME) =>
 			flex: 1,
 		},
 		bodyContent: {
-			padding: THEME.spacing.lg,
-			paddingBottom: THEME.spacing.xl,
+			padding: 16,
+			paddingBottom: 20,
 		},
 		section: {
-			marginBottom: THEME.spacing.lg,
+			marginBottom: 16,
 		},
 		sectionTitle: {
 			fontSize: 11,
 			fontWeight: "700",
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textTransform: "uppercase",
 			letterSpacing: 0.8,
-			marginBottom: THEME.spacing.sm,
+			marginBottom: 8,
 		},
 		fieldsRow: {
 			flexDirection: "row",
@@ -800,16 +800,16 @@ const createStyles = (THEME) =>
 		},
 		inputLabel: {
 			fontSize: 12,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginBottom: 4,
 		},
 		input: {
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.lg,
-			paddingHorizontal: THEME.spacing.md,
+			paddingHorizontal: 12,
 			paddingVertical: 10,
 			fontSize: 15,
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
 		},
@@ -817,16 +817,16 @@ const createStyles = (THEME) =>
 		loadingRow: {
 			flexDirection: "row",
 			alignItems: "center",
-			paddingVertical: THEME.spacing.xl,
+			paddingVertical: 20,
 		},
 		loadingText: {
-			marginLeft: THEME.spacing.sm,
+			marginLeft: 8,
 			fontSize: 14,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		errorContainer: {
 			alignItems: "center",
-			paddingVertical: THEME.spacing.xl,
+			paddingVertical: 20,
 			gap: 6,
 		},
 		errorText: {
@@ -837,18 +837,18 @@ const createStyles = (THEME) =>
 		},
 		errorDetail: {
 			fontSize: 11,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textAlign: "center",
 		},
 		emptyText: {
 			fontSize: 14,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textAlign: "center",
-			paddingVertical: THEME.spacing.xl,
+			paddingVertical: 20,
 		},
 		// Produits
 		categoryBlock: {
-			marginBottom: THEME.spacing.md,
+			marginBottom: 12,
 		},
 		categoryTitle: {
 			fontSize: 12,
@@ -856,16 +856,16 @@ const createStyles = (THEME) =>
 			color: "#F59E0B",
 			textTransform: "uppercase",
 			letterSpacing: 0.5,
-			marginBottom: THEME.spacing.sm,
+			marginBottom: 8,
 			paddingLeft: 4,
 		},
 		productCard: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.lg,
-			padding: THEME.spacing.md,
+			padding: 12,
 			marginBottom: 6,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -876,17 +876,17 @@ const createStyles = (THEME) =>
 		},
 		productInfo: {
 			flex: 1,
-			marginRight: THEME.spacing.md,
+			marginRight: 12,
 		},
 		productName: {
 			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 2,
 		},
 		productDesc: {
 			fontSize: 12,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginBottom: 4,
 		},
 		productPrice: {
@@ -903,7 +903,7 @@ const createStyles = (THEME) =>
 			width: 30,
 			height: 30,
 			borderRadius: 8,
-			backgroundColor: THEME.colors.text.muted,
+			backgroundColor: "#64748B",
 			justifyContent: "center",
 			alignItems: "center",
 		},
@@ -916,32 +916,32 @@ const createStyles = (THEME) =>
 		qtyValue: {
 			fontSize: 15,
 			fontWeight: "700",
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			minWidth: 22,
 			textAlign: "center",
 		},
 		qtyValueActive: {
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 		// Footer
 		footer: {
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.subtle,
-			paddingHorizontal: THEME.spacing.lg,
-			paddingTop: THEME.spacing.md,
-			paddingBottom: THEME.spacing.xl,
+			paddingHorizontal: 16,
+			paddingTop: 12,
+			paddingBottom: 20,
 		},
 		totalRow: {
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "center",
-			marginBottom: THEME.spacing.md,
+			marginBottom: 12,
 		},
 		totalLabel: {
 			fontSize: 15,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		totalValue: {
 			fontSize: 22,
@@ -964,7 +964,7 @@ const createStyles = (THEME) =>
 		cancelBtnText: {
 			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		submitBtn: {
 			flex: 2,
@@ -994,23 +994,23 @@ const createStyles = (THEME) =>
 			flex: 1,
 			alignItems: "center",
 			justifyContent: "flex-start",
-			paddingHorizontal: THEME.spacing.xl,
-			paddingTop: THEME.spacing.lg,
-			paddingBottom: THEME.spacing.md,
+			paddingHorizontal: 20,
+			paddingTop: 16,
+			paddingBottom: 12,
 		},
 		paymentSuccessIcon: {
-			marginBottom: THEME.spacing.md,
+			marginBottom: 12,
 		},
 		paymentSuccessTitle: {
 			fontSize: 20,
 			fontWeight: "800",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 4,
 			textAlign: "center",
 		},
 		paymentSuccessSubtitle: {
 			fontSize: 13,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginBottom: 4,
 			textAlign: "center",
 		},
@@ -1018,21 +1018,21 @@ const createStyles = (THEME) =>
 			fontSize: 42,
 			fontWeight: "900",
 			color: "#10B981",
-			marginBottom: THEME.spacing.xl,
+			marginBottom: 20,
 			textAlign: "center",
 		},
 		paymentMethodLabel: {
 			fontSize: 12,
 			fontWeight: "700",
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textTransform: "uppercase",
 			letterSpacing: 0.8,
-			marginBottom: THEME.spacing.md,
+			marginBottom: 12,
 		},
 		paymentBtns: {
 			flexDirection: "row",
 			gap: 14,
-			marginBottom: THEME.spacing.xl,
+			marginBottom: 20,
 		},
 		paymentBtn: {
 			flex: 1,
@@ -1056,23 +1056,23 @@ const createStyles = (THEME) =>
 		},
 		paymentSkipText: {
 			fontSize: 13,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textDecorationLine: "underline",
 			textAlign: "center",
 		},
 		// ─── Reçu ─────────────────────────────────
 		receiptContainer: {
 			width: "100%",
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.lg,
 			paddingHorizontal: 14,
 			paddingVertical: 10,
-			marginBottom: THEME.spacing.lg,
+			marginBottom: 16,
 		},
 		receiptTitle: {
 			fontSize: 11,
 			fontWeight: "700",
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textTransform: "uppercase",
 			letterSpacing: 0.8,
 			marginBottom: 8,
@@ -1100,12 +1100,12 @@ const createStyles = (THEME) =>
 		},
 		receiptItemName: {
 			fontSize: 13,
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			flex: 1,
 		},
 		receiptItemPrice: {
 			fontSize: 13,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 	});

@@ -96,8 +96,7 @@ const startHeartbeat = (socket) => {
 			lastPingTime = Date.now();
 
 			// Log silencieux pour debug (décommenter si besoin)
-			// console.log("💓 Heartbeat envoyé");
-		} else {
+			//		} else {
 			console.warn("💓 Heartbeat: socket déconnecté, arrêt du heartbeat");
 			stopHeartbeat();
 		}

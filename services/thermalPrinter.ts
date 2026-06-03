@@ -42,7 +42,6 @@ interface PrintEntry {
 export async function openThermer(): Promise<boolean> {
   try {
     await Linking.openURL(THERMER_BASE_URL);
-    console.log("[ThermalPrinter] ✅ Thermer app opened");
     return true;
   } catch (error) {
     console.error("[ThermalPrinter] ❌ Error opening Thermer app:", error);
@@ -58,9 +57,7 @@ async function sendEntries(entries: Record<string, PrintEntry>): Promise<boolean
     const jsonString = JSON.stringify(entries);
     const encoded = encodeURIComponent(jsonString);
     const url = `${THERMER_BASE_URL}?data=${encoded}`;
-    console.log("[ThermalPrinter] 📤 Sending:", jsonString);
     await Linking.openURL(url);
-    console.log("[ThermalPrinter] ✅ Print sent");
     return true;
   } catch (err) {
     console.error("[ThermalPrinter] ❌ Failed:", err);
@@ -120,7 +117,6 @@ export function formatKitchenTicket(order: KitchenOrder): string {
 
 export async function printKitchenTicket(order: KitchenOrder): Promise<boolean> {
   const ticket = formatKitchenTicket(order);
-  console.log("[ThermalPrinter] 🎫 Kitchen ticket:\n", ticket);
   return printThermerText(ticket);
 }
 

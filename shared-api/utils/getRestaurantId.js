@@ -27,7 +27,6 @@ export const getRestaurantId = async () => {
 export const setRestaurantId = async (restaurantId) => {
 	try {
 		await AsyncStorage.setItem("restaurantId", restaurantId);
-		console.log("✅ RestaurantId sauvegardé:", restaurantId);
 	} catch (error) {
 		console.error("❌ Erreur sauvegarde restaurantId:", error);
 	}
@@ -39,7 +38,6 @@ export const setRestaurantId = async (restaurantId) => {
 export const clearRestaurantId = async () => {
 	try {
 		await AsyncStorage.removeItem("restaurantId");
-		console.log("✅ RestaurantId supprimé");
 	} catch (error) {
 		console.error("❌ Erreur suppression restaurantId:", error);
 	}

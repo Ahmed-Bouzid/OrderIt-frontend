@@ -23,9 +23,8 @@ import {
 } from "react-native";
 import { LinearGradient } from "expo-linear-gradient";
 import { Ionicons } from "@expo/vector-icons";
-import useThemeStore from "../../src/stores/useThemeStore";
-import { useTheme } from "../../hooks/useTheme";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
+import { useTheme } from "../../hooks/useTheme";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 import { useReservationAI } from "../../hooks/useReservationAI";
 
@@ -61,8 +60,8 @@ const TableButton = React.memo(
 		const getTableStyle = () => {
 			if (isAssignedToCurrent) {
 				return {
-					bgColor: THEME.colors.primary.amber,
-					borderColor: THEME.colors.primary.amber,
+					bgColor: "#F59E0B",
+					borderColor: "#F59E0B",
 					textColor: "#FFFFFF",
 					icon: "checkmark-circle",
 				};
@@ -70,15 +69,15 @@ const TableButton = React.memo(
 			if (isAvailable) {
 				return {
 					bgColor: "rgba(16, 185, 129, 0.15)",
-					borderColor: THEME.colors.status.success,
-					textColor: THEME.colors.status.success,
+					borderColor: "#22C55E",
+					textColor: "#22C55E",
 					icon: "checkmark-outline",
 				};
 			}
 			return {
 				bgColor: "rgba(239, 68, 68, 0.15)",
-				borderColor: THEME.colors.status.error,
-				textColor: THEME.colors.status.error,
+				borderColor: "#EF4444",
+				textColor: "#EF4444",
 				icon: "close-outline",
 			};
 		};
@@ -130,7 +129,6 @@ const AssignTableModal = React.memo(
 		const opacityAnim = useRef(new Animated.Value(0)).current;
 
 		// Thème dynamique
-		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const modalStyles = useMemo(() => createModalStyles(THEME), [THEME]);
 		const tableStyles = useMemo(() => createTableStyles(THEME), [THEME]);
@@ -239,7 +237,7 @@ const AssignTableModal = React.memo(
 			<Modal
 				visible={visible}
 				transparent
-				animationType="none"
+				animationType="fade"
 				onRequestClose={safeOnClose}
 			>
 				<TouchableWithoutFeedback onPress={safeOnClose}>
@@ -269,7 +267,7 @@ const AssignTableModal = React.memo(
 											<Ionicons
 												name="grid-outline"
 												size={20}
-												color={THEME.colors.primary.sky}
+												color={"#38BDF8"}
 											/>
 										</LinearGradient>
 										<View>
@@ -288,7 +286,7 @@ const AssignTableModal = React.memo(
 										<Ionicons
 											name="close"
 											size={22}
-											color={THEME.colors.text.secondary}
+											color={"#94A3B8"}
 										/>
 									</TouchableOpacity>
 								</View>
@@ -311,7 +309,7 @@ const AssignTableModal = React.memo(
 										<View
 											style={[
 												modalStyles.legendDot,
-												{ backgroundColor: THEME.colors.primary.amber },
+												{ backgroundColor: "#F59E0B" },
 											]}
 										/>
 										<Text style={modalStyles.legendText}>Assignée</Text>
@@ -320,7 +318,7 @@ const AssignTableModal = React.memo(
 										<View
 											style={[
 												modalStyles.legendDot,
-												{ backgroundColor: THEME.colors.status.success },
+												{ backgroundColor: "#22C55E" },
 											]}
 										/>
 										<Text style={modalStyles.legendText}>Disponible</Text>
@@ -329,7 +327,7 @@ const AssignTableModal = React.memo(
 										<View
 											style={[
 												modalStyles.legendDot,
-												{ backgroundColor: THEME.colors.status.error },
+												{ backgroundColor: "#EF4444" },
 											]}
 										/>
 										<Text style={modalStyles.legendText}>Occupée</Text>
@@ -443,7 +441,7 @@ const AssignTableModal = React.memo(
 											<Text
 												style={[
 													modalStyles.sectionTitle,
-													{ marginTop: THEME.spacing.md },
+													{ marginTop: 12 },
 												]}
 											>
 												Tables occupées ({occupiedTables.length})
@@ -476,7 +474,7 @@ const AssignTableModal = React.memo(
 									<Ionicons
 										name="chevron-back"
 										size={18}
-										color={THEME.colors.text.secondary}
+										color={"#94A3B8"}
 									/>
 									<Text style={modalStyles.footerButtonText}>Fermer</Text>
 								</TouchableOpacity>
@@ -526,7 +524,7 @@ const createModalStyles = (THEME) =>
 		modalContainer: {
 			width: 380,
 			maxHeight: "80%",
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: THEME.radius.xl,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -541,7 +539,7 @@ const createModalStyles = (THEME) =>
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "center",
-			padding: THEME.spacing.lg,
+			padding: 16,
 		},
 		headerLeft: {
 			flexDirection: "row",
@@ -553,36 +551,36 @@ const createModalStyles = (THEME) =>
 			borderRadius: THEME.radius.md,
 			alignItems: "center",
 			justifyContent: "center",
-			marginRight: THEME.spacing.md,
+			marginRight: 12,
 		},
 		modalTitle: {
 			fontSize: THEME.typography.sizes.lg,
 			fontWeight: THEME.typography.weights.bold,
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 		modalSubtitle: {
 			fontSize: THEME.typography.sizes.sm,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 			marginTop: 2,
 		},
 		closeButton: {
 			width: 36,
 			height: 36,
 			borderRadius: 18,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			alignItems: "center",
 			justifyContent: "center",
 		},
 		divider: {
 			height: 1,
-			marginHorizontal: THEME.spacing.lg,
+			marginHorizontal: 16,
 		},
 		legend: {
 			flexDirection: "row",
 			justifyContent: "center",
-			gap: THEME.spacing.lg,
-			paddingVertical: THEME.spacing.md,
-			paddingHorizontal: THEME.spacing.lg,
+			gap: 16,
+			paddingVertical: 12,
+			paddingHorizontal: 16,
 		},
 		legendItem: {
 			flexDirection: "row",
@@ -596,20 +594,20 @@ const createModalStyles = (THEME) =>
 		},
 		legendText: {
 			fontSize: 12,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		tablesScroll: {
 			maxHeight: 300,
 		},
 		tablesContainer: {
-			paddingHorizontal: THEME.spacing.lg,
-			paddingBottom: THEME.spacing.md,
+			paddingHorizontal: 16,
+			paddingBottom: 12,
 		},
 		sectionTitle: {
 			fontSize: THEME.typography.sizes.sm,
 			fontWeight: THEME.typography.weights.semibold,
-			color: THEME.colors.text.secondary,
-			marginBottom: THEME.spacing.sm,
+			color: "#94A3B8",
+			marginBottom: 8,
 		},
 		tablesGrid: {
 			flexDirection: "row",
@@ -620,21 +618,21 @@ const createModalStyles = (THEME) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			paddingVertical: THEME.spacing.lg,
+			paddingVertical: 16,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.subtle,
 			gap: THEME.spacing.xs,
 		},
 		footerButtonText: {
 			fontSize: THEME.typography.sizes.md,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 			fontWeight: THEME.typography.weights.medium,
 		},
 		// ── IA Styles ──────────────────────────────────────────────────────
 		aiBar: {
-			paddingHorizontal: THEME.spacing.lg,
-			paddingBottom: THEME.spacing.sm,
-			gap: THEME.spacing.sm,
+			paddingHorizontal: 16,
+			paddingBottom: 8,
+			gap: 8,
 		},
 		aiButton: {
 			flexDirection: "row",
@@ -644,8 +642,8 @@ const createModalStyles = (THEME) =>
 			borderWidth: 1,
 			borderColor: "rgba(245, 158, 11, 0.28)",
 			borderRadius: THEME.radius.md,
-			paddingVertical: THEME.spacing.sm,
-			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: 8,
+			paddingHorizontal: 12,
 			alignSelf: "flex-start",
 		},
 		aiButtonText: {
@@ -661,8 +659,8 @@ const createModalStyles = (THEME) =>
 			borderWidth: 1,
 			borderColor: "rgba(245, 158, 11, 0.22)",
 			borderRadius: THEME.radius.md,
-			paddingVertical: THEME.spacing.sm,
-			paddingHorizontal: THEME.spacing.md,
+			paddingVertical: 8,
+			paddingHorizontal: 12,
 		},
 		aiResultLeft: {
 			flexDirection: "row",
@@ -676,16 +674,16 @@ const createModalStyles = (THEME) =>
 		},
 		aiResultCapacity: {
 			fontSize: 11,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 		aiResultRight: {
 			flex: 1,
-			marginLeft: THEME.spacing.sm,
+			marginLeft: 8,
 			alignItems: "flex-end",
 		},
 		aiResultReason: {
 			fontSize: 11,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textAlign: "right",
 		},
 		aiResultConfirm: {

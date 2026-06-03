@@ -17,11 +17,11 @@ import {
 	ScrollView,
 	TextInput,
 	Alert,
+	Pressable,
 } from "react-native";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../hooks/useTheme";
-
 const DISCOUNT_REASONS = [
 	{ id: "geste_commercial", label: "Geste commercial", emoji: "🤝" },
 	{ id: "erreur_cuisine", label: "Erreur cuisine", emoji: "👨‍🍳" },
@@ -46,9 +46,8 @@ const EncaisserModal = ({
 	orders = [],
 	onEncaisser,
 }) => {
-	const THEME = useTheme();
-
 	// Navigation : "main" | "discounts" | "reason"
+	const THEME = useTheme();
 	const [page, setPage] = useState("main");
 	const [discounts, setDiscounts] = useState([]);
 	const [selectedMethod, setSelectedMethod] = useState(null);
@@ -247,7 +246,7 @@ const EncaisserModal = ({
 					<Ionicons
 						name="pricetag-outline"
 						size={20}
-						color={THEME.colors.primary.amber}
+						color={"#F59E0B"}
 					/>
 					<Text style={dynamicStyles.discountButtonText}>
 						{discounts.length > 0
@@ -257,7 +256,7 @@ const EncaisserModal = ({
 					<Ionicons
 						name="chevron-forward"
 						size={18}
-						color={THEME.colors.text.muted}
+						color={"#64748B"}
 					/>
 				</TouchableOpacity>
 
@@ -281,8 +280,8 @@ const EncaisserModal = ({
 								size={28}
 								color={
 									selectedMethod === "cash"
-										? THEME.colors.background.dark
-										: THEME.colors.primary.amber
+										? "#0F172A"
+										: "#F59E0B"
 								}
 							/>
 							<Text
@@ -311,8 +310,8 @@ const EncaisserModal = ({
 								size={28}
 								color={
 									selectedMethod === "card_offline"
-										? THEME.colors.background.dark
-										: THEME.colors.primary.amber
+										? "#0F172A"
+										: "#F59E0B"
 								}
 							/>
 							<Text
@@ -354,7 +353,7 @@ const EncaisserModal = ({
 					>
 						{isProcessing ? (
 							<ActivityIndicator
-								color={THEME.colors.background.dark}
+								color={"#0F172A"}
 								size="small"
 							/>
 						) : (
@@ -379,7 +378,7 @@ const EncaisserModal = ({
 					<Ionicons
 						name="arrow-back"
 						size={24}
-						color={THEME.colors.text.primary}
+						color={"#F1F5F9"}
 					/>
 				</TouchableOpacity>
 				<Text style={dynamicStyles.title}>💸 Réductions</Text>
@@ -463,7 +462,7 @@ const EncaisserModal = ({
 					<Ionicons
 						name="add-circle-outline"
 						size={24}
-						color={THEME.colors.primary.amber}
+						color={"#F59E0B"}
 					/>
 					<Text style={dynamicStyles.addButtonText}>
 						Ajouter une réduction
@@ -552,7 +551,7 @@ const EncaisserModal = ({
 											: "Ex: 5.00"
 									}
 									placeholderTextColor={
-										THEME.colors.text.muted
+										"#64748B"
 									}
 									keyboardType="decimal-pad"
 									value={discountValue}
@@ -811,7 +810,7 @@ const EncaisserModal = ({
 							<Ionicons
 								name="checkmark-circle"
 								size={22}
-								color={THEME.colors.background.dark}
+								color={"#0F172A"}
 							/>
 						)}
 					</TouchableOpacity>
@@ -840,7 +839,7 @@ const EncaisserModal = ({
 				>
 					{isProcessing ? (
 						<ActivityIndicator
-							color={THEME.colors.background.dark}
+							color={"#0F172A"}
 							size="small"
 						/>
 					) : (
@@ -862,6 +861,8 @@ const EncaisserModal = ({
 			onRequestClose={handleClose}
 		>
 			<BlurView intensity={95} style={dynamicStyles.blur}>
+				<Pressable style={StyleSheet.absoluteFill} onPress={handleClose} />
+				<Pressable onPress={() => {}}>
 				<ScrollView
 					contentContainerStyle={dynamicStyles.container}
 					showsVerticalScrollIndicator={false}
@@ -872,6 +873,7 @@ const EncaisserModal = ({
 							? renderDiscountsPage()
 							: renderMainPage()}
 				</ScrollView>
+				</Pressable>
 			</BlurView>
 		</Modal>
 	);
@@ -893,7 +895,7 @@ const createStyles = (THEME) =>
 		},
 
 		card: {
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: "#0F172A",
 			borderRadius: 16,
 			padding: 24,
 			borderWidth: 1,
@@ -914,24 +916,24 @@ const createStyles = (THEME) =>
 		title: {
 			fontSize: 22,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			textAlign: "center",
 		},
 
 		subtitle: {
 			fontSize: 14,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			marginBottom: 16,
 			textAlign: "center",
 		},
 
 		totalBox: {
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: 12,
 			padding: 18,
 			marginBottom: 16,
 			borderWidth: 2,
-			borderColor: THEME.colors.primary.amber,
+			borderColor: "#F59E0B",
 		},
 
 		totalRow: {
@@ -943,13 +945,13 @@ const createStyles = (THEME) =>
 		totalLabel: {
 			fontSize: 15,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 
 		totalAmount: {
 			fontSize: 28,
 			fontWeight: "700",
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 		},
 
 		totalAmountZero: {
@@ -971,13 +973,13 @@ const createStyles = (THEME) =>
 
 		detailLabel: {
 			fontSize: 13,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 
 		detailValue: {
 			fontSize: 15,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 
 		discountLabel: {
@@ -996,7 +998,7 @@ const createStyles = (THEME) =>
 			alignItems: "center",
 			paddingVertical: 14,
 			paddingHorizontal: 16,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: 10,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -1007,14 +1009,14 @@ const createStyles = (THEME) =>
 		discountButtonText: {
 			fontSize: 15,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			flex: 1,
 		},
 
 		modeLabel: {
 			fontSize: 15,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 			marginBottom: 12,
 		},
 
@@ -1023,7 +1025,7 @@ const createStyles = (THEME) =>
 			alignItems: "center",
 			paddingVertical: 16,
 			paddingHorizontal: 18,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: 10,
 			borderWidth: 2,
 			borderColor: THEME.colors.border.subtle,
@@ -1032,18 +1034,18 @@ const createStyles = (THEME) =>
 		},
 
 		methodButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
+			borderColor: "#F59E0B",
 		},
 
 		methodButtonText: {
 			fontSize: 16,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 
 		methodButtonTextActive: {
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 		},
 
 		buttonsRow: {
@@ -1066,7 +1068,7 @@ const createStyles = (THEME) =>
 		cancelButtonText: {
 			fontSize: 15,
 			fontWeight: "700",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 
 		confirmButton: {
@@ -1074,7 +1076,7 @@ const createStyles = (THEME) =>
 			paddingVertical: 14,
 			paddingHorizontal: 20,
 			borderRadius: 10,
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
 			alignItems: "center",
 			justifyContent: "center",
 		},
@@ -1086,14 +1088,14 @@ const createStyles = (THEME) =>
 		confirmButtonText: {
 			fontSize: 15,
 			fontWeight: "700",
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 		},
 
 		// ── PAGE RÉDUCTIONS ───────────────────────────────────────
 		discountItem: {
 			flexDirection: "row",
 			alignItems: "center",
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: 10,
 			padding: 14,
 			marginBottom: 10,
@@ -1104,13 +1106,13 @@ const createStyles = (THEME) =>
 		discountItemLabel: {
 			fontSize: 16,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 4,
 		},
 
 		discountItemReason: {
 			fontSize: 13,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 		},
 
 		addButton: {
@@ -1121,18 +1123,18 @@ const createStyles = (THEME) =>
 			borderRadius: 10,
 			borderWidth: 2,
 			borderStyle: "dashed",
-			borderColor: THEME.colors.primary.amber,
+			borderColor: "#F59E0B",
 			gap: 10,
 		},
 
 		addButtonText: {
 			fontSize: 15,
 			fontWeight: "600",
-			color: THEME.colors.primary.amber,
+			color: "#F59E0B",
 		},
 
 		form: {
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: 10,
 			padding: 16,
 			borderWidth: 1,
@@ -1142,7 +1144,7 @@ const createStyles = (THEME) =>
 		formLabel: {
 			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 			marginBottom: 10,
 			marginTop: 12,
 		},
@@ -1160,33 +1162,33 @@ const createStyles = (THEME) =>
 			borderColor: THEME.colors.border.subtle,
 			alignItems: "center",
 			justifyContent: "center",
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: "#0F172A",
 		},
 
 		typeButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
+			borderColor: "#F59E0B",
 		},
 
 		typeButtonText: {
 			fontSize: 16,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 
 		typeButtonTextActive: {
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 		},
 
 		input: {
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: "#0F172A",
 			borderRadius: 8,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
 			paddingVertical: 12,
 			paddingHorizontal: 14,
 			fontSize: 15,
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: 10,
 		},
 
@@ -1195,7 +1197,7 @@ const createStyles = (THEME) =>
 			alignItems: "center",
 			paddingVertical: 12,
 			paddingHorizontal: 14,
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: "#0F172A",
 			borderRadius: 8,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -1203,13 +1205,13 @@ const createStyles = (THEME) =>
 		},
 
 		itemButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
+			borderColor: "#F59E0B",
 		},
 
 		itemButtonText: {
 			fontSize: 14,
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			flex: 1,
 		},
 
@@ -1218,7 +1220,7 @@ const createStyles = (THEME) =>
 			alignItems: "center",
 			paddingVertical: 12,
 			paddingHorizontal: 14,
-			backgroundColor: THEME.colors.background.dark,
+			backgroundColor: "#0F172A",
 			borderRadius: 8,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -1226,8 +1228,8 @@ const createStyles = (THEME) =>
 		},
 
 		reasonButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
+			borderColor: "#F59E0B",
 		},
 
 		reasonEmoji: {
@@ -1238,12 +1240,12 @@ const createStyles = (THEME) =>
 		reasonLabel: {
 			fontSize: 14,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			flex: 1,
 		},
 
 		reasonLabelActive: {
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 		},
 
 		formButtons: {
@@ -1265,7 +1267,7 @@ const createStyles = (THEME) =>
 		formCancelButtonText: {
 			fontSize: 14,
 			fontWeight: "700",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 
 		formConfirmButton: {
@@ -1273,14 +1275,14 @@ const createStyles = (THEME) =>
 			paddingVertical: 12,
 			paddingHorizontal: 16,
 			borderRadius: 8,
-			backgroundColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
 			alignItems: "center",
 		},
 
 		formConfirmButtonText: {
 			fontSize: 14,
 			fontWeight: "700",
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 		},
 
 		// ── PAGE RAISON 0€ ────────────────────────────────────────
@@ -1289,7 +1291,7 @@ const createStyles = (THEME) =>
 			alignItems: "center",
 			paddingVertical: 14,
 			paddingHorizontal: 16,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: 10,
 			borderWidth: 2,
 			borderColor: THEME.colors.border.subtle,
@@ -1297,8 +1299,8 @@ const createStyles = (THEME) =>
 		},
 
 		optionButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
-			borderColor: THEME.colors.primary.amber,
+			backgroundColor: "#F59E0B",
+			borderColor: "#F59E0B",
 		},
 
 		optionEmoji: {
@@ -1309,12 +1311,12 @@ const createStyles = (THEME) =>
 		optionLabel: {
 			fontSize: 15,
 			fontWeight: "600",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			flex: 1,
 		},
 
 		optionLabelActive: {
-			color: THEME.colors.background.dark,
+			color: "#0F172A",
 		},
 	});
 

@@ -244,6 +244,7 @@ export default function Floor({ onStart }) {
 	const caisseStats = useMemo(() => {
 		if (enableComptoir) {
 			// Mode Comptoir : utiliser les stats depuis l'API (inclut les payées du jour)
+			const sessions = caisseStatsFromAPI.enCours.sessions || [];
 			return {
 				enCoursCount: caisseStatsFromAPI.enCours.count,
 				enCoursMontant: caisseStatsFromAPI.enCours.montant,
@@ -287,7 +288,6 @@ export default function Floor({ onStart }) {
 	// 💰 Fetch stats caisse (en cours + payées du jour)
 	const fetchCaisseStats = useCallback(async () => {
 		const restId = restaurantIdFromStore || restaurantId;
-		console.log("[Caisse] fetchCaisseStats — restId:", restId, "enableComptoir:", enableComptoir);
 		if (!restId || !enableComptoir) return;
 
 		// 🔑 Anti-race condition : seule la réponse du dernier appel est appliquée
@@ -297,8 +297,6 @@ export default function Floor({ onStart }) {
 			const stats = await counterService.getCaisseStats(restId);
 			// Ignorer si un appel plus récent a déjà été lancé
 			if (callId !== caisseStatsCallIdRef.current) return;
-			console.log("[Caisse] En cours:", stats.enCours.count, "tables →", stats.enCours.montant + "€");
-			console.log("[Caisse] Payées:", stats.payees.count, "tables →", stats.payees.montant + "€");
 			setCaisseStatsFromAPI(stats);
 		} catch (err) {
 			console.error("[Floor] Erreur fetch stats caisse:", err);
@@ -418,7 +416,6 @@ export default function Floor({ onStart }) {
 	const loadRestaurantId = async () => {
 		try {
 			const id = await AsyncStorage.getItem("restaurantId");
-			console.log("[Caisse] AsyncStorage restaurantId:", id);
 			if (id) {
 				setRestaurantId(id);
 			}
@@ -459,6 +456,7 @@ export default function Floor({ onStart }) {
 			const result = await authFetch(url, { method: "GET" });
 
 			const data = result.orders || result || [];
+
 			setOrders(data);
 		} catch (error) {
 		} finally {

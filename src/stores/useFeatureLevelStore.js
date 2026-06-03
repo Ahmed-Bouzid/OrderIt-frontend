@@ -234,6 +234,46 @@ const applyFeatureOverrides = (features, overrides = {}) => {
 	return result;
 };
 
+/**
+ * Mapping feature key → tab name.
+ * Certaines features contrôlent directement la visibilité d'un onglet.
+ */
+const FEATURE_TO_TAB = {
+	activite: "activity",
+	agenda: "agenda",
+};
+
+/**
+ * Applique les overrides sur la liste des tabs.
+ * - Si la feature est désactivée → retire le tab correspondant
+ * - Si la feature est activée → ajoute le tab si absent (dans l'ordre défini par ALL_TABS_ORDER)
+ */
+const ALL_TABS_ORDER = ["activity", "comptoir", "floor", "agenda", "reglage"];
+
+const applyTabOverrides = (tabs, overrides = {}) => {
+	let result = [...tabs];
+	Object.entries(overrides).forEach(([feature, enabled]) => {
+		const tabName = FEATURE_TO_TAB[feature];
+		if (!tabName) return;
+		if (!enabled) {
+			result = result.filter((t) => t !== tabName);
+		} else if (enabled && !result.includes(tabName)) {
+			// Insérer dans le bon ordre
+			const insertIdx = ALL_TABS_ORDER.indexOf(tabName);
+			let inserted = false;
+			for (let i = 0; i < result.length; i++) {
+				if (ALL_TABS_ORDER.indexOf(result[i]) > insertIdx) {
+					result.splice(i, 0, tabName);
+					inserted = true;
+					break;
+				}
+			}
+			if (!inserted) result.push(tabName);
+		}
+	});
+	return result;
+};
+
 // ============ STORE ZUSTAND ============
 
 export const useFeatureLevelStore = create((set, get) => ({
@@ -264,11 +304,13 @@ export const useFeatureLevelStore = create((set, get) => ({
 
 			// Lire les overrides persistés (stockés lors du login ou depuis DeveloperSelector)
 			let baseFeatures = [...config.features];
+			let baseTabs = [...config.tabs];
 			try {
 				const overridesRaw = await AsyncStorage.getItem("featureOverrides");
 				if (overridesRaw) {
 					const overrides = JSON.parse(overridesRaw);
 					baseFeatures = applyFeatureOverrides(baseFeatures, overrides);
+					baseTabs = applyTabOverrides(baseTabs, overrides);
 				}
 			} catch (overrideErr) {
 				console.warn("⚠️ Erreur lecture featureOverrides:", overrideErr);
@@ -278,11 +320,11 @@ export const useFeatureLevelStore = create((set, get) => ({
 				level: config.level,
 				category: cat,
 				features: baseFeatures,
-				tabs: config.tabs,
+				tabs: baseTabs,
 				isInitialized: true,
 			});
 
-			return { ...config, features: baseFeatures };
+			return { ...config, features: baseFeatures, tabs: baseTabs };
 		} catch (error) {
 			console.error("❌ Erreur init FeatureLevelStore:", error);
 			// Fallback niveau complet
@@ -323,11 +365,12 @@ export const useFeatureLevelStore = create((set, get) => ({
 			const { category } = get();
 			const config = getServiceConfig(category);
 			const updatedFeatures = applyFeatureOverrides(config.features, overrides);
+			const updatedTabs = applyTabOverrides(config.tabs, overrides);
 
 			// Persister dans AsyncStorage
 			await AsyncStorage.setItem("featureOverrides", JSON.stringify(overrides));
 
-			set({ features: updatedFeatures });
+			set({ features: updatedFeatures, tabs: updatedTabs });
 		} catch (err) {
 			console.error("❌ Erreur applyOverrides:", err);
 		}

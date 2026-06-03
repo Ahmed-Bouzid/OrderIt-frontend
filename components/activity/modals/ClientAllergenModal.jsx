@@ -22,9 +22,7 @@ import {
 import { Ionicons } from "@expo/vector-icons";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { getItem as getSecureItem } from "../../../utils/secureStorage";
-import useThemeStore from "../../../src/stores/useThemeStore";
 import { useTheme } from "../../../hooks/useTheme";
-
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
 // Liste des allergènes standards (14 allergènes obligatoires UE)
@@ -117,7 +115,6 @@ export const DEFAULT_ALLERGENS = [
 
 export const ClientAllergenModal = React.memo(
 	({ visible, onClose, onValidate, selectedAllergenIds = [] }) => {
-		const { themeMode } = useThemeStore();
 		const THEME = useTheme(); // Utilise le hook avec multiplicateur de police
 		const styles = useMemo(
 			() => createStyles(THEME, themeMode === "dark" || themeMode === "ocean"),
@@ -279,7 +276,7 @@ export const ClientAllergenModal = React.memo(
 							<Ionicons
 								name="warning"
 								size={18}
-								color={THEME.colors.status.error}
+								color={"#EF4444"}
 							/>
 						)}
 					</TouchableOpacity>
@@ -291,7 +288,7 @@ export const ClientAllergenModal = React.memo(
 		return (
 			<Modal
 				visible={visible}
-				animationType="none"
+				animationType="fade"
 				transparent
 				onRequestClose={handleClose}
 			>
@@ -310,7 +307,7 @@ export const ClientAllergenModal = React.memo(
 										<Ionicons
 											name="warning"
 											size={22}
-											color={THEME.colors.status.error}
+											color={"#EF4444"}
 										/>
 										<Text style={styles.headerTitle}>Allergies client</Text>
 									</View>
@@ -331,12 +328,12 @@ export const ClientAllergenModal = React.memo(
 									<Ionicons
 										name="search"
 										size={18}
-										color={THEME.colors.text.muted}
+										color={"#64748B"}
 									/>
 									<TextInput
 										style={styles.searchInput}
 										placeholder="Rechercher un allergène..."
-										placeholderTextColor={THEME.colors.text.muted}
+										placeholderTextColor={"#64748B"}
 										value={searchQuery}
 										onChangeText={setSearchQuery}
 									/>
@@ -345,7 +342,7 @@ export const ClientAllergenModal = React.memo(
 											<Ionicons
 												name="close-circle"
 												size={18}
-												color={THEME.colors.text.muted}
+												color={"#64748B"}
 											/>
 										</TouchableOpacity>
 									)}
@@ -356,7 +353,7 @@ export const ClientAllergenModal = React.memo(
 									<Ionicons
 										name="information-circle"
 										size={16}
-										color={THEME.colors.primary.amber}
+										color={"#F59E0B"}
 									/>
 									<Text style={styles.infoText}>
 										Sélectionnez les allergènes du client pour alerter sur les
@@ -369,7 +366,7 @@ export const ClientAllergenModal = React.memo(
 									<View style={styles.loadingContainer}>
 										<ActivityIndicator
 											size="large"
-											color={THEME.colors.primary.amber}
+											color={"#F59E0B"}
 										/>
 									</View>
 								) : (
@@ -415,7 +412,7 @@ const createStyles = (THEME, isDarkMode) =>
 	StyleSheet.create({
 		overlay: {
 			flex: 1,
-			backgroundColor: "rgba(0,0,0,0.85)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 			justifyContent: "flex-end",
 		},
 		container: {
@@ -435,7 +432,7 @@ const createStyles = (THEME, isDarkMode) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			padding: THEME.spacing.lg,
+			padding: 16,
 			borderBottomWidth: 1,
 			borderBottomColor: isDarkMode
 				? "rgba(255,255,255,0.15)"
@@ -445,12 +442,12 @@ const createStyles = (THEME, isDarkMode) =>
 		headerLeft: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: THEME.spacing.sm,
+			gap: 8,
 		},
 		headerTitle: {
 			fontSize: 18,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 		},
 		closeButton: {
 			padding: THEME.spacing.xs,
@@ -459,17 +456,17 @@ const createStyles = (THEME, isDarkMode) =>
 			flexDirection: "row",
 			alignItems: "center",
 			backgroundColor: isDarkMode ? "#3A3A3C" : "#F2F2F7",
-			marginHorizontal: THEME.spacing.lg,
-			marginTop: THEME.spacing.md,
-			paddingHorizontal: THEME.spacing.md,
+			marginHorizontal: 16,
+			marginTop: 12,
+			paddingHorizontal: 12,
 			borderRadius: THEME.radius.lg,
 			borderWidth: 1,
 			borderColor: isDarkMode ? "rgba(255,255,255,0.2)" : "rgba(0,0,0,0.1)",
-			gap: THEME.spacing.sm,
+			gap: 8,
 		},
 		searchInput: {
 			flex: 1,
-			paddingVertical: THEME.spacing.md,
+			paddingVertical: 12,
 			fontSize: 15,
 			color: isDarkMode ? "#FFFFFF" : "#000000",
 		},
@@ -479,11 +476,11 @@ const createStyles = (THEME, isDarkMode) =>
 			backgroundColor: isDarkMode
 				? "rgba(245, 158, 11, 0.2)"
 				: "rgba(245, 158, 11, 0.15)",
-			marginHorizontal: THEME.spacing.lg,
-			marginTop: THEME.spacing.md,
-			padding: THEME.spacing.md,
+			marginHorizontal: 16,
+			marginTop: 12,
+			padding: 12,
 			borderRadius: THEME.radius.md,
-			gap: THEME.spacing.sm,
+			gap: 8,
 			borderWidth: 1,
 			borderColor: "rgba(245, 158, 11, 0.3)",
 		},
@@ -500,22 +497,22 @@ const createStyles = (THEME, isDarkMode) =>
 		},
 		list: {
 			maxHeight: 400,
-			marginTop: THEME.spacing.md,
+			marginTop: 12,
 		},
 		listContent: {
-			paddingHorizontal: THEME.spacing.lg,
-			paddingBottom: THEME.spacing.md,
+			paddingHorizontal: 16,
+			paddingBottom: 12,
 		},
 		allergenItem: {
 			flexDirection: "row",
 			alignItems: "center",
 			backgroundColor: isDarkMode ? "#2C2C2E" : "#FFFFFF",
-			padding: THEME.spacing.md,
-			marginBottom: THEME.spacing.sm,
+			padding: 12,
+			marginBottom: 8,
 			borderRadius: THEME.radius.lg,
 			borderWidth: 1,
 			borderColor: isDarkMode ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)",
-			gap: THEME.spacing.md,
+			gap: 12,
 		},
 		allergenItemSelected: {
 			backgroundColor: isDarkMode
@@ -560,8 +557,8 @@ const createStyles = (THEME, isDarkMode) =>
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "space-between",
-			paddingHorizontal: THEME.spacing.lg,
-			paddingTop: THEME.spacing.md,
+			paddingHorizontal: 16,
+			paddingTop: 12,
 			borderTopWidth: 1,
 			borderTopColor: isDarkMode ? "rgba(255,255,255,0.15)" : "rgba(0,0,0,0.1)",
 			backgroundColor: isDarkMode ? "#2C2C2E" : "#F8F8F8",
@@ -575,10 +572,10 @@ const createStyles = (THEME, isDarkMode) =>
 			flexDirection: "row",
 			alignItems: "center",
 			backgroundColor: "#F59E0B",
-			paddingHorizontal: THEME.spacing.xl,
-			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: 20,
+			paddingVertical: 12,
 			borderRadius: THEME.radius.lg,
-			gap: THEME.spacing.sm,
+			gap: 8,
 			shadowColor: "#F59E0B",
 			shadowOffset: { width: 0, height: 2 },
 			shadowOpacity: 0.3,

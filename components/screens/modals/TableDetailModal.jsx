@@ -19,6 +19,7 @@ import {
 	Alert,
 	Dimensions,
 	TextInput,
+	Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../../hooks/useTheme";
@@ -769,12 +770,12 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	if (isTableFree || isOpening) {
 		return (
 			<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
-				<View style={styles.overlay}>
-					<View style={[styles.sheet, styles.loadingSheet]}>
+				<Pressable style={styles.overlay} onPress={onClose}>
+					<Pressable onPress={() => {}} style={[styles.sheet, styles.loadingSheet]}>
 						<ActivityIndicator size="large" color="#FBBF24" />
 						<Text style={styles.loadingText}>Ouverture de la table…</Text>
-					</View>
-				</View>
+					</Pressable>
+				</Pressable>
 			</Modal>
 		);
 	}
@@ -792,8 +793,8 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 				animationType="fade"
 				onRequestClose={onClose}
 			>
-				<View style={styles.overlay}>
-					<View style={styles.sheet}>
+				<Pressable style={styles.overlay} onPress={onClose}>
+					<Pressable onPress={() => {}} style={styles.sheet}>
 						{currentView === "table" ? (
 							<>
 								{/* ── HEADER ────────────────────────────────────── */}
@@ -803,6 +804,11 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 										<Text style={styles.headerSub}>
 											{tableCapacity} pers. · ouverte depuis {elapsedMin} min
 										</Text>
+										{session?.serverId?.name ? (
+											<Text style={styles.headerServer}>
+												👤 {session.serverId.name}
+											</Text>
+										) : null}
 									</View>
 									<TouchableOpacity onPress={onClose} style={styles.closeBtn}>
 										<Ionicons name="close" size={20} color="#94A3B8" />
@@ -1001,8 +1007,8 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 								restaurantId={restaurantId}
 							/>
 						)}
-					</View>
-				</View>
+					</Pressable>
+				</Pressable>
 			</Modal>
 		);
 };
@@ -1066,6 +1072,12 @@ const createStyles = (THEME) =>
 			fontSize: 13,
 			color: "#64748B",
 			fontWeight: "400",
+		},
+		headerServer: {
+			fontSize: 12,
+			color: "#94A3B8",
+			fontWeight: "400",
+			marginTop: 2,
 		},
 		closeBtn: {
 			width: 32,

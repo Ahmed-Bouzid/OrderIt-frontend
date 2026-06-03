@@ -377,7 +377,7 @@ export const TapToPayModal = ({
 			statusBarTranslucent
 		>
 			<TouchableWithoutFeedback
-				onPress={state === "success" ? onClose : undefined}
+				onPress={onClose}
 			>
 				<Animated.View style={[styles.overlay, { opacity: opacityAnim }]}>
 					<Animated.View

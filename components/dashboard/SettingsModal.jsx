@@ -18,10 +18,9 @@ import {
 import { LinearGradient } from "expo-linear-gradient";
 import { BlurView } from "expo-blur";
 import { Ionicons } from "@expo/vector-icons";
-import useThemeStore from "../../src/stores/useThemeStore";
-import { getTheme } from "../../utils/themeUtils";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import { API_CONFIG } from "../../src/config/apiConfig";
+import { useTheme } from "../../hooks/useTheme";
 
 // ─────────────── Action Button Component ───────────────
 const ActionButton = React.memo(({ icon, label, colors, onPress, styles }) => (
@@ -57,9 +56,7 @@ const SettingsModal = React.memo(
 		onPayReservation,
 	}) => {
 		// Thème dynamique
-		const { themeMode } = useThemeStore();
-		const THEME = useMemo(() => getTheme(themeMode), [themeMode]);
-
+		const THEME = useTheme();
 		const modalStyles = useMemo(() => createModalStyles(THEME), [THEME]);
 		const authFetch = useAuthFetch();
 
@@ -107,7 +104,7 @@ const SettingsModal = React.memo(
 			if (reservation.isPresent && effectiveStatus === "pending") {
 				return {
 					icon: "checkmark-circle-outline",
-					color: THEME.colors.status.success,
+					color: "#22C55E",
 					label: "Présent",
 				};
 			}
@@ -116,31 +113,31 @@ const SettingsModal = React.memo(
 				case "pending":
 					return {
 						icon: "time-outline",
-						color: THEME.colors.status.warning,
+						color: "#F59E0B",
 						label: "En attente",
 					};
 				case "confirmed":
 					return {
 						icon: "restaurant-outline",
-						color: THEME.colors.primary.sky,
+						color: "#38BDF8",
 						label: "Ouverte",
 					};
 				case "completed":
 					return {
 						icon: "checkmark-done-outline",
-						color: THEME.colors.text.muted,
+						color: "#64748B",
 						label: "Terminée",
 					};
 				case "cancelled":
 					return {
 						icon: "close-circle-outline",
-						color: THEME.colors.status.error,
+						color: "#EF4444",
 						label: "Annulée",
 					};
 				default:
 					return {
 						icon: "help-circle-outline",
-						color: THEME.colors.text.muted,
+						color: "#64748B",
 						label: effectiveStatus,
 					};
 			}
@@ -152,7 +149,7 @@ const SettingsModal = React.memo(
 			<Modal
 				visible={visible}
 				transparent
-				animationType="none"
+				animationType="fade"
 				onRequestClose={onClose}
 			>
 				<TouchableWithoutFeedback onPress={() => onClose?.()}>
@@ -198,7 +195,7 @@ const SettingsModal = React.memo(
 										<Ionicons
 											name="close"
 											size={22}
-											color={THEME.colors.text.secondary}
+											color={"#94A3B8"}
 										/>
 									</TouchableOpacity>
 								</View>
@@ -516,7 +513,7 @@ const SettingsModal = React.memo(
 									<Ionicons
 										name="chevron-back"
 										size={18}
-										color={THEME.colors.text.secondary}
+										color={"#94A3B8"}
 									/>
 									<Text style={modalStyles.footerButtonText}>
 										{step === "payment" ? "Retour" : "Fermer"}
@@ -536,15 +533,15 @@ const createModalStyles = (THEME) =>
 	StyleSheet.create({
 		overlay: {
 			flex: 1,
-			backgroundColor: "rgba(0, 0, 0, 0.7)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 			justifyContent: "center",
 			alignItems: "center",
-			padding: THEME.spacing.lg,
+			padding: 16,
 		},
 		modalContainer: {
 			width: "100%",
 			maxWidth: 400,
-			backgroundColor: THEME.colors.background.card,
+			backgroundColor: "#1E293B",
 			borderRadius: THEME.radius.xl,
 			borderWidth: 1,
 			borderColor: THEME.colors.border.subtle,
@@ -554,7 +551,7 @@ const createModalStyles = (THEME) =>
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "flex-start",
-			padding: THEME.spacing.lg,
+			padding: 16,
 		},
 		headerLeft: {
 			flex: 1,
@@ -562,7 +559,7 @@ const createModalStyles = (THEME) =>
 		modalTitle: {
 			fontSize: THEME.typography.sizes.xl,
 			fontWeight: THEME.typography.weights.bold,
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			marginBottom: THEME.spacing.xs,
 		},
 		statusRow: {
@@ -578,24 +575,24 @@ const createModalStyles = (THEME) =>
 			width: 36,
 			height: 36,
 			borderRadius: THEME.radius.md,
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			alignItems: "center",
 			justifyContent: "center",
 		},
 		divider: {
 			height: 1,
-			marginHorizontal: THEME.spacing.lg,
+			marginHorizontal: 16,
 		},
 		actionsContainer: {
-			padding: THEME.spacing.lg,
-			gap: THEME.spacing.sm,
+			padding: 16,
+			gap: 8,
 		},
 		actionButton: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			paddingVertical: THEME.spacing.md,
-			paddingHorizontal: THEME.spacing.lg,
+			paddingVertical: 12,
+			paddingHorizontal: 16,
 			borderRadius: THEME.radius.lg,
 		},
 		actionButtonText: {
@@ -606,22 +603,22 @@ const createModalStyles = (THEME) =>
 		infoBox: {
 			flexDirection: "row",
 			alignItems: "center",
-			backgroundColor: THEME.colors.background.elevated,
-			padding: THEME.spacing.md,
+			backgroundColor: "#243447",
+			padding: 12,
 			borderRadius: THEME.radius.md,
-			gap: THEME.spacing.sm,
-			marginBottom: THEME.spacing.sm,
+			gap: 8,
+			marginBottom: 8,
 		},
 		infoText: {
 			fontSize: THEME.typography.sizes.sm,
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			flex: 1,
 		},
 		footerButton: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			paddingVertical: THEME.spacing.md,
+			paddingVertical: 12,
 			borderTopWidth: 1,
 			borderTopColor: THEME.colors.border.subtle,
 			gap: THEME.spacing.xs,
@@ -629,7 +626,7 @@ const createModalStyles = (THEME) =>
 		footerButtonText: {
 			fontSize: THEME.typography.sizes.md,
 			fontWeight: THEME.typography.weights.medium,
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 		// ─── Paiement ────────────────────────────
 		paymentAmount: {
@@ -642,11 +639,11 @@ const createModalStyles = (THEME) =>
 		paymentMethodLabel: {
 			fontSize: 11,
 			fontWeight: "700",
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textTransform: "uppercase",
 			letterSpacing: 0.8,
 			textAlign: "center",
-			marginBottom: THEME.spacing.md,
+			marginBottom: 12,
 		},
 		paymentBtns: {
 			flexDirection: "row",
@@ -671,16 +668,16 @@ const createModalStyles = (THEME) =>
 		// ─── Reçu ────────────────────────────────
 		receiptContainer: {
 			width: "100%",
-			backgroundColor: THEME.colors.background.elevated,
+			backgroundColor: "#243447",
 			borderRadius: THEME.radius.md,
 			paddingHorizontal: 12,
 			paddingVertical: 8,
-			marginBottom: THEME.spacing.md,
+			marginBottom: 12,
 		},
 		receiptTitle: {
 			fontSize: 10,
 			fontWeight: "700",
-			color: THEME.colors.text.muted,
+			color: "#64748B",
 			textTransform: "uppercase",
 			letterSpacing: 0.8,
 			marginBottom: 6,
@@ -708,13 +705,13 @@ const createModalStyles = (THEME) =>
 		},
 		receiptItemName: {
 			fontSize: 12,
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
 			flex: 1,
 		},
 		receiptItemPrice: {
 			fontSize: 12,
 			fontWeight: "600",
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 		},
 	});
 
