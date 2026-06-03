@@ -27,8 +27,205 @@ import {
 	Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import * as FileSystem from "expo-file-system";
+import * as Sharing from "expo-sharing";
 import { useTheme } from "../../hooks/useTheme";
 import zReportService from "../../services/zReportService";
+
+// ────────────────────────────────────────────────────────────────────────────
+// Formateur Z de caisse en texte ASCII exportable
+// ────────────────────────────────────────────────────────────────────────────
+function buildZText(z) {
+	const SEP  = "═".repeat(40);
+	const sep2 = "─".repeat(40);
+	const pad  = (l, r, w = 40) => {
+		const gap = w - l.length - r.length;
+		return l + " ".repeat(Math.max(1, gap)) + r;
+	};
+	const fmt  = (cents) => zReportService.formatCents(cents);
+	const dt   = (iso)   => new Date(iso).toLocaleString("fr-FR", {
+		weekday: "long", day: "numeric", month: "long", year: "numeric",
+		hour: "2-digit", minute: "2-digit",
+	});
+
+	const lines = [
+		SEP,
+		"          Z DE CAISSE — CLÔTURE JOURNÉE",
+		SEP,
+		"",
+		pad("  Z n°", `#${z.sequenceNumber}  `),
+		`  Généré le : ${dt(z.createdAt)}`,
+		"",
+		sep2,
+		"  PÉRIODE COUVERTE",
+		sep2,
+		`  Du  : ${dt(z.periodStart)}`,
+		`  Au  : ${dt(z.periodEnd)}`,
+		"",
+		sep2,
+		"  CHIFFRE D'AFFAIRES",
+		sep2,
+		pad("  CA brut",  fmt(z.grossSalesCents)),
+		z.totalRefundsCents > 0 ? pad("  Remboursements", `- ${fmt(z.totalRefundsCents)}`) : null,
+		z.totalVoidsCents   > 0 ? pad("  Annulations (voids)", `- ${fmt(z.totalVoidsCents)}`) : null,
+		"  " + "·".repeat(36),
+		pad("  CA NET",   fmt(z.netSalesCents)),
+		"",
+		sep2,
+		"  VENTILATION PAR MOYEN DE PAIEMENT",
+		sep2,
+		...(z.paymentBreakdown ?? []).map((p) =>
+			pad(
+				`  ${METHOD_LABEL[p.method] || p.method} (${p.ticketCount} ticket${p.ticketCount > 1 ? "s" : ""})`,
+				fmt(p.amountCents),
+			)
+		),
+		"",
+		sep2,
+		"  STATISTIQUES TICKETS",
+		sep2,
+		pad("  Nombre de tickets",  String(z.ticketCount)),
+		pad("  Panier moyen",       fmt(z.avgBasketCents)),
+		z.maxTicketCents > 0 ? pad("  Ticket max", fmt(z.maxTicketCents)) : null,
+		"",
+	];
+
+	if (z.openingFloatCents > 0 || z.closingCountCents > 0) {
+		const cashSales = (z.paymentBreakdown ?? []).find((p) => p.method === "cash")?.amountCents ?? 0;
+		const expected  = z.openingFloatCents + cashSales;
+		lines.push(
+			sep2,
+			"  GESTION CAISSE ESPÈCES",
+			sep2,
+			pad("  Fond de caisse initial",  fmt(z.openingFloatCents)),
+			pad("  Ventes espèces",          fmt(cashSales)),
+			pad("  Espèces attendues",        fmt(expected)),
+			pad("  Espèces comptées",         fmt(z.closingCountCents)),
+			"  " + "·".repeat(36),
+			pad("  ÉCART CAISSE", zReportService.formatVariance(z.cashVarianceCents)),
+			"",
+		);
+	}
+
+	if (z.notes) {
+		lines.push(sep2, "  NOTES", sep2, `  ${z.notes}`, "");
+	}
+
+	lines.push(
+		SEP,
+		`  Document généré le ${new Date().toLocaleString("fr-FR")}`,
+		SEP,
+	);
+
+	return lines.filter((l) => l !== null).join("\n");
+}
+
+// ────────────────────────────────────────────────────────────────────────────
+// Formateur Z de caisse DÉTAILLÉ (avec liste de tous les tickets + items)
+// ────────────────────────────────────────────────────────────────────────────
+function buildZTextDetailed(z, sessions) {
+	const SEP   = "═".repeat(40);
+	const sep2  = "─".repeat(40);
+	const sep3  = "·".repeat(40);
+	const pad   = (l, r, w = 40) => {
+		const gap = w - l.length - r.length;
+		return l + " ".repeat(Math.max(1, gap)) + r;
+	};
+	const fmt   = (cents) => zReportService.formatCents(cents);
+	const fmtEur = (euros) => zReportService.formatCents(Math.round((euros || 0) * 100));
+	const dt    = (iso) => new Date(iso).toLocaleString("fr-FR", {
+		weekday: "long", day: "numeric", month: "long", year: "numeric",
+		hour: "2-digit", minute: "2-digit",
+	});
+	const time  = (iso) => new Date(iso).toLocaleTimeString("fr-FR", {
+		hour: "2-digit", minute: "2-digit", second: "2-digit",
+	});
+
+	// En-tête identique au résumé
+	const base = buildZText(z);
+	const lines = [base, "", SEP, "  DÉTAIL DE TOUTES LES VENTES", SEP, ""];
+
+	let ticketNum = 0;
+	for (const s of sessions) {
+		ticketNum++;
+		const table   = s.tableId?.number || s.tableId || "?";
+		const server  = s.serverId?.name  || s.serverId || "Non assigné";
+		const method  = METHOD_LABEL[s.paymentMethod] || s.paymentMethod || "—";
+		const total   = fmtEur(s.totalAmount);
+		const opened  = s.openedAt ? time(s.openedAt) : "—";
+		const closed  = s.closedAt ? time(s.closedAt) : "—";
+
+		lines.push(
+			sep2,
+			`  TICKET #${ticketNum}  —  ${table}`,
+			sep2,
+			`  Serveur     : ${server}`,
+			`  Ouvert à    : ${opened}`,
+			`  Fermé à     : ${closed}`,
+			`  Paiement    : ${method}`,
+		);
+
+		// Remises session
+		if (s.discounts?.length > 0) {
+			for (const d of s.discounts) {
+				const val = d.type === "percent"
+					? `-${d.value}%`
+					: `- ${fmtEur(d.value / 100)}`;
+				lines.push(`  Remise      : ${d.label || d.type} ${val}`);
+			}
+		}
+
+		// Split payments
+		if (s.splitPayments?.length > 1) {
+			lines.push("  Paiement divisé :");
+			for (const sp of s.splitPayments) {
+				lines.push(`    · ${METHOD_LABEL[sp.paymentMethod] || sp.paymentMethod} : ${fmtEur(sp.amount)}`);
+			}
+		}
+
+		lines.push("  " + sep3.slice(2));
+
+		// Items de toutes les commandes de la session
+		const orders = s.orders || [];
+		if (orders.length === 0) {
+			lines.push("  (aucune commande associée)");
+		} else {
+			for (const order of orders) {
+				if (order.orderStatus === "cancelled") continue;
+				for (const item of order.items || []) {
+					if (item.itemStatus === "cancelled") {
+						lines.push(`  [ANNULÉ]  ${item.quantity}x ${item.name}`);
+						continue;
+					}
+					const lineTotal = fmtEur((item.price || 0) * (item.quantity || 1));
+					const base2     = `  ${item.quantity}x ${item.name}`;
+					const right     = `${fmtEur(item.price)} x${item.quantity} = ${lineTotal}`;
+					lines.push(pad(base2, right));
+					if (item.notes) {
+						lines.push(`       → ${item.notes}`);
+					}
+				}
+			}
+		}
+
+		lines.push("  " + sep3.slice(2));
+		lines.push(pad("  TOTAL", total));
+		lines.push("");
+	}
+
+	if (ticketNum === 0) {
+		lines.push("  Aucune vente sur cette période.", "");
+	}
+
+	lines.push(
+		SEP,
+		`  Document généré le ${new Date().toLocaleString("fr-FR")}`,
+		`  ${ticketNum} ticket(s) — Total : ${fmt(z.netSalesCents)}`,
+		SEP,
+	);
+
+	return lines.join("\n");
+}
 
 const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -181,6 +378,64 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 		setSelectedZReport(null);
 	}, []);
 
+	// ── Export Z en fichier texte partageable ────────────────────────────
+	const handleExport = useCallback(async (zData) => {
+		const canShare = await Sharing.isAvailableAsync();
+		if (!canShare) {
+			Alert.alert("Export non disponible", "Le partage de fichiers n'est pas disponible sur cet appareil.");
+			return;
+		}
+
+		Alert.alert(
+			"Type d'export",
+			"Voulez-vous un export résumé ou un export complet avec le détail de toutes les ventes ?",
+			[
+				{ text: "Annuler", style: "cancel" },
+				{
+					text: "Résumé",
+					onPress: async () => {
+						try {
+							const text     = buildZText(zData);
+							const fileName = `Z-caisse-${zData.sequenceNumber ?? "export"}-${new Date().toISOString().slice(0,10)}.txt`;
+							const fileUri  = FileSystem.cacheDirectory + fileName;
+							await FileSystem.writeAsStringAsync(fileUri, text, { encoding: FileSystem.EncodingType.UTF8 });
+							await Sharing.shareAsync(fileUri, {
+								mimeType: "text/plain",
+								dialogTitle: `Z de caisse #${zData.sequenceNumber} — Résumé`,
+								UTI: "public.plain-text",
+							});
+						} catch (e) {
+							Alert.alert("Erreur export", e.message || "Impossible d'exporter le Z.");
+						}
+					},
+				},
+				{
+					text: "Détail complet",
+					onPress: async () => {
+						try {
+							const sessions = await zReportService.getDetailedSessions(
+								zData.restaurantId,
+								zData.periodStart,
+								zData.periodEnd,
+							);
+							const text     = buildZTextDetailed(zData, sessions);
+							const fileName = `Z-caisse-${zData.sequenceNumber ?? "export"}-DETAIL-${new Date().toISOString().slice(0,10)}.txt`;
+							const fileUri  = FileSystem.cacheDirectory + fileName;
+							await FileSystem.writeAsStringAsync(fileUri, text, { encoding: FileSystem.EncodingType.UTF8 });
+							await Sharing.shareAsync(fileUri, {
+								mimeType: "text/plain",
+								dialogTitle: `Z de caisse #${zData.sequenceNumber} — Détail complet`,
+								UTI: "public.plain-text",
+							});
+						} catch (e) {
+							Alert.alert("Erreur export", e.message || "Impossible d'exporter le Z détaillé.");
+						}
+					},
+				},
+			],
+		);
+	}, []);
+
 	// ── Rendu ─────────────────────────────────────────────────────────────
 	return (
 		<Modal
@@ -327,7 +582,14 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 								</>
 							)}
 						</View>
-
+							{/* Bouton export */}
+							<TouchableOpacity
+								style={[styles.btn, styles.btnPrimary, { marginTop: 8 }]}
+								onPress={() => handleExport(selectedZReport)}
+							>
+								<Ionicons name="share-outline" size={16} color="#0F172A" style={{ marginRight: 8 }} />
+								<Text style={[styles.btnText, { color: "#0F172A" }]}>Exporter ce Z</Text>
+							</TouchableOpacity>
 						{/* Espace bas */}
 						<View style={{ height: 40 }} />
 					</View>
@@ -489,7 +751,14 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 						<Text style={styles.successSubtitle}>
 							N° {generated.sequenceNumber} · {zReportService.formatCents(generated.netSalesCents)}
 						</Text>
-						<TouchableOpacity style={[styles.btn, styles.btnSecondary, { marginTop: 16 }]} onPress={onClose}>
+						<TouchableOpacity
+							style={[styles.btn, styles.btnPrimary, { marginTop: 16 }]}
+							onPress={() => handleExport(generated)}
+						>
+							<Ionicons name="share-outline" size={16} color="#0F172A" style={{ marginRight: 8 }} />
+							<Text style={[styles.btnText, { color: "#0F172A" }]}>Exporter le Z</Text>
+						</TouchableOpacity>
+						<TouchableOpacity style={[styles.btn, styles.btnSecondary, { marginTop: 8 }]} onPress={onClose}>
 							<Text style={[styles.btnText, { color: THEME.colors.text.primary }]}>Fermer</Text>
 						</TouchableOpacity>
 					</View>

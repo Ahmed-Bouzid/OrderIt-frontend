@@ -258,6 +258,7 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 					quantity: item.quantity,
 					price: item.price,
 					category: item.category || "autre",
+					...(item.notes ? { notes: item.notes } : {}),
 				}));
 
 				// Validation avant envoi (garde-fou)

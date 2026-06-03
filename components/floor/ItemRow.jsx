@@ -60,6 +60,24 @@ const ItemRow = React.memo(({ item, onUpdateStatus, THEME }) => {
 			setLastTap(0); // Reset pour éviter triple tap
 		} else {
 			setLastTap(now);
+			// 🔍 Single tap — log complet de l'item
+			console.log("[DEBUG ITEM] ─────────────────────────────");
+			console.log("[DEBUG ITEM] nom :", item.name);
+			console.log("[DEBUG ITEM] quantity :", item.quantity);
+			console.log("[DEBUG ITEM] itemStatus :", item.itemStatus);
+			console.log("[DEBUG ITEM] category :", item.category);
+			console.log("[DEBUG ITEM] orderId :", item.orderId);
+			console.log("[DEBUG ITEM] _id (item) :", item._id);
+			console.log("[DEBUG ITEM] tableNumber :", item.tableNumber);
+			console.log("[DEBUG ITEM] serverName :", item.serverName);
+			console.log("[DEBUG ITEM] price :", item.price);
+			console.log("[DEBUG ITEM] note :", item.notes);
+			console.log("[DEBUG ITEM] startTime :", item.startTime);
+			console.log("[DEBUG ITEM] createdAt :", item.createdAt);
+			console.log("[DEBUG ITEM] updatedAt :", item.updatedAt);
+			console.log("[DEBUG ITEM] origin :", item.origin);
+			console.log("[DEBUG ITEM] now :", new Date().toISOString());
+			console.log("[DEBUG ITEM] objet complet:", JSON.stringify(item, null, 2));
 		}
 	};
 
@@ -139,6 +157,9 @@ const ItemRow = React.memo(({ item, onUpdateStatus, THEME }) => {
 					<Text style={styles.statusText}>{statusConfig.label}</Text>
 				</View>
 			</View>
+			{item.notes ? (
+				<Text style={styles.itemNotes}>{item.notes}</Text>
+			) : null}
 
 			{/* Ligne 2: Table + Serveur + Timer */}
 			<View style={styles.row}>
@@ -206,6 +227,13 @@ const createStyles = (THEME, statusConfig, isCompleted) =>
 			fontSize: 15,
 			fontWeight: "600",
 			color: THEME.colors.text.primary,
+		},
+		itemNotes: {
+			fontSize: 11,
+			fontStyle: "italic",
+			color: THEME.colors.text.muted,
+			marginTop: 2,
+			marginBottom: 2,
 		},
 		itemNameCompleted: {
 			textDecorationLine: "line-through",

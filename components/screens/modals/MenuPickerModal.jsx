@@ -16,11 +16,13 @@ import {
 	Dimensions,
 	ActivityIndicator,
 	Pressable,
+	TextInput,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import useCounterCartStore from "../../../src/stores/useCounterCartStore";
 import counterService from "../../../services/counterService";
 import { useTheme } from "../../../hooks/useTheme";
+import { useAuthFetch } from "../../../hooks/useAuthFetch";
 
 const { height: SCREEN_HEIGHT } = Dimensions.get("window");
 
@@ -29,10 +31,18 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 	const [activeCategory, setActiveCategory] = useState(null);
 	const [products, setProducts] = useState([]);
 	const [isLoading, setIsLoading] = useState(false);
+	const [searchQuery, setSearchQuery] = useState("");
 
+	const authFetch = useAuthFetch();
 	const addItem = useCounterCartStore((state) => state.addItem);
 	const setQty = useCounterCartStore((state) => state.setQty);
 	const removeItem = useCounterCartStore((state) => state.removeItem);
+
+	// Options produit
+	const [optionsPending, setOptionsPending] = useState(null);
+	const [optionsList, setOptionsList] = useState([]);
+	const [optionsLoading, setOptionsLoading] = useState(false);
+	const [selectedOption, setSelectedOption] = useState(null);
 	// Réactif : carts[tableId] se met à jour à chaque ajout
 	// ✅ useMemo pour éviter nouvelle référence [] → boucle infinie
 	const rawCart = useCounterCartStore((state) => state.carts[tableId]);
@@ -85,20 +95,50 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 		return cats;
 	}, [products]);
 
-	// Produits de la catégorie active
-	const visibleProducts = useMemo(
-		() => products.filter((p) => (p.category ?? "autre") === activeCategory),
-		[products, activeCategory],
-	);
+	// Produits de la catégorie active (+ filtre recherche)
+	const visibleProducts = useMemo(() => {
+		const q = searchQuery.trim().toLowerCase();
+		if (q) {
+			// Recherche globale sur tous les produits
+			return products.filter((p) => p.name?.toLowerCase().includes(q));
+		}
+		return products.filter((p) => (p.category ?? "autre") === activeCategory);
+	}, [products, activeCategory, searchQuery]);
 
-	const handleAddItem = (item) => {
+	const handleAddItem = async (item) => {
+		const productId = item._id ?? item.id;
+		setOptionsLoading(true);
+		try {
+			const options = await authFetch(`/products/${productId}/options`, { method: "GET" });
+			const available = Array.isArray(options) ? options.filter((o) => o.available !== false) : [];
+			if (available.length > 0) {
+				setOptionsList(available);
+				setSelectedOption(null);
+				setOptionsPending(item);
+			} else {
+				addItem(tableId, { productId, name: item.name, price: item.price, category: item.category ?? "autre", quantity: 1 });
+			}
+		} catch {
+			addItem(tableId, { productId, name: item.name, price: item.price, category: item.category ?? "autre", quantity: 1 });
+		} finally {
+			setOptionsLoading(false);
+		}
+	};
+
+	const confirmAddWithOption = () => {
+		if (!optionsPending) return;
+		const opt = selectedOption;
 		addItem(tableId, {
-			productId: item._id ?? item.id,
-			name: item.name,
-			price: item.price,
-			category: item.category ?? "autre",
+			productId: optionsPending._id ?? optionsPending.id,
+			name: optionsPending.name,
+			price: optionsPending.price + (opt?.price ?? 0),
+			category: optionsPending.category ?? "autre",
 			quantity: 1,
+			notes: opt ? opt.name : "",
 		});
+		setOptionsPending(null);
+		setOptionsList([]);
+		setSelectedOption(null);
 	};
 
 	if (!visible) return null;
@@ -132,6 +172,25 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 								🛒 {cartTotal.toFixed(0)}€
 							</Text>
 						</View>
+					</View>
+
+					{/* Barre de recherche */}
+					<View style={dynamicStyles.searchBar}>
+						<Ionicons name="search" size={16} color="#64748B" />
+						<TextInput
+							style={dynamicStyles.searchInput}
+							placeholder="Rechercher un plat..."
+							placeholderTextColor="#475569"
+							value={searchQuery}
+							onChangeText={setSearchQuery}
+							returnKeyType="search"
+							clearButtonMode="while-editing"
+						/>
+						{searchQuery.length > 0 && (
+							<TouchableOpacity onPress={() => setSearchQuery("")}>
+								<Ionicons name="close-circle" size={16} color="#64748B" />
+							</TouchableOpacity>
+						)}
 					</View>
 
 					{/* Tabs catégories */}
@@ -207,13 +266,18 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 							>
 								{cart.map((item) => (
 									<View key={item.tempId} style={dynamicStyles.cartRow}>
-										<Text
-											style={dynamicStyles.cartItemName}
-											numberOfLines={1}
-											ellipsizeMode="tail"
-										>
-											{item.name}
-										</Text>
+										<View style={dynamicStyles.cartItemInfo}>
+											<Text
+												style={dynamicStyles.cartItemName}
+												numberOfLines={1}
+												ellipsizeMode="tail"
+											>
+												{item.quantity}x {item.name}
+											</Text>
+											{item.notes ? (
+												<Text style={dynamicStyles.cartItemOption}>{item.notes}</Text>
+											) : null}
+										</View>
 										<View style={dynamicStyles.cartItemControls}>
 											<TouchableOpacity
 												onPress={() => setQty(tableId, item.tempId, item.quantity - 1)}
@@ -221,7 +285,6 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 											>
 												<Ionicons name="remove" size={14} color="#94A3B8" />
 											</TouchableOpacity>
-											<Text style={dynamicStyles.qtyValue}>{item.quantity}</Text>
 											<TouchableOpacity
 												onPress={() => setQty(tableId, item.tempId, item.quantity + 1)}
 												style={dynamicStyles.qtyBtn}
@@ -248,6 +311,48 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 								<Text style={dynamicStyles.cartTotalAmount}>
 									{cartTotal.toFixed(2)} €
 								</Text>
+							</View>
+						</View>
+					)}
+
+					{/* Options picker overlay */}
+					{optionsPending && (
+						<View style={dynamicStyles.optionsOverlay}>
+							<Text style={dynamicStyles.optionsTitle}>
+								{optionsPending.name} — options
+							</Text>
+							<TouchableOpacity
+								style={[dynamicStyles.optionRow, selectedOption === null && dynamicStyles.optionRowSelected]}
+								onPress={() => setSelectedOption(null)}
+							>
+								<Text style={dynamicStyles.optionName}>Sans option</Text>
+								<Text style={dynamicStyles.optionPrice}>{optionsPending.price?.toFixed(2)}€</Text>
+							</TouchableOpacity>
+							{optionsList.map((opt) => (
+								<TouchableOpacity
+									key={opt._id}
+									style={[dynamicStyles.optionRow, selectedOption?._id === opt._id && dynamicStyles.optionRowSelected]}
+									onPress={() => setSelectedOption(opt)}
+								>
+									<Text style={dynamicStyles.optionName}>{opt.name}</Text>
+									<Text style={dynamicStyles.optionPrice}>
+										{opt.price > 0 ? `+${opt.price?.toFixed(2)}€ → ${(optionsPending.price + opt.price).toFixed(2)}€` : `${optionsPending.price?.toFixed(2)}€`}
+									</Text>
+								</TouchableOpacity>
+							))}
+							<View style={dynamicStyles.optionsActions}>
+								<TouchableOpacity
+									style={dynamicStyles.optionsCancelBtn}
+									onPress={() => { setOptionsPending(null); setOptionsList([]); setSelectedOption(null); }}
+								>
+									<Text style={dynamicStyles.optionsCancelText}>Annuler</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={dynamicStyles.optionsConfirmBtn}
+									onPress={confirmAddWithOption}
+								>
+									<Text style={dynamicStyles.optionsConfirmText}>Ajouter</Text>
+								</TouchableOpacity>
 							</View>
 						</View>
 					)}
@@ -345,6 +450,27 @@ const createStyles = (THEME) =>
 			borderBottomWidth: 1,
 			borderBottomColor: "rgba(255,255,255,0.07)",
 			flexWrap: "wrap",
+		},
+
+		searchBar: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 8,
+			marginHorizontal: 16,
+			marginVertical: 10,
+			paddingHorizontal: 12,
+			paddingVertical: 9,
+			backgroundColor: "rgba(255,255,255,0.06)",
+			borderRadius: 8,
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.1)",
+		},
+
+		searchInput: {
+			flex: 1,
+			fontSize: 14,
+			color: "#F8FAFC",
+			padding: 0,
 		},
 
 		categoryTab: {
@@ -449,11 +575,22 @@ const createStyles = (THEME) =>
 			borderBottomColor: "rgba(255,255,255,0.05)",
 		},
 
-		cartItemName: {
+		cartItemInfo: {
 			flex: 1,
+			minWidth: 0,
+		},
+
+		cartItemName: {
 			fontSize: 13,
 			fontWeight: "500",
 			color: "#E2E8F0",
+		},
+
+		cartItemOption: {
+			fontSize: 11,
+			color: "#94A3B8",
+			fontStyle: "italic",
+			marginTop: 1,
 		},
 
 		cartItemControls: {
@@ -535,6 +672,83 @@ const createStyles = (THEME) =>
 
 		footerButtonTextDisabled: {
 			color: "#475569",
+		},
+
+		// Options overlay
+		optionsOverlay: {
+			position: "absolute",
+			bottom: 0,
+			left: 0,
+			right: 0,
+			backgroundColor: "#0F172A",
+			borderTopWidth: 1,
+			borderTopColor: "rgba(245,158,11,0.3)",
+			paddingHorizontal: 16,
+			paddingTop: 16,
+			paddingBottom: 8,
+			zIndex: 10,
+		},
+		optionsTitle: {
+			fontSize: 14,
+			fontWeight: "700",
+			color: "#F59E0B",
+			marginBottom: 12,
+		},
+		optionRow: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingVertical: 10,
+			paddingHorizontal: 12,
+			marginBottom: 6,
+			borderRadius: 8,
+			backgroundColor: "rgba(255,255,255,0.04)",
+			borderWidth: 1,
+			borderColor: "rgba(255,255,255,0.07)",
+		},
+		optionRowSelected: {
+			backgroundColor: "rgba(245,158,11,0.15)",
+			borderColor: "#F59E0B",
+		},
+		optionName: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: "#F8FAFC",
+		},
+		optionPrice: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: "#94A3B8",
+		},
+		optionsActions: {
+			flexDirection: "row",
+			gap: 10,
+			marginTop: 10,
+			marginBottom: 4,
+		},
+		optionsCancelBtn: {
+			flex: 1,
+			paddingVertical: 11,
+			borderRadius: 8,
+			backgroundColor: "rgba(255,255,255,0.06)",
+			alignItems: "center",
+		},
+		optionsCancelText: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: "#94A3B8",
+		},
+		optionsConfirmBtn: {
+			flex: 2,
+			paddingVertical: 11,
+			borderRadius: 8,
+			backgroundColor: "#F59E0B",
+			alignItems: "center",
+		},
+		optionsConfirmText: {
+			fontSize: 13,
+			fontWeight: "700",
+			color: "#1E293B",
 		},
 	});
 

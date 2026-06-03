@@ -140,6 +140,31 @@ const zReportService = {
 		const start = new Date(now.getFullYear(), now.getMonth(), now.getDate(), 0, 0, 0);
 		return { start, end: now };
 	},
+
+	/**
+	 * Récupère toutes les sessions fermées détaillées (avec leurs orders/items)
+	 * pour une période donnée. Utilisé pour l'export Z détaillé.
+	 */
+	async getDetailedSessions(restaurantId, from, to) {
+		const params = new URLSearchParams({
+			restaurantId,
+			from: from instanceof Date ? from.toISOString() : from,
+			to:   to   instanceof Date ? to.toISOString()   : to,
+		});
+
+		const response = await fetchWithAuth(
+			`${API_CONFIG.baseURL}/z-reports/sessions?${params}`,
+			{ method: "GET" },
+		);
+
+		if (!response.ok) {
+			const err = await response.json().catch(() => ({}));
+			throw new Error(err.message || `HTTP ${response.status}`);
+		}
+
+		const json = await response.json();
+		return json.data;
+	},
 };
 
 export default zReportService;

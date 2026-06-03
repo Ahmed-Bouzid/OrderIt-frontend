@@ -635,12 +635,19 @@ export default function MenuManagement() {
 					<View style={styles.modalContent}>
 						<View style={styles.modalHeader}>
 							<View style={styles.modalTitleRow}>
-								<Ionicons
-									name="create-outline"
-									size={24}
-									color={THEME.colors.primary}
-								/>
-								<Text style={styles.modalTitle}>Modifier le produit</Text>
+								<View style={styles.modalIconBox}>
+									<Ionicons
+										name="create-outline"
+										size={22}
+										color="#F59E0B"
+									/>
+								</View>
+								<View style={{ flex: 1 }}>
+									<Text style={styles.modalTitle}>Modifier le produit</Text>
+									{selectedProduct?.name ? (
+										<Text style={styles.modalSubTitle} numberOfLines={1}>{selectedProduct.name}</Text>
+									) : null}
+								</View>
 							</View>
 							<TouchableOpacity
 								style={styles.modalCloseButton}
@@ -648,8 +655,8 @@ export default function MenuManagement() {
 							>
 								<Ionicons
 									name="close"
-									size={24}
-									color={THEME.colors.text.secondary}
+									size={20}
+									color="#94A3B8"
 								/>
 							</TouchableOpacity>
 						</View>
@@ -1393,41 +1400,64 @@ const createStyles = (THEME) =>
 		// Modal
 		modalOverlay: {
 			flex: 1,
-			backgroundColor: "rgba(0, 0, 0, 0.7)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 			justifyContent: "center",
 			alignItems: "center",
+			paddingHorizontal: 16,
+			paddingVertical: 12,
 		},
 		modalContent: {
-			width: "90%",
-			maxWidth: 400,
-			maxHeight: "85%",
-			backgroundColor: THEME.colors.card,
-			borderRadius: THEME.radius.xl,
+			backgroundColor: "#1E293B",
+			borderRadius: 20,
+			width: "100%",
+			maxWidth: 520,
+			flexShrink: 1,
+			minHeight: "78%",
 			borderWidth: 1,
-			borderColor: THEME.colors.border,
+			borderColor: "rgba(255,255,255,0.08)",
 			overflow: "hidden",
 		},
 		modalHeader: {
 			flexDirection: "row",
 			justifyContent: "space-between",
 			alignItems: "center",
-			paddingHorizontal: THEME.spacing.lg,
-			paddingVertical: THEME.spacing.md,
+			paddingHorizontal: 20,
+			paddingVertical: 16,
 			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border,
+			borderBottomColor: "rgba(255,255,255,0.07)",
 		},
 		modalTitleRow: {
 			flexDirection: "row",
 			alignItems: "center",
-			gap: THEME.spacing.sm,
+			gap: 12,
+			flex: 1,
+		},
+		modalIconBox: {
+			width: 40,
+			height: 40,
+			borderRadius: 10,
+			backgroundColor: "rgba(245,158,11,0.15)",
+			alignItems: "center",
+			justifyContent: "center",
 		},
 		modalTitle: {
-			fontSize: 18,
+			fontSize: 17,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#F1F5F9",
+		},
+		modalSubTitle: {
+			fontSize: 13,
+			color: "#64748B",
+			marginTop: 1,
 		},
 		modalCloseButton: {
-			padding: THEME.spacing.xs,
+			width: 36,
+			height: 36,
+			borderRadius: 18,
+			backgroundColor: "rgba(255,255,255,0.06)",
+			alignItems: "center",
+			justifyContent: "center",
+			marginLeft: 8,
 		},
 		// Form Elements
 		formSection: {
@@ -1595,38 +1625,44 @@ const createStyles = (THEME) =>
 		// Modal Buttons
 		modalButtons: {
 			flexDirection: "row",
-			justifyContent: "space-between",
-			paddingHorizontal: THEME.spacing.lg,
-			paddingVertical: THEME.spacing.lg,
-			gap: THEME.spacing.md,
+			paddingHorizontal: 16,
+			paddingTop: 12,
+			paddingBottom: Platform.OS === "ios" ? 32 : 20,
+			gap: 12,
+			borderTopWidth: 1,
+			borderTopColor: "rgba(255,255,255,0.07)",
+			backgroundColor: "#1E293B",
 		},
 		cancelButton: {
 			flex: 1,
-			paddingVertical: THEME.spacing.md,
-			borderRadius: THEME.radius.md,
-			backgroundColor: THEME.colors.inputBg,
-			borderWidth: 1,
-			borderColor: THEME.colors.border,
+			height: 48,
+			borderRadius: 12,
+			backgroundColor: "rgba(255,255,255,0.07)",
 			alignItems: "center",
+			justifyContent: "center",
 		},
 		cancelButtonText: {
-			color: THEME.colors.text.secondary,
+			color: "#94A3B8",
 			fontWeight: "600",
-			fontSize: 16,
+			fontSize: 15,
+		},
+		saveButtonWrap: {
+			flex: 1,
+			height: 48,
+			borderRadius: 12,
+			overflow: "hidden",
 		},
 		saveButton: {
 			flex: 1,
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			gap: THEME.spacing.sm,
-			paddingVertical: THEME.spacing.md,
-			borderRadius: THEME.radius.md,
+			gap: 8,
 		},
 		saveButtonText: {
 			color: "#FFFFFF",
 			fontWeight: "700",
-			fontSize: 16,
+			fontSize: 15,
 		},
 		// Flip Card
 		flipCardContainer: {

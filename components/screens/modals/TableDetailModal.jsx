@@ -854,9 +854,12 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 											const isCancelled = order.orderStatus === "cancelled";
 											return (
 												<View key={`${order._id}-${idx}`} style={styles.sentRow}>
-													<Text style={[styles.sentName, isCancelled && styles.sentNameCancelled]}>
-														{item.quantity}× {item.name}
-													</Text>
+													<View style={styles.sentNameBlock}>
+														<Text style={[styles.sentName, isCancelled && styles.sentNameCancelled]}>
+															{item.quantity}× {item.name}
+														</Text>
+														{item.notes ? <Text style={styles.sentNotes}>{item.notes}</Text> : null}
+													</View>
 													<Text style={[styles.sentPrice, isCancelled && styles.sentNameCancelled]}>
 														{(item.price * item.quantity).toFixed(2)} €
 													</Text>
@@ -885,9 +888,12 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 											<Text style={[styles.subsectionLabel, { marginTop: 12 }]}>EN ATTENTE D'ENVOI</Text>
 											{cart.map((item) => (
 												<View key={item.tempId} style={styles.cartRow}>
-													<Text style={styles.sentName} numberOfLines={1}>
-														{item.quantity}× {item.name}
-													</Text>
+													<View style={styles.sentNameBlock}>
+														<Text style={styles.sentName} numberOfLines={1}>
+															{item.quantity}× {item.name}
+														</Text>
+														{item.notes ? <Text style={styles.sentNotes}>{item.notes}</Text> : null}
+													</View>
 													<Text style={styles.sentPrice}>
 														{(item.price * item.quantity).toFixed(2)} €
 													</Text>
@@ -1150,8 +1156,17 @@ const createStyles = (THEME) =>
 			borderBottomWidth: 1,
 			borderBottomColor: "rgba(255,255,255,0.05)",
 		},
-		sentName: {
+		sentNameBlock: {
 			flex: 1,
+			minWidth: 0,
+		},
+		sentNotes: {
+			fontSize: 11,
+			fontStyle: "italic",
+			color: "#94A3B8",
+			marginTop: 1,
+		},
+		sentName: {
 			fontSize: 14,
 			fontWeight: "600",
 			color: "#F8FAFC",
