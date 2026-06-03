@@ -124,6 +124,10 @@ export default function TabsLayout() {
 				const comptoir = ALL_TABS.find((tab) => tab.name === "comptoir");
 				if (comptoir) tabs = [comptoir, ...tabs];
 			}
+			// En mode comptoir, renommer l'onglet "Floor" en "Réservations"
+			tabs = tabs.map((tab) =>
+				tab.name === "floor" ? { ...tab, label: "Réservations" } : tab,
+			);
 		} else {
 			tabs = tabs.filter((tab) => tab.name !== "comptoir");
 		}
