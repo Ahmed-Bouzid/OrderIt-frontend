@@ -105,6 +105,7 @@ export default function MenuManagement() {
 
 	const [modalVisible, setModalVisible] = useState(false);
 	const [editingProduct, setEditingProduct] = useState(null);
+	const [isCreating, setIsCreating] = useState(false);
 	const [showAllergens, setShowAllergens] = useState(false);
 	const [productAllergensDisplay, setProductAllergensDisplay] = useState([]);
 	const flipAnimation = useRef(new Animated.Value(0)).current;
@@ -139,6 +140,28 @@ export default function MenuManagement() {
 			console.error("Erreur chargement allergènes:", error);
 			setProductAllergensDisplay([]);
 		}
+		setModalVisible(true);
+	};
+
+	// Ouvrir la modale en mode création
+	const handleOpenCreate = () => {
+		setEditingProduct(null);
+		setIsCreating(true);
+		setFormData({
+			name: "",
+			price: "",
+			category: categories[0] || "",
+			description: "",
+			available: true,
+			image: "",
+			quantifiable: false,
+			quantity: "",
+			addOns: false,
+			hasAddOns: false,
+			allowedAddOns: [],
+		});
+		setShowAllergens(false);
+		setProductAllergensDisplay([]);
 		setModalVisible(true);
 	};
 
@@ -492,7 +515,7 @@ export default function MenuManagement() {
 			p.category?.toLowerCase().includes(searchQuery.toLowerCase())
 	);
 
-	// Sauvegarder les modifications
+	// Sauvegarder (création ou modification)
 	const handleSave = async () => {
 		if (!formData.name || !formData.price) {
 			Alert.alert("Erreur", "Le nom et le prix sont requis");
@@ -503,28 +526,38 @@ export default function MenuManagement() {
 			Alert.alert("Erreur", "Le prix doit être un nombre valide");
 			return;
 		}
+		const payload = {
+			name: formData.name,
+			price: price,
+			category: formData.category,
+			description: formData.description,
+			available: formData.available,
+			image: formData.image,
+			quantifiable: !!formData.quantifiable,
+			quantity:
+				!!formData.quantifiable && formData.quantity !== ""
+					? parseInt(formData.quantity, 10)
+					: null,
+			addOns: formData.addOns,
+			hasAddOns: formData.hasAddOns,
+			allowedAddOns: formData.allowedAddOns,
+		};
 		try {
-			await authFetch(`/products/${editingProduct._id}`, {
-				method: "PUT",
-				body: JSON.stringify({
-					name: formData.name,
-					price: price,
-					category: formData.category,
-					description: formData.description,
-					available: formData.available,
-					image: formData.image,
-					quantifiable: !!formData.quantifiable,
-					quantity:
-						!!formData.quantifiable && formData.quantity !== ""
-							? parseInt(formData.quantity, 10)
-							: null,
-					addOns: formData.addOns,
-					hasAddOns: formData.hasAddOns,
-					allowedAddOns: formData.allowedAddOns,
-				}),
-			});
-			Alert.alert("Succès", "Produit modifié");
+			if (isCreating) {
+				await authFetch("/products", {
+					method: "POST",
+					body: JSON.stringify(payload),
+				});
+				Alert.alert("Succès", "Produit créé");
+			} else {
+				await authFetch(`/products/${editingProduct._id}`, {
+					method: "PUT",
+					body: JSON.stringify(payload),
+				});
+				Alert.alert("Succès", "Produit modifié");
+			}
 			setModalVisible(false);
+			setIsCreating(false);
 			fetchProducts();
 		} catch (error) {
 			console.error("❌ Erreur sauvegarde:", error);
@@ -561,6 +594,17 @@ export default function MenuManagement() {
 							{products.length} produit{products.length > 1 ? "s" : ""}
 						</Text>
 					</View>
+					<TouchableOpacity style={styles.createBtn} onPress={handleOpenCreate} activeOpacity={0.85}>
+						<LinearGradient
+							colors={["#F59E0B", "#D97706"]}
+							start={{ x: 0, y: 0 }}
+							end={{ x: 1, y: 0 }}
+							style={styles.createBtnGradient}
+						>
+							<Ionicons name="add" size={20} color="#fff" />
+							<Text style={styles.createBtnText}>Nouveau</Text>
+						</LinearGradient>
+					</TouchableOpacity>
 				</View>
 			</View>
 
@@ -629,7 +673,7 @@ export default function MenuManagement() {
 				visible={modalVisible}
 				transparent
 				animationType="fade"
-				onRequestClose={() => setModalVisible(false)}
+				onRequestClose={() => { setModalVisible(false); setIsCreating(false); }}
 			>
 				<View style={styles.modalOverlay}>
 					<View style={styles.modalContent}>
@@ -643,15 +687,15 @@ export default function MenuManagement() {
 									/>
 								</View>
 								<View style={{ flex: 1 }}>
-									<Text style={styles.modalTitle}>Modifier le produit</Text>
-									{selectedProduct?.name ? (
-										<Text style={styles.modalSubTitle} numberOfLines={1}>{selectedProduct.name}</Text>
+									<Text style={styles.modalTitle}>{isCreating ? "Nouveau produit" : "Modifier le produit"}</Text>
+									{!isCreating && editingProduct?.name ? (
+										<Text style={styles.modalSubTitle} numberOfLines={1}>{editingProduct.name}</Text>
 									) : null}
 								</View>
 							</View>
 							<TouchableOpacity
 								style={styles.modalCloseButton}
-								onPress={() => setModalVisible(false)}
+								onPress={() => { setModalVisible(false); setIsCreating(false); }}
 							>
 								<Ionicons
 									name="close"
@@ -1077,7 +1121,7 @@ export default function MenuManagement() {
 							<View style={styles.modalButtons}>
 								<TouchableOpacity
 									style={styles.cancelButton}
-									onPress={() => setModalVisible(false)}
+									onPress={() => { setModalVisible(false); setIsCreating(false); }}
 								>
 									<Text style={styles.cancelButtonText}>Annuler</Text>
 								</TouchableOpacity>
@@ -1265,6 +1309,23 @@ const createStyles = (THEME) =>
 		},
 		headerTextContainer: {
 			flex: 1,
+		},
+		createBtn: {
+			height: 40,
+			borderRadius: 10,
+			overflow: "hidden",
+		},
+		createBtnGradient: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: 14,
+			height: 40,
+			gap: 6,
+		},
+		createBtnText: {
+			fontSize: 14,
+			fontWeight: "700",
+			color: "#fff",
 		},
 		title: {
 			fontSize: 20,
