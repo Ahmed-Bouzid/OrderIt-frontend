@@ -739,12 +739,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 
 	const [restaurantId, setRestaurantId] = useState(null);
 	const [tables, setTables] = useState([]);
-	useEffect(() => {
-		console.log("[TOUTES LES TABLES]", tables.map(t => ({ id: t._id?.toString().slice(-6), name: t.tableNumber ?? t.name ?? t._id, status: t.status, montant: t.totalAmount ?? 0 })));
-	}, [tables]);
-	const [selectedRoom, setSelectedRoom] = useState(1);
-	const [selectedTableId, setSelectedTableId] = useState(null);
-	const [showFloorPlan, setShowFloorPlan] = useState(false);
 	const [showTableDetail, setShowTableDetail] = useState(false);
 	const [isLoadingTables, setIsLoadingTables] = useState(true);
 	const [activeFilter, setActiveFilter] = useState("Toutes");
@@ -772,16 +766,15 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	const [servers, setServers] = useState([]);
 	const [serverPickerTableId, setServerPickerTableId] = useState(null);
 	const [selectedWaiter, setSelectedWaiter] = useState(null);
+	const [selectedRoom, setSelectedRoom] = useState(1);
+	const [showFloorPlan, setShowFloorPlan] = useState(false);
+	const [selectedTableId, setSelectedTableId] = useState(null);
 
 	// Store
 	const rawSessions = useCounterTableStore((state) => state.sessions[restaurantId]);
 	const activeSessions = useMemo(() => rawSessions || [], [rawSessions]);
 	const reservations = useReservationStore((state) => state.reservations);
 
-	useEffect(() => {
-		console.log("[COMPTOIR TABLES]", activeSessions.map(s => ({ table: s.tableNumber ?? s.tableName ?? s._id, montant: s.totalAmount ?? 0, status: s.billStatus })));
-	}, [activeSessions]);
-	
 	const stats = useMemo(
 		() => ({
 			total: activeSessions.length,
@@ -943,11 +936,53 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		
 		// ✅ Attacher aussi les listeners WebSocket pour les réservations
 		const unsubscribeReservations = useReservationStore.getState().attachSocketListener(socket);
+
+		// ⭐ Refresh immédiat à chaque (re)connexion socket — rattrape les events perdus pendant déco
+		handleRefresh();
+
+		// ⭐ Handlers pour mise à jour granulaire (évite full refetch systématique)
+		const handleOrderEvent = (payload) => {
+			console.log("[ActivityFloor] 📦 socket 'order' reçu:", JSON.stringify({ type: payload?.type, tableId: payload?.data?.tableId, orderId: payload?.data?._id }));
+			if (!payload?.data?.tableId) return;
+			const tableId = payload.data.tableId._id || payload.data.tableId;
+			const concernsFloor = tables.some(t => t._id.toString() === tableId.toString());
+			console.log("[ActivityFloor] order concernsFloor:", concernsFloor, "| tables count:", tables.length);
+			if (concernsFloor) {
+				handleRefresh();
+			}
+		};
+
+		const handlePaymentCompleted = (payload) => {
+			console.log("[ActivityFloor] 💳 socket 'payment-completed' reçu:", JSON.stringify({ tableId: payload?.data?.tableId, amount: payload?.data?.amount }));
+			if (!payload?.data?.tableId) return;
+			const tableId = payload.data.tableId._id || payload.data.tableId;
+			const concernsFloor = tables.some(t => t._id.toString() === tableId.toString());
+			if (concernsFloor) {
+				handleRefresh();
+			}
+		};
+
+		const handleTableSession = (payload) => {
+			console.log("[ActivityFloor] 🏪 socket 'table-session' reçu:", JSON.stringify({ type: payload?.type, tableId: payload?.data?.tableId, status: payload?.data?.status }));
+			handleRefresh();
+		};
+
+		// ⭐ Écouter les événements temps réel
+		socket.on("order", handleOrderEvent);
+		socket.on("payment-completed", handlePaymentCompleted);
+		socket.on("table-session", handleTableSession);
+		socket.on("reservation", handleRefresh);
+		socket.on("connect", () => { console.log("[ActivityFloor] 🔌 socket reconnecté → handleRefresh"); handleRefresh(); });
 		
 		return () => {
 			if (unsubscribeReservations) unsubscribeReservations();
+			socket.off("order", handleOrderEvent);
+			socket.off("payment-completed", handlePaymentCompleted);
+			socket.off("table-session", handleTableSession);
+			socket.off("reservation", handleRefresh);
+			socket.off("connect");
 		};
-	}, [socket, restaurantId, attachSocketListener]);
+	}, [socket, restaurantId, attachSocketListener, handleRefresh, tables]);
 
 	// Fetch serveurs du restaurant (mode comptoir)
 	useEffect(() => {
@@ -956,6 +991,13 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.then((data) => setServers(Array.isArray(data) ? data : []))
 			.catch((err) => console.warn("[ActivityFloor] fetch servers:", err));
 	}, [restaurantId, authFetch]);
+
+	// ⭐ Polling fallback : si socket déconnecté, on rattrape quand même les changements
+	useEffect(() => {
+		if (!restaurantId) return;
+		const interval = setInterval(() => handleRefresh(), 5000);
+		return () => clearInterval(interval);
+	}, [restaurantId, handleRefresh]);
 
 	// 📅 Fetch réservations à venir (72h)
 	useEffect(() => {
@@ -973,12 +1015,14 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	// Refresh handler
 	const handleRefresh = useCallback(async () => {
 		if (!restaurantId) return;
+		console.log("[ActivityFloor] 🔄 handleRefresh appelé (restaurantId:", restaurantId, ")");
 
 		try {
 			const tablesState = await counterService.getTablesState(restaurantId).catch((err) => {
 				console.error("[ActivityFloor] getTablesState failed (refresh):", err?.message, err);
 				return [];
 			});
+			console.log("[ActivityFloor] getTablesState retourné:", tablesState?.length, "tables", tablesState?.map(t => `${t.number}:${t.status}(${t.totalAmount}€)`).join(" | "));
 			if (tablesState && tablesState.length > 0) {
 				setTables(tablesState);
 				hydrateSessionsFromTables(restaurantId, tablesState);
