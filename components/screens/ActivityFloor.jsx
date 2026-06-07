@@ -737,6 +737,9 @@ const ActivityFloor = ({ restaurantInfo }) => {
 
 	const authFetch = useAuthFetch();
 
+	// ⭐ Debounce ref — empêche les appels rafales (reconnexions socket, etc.)
+	const refreshDebounceTimer = useRef(null);
+
 	const [restaurantId, setRestaurantId] = useState(null);
 	const [tables, setTables] = useState([]);
 	const [showTableDetail, setShowTableDetail] = useState(false);
@@ -932,6 +935,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	// Attacher socket listener
 	useEffect(() => {
 		if (!socket || !restaurantId) return;
+		console.log("[ActivityFloor] 🔌 socket useEffect MOUNT", new Date().toISOString());
 
 		attachSocketListener(socket);
 		
@@ -1021,17 +1025,20 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.catch((err) => console.warn("[ActivityFloor] fetch upcoming reservations:", err));
 	}, [restaurantId, authFetch]);
 
-	// Refresh handler
+	// Refresh handler — debounced 800ms pour éviter les rafales (socket reconnect, etc.)
 	const handleRefresh = useCallback(async () => {
 		if (!restaurantId) return;
-		console.log("[ActivityFloor] 🔄 handleRefresh appelé (restaurantId:", restaurantId, ")");
+
+		// ⭐ Debounce : annuler le timer précédent, relancer
+		if (refreshDebounceTimer.current) clearTimeout(refreshDebounceTimer.current);
+		refreshDebounceTimer.current = setTimeout(async () => {
+		console.log("[ActivityFloor] 🔄 handleRefresh", new Date().toISOString());
 
 		try {
 			const tablesState = await counterService.getTablesState(restaurantId).catch((err) => {
 				console.error("[ActivityFloor] getTablesState failed (refresh):", err?.message, err);
 				return [];
 			});
-			console.log("[ActivityFloor] getTablesState retourné:", tablesState?.length, "tables", tablesState?.map(t => `${t.number}:${t.status}(${t.totalAmount}€)`).join(" | "));
 			if (tablesState && tablesState.length > 0) {
 				setTables(tablesState);
 				hydrateSessionsFromTables(restaurantId, tablesState);
@@ -1039,6 +1046,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		} catch (err) {
 			console.error("[ActivityFloor] Erreur refresh:", err);
 		}
+		}, 800);
 	}, [restaurantId, hydrateSessionsFromTables]);
 
 	// ⭐ Ref stable pour handleRefresh — évite les deps cycliques dans les useEffect
