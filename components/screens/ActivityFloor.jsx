@@ -26,7 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import useThemeStore from "../../src/stores/useThemeStore";
 import useCounterTableStore from "../../src/stores/useCounterTableStore";
-import useSocket from "../../hooks/useSocket";
+import { useSocketContext } from "../../src/stores/SocketContext";
 import counterService from "../../services/counterService";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import useUserStore from "../../src/stores/useUserStore";
@@ -733,7 +733,9 @@ const dcStyles = StyleSheet.create({
 const ActivityFloor = ({ restaurantInfo }) => {
 	const THEME = useTheme();
 	const { themeMode } = useThemeStore();
-	const { socket } = useSocket();
+	const { socket: socketHookObj, connected: socketConnected } = useSocketContext();
+	const socket = socketHookObj?.socket ?? null;
+	const isConnected = () => socketConnected;
 
 	const authFetch = useAuthFetch();
 
@@ -1005,12 +1007,12 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	useEffect(() => {
 		if (!restaurantId) return;
 		const interval = setInterval(() => {
-			if (!socket || !socket.connected) {
+			if (!isConnected()) {
 				handleRefreshRef.current();
 			}
 		}, 5000);
 		return () => clearInterval(interval);
-	}, [restaurantId, socket]);
+	}, [restaurantId, isConnected]);
 
 	// 📅 Fetch réservations à venir (72h)
 	useEffect(() => {
