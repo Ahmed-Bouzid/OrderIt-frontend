@@ -26,7 +26,7 @@ import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import useThemeStore from "../../src/stores/useThemeStore";
 import useCounterTableStore from "../../src/stores/useCounterTableStore";
-import { useSocketContext } from "../../src/stores/SocketContext";
+import useSocket from "../../hooks/useSocket";
 import counterService from "../../services/counterService";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import useUserStore from "../../src/stores/useUserStore";
@@ -733,14 +733,9 @@ const dcStyles = StyleSheet.create({
 const ActivityFloor = ({ restaurantInfo }) => {
 	const THEME = useTheme();
 	const { themeMode } = useThemeStore();
-	const { socket: socketHookObj, connected: socketConnected } = useSocketContext();
-	const socket = socketHookObj?.socket ?? null;
-	const isConnected = () => socketConnected;
+	const { socket } = useSocket();
 
 	const authFetch = useAuthFetch();
-
-	// ⭐ Debounce ref — empêche les appels rafales (reconnexions socket, etc.)
-	const refreshDebounceTimer = useRef(null);
 
 	const [restaurantId, setRestaurantId] = useState(null);
 	const [tables, setTables] = useState([]);
@@ -773,7 +768,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	const [selectedWaiter, setSelectedWaiter] = useState(null);
 	const [selectedRoom, setSelectedRoom] = useState(1);
 	const [showFloorPlan, setShowFloorPlan] = useState(false);
-	const [showDebugPanel, setShowDebugPanel] = useState(false);
 	const [selectedTableId, setSelectedTableId] = useState(null);
 
 	// Store
@@ -937,7 +931,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	// Attacher socket listener
 	useEffect(() => {
 		if (!socket || !restaurantId) return;
-		console.log("[ActivityFloor] 🔌 socket useEffect MOUNT", new Date().toISOString());
 
 		attachSocketListener(socket);
 		
@@ -945,55 +938,49 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		const unsubscribeReservations = useReservationStore.getState().attachSocketListener(socket);
 
 		// ⭐ Refresh immédiat à chaque (re)connexion socket — rattrape les events perdus pendant déco
-		handleRefreshRef.current();
+		handleRefresh();
 
 		// ⭐ Handlers pour mise à jour granulaire (évite full refetch systématique)
 		const handleOrderEvent = (payload) => {
+			// payload = { type: "created"|"updated"|"cancelled", data: order, ... }
 			if (!payload?.data?.tableId) return;
+			
+			// Refresh seulement si ordre concerne une table du floor
 			const tableId = payload.data.tableId._id || payload.data.tableId;
-			const concernsFloor = tablesRef.current.some(t => t._id.toString() === tableId.toString());
+			const concernsFloor = tables.some(t => t._id.toString() === tableId.toString());
 			if (concernsFloor) {
-				handleRefreshRef.current();
+				handleRefresh();
 			}
 		};
 
 		const handlePaymentCompleted = (payload) => {
+			// payload = { type: "payment_completed", data: { tableId, amount, ... } }
 			if (!payload?.data?.tableId) return;
+			
+			// Refresh seulement si paiement concerne une table du floor
 			const tableId = payload.data.tableId._id || payload.data.tableId;
-			const concernsFloor = tablesRef.current.some(t => t._id.toString() === tableId.toString());
+			const concernsFloor = tables.some(t => t._id.toString() === tableId.toString());
 			if (concernsFloor) {
-				handleRefreshRef.current();
+				handleRefresh();
 			}
-		};
-
-		const handleTableSession = () => {
-			handleRefreshRef.current();
-		};
-
-		const handleReservation = () => {
-			handleRefreshRef.current();
-		};
-
-		const handleConnect = () => {
-			handleRefreshRef.current();
 		};
 
 		// ⭐ Écouter les événements temps réel
 		socket.on("order", handleOrderEvent);
 		socket.on("payment-completed", handlePaymentCompleted);
-		socket.on("table-session", handleTableSession);
-		socket.on("reservation", handleReservation);
-		socket.on("connect", handleConnect);
+		socket.on("table-session", handleRefresh);
+		socket.on("reservation", handleRefresh);
+		socket.on("connect", handleRefresh);
 		
 		return () => {
 			if (unsubscribeReservations) unsubscribeReservations();
 			socket.off("order", handleOrderEvent);
 			socket.off("payment-completed", handlePaymentCompleted);
-			socket.off("table-session", handleTableSession);
-			socket.off("reservation", handleReservation);
-			socket.off("connect", handleConnect);
+			socket.off("table-session", handleRefresh);
+			socket.off("reservation", handleRefresh);
+			socket.off("connect", handleRefresh);
 		};
-	}, [socket, restaurantId]);
+	}, [socket, restaurantId, attachSocketListener, handleRefresh, tables]);
 
 	// Fetch serveurs du restaurant (mode comptoir)
 	useEffect(() => {
@@ -1003,16 +990,12 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.catch((err) => console.warn("[ActivityFloor] fetch servers:", err));
 	}, [restaurantId, authFetch]);
 
-	// ⭐ Polling fallback : uniquement si socket déconnecté
+	// ⭐ Polling fallback : si socket déconnecté, on rattrape quand même les changements
 	useEffect(() => {
 		if (!restaurantId) return;
-		const interval = setInterval(() => {
-			if (!isConnected()) {
-				handleRefreshRef.current();
-			}
-		}, 5000);
+		const interval = setInterval(() => handleRefresh(), 5000);
 		return () => clearInterval(interval);
-	}, [restaurantId, isConnected]);
+	}, [restaurantId, handleRefresh]);
 
 	// 📅 Fetch réservations à venir (72h)
 	useEffect(() => {
@@ -1027,14 +1010,9 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.catch((err) => console.warn("[ActivityFloor] fetch upcoming reservations:", err));
 	}, [restaurantId, authFetch]);
 
-	// Refresh handler — debounced 800ms pour éviter les rafales (socket reconnect, etc.)
+	// Refresh handler
 	const handleRefresh = useCallback(async () => {
 		if (!restaurantId) return;
-
-		// ⭐ Debounce : annuler le timer précédent, relancer
-		if (refreshDebounceTimer.current) clearTimeout(refreshDebounceTimer.current);
-		refreshDebounceTimer.current = setTimeout(async () => {
-		console.log("[ActivityFloor] 🔄 handleRefresh", new Date().toISOString());
 
 		try {
 			const tablesState = await counterService.getTablesState(restaurantId).catch((err) => {
@@ -1048,12 +1026,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		} catch (err) {
 			console.error("[ActivityFloor] Erreur refresh:", err);
 		}
-		}, 800);
 	}, [restaurantId, hydrateSessionsFromTables]);
-
-	// ⭐ Ref stable pour handleRefresh — évite les deps cycliques dans les useEffect
-	const handleRefreshRef = useRef(handleRefresh);
-	useEffect(() => { handleRefreshRef.current = handleRefresh; }, [handleRefresh]);
 
 	// Styles dynamiques
 	const dynamicStyles = useMemo(() => createStyles(THEME), [THEME]);
@@ -1371,16 +1344,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				</TouchableOpacity>
 				<TouchableOpacity
 					style={dynamicStyles.menuButton}
-					onPress={() => setShowDebugPanel(true)}
-				>
-					<Ionicons
-						name="settings-outline"
-						size={20}
-						color={THEME.colors.text.secondary}
-					/>
-				</TouchableOpacity>
-				<TouchableOpacity
-					style={dynamicStyles.menuButton}
 					onPress={() => setShowFloorPlan(true)}
 				>
 					<Ionicons
@@ -1579,37 +1542,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 					focusTableId={selectedTableId}
 				/>
 			)}
-			{/* 🔧 Debug Panel */}
-			<Modal
-				visible={showDebugPanel}
-				transparent
-				animationType="slide"
-				onRequestClose={() => setShowDebugPanel(false)}
-			>
-				<View style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.6)", justifyContent: "flex-end" }}>
-					<View style={{ backgroundColor: "#1a1a2e", borderTopLeftRadius: 20, borderTopRightRadius: 20, padding: 20, paddingBottom: 40 }}>
-						<View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-							<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
-								<Ionicons name="settings" size={20} color="#f59e0b" />
-								<Text style={{ color: "#f59e0b", fontSize: 16, fontWeight: "700" }}>Debug / Outils</Text>
-							</View>
-							<TouchableOpacity onPress={() => setShowDebugPanel(false)}>
-								<Ionicons name="close" size={24} color="#aaa" />
-							</TouchableOpacity>
-						</View>
-						<Text style={{ color: "#aaa", fontSize: 12, marginBottom: 16 }}>
-							Outils réservés au restaurateur. Actions irréversibles marquées en rouge.
-						</Text>
-						<TouchableOpacity
-							onPress={() => { setShowDebugPanel(false); handleRefresh(); }}
-							style={{ flexDirection: "row", alignItems: "center", backgroundColor: "#0f3460", borderRadius: 10, padding: 14, marginBottom: 10, gap: 10 }}
-						>
-							<Ionicons name="refresh" size={18} color="#60a5fa" />
-							<Text style={{ color: "#60a5fa", fontWeight: "600" }}>Forcer un refresh des tables</Text>
-						</TouchableOpacity>
-					</View>
-				</View>
-			</Modal>
 			{showTableDetail && selectedTableId && (
 				<TableDetailModal
 					visible={showTableDetail}
