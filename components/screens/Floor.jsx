@@ -451,7 +451,8 @@ export default function Floor({ onStart }) {
 
 		try {
 			setLoading(true);
-			const url = `/orders?restaurantId=${restaurantId}`;
+			const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+			const url = `/orders?restaurantId=${restaurantId}&since=${since48h}`;
 
 			const result = await authFetch(url, { method: "GET" });
 
@@ -687,10 +688,16 @@ export default function Floor({ onStart }) {
 			fetchCaisseStats();
 		};
 
+		// ⭐ Refresh immédiat à la (re)connexion socket pour rattraper les events perdus
+		refreshCounterTables();
+
 		on("table-session", refreshCounterTables);
+		// ⭐ Backup: reservation:created déclenche aussi le refresh (event CLIENT-end)
+		on("reservation", refreshCounterTables);
 
 		return () => {
 			off("table-session", refreshCounterTables);
+			off("reservation", refreshCounterTables);
 		};
 	}, [restaurantId, socketReady, enableComptoir, on, off, fetchCaisseStats]);
 

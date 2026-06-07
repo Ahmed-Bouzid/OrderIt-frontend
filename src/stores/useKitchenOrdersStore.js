@@ -85,8 +85,9 @@ const useKitchenOrdersStore = create((set, get) => ({
 					};
 				}
 
-				// ⭐ Récupérer les commandes du restaurant
-				const url = `${API_CONFIG.baseURL}/orders?restaurantId=${restaurantId}`;
+				// ⭐ Récupérer les commandes du restaurant (fenêtre 48h)
+				const since48h = new Date(Date.now() - 48 * 60 * 60 * 1000).toISOString();
+				const url = `${API_CONFIG.baseURL}/orders?restaurantId=${restaurantId}&since=${since48h}`;
 				const response = await fetch(url, {
 					headers: { Authorization: `Bearer ${token}` },
 				});
