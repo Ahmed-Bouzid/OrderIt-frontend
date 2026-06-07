@@ -997,12 +997,16 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.catch((err) => console.warn("[ActivityFloor] fetch servers:", err));
 	}, [restaurantId, authFetch]);
 
-	// ⭐ Polling fallback : si socket déconnecté, on rattrape quand même les changements
+	// ⭐ Polling fallback : uniquement si socket déconnecté
 	useEffect(() => {
 		if (!restaurantId) return;
-		const interval = setInterval(() => handleRefreshRef.current(), 5000);
+		const interval = setInterval(() => {
+			if (!socket || !socket.connected) {
+				handleRefreshRef.current();
+			}
+		}, 5000);
 		return () => clearInterval(interval);
-	}, [restaurantId]);
+	}, [restaurantId, socket]);
 
 	// 📅 Fetch réservations à venir (72h)
 	useEffect(() => {
