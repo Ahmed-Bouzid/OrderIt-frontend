@@ -939,7 +939,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		const unsubscribeReservations = useReservationStore.getState().attachSocketListener(socket);
 
 		// ⭐ Refresh immédiat à chaque (re)connexion socket — rattrape les events perdus pendant déco
-		handleRefresh();
+		handleRefreshRef.current();
 
 		// ⭐ Handlers pour mise à jour granulaire (évite full refetch systématique)
 		const handleOrderEvent = (payload) => {
@@ -987,7 +987,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			socket.off("reservation", handleReservation);
 			socket.off("connect", handleConnect);
 		};
-	}, [socket, restaurantId, attachSocketListener]);
+	}, [socket, restaurantId]);
 
 	// Fetch serveurs du restaurant (mode comptoir)
 	useEffect(() => {
