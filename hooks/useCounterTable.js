@@ -185,6 +185,36 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 		return () => socket.off("order", handleOrderEvent);
 	}, [socket, sessionId, refreshSessionOrders]);
 
+	/**
+	 * WebSocket — écoute les paiements Stripe validés (payment-completed)
+	 * Permet de synchroniser le total de la table quand un client paie via Stripe.
+	 * Format payload: { type: "payment_completed", data: { tableId, orderId, amount, ... } }
+	 */
+	useEffect(() => {
+		if (!socket || !tableId) return;
+
+		const handlePaymentCompleted = (payload) => {
+			const paymentTableId = payload?.data?.tableId?.toString();
+			const currentTableId = tableId?.toString();
+
+			// Filtrer : uniquement les paiements de notre table
+			if (paymentTableId !== currentTableId) return;
+
+			// Recharger les orders pour mettre à jour le total (order marqué paid)
+			refreshSessionOrders();
+		};
+
+		socket.on("payment-completed", handlePaymentCompleted);
+		return () => socket.off("payment-completed", handlePaymentCompleted);
+	}, [socket, tableId, refreshSessionOrders]);
+
+	// ⭐ Polling fallback 5s — rattrape les orders si socket déconnecté
+	useEffect(() => {
+		if (!sessionId) return;
+		const interval = setInterval(() => refreshSessionOrders(), 5000);
+		return () => clearInterval(interval);
+	}, [sessionId, refreshSessionOrders]);
+
 	// Actions métier
 	const actions = {
 		/**
