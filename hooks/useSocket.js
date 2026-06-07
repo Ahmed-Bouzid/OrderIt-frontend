@@ -94,9 +94,7 @@ const startHeartbeat = (socket) => {
 			// Émettre un ping custom au serveur
 			socket.emit("client-ping", { timestamp: Date.now() });
 			lastPingTime = Date.now();
-
-			// Log silencieux pour debug (décommenter si besoin)
-			//		} else {
+		} else {
 			console.warn("💓 Heartbeat: socket déconnecté, arrêt du heartbeat");
 			stopHeartbeat();
 		}
