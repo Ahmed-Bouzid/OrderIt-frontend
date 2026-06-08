@@ -31,15 +31,19 @@ import {
 	SecuritySettings,
 	TableManagement,
 	CRMPerformance,
+	StockManagement,
 } from "./manager";
 import FeedbackModal from "../modals/FeedbackModal";
 import feedbackService from "../../services/feedbackService";
 import AccountingScreen from "./AccountingScreen";
 import ZReportScreen from "./ZReportScreen";
+import CashShiftScreen from "./CashShiftScreen";
 import AnalyticsScreen from "./AnalyticsScreen";
 import MessagingScreen from "./MessagingScreen";
+import DailyLogsSection from "./DailyLogsSection";
 import { useFeatureLevel } from "../../src/stores/useFeatureLevelStore";
 import { API_CONFIG } from "../../src/config/apiConfig";
+import { usePinGuard } from "../../hooks/usePinGuard";
 import {
 	AccountingGuard,
 	AnalyticsGuard,
@@ -70,6 +74,9 @@ export default function Settings() {
 	// ⭐ État Z de caisse
 	const [showZReport, setShowZReport] = useState(false);
 
+	// ⭐ État Gestion de caisse (Event Sourcing)
+	const [showCashShiftScreen, setShowCashShiftScreen] = useState(false);
+
 	// ⭐ État CRM Performance
 	const [showCRMScreen, setShowCRMScreen] = useState(false);
 	// ⭐ État Messagerie Interne
@@ -78,6 +85,8 @@ export default function Settings() {
 
 	// ⭐ État Analytics IA
 	const [showAnalyticsScreen, setShowAnalyticsScreen] = useState(false);
+
+
 
 	// ⭐ État messagerie
 	const [isMessagingEnabled, setIsMessagingEnabled] = useState(true);
@@ -89,6 +98,7 @@ export default function Settings() {
 
 	// ⭐ Utiliser useTheme() pour avoir le thème complet avec typography scalée
 	const THEME = useTheme();
+	const { PinModal: PinModalSettings, requirePin: requirePinSettings } = usePinGuard();
 
 	// 🔧 Feature level (developer overrides) — source unique de vérité pour le portail manager
 	const {
@@ -680,6 +690,9 @@ Personnaliser le thème
 			case "menu":
 				return <MenuManagement />;
 
+			case "stocks":
+				return <StockManagement />;
+
 			case "security":
 				return <SecuritySettings />;
 
@@ -731,7 +744,7 @@ Personnaliser le thème
 									elevation: 3,
 								},
 							]}
-							onPress={() => setShowCRMScreen(true)}
+							onPress={() => requirePinSettings(() => setShowCRMScreen(true))}
 							activeOpacity={0.8}
 						>
 							<Ionicons
@@ -847,6 +860,14 @@ Personnaliser le thème
 							</View>
 						</View>
 					</AnalyticsGuard>
+				);
+
+			case "daily-logs":
+				return (
+					<>
+						<Text style={settingsStyles.sectionHeaderText}>📋 Journal du jour</Text>
+						<DailyLogsSection />
+					</>
 				);
 
 			case "internal-messaging":
@@ -1163,7 +1184,7 @@ Personnaliser le thème
 									elevation: 3,
 								},
 							]}
-							onPress={() => setShowAccountingScreen(true)}
+							onPress={() => requirePinSettings(() => setShowAccountingScreen(true))}
 							activeOpacity={0.8}
 						>
 							<Ionicons
@@ -1219,6 +1240,49 @@ Personnaliser le thème
 									</Text>
 									<Text style={settingsStyles.settingDescription}>
 										Clôture de caisse — Admin / Manager
+									</Text>
+								</View>
+								<Ionicons
+									name="chevron-forward"
+									size={20}
+									color={THEME.colors.text.secondary}
+								/>
+							</TouchableOpacity>
+						)}
+
+						{/* Gestion de caisse (Event Sourcing) — Admin/Manager uniquement */}
+						{canAccessManagerPortal && (
+							<TouchableOpacity
+								style={[
+									settingsStyles.themeLabelRow,
+									{
+										backgroundColor: THEME.colors.background.elevated,
+										borderRadius: THEME.radius.lg,
+										padding: THEME.spacing.lg,
+										borderLeftWidth: 4,
+										borderLeftColor: "#10b981",
+										shadowColor: "#10b981",
+										shadowOffset: { width: 0, height: 2 },
+										shadowOpacity: 0.12,
+										shadowRadius: 8,
+										elevation: 3,
+										marginTop: THEME.spacing.md,
+									},
+								]}
+								onPress={() => setShowCashShiftScreen(true)}
+								activeOpacity={0.8}
+							>
+								<Ionicons
+									name="cash-outline"
+									size={24}
+									color="#10b981"
+								/>
+								<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
+									<Text style={settingsStyles.settingLabel}>
+										💰 Gestion de caisse
+									</Text>
+									<Text style={settingsStyles.settingDescription}>
+										Shifts & Event Sourcing — Phase 2
 									</Text>
 								</View>
 								<Ionicons
@@ -1450,7 +1514,7 @@ Personnaliser le thème
 	};
 
 	// Menu Item Component
-	const MenuItem = ({ icon, label, section }) => {
+	const MenuItem = ({ icon, label, section, onPress: onPressProp }) => {
 		const isActive = activeSection === section;
 		return (
 			<TouchableOpacity
@@ -1458,7 +1522,7 @@ Personnaliser le thème
 					settingsStyles.menuItem,
 					isActive && settingsStyles.menuItemActive,
 				]}
-				onPress={() => setActiveSection(section)}
+				onPress={onPressProp ?? (() => setActiveSection(section))}
 				activeOpacity={0.7}
 			>
 				{isActive && (
@@ -1601,6 +1665,11 @@ Personnaliser le thème
 									label="Menu"
 									section="menu"
 								/>
+								<MenuItem
+									icon="cube-outline"
+									label="Stocks"
+									section="stocks"
+								/>
 								{isComplete && (
 									<MenuItem
 										icon="analytics-outline"
@@ -1615,6 +1684,12 @@ Personnaliser le thème
 										section="crm"
 									/>
 								)}
+								<MenuItem
+									icon="document-text-outline"
+									label="Journal du jour"
+									section="daily-logs"
+									onPress={() => requirePinSettings(() => setActiveSection("daily-logs"))}
+								/>
 								<MenuItem
 									icon="mail-outline"
 									label="Messagerie Interne"
@@ -1713,6 +1788,11 @@ Personnaliser le thème
 				/>
 			)}
 
+			{/* Gestion de caisse Modal (Event Sourcing) */}
+			{showCashShiftScreen && (
+				<CashShiftScreen onClose={() => setShowCashShiftScreen(false)} />
+			)}
+
 			{/* CRM Performance Modal */}
 			{showCRMScreen && (
 				<CRMPerformance onClose={() => setShowCRMScreen(false)} />
@@ -1741,6 +1821,7 @@ Personnaliser le thème
 					userType,
 				}}
 			/>
+			<PinModalSettings />
 		</View>
 	);
 }
