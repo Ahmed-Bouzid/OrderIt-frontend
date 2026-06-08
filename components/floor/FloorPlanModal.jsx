@@ -40,8 +40,88 @@ export default function FloorPlanModal({
 	const THEME = useTheme();
 			const styles = useMemo(() => createStyles(THEME), [THEME]);
 
-	// Mode simulation pour salles 2 et 3
-	const isSimulation = roomNumber > 1;
+	// ─── Salles réelles depuis l'API ───────────────────────────────────────────
+	const [rooms, setRooms] = useState([]);
+	const [currentRoomIndex, setCurrentRoomIndex] = useState(-1); // -1 = toutes les tables
+	const [isLoadingRooms, setIsLoadingRooms] = useState(false);
+	const [showRoomManager, setShowRoomManager] = useState(false);
+	const [newRoomName, setNewRoomName] = useState("");
+
+	// La salle actuellement affichée (null = toutes les tables)
+	const currentRoom = currentRoomIndex >= 0 ? (rooms[currentRoomIndex] ?? null) : null;
+
+	// Charger les salles
+	const fetchRooms = useCallback(async () => {
+		if (!restaurantId) return;
+		try {
+			setIsLoadingRooms(true);
+			const data = await authFetch(`/rooms/restaurant/${restaurantId}`, { method: "GET" });
+			if (Array.isArray(data)) setRooms(data);
+		} catch (e) {
+			console.error("[FloorPlan] fetchRooms error:", e);
+		} finally {
+			setIsLoadingRooms(false);
+		}
+	}, [restaurantId, authFetch]);
+
+	useEffect(() => {
+		if (visible) fetchRooms();
+	}, [visible, fetchRooms]);
+
+	// Créer une salle
+	const handleCreateRoom = async () => {
+		const name = newRoomName.trim();
+		if (!name) return;
+		try {
+			const created = await authFetch("/rooms", {
+				method: "POST",
+				body: { restaurantId, name, order: rooms.length },
+			});
+			if (created && created._id) {
+				setRooms((prev) => [...prev, created]);
+				setCurrentRoomIndex(rooms.length); // naviguer vers la nouvelle salle
+			}
+			setNewRoomName("");
+			setShowRoomManager(false);
+		} catch (e) {
+			console.error("[FloorPlan] handleCreateRoom error:", e);
+			Alert.alert("Erreur", "Impossible de créer la salle");
+		}
+	};
+
+	// Supprimer une salle
+	const handleDeleteRoom = async (roomId) => {
+		Alert.alert("Supprimer cette salle ?", "Les tables ne seront pas supprimées.", [
+			{ text: "Annuler", style: "cancel" },
+			{
+				text: "Supprimer",
+				style: "destructive",
+				onPress: async () => {
+					try {
+						await authFetch(`/rooms/${roomId}`, { method: "DELETE" });
+						setRooms((prev) => prev.filter((r) => r._id !== roomId));
+						setCurrentRoomIndex(0);
+					} catch (e) {
+						Alert.alert("Erreur", "Impossible de supprimer la salle");
+					}
+				},
+			},
+		]);
+	};
+
+	// Tables filtrées selon la salle sélectionnée
+	const filteredTables = useMemo(() => {
+		if (!currentRoom) return tables; // pas de salle → toutes les tables
+		const ids = new Set(
+			(currentRoom.tableIds || []).map((t) =>
+				(t._id ?? t).toString()
+			)
+		);
+		return tables.filter((t) => ids.has(t._id.toString()));
+	}, [tables, currentRoom]);
+
+	// Mode simulation désactivé (plus de salles fictives)
+	const isSimulation = false;
 
 	// États
 	const [tables, setTables] = useState([]);
@@ -128,21 +208,8 @@ export default function FloorPlanModal({
 		tablesRef.current = tables;
 	}, [tables]);
 
-	// Tables fictives pour simulation (Salles 2 et 3)
-	const mockTables = useMemo(() => {
-		if (!isSimulation) return [];
-		return Array.from({ length: 10 }, (_, i) => ({
-			_id: `mock-${roomNumber}-${i}`,
-			number: `S${roomNumber}-T${i + 1}`,
-			capacity: 4,
-			size: 1,
-			status:
-				i % 3 === 0 ? "occupied" : i % 2 === 0 ? "available" : "unavailable",
-			restaurantId: "mock",
-			isAvailable: i % 2 === 0,
-			guests: [],
-		}));
-	}, [isSimulation, roomNumber]);
+	// Tables fictives pour simulation (Salles 2 et 3) — Désactivé
+	const mockTables = useMemo(() => [], []);
 
 	const { on, off } = useSocket();
 
@@ -171,16 +238,16 @@ export default function FloorPlanModal({
 		return () => off("table", handleTableEvent);
 	}, [isSimulation, on, off]);
 
-	// Choisir les tables à afficher : mock en simulation, vraies sinon (déduplication par _id)
+	// Choisir les tables à afficher : filtrées par salle si une salle est sélectionnée
 	const displayTables = useMemo(() => {
-		const source = isSimulation ? mockTables : tables;
+		const source = filteredTables;
 		const seen = new Set();
 		return source.filter((t) => {
 			if (seen.has(t._id)) return false;
 			seen.add(t._id);
 			return true;
 		});
-	}, [isSimulation, mockTables, tables]);
+	}, [filteredTables]);
 
 	// États édition
 	const [editingTable, setEditingTable] = useState(null);
@@ -737,6 +804,32 @@ export default function FloorPlanModal({
 									<Ionicons name="trash-outline" size={16} color="#EF4444" />
 									<Text style={styles.propsDeleteText}>Supprimer</Text>
 								</TouchableOpacity>
+
+								{/* Assigner à la salle courante */}
+								{currentRoom && (
+									<TouchableOpacity
+										style={{ flexDirection: "row", alignItems: "center", gap: 6, padding: 8, borderRadius: 8, backgroundColor: THEME.colors.primary + "22", marginTop: 8 }}
+										onPress={async () => {
+											try {
+												const updated = await authFetch(`/rooms/${currentRoom._id}/tables`, {
+													method: "POST",
+													body: { tableIds: [selectedTable._id] },
+												});
+												if (updated && updated._id) {
+													setRooms((prev) => prev.map((r) => r._id === currentRoom._id ? updated : r));
+													Alert.alert("✅", `Table ajoutée à « ${currentRoom.name} »`);
+												}
+											} catch (e) {
+												Alert.alert("Erreur", "Impossible d'assigner la table");
+											}
+										}}
+									>
+										<Ionicons name="home-outline" size={14} color={THEME.colors.primary} />
+										<Text style={{ color: THEME.colors.primary, fontSize: 12, fontWeight: "600" }}>
+											Ajouter à « {currentRoom.name} »
+										</Text>
+									</TouchableOpacity>
+								)}
 							</View>
 						)}
 
@@ -805,7 +898,7 @@ export default function FloorPlanModal({
 						{/* Header */}
 						<View style={styles.header} onLayout={(e) => setHeaderHeight(e.nativeEvent.layout.height)}>
 							<Text style={styles.title}>
-								Salle {roomNumber} {isSimulation && "- Simulation"}
+								{currentRoom ? currentRoom.name : "Toutes les tables"}{isSimulation && " - Simulation"}
 							</Text>
 
 							{/* Toggles Resa / Drag / Resize / Grid */}
@@ -981,6 +1074,59 @@ export default function FloorPlanModal({
 								/>
 							</TouchableOpacity>
 						</View>
+
+						{/* Navigation Salles */}
+						<View style={{ flexDirection: "row", alignItems: "center", paddingHorizontal: 12, paddingVertical: 6, backgroundColor: THEME.colors.background.secondary, borderBottomWidth: 1, borderBottomColor: THEME.colors.border }}>
+							<TouchableOpacity
+								onPress={() => setCurrentRoomIndex(-1)}
+								style={[{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 6 }, currentRoomIndex === -1 && { backgroundColor: THEME.colors.primary }]}
+							>
+								<Text style={{ color: currentRoomIndex === -1 ? "#fff" : THEME.colors.text.secondary, fontSize: 12, fontWeight: "600" }}>
+									Toutes
+								</Text>
+							</TouchableOpacity>
+							{rooms.map((room, idx) => (
+								<TouchableOpacity
+									key={room._id}
+									onPress={() => setCurrentRoomIndex(idx)}
+									style={[{ paddingHorizontal: 10, paddingVertical: 4, borderRadius: 8, marginRight: 6 }, currentRoomIndex === idx && { backgroundColor: THEME.colors.primary }]}
+									onLongPress={() => handleDeleteRoom(room._id)}
+								>
+									<Text style={{ color: currentRoomIndex === idx ? "#fff" : THEME.colors.text.secondary, fontSize: 12, fontWeight: "600" }}>
+										{room.name}
+									</Text>
+								</TouchableOpacity>
+							))}
+							<TouchableOpacity
+								onPress={() => setShowRoomManager(true)}
+								style={{ width: 26, height: 26, borderRadius: 13, backgroundColor: THEME.colors.primary + "33", alignItems: "center", justifyContent: "center", marginLeft: 4 }}
+							>
+								<Ionicons name="add" size={16} color={THEME.colors.primary} />
+							</TouchableOpacity>
+						</View>
+
+						{/* Modal création salle */}
+						{showRoomManager && (
+							<View style={{ position: "absolute", top: 80, left: 16, right: 16, backgroundColor: THEME.colors.background.primary, borderRadius: 12, padding: 16, zIndex: 1000, shadowColor: "#000", shadowOffset: { width: 0, height: 4 }, shadowOpacity: 0.3, shadowRadius: 8, elevation: 10 }}>
+								<Text style={{ color: THEME.colors.text.primary, fontWeight: "700", fontSize: 15, marginBottom: 12 }}>Nouvelle salle</Text>
+								<TextInput
+									style={{ borderWidth: 1, borderColor: THEME.colors.border, borderRadius: 8, padding: 10, color: THEME.colors.text.primary, backgroundColor: THEME.colors.background.secondary, marginBottom: 12, fontSize: 14 }}
+									placeholder="Nom de la salle (ex: Terrasse)"
+									placeholderTextColor={THEME.colors.text.secondary}
+									value={newRoomName}
+									onChangeText={setNewRoomName}
+									autoFocus
+								/>
+								<View style={{ flexDirection: "row", gap: 8 }}>
+									<TouchableOpacity onPress={() => { setShowRoomManager(false); setNewRoomName(""); }} style={{ flex: 1, padding: 10, borderRadius: 8, borderWidth: 1, borderColor: THEME.colors.border, alignItems: "center" }}>
+										<Text style={{ color: THEME.colors.text.secondary }}>Annuler</Text>
+									</TouchableOpacity>
+									<TouchableOpacity onPress={handleCreateRoom} style={{ flex: 1, padding: 10, borderRadius: 8, backgroundColor: THEME.colors.primary, alignItems: "center" }}>
+										<Text style={{ color: "#fff", fontWeight: "700" }}>Créer</Text>
+									</TouchableOpacity>
+								</View>
+							</View>
+						)}
 
 						{/* Feature 5 — Alignment Toolbar */}
 						{dragEnabled && (

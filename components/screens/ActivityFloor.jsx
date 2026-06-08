@@ -20,13 +20,14 @@ import {
 	Alert,
 	TextInput,
 	Modal,
+	Pressable,
 } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
 import useThemeStore from "../../src/stores/useThemeStore";
 import useCounterTableStore from "../../src/stores/useCounterTableStore";
-import useSocket from "../../hooks/useSocket";
+import { useSocketContext } from "../../src/stores/SocketContext";
 import counterService from "../../services/counterService";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import useUserStore from "../../src/stores/useUserStore";
@@ -35,6 +36,7 @@ import useReservationStore from "../../src/stores/useReservationStore";
 // Composants réutilisés
 import FloorPlanModal from "../floor/FloorPlanModal";
 import TableDetailModal from "./modals/TableDetailModal";
+import { usePinGuard } from "../../hooks/usePinGuard";
 
 const SCREEN_W = Dimensions.get("window").width;
 const IS_PHONE = SCREEN_W < 600;
@@ -438,6 +440,16 @@ const spStyles = StyleSheet.create({
 });
 
 // ─── DraggableTableCard ──────────────────────────────────────────────────────
+const LANG_FLAGS = {
+	en: "🇬🇧",
+	it: "🇮🇹",
+	es: "🇪🇸",
+	de: "🇩🇪",
+	zh: "🇨🇳",
+	ja: "🇯🇵",
+	nl: "🇳🇱",
+};
+
 const FALLBACK_POSITIONS = [
 	{ x: 60, y: 40 }, { x: 300, y: 100 }, { x: 645, y: 35 },
 	{ x: 975, y: 50 }, { x: 60, y: 280 }, { x: 340, y: 280 },
@@ -622,6 +634,18 @@ const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations =
 				</>
 			)}
 
+			{/* 👤 Badge client : prénom + drapeau langue (si ≠ fr) */}
+			{!isFree && session?.clientName ? (
+				<View style={dcStyles.clientBadge}>
+					<Text style={dcStyles.clientName} numberOfLines={1}>
+						{session.clientName.slice(0, 12)}
+						{session.clientLang && session.clientLang !== "fr" && LANG_FLAGS[session.clientLang]
+							? ` ${LANG_FLAGS[session.clientLang]}`
+							: ""}
+					</Text>
+				</View>
+			) : null}
+
 			{/* Point de couleur coin sup droit */}
 			<View
 				style={[
@@ -728,14 +752,32 @@ const dcStyles = StyleSheet.create({
 		color: "#94A3B8",
 		fontWeight: "500",
 	},
+	clientBadge: {
+		position: "absolute",
+		bottom: 8,
+		left: 0,
+		right: 0,
+		alignItems: "center",
+		paddingHorizontal: 6,
+	},
+	clientName: {
+		fontSize: 12,
+		fontWeight: "600",
+		color: "rgba(255,255,255,0.75)",
+	},
 });
 
 const ActivityFloor = ({ restaurantInfo }) => {
 	const THEME = useTheme();
 	const { themeMode } = useThemeStore();
-	const { socket } = useSocket();
+	const { socket: socketHookObj, connected: socketConnected } = useSocketContext();
+	const socket = socketHookObj?.socket ?? null;
+	const isConnected = () => socketConnected;
 
 	const authFetch = useAuthFetch();
+
+	// ⭐ Debounce ref — empêche les appels rafales (reconnexions socket, etc.)
+	const refreshDebounceTimer = useRef(null);
 
 	const [restaurantId, setRestaurantId] = useState(null);
 	const [tables, setTables] = useState([]);
@@ -766,8 +808,14 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	const [servers, setServers] = useState([]);
 	const [serverPickerTableId, setServerPickerTableId] = useState(null);
 	const [selectedWaiter, setSelectedWaiter] = useState(null);
-	const [selectedRoom, setSelectedRoom] = useState(1);
+	const [rooms, setRooms] = useState([]);
+	const [selectedRoomIndex, setSelectedRoomIndex] = useState(-1); // -1 = toutes les tables
+	const selectedRoom = selectedRoomIndex; // compatibilité avec les usages existants
 	const [showFloorPlan, setShowFloorPlan] = useState(false);
+	const [showDebugPanel, setShowDebugPanel] = useState(false);
+	const [showForceQuit, setShowForceQuit] = useState(false);
+	const [forceQuitLoading, setForceQuitLoading] = useState(null); // sessionId en cours
+	const { PinModal, requirePin } = usePinGuard();
 	const [selectedTableId, setSelectedTableId] = useState(null);
 
 	// Store
@@ -892,6 +940,8 @@ const ActivityFloor = ({ restaurantInfo }) => {
 					openedAt: table.openedAt ?? null,
 					serverId: table.serverId ?? null,
 					source: "counter",
+					clientName: table.clientName ?? null,
+					clientLang: table.clientLang ?? "fr",
 				};
 				useCounterTableStore.getState().openSession(restaurantIdParam, sessionObj.tableId, sessionObj);
 				hydratedCount++;
@@ -931,6 +981,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	// Attacher socket listener
 	useEffect(() => {
 		if (!socket || !restaurantId) return;
+		console.log("[ActivityFloor] 🔌 socket useEffect MOUNT", new Date().toISOString());
 
 		attachSocketListener(socket);
 		
@@ -938,49 +989,47 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		const unsubscribeReservations = useReservationStore.getState().attachSocketListener(socket);
 
 		// ⭐ Refresh immédiat à chaque (re)connexion socket — rattrape les events perdus pendant déco
-		handleRefresh();
+		handleRefreshRef.current();
 
 		// ⭐ Handlers pour mise à jour granulaire (évite full refetch systématique)
 		const handleOrderEvent = (payload) => {
-			// payload = { type: "created"|"updated"|"cancelled", data: order, ... }
 			if (!payload?.data?.tableId) return;
-			
-			// Refresh seulement si ordre concerne une table du floor
 			const tableId = payload.data.tableId._id || payload.data.tableId;
-			const concernsFloor = tables.some(t => t._id.toString() === tableId.toString());
+			const concernsFloor = tablesRef.current.some(t => t._id.toString() === tableId.toString());
 			if (concernsFloor) {
-				handleRefresh();
+				handleRefreshRef.current();
 			}
 		};
 
 		const handlePaymentCompleted = (payload) => {
-			// payload = { type: "payment_completed", data: { tableId, amount, ... } }
 			if (!payload?.data?.tableId) return;
-			
-			// Refresh seulement si paiement concerne une table du floor
 			const tableId = payload.data.tableId._id || payload.data.tableId;
-			const concernsFloor = tables.some(t => t._id.toString() === tableId.toString());
+			const concernsFloor = tablesRef.current.some(t => t._id.toString() === tableId.toString());
 			if (concernsFloor) {
-				handleRefresh();
+				handleRefreshRef.current();
 			}
 		};
+
+		const handleTableSession = () => { handleRefreshRef.current(); };
+		const handleReservation = () => { handleRefreshRef.current(); };
+		const handleConnect = () => { handleRefreshRef.current(); };
 
 		// ⭐ Écouter les événements temps réel
 		socket.on("order", handleOrderEvent);
 		socket.on("payment-completed", handlePaymentCompleted);
-		socket.on("table-session", handleRefresh);
-		socket.on("reservation", handleRefresh);
-		socket.on("connect", handleRefresh);
+		socket.on("table-session", handleTableSession);
+		socket.on("reservation", handleReservation);
+		socket.on("connect", handleConnect);
 		
 		return () => {
 			if (unsubscribeReservations) unsubscribeReservations();
 			socket.off("order", handleOrderEvent);
 			socket.off("payment-completed", handlePaymentCompleted);
-			socket.off("table-session", handleRefresh);
-			socket.off("reservation", handleRefresh);
-			socket.off("connect", handleRefresh);
+			socket.off("table-session", handleTableSession);
+			socket.off("reservation", handleReservation);
+			socket.off("connect", handleConnect);
 		};
-	}, [socket, restaurantId, attachSocketListener, handleRefresh, tables]);
+	}, [socket, restaurantId]);
 
 	// Fetch serveurs du restaurant (mode comptoir)
 	useEffect(() => {
@@ -990,12 +1039,24 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.catch((err) => console.warn("[ActivityFloor] fetch servers:", err));
 	}, [restaurantId, authFetch]);
 
-	// ⭐ Polling fallback : si socket déconnecté, on rattrape quand même les changements
+	// Fetch salles du restaurant
 	useEffect(() => {
 		if (!restaurantId) return;
-		const interval = setInterval(() => handleRefresh(), 5000);
+		authFetch(`/rooms/restaurant/${restaurantId}`)
+			.then((data) => setRooms(Array.isArray(data) ? data : []))
+			.catch((err) => console.warn("[ActivityFloor] fetch rooms:", err));
+	}, [restaurantId, authFetch]);
+
+	// ⭐ Polling fallback : uniquement si socket déconnecté
+	useEffect(() => {
+		if (!restaurantId) return;
+		const interval = setInterval(() => {
+			if (!isConnected()) {
+				handleRefreshRef.current();
+			}
+		}, 5000);
 		return () => clearInterval(interval);
-	}, [restaurantId, handleRefresh]);
+	}, [restaurantId, isConnected]);
 
 	// 📅 Fetch réservations à venir (72h)
 	useEffect(() => {
@@ -1010,9 +1071,13 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			.catch((err) => console.warn("[ActivityFloor] fetch upcoming reservations:", err));
 	}, [restaurantId, authFetch]);
 
-	// Refresh handler
+	// Refresh handler — debounced 800ms pour éviter les rafales (socket reconnect, etc.)
 	const handleRefresh = useCallback(async () => {
 		if (!restaurantId) return;
+
+		// ⭐ Debounce : annuler le timer précédent, relancer
+		if (refreshDebounceTimer.current) clearTimeout(refreshDebounceTimer.current);
+		refreshDebounceTimer.current = setTimeout(async () => {
 
 		try {
 			const tablesState = await counterService.getTablesState(restaurantId).catch((err) => {
@@ -1026,7 +1091,12 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		} catch (err) {
 			console.error("[ActivityFloor] Erreur refresh:", err);
 		}
+		}, 800);
 	}, [restaurantId, hydrateSessionsFromTables]);
+
+	// ⭐ Ref stable pour handleRefresh — évite les deps cycliques dans les useEffect
+	const handleRefreshRef = useRef(handleRefresh);
+	useEffect(() => { handleRefreshRef.current = handleRefresh; }, [handleRefresh]);
 
 	// Styles dynamiques
 	const dynamicStyles = useMemo(() => createStyles(THEME), [THEME]);
@@ -1330,15 +1400,32 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				<TouchableOpacity
 					style={dynamicStyles.roomDropdown}
 					onPress={() =>
-						setSelectedRoom((r) => (r % 3) + 1)
+						setSelectedRoomIndex((r) => {
+							if (rooms.length === 0) return r;
+							// Cycle : -1 (toutes) → 0 → 1 → ... → rooms.length-1 → -1
+							if (r >= rooms.length - 1) return -1;
+							return r + 1;
+						})
 					}
 				>
 					<Text style={dynamicStyles.roomDropdownText}>
-						Salle {selectedRoom}
+						{selectedRoomIndex === -1
+							? "Toutes"
+							: rooms[selectedRoomIndex]?.name ?? `Salle ${selectedRoomIndex + 1}`}
 					</Text>
 					<Ionicons
 						name="chevron-down"
 						size={14}
+						color={THEME.colors.text.secondary}
+					/>
+				</TouchableOpacity>
+				<TouchableOpacity
+					style={dynamicStyles.menuButton}
+					onPress={() => setShowDebugPanel(true)}
+				>
+					<Ionicons
+						name="settings-outline"
+						size={20}
 						color={THEME.colors.text.secondary}
 					/>
 				</TouchableOpacity>
@@ -1533,6 +1620,178 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				onClose={() => setEditModalTable(null)}
 				onSave={saveTableEdit}
 			/>
+			{/* 🔧 Debug Panel */}
+			<Modal
+				visible={showDebugPanel}
+				transparent
+				animationType="fade"
+				onRequestClose={() => setShowDebugPanel(false)}
+			>
+				<Pressable
+					style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.70)", justifyContent: "center", alignItems: "center", paddingHorizontal: 16 }}
+					onPress={() => setShowDebugPanel(false)}
+				>
+					<Pressable
+						onPress={() => {}}
+						style={{ backgroundColor: "#1E293B", borderRadius: 20, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: "rgba(255,255,255,0.08)", overflow: "hidden" }}
+					>
+						{/* Header */}
+						<View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.07)" }}>
+							<View style={{ flexDirection: "row", alignItems: "center", gap: 8 }}>
+								<Ionicons name="settings" size={20} color="#f59e0b" />
+								<Text style={{ color: "#F8FAFC", fontSize: 18, fontWeight: "700" }}>Debug / Outils</Text>
+							</View>
+							<TouchableOpacity
+								onPress={() => setShowDebugPanel(false)}
+								style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center" }}
+							>
+								<Ionicons name="close" size={20} color="#94A3B8" />
+							</TouchableOpacity>
+						</View>
+						{/* Content */}
+						<View style={{ padding: 20, gap: 10 }}>
+							<Text style={{ color: "#64748B", fontSize: 12, marginBottom: 6 }}>
+								Outils réservés au restaurateur. Actions irréversibles marquées en rouge.
+							</Text>
+							<TouchableOpacity
+								onPress={() => { setShowDebugPanel(false); handleRefresh(); }}
+								style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.05)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(255,255,255,0.12)", padding: 14, gap: 10 }}
+							>
+								<Ionicons name="refresh" size={18} color="#60a5fa" />
+								<Text style={{ color: "#60a5fa", fontWeight: "600", fontSize: 14 }}>Forcer un refresh des tables</Text>
+							</TouchableOpacity>
+							<TouchableOpacity
+								onPress={() => { setShowDebugPanel(false); setShowForceQuit(true); }}
+								style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(239,68,68,0.08)", borderRadius: 10, borderWidth: 1, borderColor: "rgba(239,68,68,0.3)", padding: 14, gap: 10 }}
+							>
+								<Ionicons name="power" size={18} color="#EF4444" />
+								<View style={{ flex: 1 }}>
+									<Text style={{ color: "#EF4444", fontWeight: "600", fontSize: 14 }}>Forcer à quitter</Text>
+									<Text style={{ color: "#94A3B8", fontSize: 11, marginTop: 2 }}>Ferme une session de force (irréversible)</Text>
+								</View>
+							</TouchableOpacity>
+						</View>
+					</Pressable>
+				</Pressable>
+			</Modal>
+
+			{/* 🔴 Force Quit — fermeture forcée de session */}
+			<Modal
+				visible={showForceQuit}
+				transparent
+				animationType="fade"
+				onRequestClose={() => setShowForceQuit(false)}
+			>
+				<Pressable
+					style={{ flex: 1, backgroundColor: "rgba(0,0,0,0.70)", justifyContent: "center", alignItems: "center", paddingHorizontal: 16 }}
+					onPress={() => setShowForceQuit(false)}
+				>
+					<Pressable
+						onPress={() => {}}
+						style={{ backgroundColor: "#1E293B", borderRadius: 20, width: "100%", maxWidth: 420, borderWidth: 1, borderColor: "rgba(239,68,68,0.25)", overflow: "hidden", maxHeight: "80%" }}
+					>
+						{/* Header */}
+						<View style={{ flexDirection: "row", alignItems: "center", justifyContent: "space-between", paddingHorizontal: 20, paddingTop: 20, paddingBottom: 14, borderBottomWidth: 1, borderBottomColor: "rgba(255,255,255,0.07)" }}>
+							<View style={{ flex: 1 }}>
+								<View style={{ flexDirection: "row", alignItems: "center", gap: 8, marginBottom: 3 }}>
+									<Ionicons name="power" size={18} color="#EF4444" />
+									<Text style={{ color: "#F8FAFC", fontSize: 18, fontWeight: "700" }}>Forcer à quitter</Text>
+								</View>
+								<Text style={{ color: "#64748B", fontSize: 12 }}>Sélectionne une table ouverte pour forcer la fermeture</Text>
+							</View>
+							<TouchableOpacity
+								onPress={() => setShowForceQuit(false)}
+								style={{ width: 32, height: 32, borderRadius: 16, backgroundColor: "rgba(255,255,255,0.07)", alignItems: "center", justifyContent: "center", marginLeft: 12 }}
+							>
+								<Ionicons name="close" size={20} color="#94A3B8" />
+							</TouchableOpacity>
+						</View>
+
+						{/* Liste des tables ouvertes */}
+						{(() => {
+							const openTables = tables.filter((t) => {
+								const session = activeSessions.find((s) => s.tableId === t._id || s.tableId === t._id?.toString());
+								return session && (session.billStatus === "open" || session.billStatus === "bill_requested");
+							});
+
+							if (openTables.length === 0) {
+								return (
+									<View style={{ padding: 32, alignItems: "center" }}>
+										<Ionicons name="checkmark-circle-outline" size={40} color="#4ADE80" style={{ marginBottom: 12 }} />
+										<Text style={{ color: "#94A3B8", fontSize: 14, textAlign: "center" }}>Aucune table ouverte en ce moment.</Text>
+									</View>
+								);
+							}
+
+							return (
+								<View style={{ padding: 16, gap: 8 }}>
+									{openTables.map((t) => {
+										const session = activeSessions.find((s) => s.tableId === t._id || s.tableId === t._id?.toString());
+										const isBill = session?.billStatus === "bill_requested";
+										const isLoading = forceQuitLoading === session?._id;
+										return (
+											<TouchableOpacity
+												key={t._id}
+												disabled={isLoading}
+												onPress={() => {
+													Alert.alert(
+														`Fermer Table ${t.number} ?`,
+														"La session sera fermée de force (paiement en espèces enregistré). Cette action est irréversible.",
+														[
+															{ text: "Annuler", style: "cancel" },
+															{
+																text: "Forcer la fermeture",
+																style: "destructive",
+																onPress: () => requirePin(async () => {
+																	setForceQuitLoading(session._id);
+																	try {
+																		await counterService.closeSession(session._id, "cash", [], true);
+																		await handleRefresh();
+																		// Si plus de tables ouvertes, fermer la modale
+																		const remaining = tables.filter((tb) => {
+																			const s = activeSessions.find((s) => s.tableId === tb._id || s.tableId === tb._id?.toString());
+																			return s && (s.billStatus === "open" || s.billStatus === "bill_requested") && s._id !== session._id;
+																		});
+																		if (remaining.length === 0) setShowForceQuit(false);
+																	} catch (err) {
+																		Alert.alert("Erreur", err.message || "Impossible de fermer la session.");
+																	} finally {
+																		setForceQuitLoading(null);
+																	}
+																}),
+															},
+														],
+													);
+												}}
+												style={{ flexDirection: "row", alignItems: "center", backgroundColor: "rgba(255,255,255,0.04)", borderRadius: 10, borderWidth: 1, borderColor: isBill ? "rgba(245,158,11,0.3)" : "rgba(255,255,255,0.10)", padding: 14, gap: 12 }}
+											>
+												<View style={{ width: 36, height: 36, borderRadius: 10, backgroundColor: isBill ? "rgba(245,158,11,0.15)" : "rgba(74,222,128,0.12)", alignItems: "center", justifyContent: "center" }}>
+													<Text style={{ color: isBill ? "#FBBF24" : "#4ADE80", fontWeight: "700", fontSize: 13 }}>
+														{t.number?.replace("Tab", "") ?? "?"}
+													</Text>
+												</View>
+												<View style={{ flex: 1 }}>
+													<Text style={{ color: "#F8FAFC", fontWeight: "600", fontSize: 14 }}>Table {t.number}</Text>
+													<Text style={{ color: isBill ? "#FBBF24" : "#4ADE80", fontSize: 12, marginTop: 1 }}>
+														{isBill ? "⚠ À encaisser" : "● En service"}
+														{session?.totalAmount ? ` · ${session.totalAmount.toFixed(2)} €` : ""}
+													</Text>
+												</View>
+												{isLoading ? (
+													<ActivityIndicator size="small" color="#EF4444" />
+												) : (
+													<Ionicons name="power" size={20} color="#EF4444" />
+												)}
+											</TouchableOpacity>
+										);
+									})}
+								</View>
+							);
+						})()}
+					</Pressable>
+				</Pressable>
+			</Modal>
+
 			{showFloorPlan && (
 				<FloorPlanModal
 					visible={showFloorPlan}
@@ -1560,7 +1819,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				onSelectWaiter={setSelectedWaiter}
 				currentUser={currentUser}
 			/>
-
+			<PinModal />
 		</View>
 	);
 };
