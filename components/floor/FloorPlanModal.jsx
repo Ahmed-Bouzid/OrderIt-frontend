@@ -426,9 +426,16 @@ export default function FloorPlanModal({
 		if (isSimulation) return;
 
 		try {
-			// Générer un numéro unique non utilisé
-			const existingNumbers = new Set(tables.map((t) => t.number));
-			let n = tables.length + 1;
+			// Re-synchroniser depuis le serveur pour éviter les collisions (état local peut être stale)
+			const freshTables = await authFetch(`/tables/restaurant/${restaurantId}`, { method: "GET" });
+			const sourceTables = Array.isArray(freshTables) && freshTables.length > 0 ? freshTables : tables;
+			if (Array.isArray(freshTables) && freshTables.length > 0) {
+				setTables(freshTables);
+			}
+
+			// Générer un numéro unique non utilisé basé sur la liste fraîche
+			const existingNumbers = new Set(sourceTables.map((t) => t.number));
+			let n = 1;
 			while (existingNumbers.has(`T${n}`)) {
 				n++;
 			}

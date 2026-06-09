@@ -95,16 +95,12 @@ export function useAuthFetch() {
 				if (token && refreshToken) {
 					await refreshAccessToken();
 				} else {
-					console.warn("⚠️ Impossible de rafraîchir: tokens manquants");
-					if (!refreshToken) {
-						console.error(
-							"❌ PROBLÈME CRITQUE: refreshToken disparu de SecureStore!",
-						);
-						// Force logout si refresh token est perdu
-						await setSecureItem("@access_token", "");
-						await AsyncStorage.removeItem("restaurantId");
-						redirectToLogin(router, isRedirectingRef);
+					// Tokens absents = session terminée, arrêter l'intervalle silencieusement
+					if (globalRefreshInterval) {
+						clearInterval(globalRefreshInterval);
+						globalRefreshInterval = null;
 					}
+					isRefreshSetup = false;
 				}
 			} catch (error) {
 				console.error("❌ Erreur lors du refresh automatique:", error);

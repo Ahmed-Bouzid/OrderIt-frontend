@@ -30,6 +30,16 @@ import MenuPickerModal from "./MenuPickerModal";
 
 const IS_PHONE = Dimensions.get("window").width < 600;
 
+const LANG_FLAGS = {
+	en: "🇬🇧",
+	it: "🇮🇹",
+	es: "🇪🇸",
+	de: "🇩🇪",
+	zh: "🇨🇳",
+	ja: "🇯🇵",
+	nl: "🇳🇱",
+};
+
 // ─── Constantes pour réductions ──────────────────────────────────────────
 const DISCOUNT_REASONS = [
 	{ id: "geste_commercial", label: "Geste commercial", emoji: "🤝" },
@@ -879,6 +889,11 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 											</Text>
 										) : null}
 									</View>
+										{session?.clientName ? (
+											<Text style={styles.headerClient}>
+												👤 {session.clientName}{session.clientLang && session.clientLang !== "fr" && LANG_FLAGS[session.clientLang] ? ` ${LANG_FLAGS[session.clientLang]}` : ""}
+											</Text>
+										) : null}
 									<TouchableOpacity onPress={onClose} style={styles.closeBtn}>
 										<Ionicons name="close" size={20} color="#94A3B8" />
 									</TouchableOpacity>
@@ -1152,6 +1167,12 @@ const createStyles = (THEME) =>
 			fontSize: 12,
 			color: "#94A3B8",
 			fontWeight: "400",
+			marginTop: 2,
+		},
+		headerClient: {
+			fontSize: 12,
+			color: "#38BDF8",
+			fontWeight: "500",
 			marginTop: 2,
 		},
 		closeBtn: {

@@ -130,6 +130,10 @@ export default function MenuManagement() {
 			allowedAddOns: Array.isArray(product.allowedAddOns)
 				? product.allowedAddOns.map((a) => (typeof a === "string" ? a : a._id))
 				: [],
+			isFormule: product.isFormule || false,
+			formuleSteps: Array.isArray(product.formuleSteps)
+				? product.formuleSteps.map((s) => ({ label: s.label, categoryTag: s.categoryTag }))
+				: [],
 		});
 		setShowAllergens(false);
 		// Charger les allergènes du produit
@@ -159,6 +163,8 @@ export default function MenuManagement() {
 			addOns: false,
 			hasAddOns: false,
 			allowedAddOns: [],
+			isFormule: false,
+			formuleSteps: [],
 		});
 		setShowAllergens(false);
 		setProductAllergensDisplay([]);
@@ -541,6 +547,8 @@ export default function MenuManagement() {
 			addOns: formData.addOns,
 			hasAddOns: formData.hasAddOns,
 			allowedAddOns: formData.allowedAddOns,
+			isFormule: formData.isFormule,
+			formuleSteps: formData.isFormule ? formData.formuleSteps : [],
 		};
 		try {
 			if (isCreating) {
@@ -1046,6 +1054,60 @@ export default function MenuManagement() {
 							</View>
 
 							{/* Multi-select add-ons autorisés */}
+							{/* Toggle Formule */}
+							<View style={styles.switchRow}>
+								<Text style={styles.formLabel}>C&apos;est une formule (menu à prix fixe)</Text>
+								<Switch
+									value={formData.isFormule}
+									onValueChange={(value) =>
+										setFormData({ ...formData, isFormule: value, formuleSteps: value ? formData.formuleSteps : [] })
+									}
+									trackColor={{ false: THEME.colors.text.muted, true: "rgba(245, 158, 11, 0.4)" }}
+									thumbColor={formData.isFormule ? "#F59E0B" : THEME.colors.status.error}
+								/>
+							</View>
+
+							{/* Config étapes formule : sélection de catégories réelles */}
+							{formData.isFormule && (
+								<View style={styles.addOnsContainer}>
+									<Text style={styles.formLabel}>Catégories incluses dans la formule</Text>
+									<Text style={{ color: THEME.colors.text.muted, fontSize: 12, marginBottom: 10 }}>
+										Le client choisira 1 plat par catégorie cochée.
+									</Text>
+									{[...new Set(products.map(p => p.category).filter(Boolean))].sort().map((cat) => {
+										const isChecked = formData.formuleSteps.some(s => s.categoryTag === cat);
+										return (
+											<TouchableOpacity
+												key={cat}
+												style={{ flexDirection: "row", alignItems: "center", gap: 10, marginBottom: 10 }}
+												onPress={() => {
+													const already = formData.formuleSteps.some(s => s.categoryTag === cat);
+													const updated = already
+														? formData.formuleSteps.filter(s => s.categoryTag !== cat)
+														: [...formData.formuleSteps, { label: cat, categoryTag: cat }];
+													setFormData({ ...formData, formuleSteps: updated });
+												}}
+											>
+												<View style={{
+													width: 22, height: 22, borderRadius: 4,
+													borderWidth: 2, borderColor: isChecked ? "#F59E0B" : THEME.colors.text.muted,
+													backgroundColor: isChecked ? "#F59E0B" : "transparent",
+													alignItems: "center", justifyContent: "center",
+												}}>
+													{isChecked && <Ionicons name="checkmark" size={14} color="#fff" />}
+												</View>
+												<Text style={{ color: THEME.colors.text.primary, fontSize: 14 }}>{cat}</Text>
+											</TouchableOpacity>
+										);
+									})}
+									{formData.formuleSteps.length > 0 && (
+										<Text style={{ color: THEME.colors.text.muted, fontSize: 12, marginTop: 4 }}>
+											{formData.formuleSteps.length} catégorie(s) sélectionnée(s) : {formData.formuleSteps.map(s => s.label).join(", ")}
+										</Text>
+									)}
+								</View>
+							)}
+
 							{formData.hasAddOns && (
 								<View style={styles.addOnsContainer}>
 									<Text style={styles.formLabel}>Add-ons autorisés</Text>

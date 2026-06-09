@@ -82,9 +82,9 @@ export const useDashboardFilters = (
 		if (!dateFilteredReservations || !Array.isArray(dateFilteredReservations))
 			return [];
 
-		// 🔍 Si recherche active, ignorer le filtre de statut
+		// 🔍 Si recherche active, ignorer le filtre date ET le filtre de statut (multi-jours)
 		if (searchQuery.trim()) {
-			return dateFilteredReservations;
+			return searchedReservations || [];
 		}
 
 		// 📅 Déterminer si la date sélectionnée est passée, future ou aujourd'hui
@@ -158,7 +158,7 @@ export const useDashboardFilters = (
 			console.error("❌ Erreur filtrage réservations:", error);
 			return [];
 		}
-	}, [dateFilteredReservations, filter, searchQuery, selectedDate]);
+	}, [dateFilteredReservations, searchedReservations, filter, searchQuery, selectedDate]);
 
 	const changeFilter = useCallback(async (newFilter) => {
 		setFilter(newFilter);

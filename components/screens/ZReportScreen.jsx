@@ -33,6 +33,7 @@ import * as Sharing from "expo-sharing";
 import { useTheme } from "../../hooks/useTheme";
 import zReportService from "../../services/zReportService";
 import cashShiftService from "../../services/cashShiftService";
+import counterService from "../../services/counterService";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Formateur Z de caisse en texte ASCII exportable
@@ -254,11 +255,29 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 	const handleCloseShift = async () => {
 		if (!activeShift) return;
 
+		// 🚫 Bloquer si des tables sont encore ouvertes
+		try {
+			const tables = await counterService.getTablesState(restaurantId);
+			const openTables = tables.filter((t) => t.isAvailable === false);
+			if (openTables.length > 0) {
+				const names = openTables.map((t) => t.number || t._id).join(", ");
+				Alert.alert(
+					"Tables encore ouvertes",
+					`Impossible de clôturer la caisse : ${openTables.length} table(s) sont encore en service.\n\nTables : ${names}\n\nClôturez toutes les tables avant de générer le Z.`,
+					[{ text: "OK" }]
+				);
+				return;
+			}
+		} catch (e) {
+			console.warn("[ZReportScreen] Impossible de vérifier les tables ouvertes:", e);
+			// Ne pas bloquer si la vérification échoue (fail-open)
+		}
+
 		const closing = parseFloat((closingCount || "0").replace(",", ".")) || 0;
 
 		Alert.alert(
 			"Clôturer la caisse",
-			`Espèces comptées : ${closing.toFixed(2)} €\n\nCette opération génère le Z de caisse et est IRRÉVERSIBLE.\n\nConfirmer ?`,
+			`Espèces comptées : ${closing.toFixed(2)} €\n\nCette opération génère le Z de caisse est IRRÉVERSIBLE.\n\nConfirmer ?`,
 			[
 				{ text: "Annuler", style: "cancel" },
 				{

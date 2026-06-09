@@ -621,7 +621,7 @@ const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations =
 				<>
 					<Text style={dcStyles.dotsGold}>€</Text>
 					<Text style={dcStyles.amountBill}>
-						{session.totalAmount?.toFixed(0) ?? "0"} €
+						{session.totalAmount?.toFixed(2) ?? "0.00"} €
 					</Text>
 				</>
 			) : (
@@ -630,7 +630,7 @@ const DraggableTableCard = ({ table, session, tableIndex, upcomingReservations =
 						{dotCount === 0 ? "···" : "●".repeat(dotCount)}
 					</Text>
 					<Text style={dcStyles.amountOccupied}>
-						{session.totalAmount?.toFixed(0) ?? "0"} €
+						{session.totalAmount?.toFixed(2) ?? "0.00"} €
 					</Text>
 				</>
 			)}
@@ -1032,7 +1032,10 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			}
 		};
 
-		const handleTableSession = () => { handleRefreshRef.current(); };
+		const handleTableSession = (payload) => {
+			console.log("[ActivityFloor] 📡 table-session event reçu", payload?.type, new Date().toISOString());
+			handleRefreshRef.current();
+		};
 		const handleReservation = () => { handleRefreshRef.current(); };
 		const handleConnect = () => { handleRefreshRef.current(); };
 
@@ -1572,16 +1575,6 @@ const ActivityFloor = ({ restaurantInfo }) => {
 						color={THEME.colors.text.secondary}
 					/>
 				</TouchableOpacity>
-				<TouchableOpacity
-					style={dynamicStyles.menuButton}
-					onPress={() => setShowFloorPlan(true)}
-				>
-					<Ionicons
-						name="ellipsis-vertical"
-						size={20}
-						color={THEME.colors.text.secondary}
-					/>
-				</TouchableOpacity>
 
 			</View>
 
@@ -1751,7 +1744,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 						color={THEME.colors.text.muted}
 					/>
 					<Text style={dynamicStyles.footerText}>
-						CA en cours : {stats.totalAmount.toFixed(0)} €
+						CA en cours : {stats.totalAmount.toFixed(2)} €
 					</Text>
 				</View>
 			</View>

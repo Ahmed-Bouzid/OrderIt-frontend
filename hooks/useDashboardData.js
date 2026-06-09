@@ -8,7 +8,7 @@ import useSocket from "./useSocket";
 
 export const useDashboardData = () => {
 	const authFetch = useAuthFetch();
-	const { reservations, fetchReservations, updateReservation } =
+	const { reservations, fetchReservations, updateReservation, addReservation } =
 		useReservationStore();
 	const { theme, initTheme } = useThemeStore();
 	const { socket } = useSocket();
@@ -95,8 +95,9 @@ export const useDashboardData = () => {
 		if (!socket) return;
 
 		const handleReservationUpdate = (event) => {
-
-			if (event.type === "updated" && event.data) {
+			if (event.type === "created" && event.data) {
+				addReservation(event.data);
+			} else if (event.type === "updated" && event.data) {
 				// Mettre à jour la réservation dans le store
 				updateReservation(event.data);
 			}
@@ -107,7 +108,7 @@ export const useDashboardData = () => {
 		return () => {
 			socket.off("reservation", handleReservationUpdate);
 		};
-	}, [socket, updateReservation]);
+	}, [socket, updateReservation, addReservation]);
 
 	return {
 		reservations,

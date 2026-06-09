@@ -38,6 +38,14 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 	const setQty = useCounterCartStore((state) => state.setQty);
 	const removeItem = useCounterCartStore((state) => state.removeItem);
 
+	// Formule state
+	const [formulePending, setFormulePending] = useState(null); // { item, steps }
+	const [formuleStepIdx, setFormuleStepIdx] = useState(0);
+	const [formuleChoices, setFormuleChoices] = useState([]); // [{ step, product }]
+	const [formuleStepProducts, setFormuleStepProducts] = useState([]);
+	const [formuleStepLoading, setFormuleStepLoading] = useState(false);
+	const [formuleSelectedProduct, setFormuleSelectedProduct] = useState(null);
+
 	// Options produit
 	const [optionsPending, setOptionsPending] = useState(null);
 	const [optionsList, setOptionsList] = useState([]);
@@ -122,9 +130,62 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 		return 'ok';
 	};
 
+	const loadFormuleStep = async (item, stepIdx) => {
+		setFormuleStepLoading(true);
+		try {
+			const data = await counterService.getProducts(restaurantId);
+			const tag = item.formuleSteps[stepIdx].categoryTag?.toLowerCase();
+			const filtered = data.filter((p) => (p.category || '').toLowerCase() === tag && p.available !== false);
+			setFormuleStepProducts(filtered);
+			setFormuleSelectedProduct(null);
+		} finally {
+			setFormuleStepLoading(false);
+		}
+	};
+
+	const startFormule = (item) => {
+		setFormulePending(item);
+		setFormuleStepIdx(0);
+		setFormuleChoices([]);
+		loadFormuleStep(item, 0);
+	};
+
+	const handleFormuleNext = () => {
+		if (!formuleSelectedProduct) return;
+		const step = formulePending.formuleSteps[formuleStepIdx];
+		const newChoices = [...formuleChoices, { step, product: formuleSelectedProduct }];
+		const nextIdx = formuleStepIdx + 1;
+		if (nextIdx < formulePending.formuleSteps.length) {
+			setFormuleChoices(newChoices);
+			setFormuleStepIdx(nextIdx);
+			loadFormuleStep(formulePending, nextIdx);
+		} else {
+			// Toutes les étapes faites → ajouter au panier
+			const notes = newChoices.map((c) => `${c.step.label}: ${c.product.name}`).join(' | ');
+			addItem(tableId, {
+				productId: formulePending._id ?? formulePending.id,
+				name: formulePending.name,
+				price: formulePending.price,
+				category: formulePending.category ?? 'formule',
+				quantity: 1,
+				notes,
+			});
+			setFormulePending(null);
+			setFormuleChoices([]);
+			setFormuleStepIdx(0);
+		}
+	};
+
 	const handleAddItem = async (item) => {
 		const status = getStockStatus(item);
 		if (status === 'out' || status === 'limit') return;
+
+		console.log('[FORMULE CHECK staff]', item.name, 'isFormule:', item.isFormule, 'steps:', item.formuleSteps?.length);
+		// Formule : déclencher le flow multi-étapes
+		if (item.isFormule && item.formuleSteps?.length > 0) {
+			startFormule(item);
+			return;
+		}
 
 		const productId = item._id ?? item.id;
 		setOptionsLoading(true);
@@ -164,6 +225,7 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 	if (!visible) return null;
 
 	return (
+		<>
 		<Modal
 			visible={visible}
 			transparent
@@ -413,6 +475,56 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 						</View>
 					)}
 
+					{/* Formule overlay — inline comme options */}
+					{formulePending && (
+						<View style={dynamicStyles.optionsOverlay}>
+							<Text style={dynamicStyles.optionsTitle}>
+								{formulePending.name}
+							</Text>
+							<Text style={{ color: '#94A3B8', fontSize: 12, marginBottom: 10 }}>
+								Étape {formuleStepIdx + 1}/{formulePending.formuleSteps.length} — {formulePending.formuleSteps[formuleStepIdx]?.label}
+							</Text>
+							{formuleStepLoading ? (
+								<ActivityIndicator color="#F59E0B" style={{ marginVertical: 16 }} />
+							) : formuleStepProducts.length === 0 ? (
+								<Text style={{ color: '#94A3B8', fontSize: 13 }}>Aucun plat disponible dans cette catégorie.</Text>
+							) : (
+								<ScrollView style={{ maxHeight: 220 }}>
+									{formuleStepProducts.map((p) => {
+										const selected = formuleSelectedProduct?._id === p._id;
+										return (
+											<TouchableOpacity
+												key={p._id}
+												style={[dynamicStyles.optionRow, selected && dynamicStyles.optionRowSelected]}
+												onPress={() => setFormuleSelectedProduct(p)}
+											>
+												<Text style={dynamicStyles.optionName}>{p.name}</Text>
+												<Ionicons name={selected ? "radio-button-on" : "radio-button-off"} size={18} color={selected ? "#F59E0B" : "#64748B"} />
+											</TouchableOpacity>
+										);
+									})}
+								</ScrollView>
+							)}
+							<View style={dynamicStyles.optionsActions}>
+								<TouchableOpacity
+									style={dynamicStyles.optionsCancelBtn}
+									onPress={() => { setFormulePending(null); setFormuleChoices([]); setFormuleStepIdx(0); }}
+								>
+									<Text style={dynamicStyles.optionsCancelText}>Annuler</Text>
+								</TouchableOpacity>
+								<TouchableOpacity
+									style={[dynamicStyles.optionsConfirmBtn, !formuleSelectedProduct && { opacity: 0.4 }]}
+									onPress={handleFormuleNext}
+									disabled={!formuleSelectedProduct}
+								>
+									<Text style={dynamicStyles.optionsConfirmText}>
+										{formuleStepIdx + 1 < formulePending.formuleSteps.length ? 'Suivant →' : 'Ajouter'}
+									</Text>
+								</TouchableOpacity>
+							</View>
+						</View>
+					)}
+
 					{/* Footer */}
 					<View style={dynamicStyles.footer}>
 						<TouchableOpacity
@@ -437,11 +549,11 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 				</Pressable>
 			</Pressable>
 	</Modal>
+		</>
 	);
 };
 
-const createStyles = (THEME) =>
-	StyleSheet.create({
+const createStyles = (THEME) => StyleSheet.create({
 		// Overlay centré — identique TableDetailModal
 		overlay: {
 			flex: 1,
