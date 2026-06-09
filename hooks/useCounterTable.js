@@ -25,8 +25,11 @@ import { API_CONFIG } from "../src/config/apiConfig";
  * Helper : calculer le total d'une session (somme des orders non cancelled)
  * Factorisation : utilisé dans sendToCook + cancelOrder + closeTable
  */
+// ✅ Constante pour éviter de créer un nouveau array à chaque setState
+const EMPTY_ARRAY = [];
+
 const computeSessionTotal = (orders) => {
-	const activeOrders = orders.filter((o) => o.orderStatus !== "cancelled");
+	const activeOrders = orders.filter(o => o.orderStatus !== "cancelled");
 	const totalAmount = activeOrders.reduce((sum, o) => sum + (o.totalAmount || 0), 0);
 	const itemsCount = activeOrders.reduce((sum, o) => sum + (o.items?.length || 0), 0);
 	return { totalAmount, itemsCount };
@@ -41,7 +44,8 @@ const computeSessionTotal = (orders) => {
 export const useCounterTable = (tableId, restaurantId = null) => {
 	const [actualRestaurantId, setActualRestaurantId] = useState(restaurantId);
 	const [isOpening, setIsOpening] = useState(false);
-	const [sessionOrders, setSessionOrders] = useState([]);
+	const [sessionOrders, setSessionOrders] = useState(EMPTY_ARRAY);
+	const [hasInitializedRestaurantId, setHasInitializedRestaurantId] = useState(false);
 
 	// Auth fetch (même hook qu'Activity.jsx — retry auto, logs erreur détaillés)
 	const authFetch = useAuthFetch();
@@ -82,9 +86,9 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 	// Socket
 	const { socket } = useSocket();
 
-	// Initialiser restaurantId si absent
+	// Initialiser restaurantId si absent (une seule fois)
 	useEffect(() => {
-		if (actualRestaurantId) return;
+		if (actualRestaurantId || hasInitializedRestaurantId) return;
 
 		const initRestaurantId = async () => {
 			try {
@@ -92,20 +96,21 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 				const fromStore = useUserStore.getState().restaurantId;
 				if (fromStore) {
 					setActualRestaurantId(fromStore);
-					return;
-				}
-
-				const fromStorage = await AsyncStorage.getItem("restaurantId");
-				if (fromStorage) {
-					setActualRestaurantId(fromStorage);
+				} else {
+					const fromStorage = await AsyncStorage.getItem("restaurantId");
+					if (fromStorage) {
+						setActualRestaurantId(fromStorage);
+					}
 				}
 			} catch (err) {
 				console.error("[useCounterTable] Erreur init restaurantId:", err);
+			} finally {
+				setHasInitializedRestaurantId(true);
 			}
 		};
 
 		initRestaurantId();
-	}, [actualRestaurantId]);
+	}, [actualRestaurantId, hasInitializedRestaurantId]);
 
 	// (session ouverte explicitement via actions.openTable, pas au mount)
 
@@ -125,18 +130,63 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 	// Charger les orders de la session active
 	useEffect(() => {
 		if (!sessionId) {
-			setSessionOrders([]);
+			setSessionOrders(EMPTY_ARRAY);
 			return;
 		}
 
 		let cancelled = false;
 		const load = async () => {
+			// 🗑️ ÉTAPE 1 : Nettoyer les orphelins AVANT de charger
+			await counterService.cleanupOrphans(tableId, actualRestaurantId);
+			
+			// 📦 ÉTAPE 2 : Charger les orders (maintenant propres)
 			const orders = await counterService.getSessionOrders(
 				sessionId,
 				actualRestaurantId,
 				tableId,
 			);
-			if (!cancelled) setSessionOrders(orders);
+			
+			// 🔍 CONSOLE LOG : Commandes chargées depuis l'API
+			if (orders && orders.length > 0) {
+				console.log("\n📦 [ORDERS API] Commandes chargées pour session:", sessionId);
+				
+				// ⚠️ Distinguer les orders liés à la session counter vs orphelins d'anciennes réservations
+				const linkedToSession = orders.filter(o => o.tableSessionId === sessionId);
+				const orphans = orders.filter(o => o.tableSessionId !== sessionId);
+				
+				console.log("🔗 [ORDERS] Liées à cette session counter:", linkedToSession.length);
+				console.log("👻 [ORDERS] Orphelines (anciennes résa/sessions):", orphans.length);
+				
+				if (linkedToSession.length > 0) {
+					console.log("✅ [ORDERS] Commandes de cette session:", JSON.stringify(linkedToSession, null, 2));
+				}
+				
+				if (orphans.length > 0) {
+					console.log("⚠️ [ORDERS] Commandes orphelines (affichées mais pas de cette session):");
+					console.log("   Raisons possibles: ancienne réservation non payée, session fermée sans encaissement");
+					console.log("   Détails:", orphans.map(o => ({
+						orderId: o._id,
+						reservationId: o.reservationId?._id || 'N/A',
+						tableSessionId: o.tableSessionId || 'null',
+						items: o.items?.length,
+						total: o.totalAmount,
+						status: o.orderStatus
+					})));
+				}
+				
+				console.log("📊 [ORDERS] Résumé global:", {
+					total: orders.length,
+					liéesSession: linkedToSession.length,
+					orphelines: orphans.length,
+					totalItems: orders.reduce((sum, o) => sum + (o.items?.length || 0), 0)
+				});
+				
+				// ✅ Ne conserver QUE les orders liés à cette session
+				if (!cancelled) setSessionOrders(linkedToSession.length > 0 ? linkedToSession : EMPTY_ARRAY);
+			} else {
+				console.log("📭 [ORDERS API] Aucune commande pour session:", sessionId);
+				if (!cancelled) setSessionOrders(EMPTY_ARRAY);
+			}
 		};
 		load();
 
@@ -155,7 +205,9 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 			actualRestaurantId,
 			tableId,
 		);
-		setSessionOrders(orders);
+		// ✅ Filtrer les orphelins (même filtre que dans le useEffect principal)
+		const linkedToSession = orders.filter(o => o.tableSessionId === sessionId);
+		setSessionOrders(linkedToSession);
 	}, [sessionId, actualRestaurantId, tableId]);
 
 	/**
@@ -332,10 +384,12 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 					actualRestaurantId,
 					tableId,
 				);
-				setSessionOrders(updatedOrders);
+				// ✅ Filtrer les orphelins (cohérence avec refreshSessionOrders)
+				const linkedToSession = updatedOrders.filter(o => o.tableSessionId === tableSession._id);
+				setSessionOrders(linkedToSession);
 
 				// ✅ Sync totalAmount dans le store avec helper factorisé
-				const { totalAmount: newTotal, itemsCount: newItemsCount } = computeSessionTotal(updatedOrders);
+				const { totalAmount: newTotal, itemsCount: newItemsCount } = computeSessionTotal(linkedToSession);
 				updateTableSession(actualRestaurantId, tableSession._id, { 
 					totalAmount: newTotal, 
 					itemsCount: newItemsCount 
@@ -374,7 +428,9 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 					actualRestaurantId,
 					tableId,
 				);
-				const { totalAmount: newTotal, itemsCount: newItemsCount } = computeSessionTotal(updatedOrders);
+				// ✅ Filtrer les orphelins avant de calculer le total
+				const linkedToSession = updatedOrders.filter(o => o.tableSessionId === tableSession._id);
+				const { totalAmount: newTotal, itemsCount: newItemsCount } = computeSessionTotal(linkedToSession);
 				updateTableSession(actualRestaurantId, tableSession._id, { 
 					totalAmount: newTotal, 
 					itemsCount: newItemsCount 

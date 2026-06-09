@@ -22,8 +22,10 @@ import {
 	Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
+import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useTheme } from "../../../hooks/useTheme";
 import useCounterTable from "../../../hooks/useCounterTable";
+import useUserStore from "../../../src/stores/useUserStore";
 import MenuPickerModal from "./MenuPickerModal";
 
 const IS_PHONE = Dimensions.get("window").width < 600;
@@ -99,6 +101,15 @@ function getStatusConfig(billStatus) {
 // ─── Main Component ──────────────────────────────────────────────────────
 const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) => {
 	const THEME = useTheme();
+	const { email } = useUserStore();
+	// Prénom affiché dans les logs : partie avant le "." ou "@", capitalisée
+	const displayName = email
+		? (() => {
+				const local = email.split("@")[0];
+				const first = local.split(".")[0];
+				return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+			})()
+		: "—";
 	
 	// Navigation : "table" | "menuPicker" | "encaisser" | "discounts" | "reason"
 	const [currentView, setCurrentView] = useState("table");
@@ -120,6 +131,18 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 
 	const { session, cart, cartTotal, cartItemsCount, isOpening, actions, isTableFree, sessionOrders, sentTotal } =
 		useCounterTable(tableId, restaurantId);
+
+	// 🔍 DEBUG : Vérifier ce que reçoit réellement la modale
+	console.log("\n🪟 [MODAL] TableDetailModal - sessionOrders reçus:", {
+		sessionId: session?._id,
+		nbOrders: sessionOrders?.length || 0,
+		orders: sessionOrders?.map(o => ({
+			orderId: o._id,
+			tableSessionId: o.tableSessionId,
+			items: o.items?.length,
+			total: o.totalAmount
+		}))
+	});
 
 	// Total global = envoyé en cuisine + panier en attente
 	const grandTotal = sentTotal + cartTotal;
@@ -147,6 +170,63 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	}, [grandTotal, discounts, sessionOrders]);
 
 	const styles = useMemo(() => createStyles(THEME), [THEME]);
+
+	// ─── Log réductions (loggable) ────────────────────────────────────────
+	const DISCOUNT_LOG_KEY = "dailyLogs_discount_entries";
+
+	const appendDiscountLog = async (discount) => {
+		try {
+			const reasonConfig = DISCOUNT_REASONS.find((r) => r.id === discount.reason);
+			const reasonLabel = reasonConfig ? reasonConfig.label : discount.reason;
+			const tableLabel = table?.number ? `T${table.number}` : tableId;
+			const sessionRef = session?._id
+				? `#${String(session._id).slice(-6).toUpperCase()}`
+				: "—";
+
+			let montantStr = "";
+			if (discount.type === "percentage") {
+				montantStr = `-${discount.value}%`;
+			} else if (discount.type === "fixed_amount") {
+				montantStr = `-${discount.value.toFixed(2)}€`;
+			} else if (discount.type === "item_removal") {
+				const order = sessionOrders.find((o) => o._id === discount.orderId);
+				const item = order?.items[discount.itemIndex];
+				const itemName = item?.name || "plat";
+				montantStr = `Retrait "${itemName}"`;
+			}
+
+			const entry = {
+				_logId: `discount__${Date.now()}__${Math.random().toString(36).slice(2, 7)}`,
+				action: "discount_applied",
+				timestamp: new Date().toISOString(),
+				userName: displayName,
+				reservationLabel: tableLabel,
+				message: `Réduction ${montantStr} · ${reasonLabel}${
+					discount.description ? ` · "${discount.description}"` : ""
+				} · Session ${sessionRef}`,
+				// champs structurés pour affichage détaillé
+				meta: {
+					type: discount.type,
+					value: discount.value,
+					reason: reasonLabel,
+					description: discount.description || "",
+					sessionId: session?._id || null,
+					sessionRef,
+					tableLabel,
+					orderId: discount.orderId || null,
+					itemIndex: discount.itemIndex ?? null,
+				},
+			};
+
+			const raw = await AsyncStorage.getItem(DISCOUNT_LOG_KEY);
+			const existing = raw ? JSON.parse(raw) : [];
+			// Garder 200 entrées max (FIFO)
+			const next = [entry, ...existing].slice(0, 200);
+			await AsyncStorage.setItem(DISCOUNT_LOG_KEY, JSON.stringify(next));
+		} catch {
+			// Ne jamais crasher pour un log
+		}
+	};
 
 	// ─── Handlers ────────────────────────────────────────────────────────
 	const handleSendToCook = async () => {
@@ -274,6 +354,7 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 		};
 
 		setDiscounts([...discounts, newDiscount]);
+		appendDiscountLog(newDiscount);
 		setAddingDiscount(false);
 		setDiscountType(null);
 		setDiscountValue("");

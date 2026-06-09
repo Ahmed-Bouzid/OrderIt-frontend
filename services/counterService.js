@@ -109,7 +109,7 @@ const counterService = {
 	 * @param {string} paymentMethod - "cash" | "card_offline"
 	 * @param {Array} discounts - Liste des réductions (optionnel)
 	 */
-	async closeSession(sessionId, paymentMethod, discounts = []) {
+	async closeSession(sessionId, paymentMethod, discounts = [], force = false) {
 		// ✅ Validation stricte
 		if (!sessionId) throw new Error("sessionId requis");
 		if (!["cash", "card_offline"].includes(paymentMethod)) {
@@ -120,9 +120,12 @@ const counterService = {
 		if (discounts && discounts.length > 0) {
 			body.discounts = discounts;
 		}
+		if (force === true) {
+			body.force = true;
+		}
 		
 		return apiCall(
-			`closeSession(${sessionId}, ${paymentMethod})`,
+			`closeSession(${sessionId}, ${paymentMethod}${force ? ", FORCE" : ""})`,
 			`${API_CONFIG.baseURL}/counter/sessions/${sessionId}/close`,
 			{
 				method: "PATCH",
@@ -195,6 +198,34 @@ const counterService = {
 		} catch (err) {
 			console.error("[Counter] getSessionOrders error, retour []");
 			return []; // ✅ Airbag : retour [] sur erreur
+		}
+	},
+
+	/**
+	 * Nettoyer les commandes orphelines (anciennes réservations non-payées)
+	 * ✅ Silent fail : ne pas bloquer si le nettoyage échoue
+	 */
+	async cleanupOrphans(tableId, restaurantId) {
+		if (!tableId) {
+			console.warn("[Counter] cleanupOrphans: tableId manquant, skip");
+			return { deletedCount: 0 };
+		}
+		
+		try {
+			const params = new URLSearchParams({ tableId: String(tableId) });
+			if (restaurantId) params.set("restaurantId", String(restaurantId));
+			
+			const data = await apiCall(
+				`cleanupOrphans(${tableId})`,
+				`${API_CONFIG.baseURL}/orders/cleanup-orphans?${params.toString()}`,
+				{ method: "DELETE" }
+			);
+			
+			console.log(`🗑️ [Counter] Nettoyage: ${data.deletedCount || 0} orphelins supprimés`);
+			return data;
+		} catch (err) {
+			console.warn("[Counter] cleanupOrphans error (non-bloquant):", err.message);
+			return { deletedCount: 0 }; // ✅ Silent fail
 		}
 	},
 
