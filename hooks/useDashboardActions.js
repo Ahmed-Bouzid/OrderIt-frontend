@@ -4,6 +4,7 @@ import { Alert } from "react-native";
 import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthFetch } from "./useAuthFetch";
 import usePresentStore from "../src/stores/usePresentStore";
+import { appendCancellationLog } from "../utils/dailyLogHelper";
 
 export const useDashboardActions = (fetchReservations) => {
 	const authFetch = useAuthFetch();
@@ -163,8 +164,13 @@ export const useDashboardActions = (fetchReservations) => {
 
 								if (data && !Array.isArray(data)) {
 									cleanup(id); // Nettoyer l'état présent
-									Alert.alert("Succès", "Réservation annulée");
-									await fetchReservations(true);
+									Alert.alert("Succès", "Réservation annulée");								appendCancellationLog({
+									reservationId: id,
+									clientName: data.clientName,
+									tableNumber: data.tableNumber,
+									reservationDate: data.reservationDate,
+									reservationTime: data.reservationTime,
+								});									await fetchReservations(true);
 									return true;
 								}
 							} catch (error) {

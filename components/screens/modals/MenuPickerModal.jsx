@@ -105,7 +105,27 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 		return products.filter((p) => (p.category ?? "autre") === activeCategory);
 	}, [products, activeCategory, searchQuery]);
 
+	// Quantité déjà dans le panier pour un produit donné
+	const getCartQty = (productId) => {
+		const pid = String(productId);
+		return cart
+			.filter((i) => String(i.productId) === pid)
+			.reduce((sum, i) => sum + i.quantity, 0);
+	};
+
+	// Statut stock d'un produit : 'ok' | 'limit' | 'out'
+	const getStockStatus = (item) => {
+		if (!item.quantifiable) return 'ok';
+		if (item.quantity === 0) return 'out';
+		const inCart = getCartQty(item._id ?? item.id);
+		if (inCart >= item.quantity) return 'limit';
+		return 'ok';
+	};
+
 	const handleAddItem = async (item) => {
+		const status = getStockStatus(item);
+		if (status === 'out' || status === 'limit') return;
+
 		const productId = item._id ?? item.id;
 		setOptionsLoading(true);
 		try {
@@ -231,29 +251,58 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 								Aucun produit dans cette catégorie
 							</Text>
 						) : (
-							visibleProducts.map((item) => (
-								<TouchableOpacity
-									key={item._id ?? item.id}
-									onPress={() => handleAddItem(item)}
-									style={dynamicStyles.menuItem}
-								>
-									<View style={dynamicStyles.menuItemContent}>
-										<Text style={dynamicStyles.menuItemName}>
-											{item.name}
-										</Text>
-										<Text style={dynamicStyles.menuItemPrice}>
-											{item.price?.toFixed(2)}€
-										</Text>
-									</View>
-									<View style={dynamicStyles.addButton}>
-										<Ionicons
-											name="add"
-											size={24}
-											color={"#F59E0B"}
-										/>
-									</View>
-								</TouchableOpacity>
-							))
+							visibleProducts.map((item) => {
+								const stockStatus = getStockStatus(item);
+								const isOut = stockStatus === 'out';
+								const isLimit = stockStatus === 'limit';
+								const isDisabled = isOut || isLimit;
+								return (
+									<TouchableOpacity
+										key={item._id ?? item.id}
+										onPress={() => handleAddItem(item)}
+										style={[
+											dynamicStyles.menuItem,
+											isOut && dynamicStyles.menuItemOut,
+											isLimit && dynamicStyles.menuItemLimit,
+										]}
+										activeOpacity={isDisabled ? 1 : 0.7}
+									>
+										<View style={dynamicStyles.menuItemContent}>
+											<Text style={[
+												dynamicStyles.menuItemName,
+												isDisabled && dynamicStyles.menuItemNameDisabled,
+											]}>
+												{item.name}
+											</Text>
+											<View style={{ flexDirection: 'row', alignItems: 'center', gap: 6, marginTop: 3 }}>
+												<Text style={[
+													dynamicStyles.menuItemPrice,
+													isDisabled && dynamicStyles.menuItemNameDisabled,
+												]}>
+													{item.price?.toFixed(2)}€
+												</Text>
+												{isOut && (
+													<View style={dynamicStyles.stockWarningBadge}>
+														<Text style={dynamicStyles.stockWarningText}>Épuisé</Text>
+													</View>
+												)}
+												{isLimit && (
+													<View style={dynamicStyles.stockWarningBadgeLimit}>
+														<Text style={dynamicStyles.stockWarningText}>⚠ Limite atteinte</Text>
+													</View>
+												)}
+											</View>
+										</View>
+										<View style={dynamicStyles.addButton}>
+											<Ionicons
+												name="add"
+												size={24}
+												color={isDisabled ? "#334155" : "#F59E0B"}
+											/>
+										</View>
+									</TouchableOpacity>
+								);
+							})
 						)}
 					</ScrollView>
 
@@ -285,12 +334,19 @@ const MenuPickerModal = ({ visible, onClose, tableId, restaurantId }) => {
 											>
 												<Ionicons name="remove" size={14} color="#94A3B8" />
 											</TouchableOpacity>
-											<TouchableOpacity
-												onPress={() => setQty(tableId, item.tempId, item.quantity + 1)}
-												style={dynamicStyles.qtyBtn}
-											>
-												<Ionicons name="add" size={14} color="#94A3B8" />
-											</TouchableOpacity>
+											{(() => {
+												const prod = products.find((p) => String(p._id ?? p.id) === String(item.productId));
+												const atLimit = prod?.quantifiable && getCartQty(item.productId) >= prod.quantity;
+												return (
+													<TouchableOpacity
+														onPress={() => !atLimit && setQty(tableId, item.tempId, item.quantity + 1)}
+														style={[dynamicStyles.qtyBtn, atLimit && { opacity: 0.3 }]}
+														activeOpacity={atLimit ? 1 : 0.7}
+													>
+														<Ionicons name="add" size={14} color={atLimit ? "#475569" : "#94A3B8"} />
+													</TouchableOpacity>
+												);
+											})()}
 										</View>
 										<Text style={dynamicStyles.cartItemPrice}>
 											{(item.price * item.quantity).toFixed(2)}€
@@ -523,6 +579,35 @@ const createStyles = (THEME) =>
 			borderRadius: 8,
 			borderWidth: 1,
 			borderColor: "rgba(255,255,255,0.07)",
+		},
+		menuItemOut: {
+			backgroundColor: "rgba(255,255,255,0.015)",
+			borderColor: "rgba(255,255,255,0.04)",
+			opacity: 0.45,
+		},
+		menuItemLimit: {
+			borderColor: "rgba(245, 158, 11, 0.25)",
+			backgroundColor: "rgba(245, 158, 11, 0.04)",
+		},
+		menuItemNameDisabled: {
+			color: "#475569",
+		},
+		stockWarningBadge: {
+			backgroundColor: "rgba(239, 68, 68, 0.2)",
+			borderRadius: 4,
+			paddingHorizontal: 6,
+			paddingVertical: 2,
+		},
+		stockWarningBadgeLimit: {
+			backgroundColor: "rgba(245, 158, 11, 0.2)",
+			borderRadius: 4,
+			paddingHorizontal: 6,
+			paddingVertical: 2,
+		},
+		stockWarningText: {
+			fontSize: 10,
+			fontWeight: "600",
+			color: "#94A3B8",
 		},
 
 		menuItemContent: {

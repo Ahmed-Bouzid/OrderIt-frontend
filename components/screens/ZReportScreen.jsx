@@ -1,18 +1,19 @@
 /**
- * ZReportScreen.jsx — Clôture de caisse (Z de caisse)
+ * ZReportScreen.jsx — Gestion complète du Z de caisse
  *
- * Accessible uniquement aux managers (role admin).
- * Reçoit restaurantId + onClose depuis ActivityFloor via Modal.
+ * UN SEUL ÉCRAN pour :
+ *  1. Ouvrir la caisse (début de journée)
+ *  2. Voir le shift actif
+ *  3. Clôturer la caisse (fin de journée → génère le Z automatiquement)
+ *  4. Voir l'historique des Z + export
  *
- * Flux :
- *  1. Saisie fond de caisse initial (openingFloat) + espèces comptées (closingCount)
- *  2. Bouton "Aperçu" → preview (lecture seule, pas de sauvegarde)
- *  3. Affichage du récapitulatif : CA brut, net, ventilation par moyen de paiement, écart caisse
- *  4. Bouton "Clôturer la caisse" → Alert de confirmation → generateZ → succès
- *  5. Historique des Z (scroll vers le bas)
+ * Workflow simple :
+ *  - Pas de shift → Bouton "Ouvrir la caisse" → saisie fond de caisse
+ *  - Shift actif → Affichage infos + Bouton "Clôturer la caisse" → saisie espèces comptées → Z généré
+ *  - Historique en bas avec export
  */
 
-import React, { useState, useCallback, useMemo } from "react";
+import React, { useState, useCallback, useMemo, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -20,17 +21,18 @@ import {
 	TouchableOpacity,
 	TextInput,
 	ScrollView,
+	FlatList,
 	ActivityIndicator,
 	Alert,
-	SafeAreaView,
 	Modal,
 	Dimensions,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import * as FileSystem from "expo-file-system";
+import * as FileSystem from "expo-file-system/legacy";
 import * as Sharing from "expo-sharing";
 import { useTheme } from "../../hooks/useTheme";
 import zReportService from "../../services/zReportService";
+import cashShiftService from "../../services/cashShiftService";
 
 // ────────────────────────────────────────────────────────────────────────────
 // Formateur Z de caisse en texte ASCII exportable
@@ -107,6 +109,20 @@ function buildZText(z) {
 		);
 	}
 
+	// Section TOP PRODUITS pour les Z event-sourced
+	if (z.topProducts && z.topProducts.length > 0) {
+		lines.push(
+			sep2,
+			"  TOP PRODUITS VENDUS",
+			sep2,
+		);
+		for (const p of z.topProducts) {
+			const total = fmt(p.totalRevenueCents);
+			lines.push(pad(`  ${p.quantity}x ${p.name}`, total));
+		}
+		lines.push("");
+	}
+
 	if (z.notes) {
 		lines.push(sep2, "  NOTES", sep2, `  ${z.notes}`, "");
 	}
@@ -120,197 +136,129 @@ function buildZText(z) {
 	return lines.filter((l) => l !== null).join("\n");
 }
 
-// ────────────────────────────────────────────────────────────────────────────
-// Formateur Z de caisse DÉTAILLÉ (avec liste de tous les tickets + items)
-// ────────────────────────────────────────────────────────────────────────────
-function buildZTextDetailed(z, sessions) {
-	const SEP   = "═".repeat(40);
-	const sep2  = "─".repeat(40);
-	const sep3  = "·".repeat(40);
-	const pad   = (l, r, w = 40) => {
-		const gap = w - l.length - r.length;
-		return l + " ".repeat(Math.max(1, gap)) + r;
-	};
-	const fmt   = (cents) => zReportService.formatCents(cents);
-	const fmtEur = (euros) => zReportService.formatCents(Math.round((euros || 0) * 100));
-	const dt    = (iso) => new Date(iso).toLocaleString("fr-FR", {
-		weekday: "long", day: "numeric", month: "long", year: "numeric",
-		hour: "2-digit", minute: "2-digit",
-	});
-	const time  = (iso) => new Date(iso).toLocaleTimeString("fr-FR", {
-		hour: "2-digit", minute: "2-digit", second: "2-digit",
-	});
-
-	// En-tête identique au résumé
-	const base = buildZText(z);
-	const lines = [base, "", SEP, "  DÉTAIL DE TOUTES LES VENTES", SEP, ""];
-
-	let ticketNum = 0;
-	for (const s of sessions) {
-		ticketNum++;
-		const table   = s.tableId?.number || s.tableId || "?";
-		const server  = s.serverId?.name  || s.serverId || "Non assigné";
-		const method  = METHOD_LABEL[s.paymentMethod] || s.paymentMethod || "—";
-		const total   = fmtEur(s.totalAmount);
-		const opened  = s.openedAt ? time(s.openedAt) : "—";
-		const closed  = s.closedAt ? time(s.closedAt) : "—";
-
-		lines.push(
-			sep2,
-			`  TICKET #${ticketNum}  —  ${table}`,
-			sep2,
-			`  Serveur     : ${server}`,
-			`  Ouvert à    : ${opened}`,
-			`  Fermé à     : ${closed}`,
-			`  Paiement    : ${method}`,
-		);
-
-		// Remises session
-		if (s.discounts?.length > 0) {
-			for (const d of s.discounts) {
-				const val = d.type === "percent"
-					? `-${d.value}%`
-					: `- ${fmtEur(d.value / 100)}`;
-				lines.push(`  Remise      : ${d.label || d.type} ${val}`);
-			}
-		}
-
-		// Split payments
-		if (s.splitPayments?.length > 1) {
-			lines.push("  Paiement divisé :");
-			for (const sp of s.splitPayments) {
-				lines.push(`    · ${METHOD_LABEL[sp.paymentMethod] || sp.paymentMethod} : ${fmtEur(sp.amount)}`);
-			}
-		}
-
-		lines.push("  " + sep3.slice(2));
-
-		// Items de toutes les commandes de la session
-		const orders = s.orders || [];
-		if (orders.length === 0) {
-			lines.push("  (aucune commande associée)");
-		} else {
-			for (const order of orders) {
-				if (order.orderStatus === "cancelled") continue;
-				for (const item of order.items || []) {
-					if (item.itemStatus === "cancelled") {
-						lines.push(`  [ANNULÉ]  ${item.quantity}x ${item.name}`);
-						continue;
-					}
-					const lineTotal = fmtEur((item.price || 0) * (item.quantity || 1));
-					const base2     = `  ${item.quantity}x ${item.name}`;
-					const right     = `${fmtEur(item.price)} x${item.quantity} = ${lineTotal}`;
-					lines.push(pad(base2, right));
-					if (item.notes) {
-						lines.push(`       → ${item.notes}`);
-					}
-				}
-			}
-		}
-
-		lines.push("  " + sep3.slice(2));
-		lines.push(pad("  TOTAL", total));
-		lines.push("");
-	}
-
-	if (ticketNum === 0) {
-		lines.push("  Aucune vente sur cette période.", "");
-	}
-
-	lines.push(
-		SEP,
-		`  Document généré le ${new Date().toLocaleString("fr-FR")}`,
-		`  ${ticketNum} ticket(s) — Total : ${fmt(z.netSalesCents)}`,
-		SEP,
-	);
-
-	return lines.join("\n");
-}
-
-const { width: SCREEN_WIDTH, height: SCREEN_HEIGHT } = Dimensions.get("window");
-
-// ────────────────────────────────────────────────────────────────────────────
-// Sous-composant : ligne de détail (label / valeur)
-// ────────────────────────────────────────────────────────────────────────────
-const Row = ({ label, value, bold, color, styles }) => (
-	<View style={styles.row}>
-		<Text style={[styles.rowLabel, bold && styles.bold]}>{label}</Text>
-		<Text style={[styles.rowValue, bold && styles.bold, color ? { color } : null]}>
-			{value}
-		</Text>
-	</View>
-);
-
-// ────────────────────────────────────────────────────────────────────────────
-// Label humain par méthode de paiement
-// ────────────────────────────────────────────────────────────────────────────
 const METHOD_LABEL = {
 	card:       "Carte bancaire",
-	apple_pay:  "Apple Pay",
-	tap_to_pay: "Tap to Pay",
 	cash:       "Espèces",
-	fake:       "Simulation",
+	check:      "Chèque",
+	voucher:    "Ticket restaurant",
 	other:      "Autre",
 };
 
 // ────────────────────────────────────────────────────────────────────────────
-// ZReportScreen
+// Composant principal
 // ────────────────────────────────────────────────────────────────────────────
 export default function ZReportScreen({ restaurantId, onClose }) {
 	const THEME = useTheme();
 	const styles = useMemo(() => createStyles(THEME), [THEME]);
 
+	console.log("[ZReportScreen] Rendu avec restaurantId:", restaurantId);
+
 	// ── État ─────────────────────────────────────────────────────────────
-	const [openingFloat, setOpeningFloat] = useState("");   // fond initial (€)
-	const [closingCount, setClosingCount] = useState("");   // espèces comptées (€)
-	const [preview,  setPreview]  = useState(null);         // données prévisualisées
-	const [loading,  setLoading]  = useState(false);
-	const [generated, setGenerated] = useState(null);       // Z généré (succès)
-	const [history,  setHistory]  = useState([]);
-	const [historyMeta, setHistoryMeta] = useState(null);
+	const [activeShift, setActiveShift] = useState(null);
+	const [loadingShift, setLoadingShift] = useState(true);
+	const [openingFloat, setOpeningFloat] = useState("");
+	const [closingCount, setClosingCount] = useState("");
+	const [deviceId, setDeviceId] = useState("");
+	const [notes, setNotes] = useState("");
+	const [loading, setLoading] = useState(false);
+	const [history, setHistory] = useState([]);
 	const [loadingHistory, setLoadingHistory] = useState(false);
-	const [historyVisible, setHistoryVisible] = useState(false);
-	const [selectedZReport, setSelectedZReport] = useState(null); // Z sélectionné pour détail
-	const [loadingDetail, setLoadingDetail] = useState(false);
-	const [error, setError] = useState("");
+	const [selectedZ, setSelectedZ] = useState(null);
 
-	// ── Période par défaut : aujourd'hui 00h00 → maintenant ───────────────
-	const { start: periodStart, end: periodEnd } = useMemo(
-		() => zReportService.getTodayPeriod(),
-		[],
-	);
-
-	// ── Prévisualisation ─────────────────────────────────────────────────
-	const handlePreview = useCallback(async () => {
-		setError("");
-		if (!restaurantId) {
-			setError("Restaurant introuvable.");
-			return;
-		}
-		setLoading(true);
+	// ── Fonctions de chargement ──────────────────────────────────────────
+	const loadShift = async () => {
+		console.log("[ZReportScreen] loadShift() appelé");
 		try {
-			const data = await zReportService.preview(restaurantId, periodStart, periodEnd);
-			setPreview(data);
+			const response = await cashShiftService.getActiveShift();
+			console.log("[ZReportScreen] Response complète:", response);
+			const shift = response?.shift || null;
+			console.log("[ZReportScreen] Shift extrait:", shift);
+			setActiveShift(shift);
+			if (shift) {
+				setOpeningFloat((shift.openingFloatCents / 100).toFixed(2));
+			}
 		} catch (e) {
-			setError(e.message || "Erreur lors du calcul.");
+			console.warn("[ZReportScreen] Pas de shift actif:", e);
+			setActiveShift(null);
 		} finally {
-			setLoading(false);
+			console.log("[ZReportScreen] loadShift terminé, loadingShift -> false");
+			setLoadingShift(false);
 		}
-	}, [restaurantId, periodStart, periodEnd]);
+	};
 
-	// ── Génération (clôture définitive) ──────────────────────────────────
-	const handleGenerate = useCallback(() => {
-		if (!preview) {
-			Alert.alert("Aperçu requis", "Veuillez d'abord lancer l'aperçu.");
+	const loadHistory = async () => {
+		if (!restaurantId) {
+			console.warn("[ZReportScreen] Pas de restaurantId pour charger l'historique");
+			setLoadingHistory(false);
+			return;
+		}
+		setLoadingHistory(true);
+		try {
+			const { data } = await zReportService.list(restaurantId, 1, 20);
+			setHistory(data);
+		} catch (e) {
+			console.warn("[ZReportScreen] Erreur historique:", e);
+		} finally {
+			setLoadingHistory(false);
+		}
+	};
+
+	// ── Charger le shift actif + historique au montage ───────────────────
+	useEffect(() => {
+		console.log("[ZReportScreen] useEffect monté");
+		loadShift();
+		loadHistory();
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, []);
+
+	// ── Ouvrir la caisse ─────────────────────────────────────────────────
+	const handleOpenShift = async () => {
+		const opening = parseFloat((openingFloat || "0").replace(",", ".")) || 0;
+		if (opening <= 0) {
+			Alert.alert("Fond de caisse requis", "Veuillez saisir le montant du fond de caisse initial.");
 			return;
 		}
 
-		const opening = parseFloat((openingFloat || "0").replace(",", ".")) || 0;
+		Alert.alert(
+			"Ouvrir la caisse",
+			`Fond de caisse : ${opening.toFixed(2)} €\n\nConfirmer l'ouverture ?`,
+			[
+				{ text: "Annuler", style: "cancel" },
+				{
+					text: "Ouvrir",
+					onPress: async () => {
+						setLoading(true);
+						try {
+							const response = await cashShiftService.openShift({
+								openingFloatCents: Math.round(opening * 100),
+								deviceId: deviceId.trim() || undefined,
+								notes: notes.trim() || undefined,
+							});
+							const shift = response?.shift;
+							setActiveShift(shift);
+							setDeviceId("");
+							setNotes("");
+							Alert.alert("Caisse ouverte", `Shift #${shift.sequenceNumber} démarré.`);
+						} catch (e) {
+							Alert.alert("Erreur", e.message || "Impossible d'ouvrir la caisse.");
+						} finally {
+							setLoading(false);
+						}
+					},
+				},
+			]
+		);
+	};
+
+	// ── Clôturer la caisse ───────────────────────────────────────────────
+	const handleCloseShift = async () => {
+		if (!activeShift) return;
+
 		const closing = parseFloat((closingCount || "0").replace(",", ".")) || 0;
 
 		Alert.alert(
 			"Clôturer la caisse",
-			`Vous allez sceller le Z de caisse.\nCette opération est IRRÉVERSIBLE.\n\nCA net : ${zReportService.formatCents(preview.netSalesCents)}\n\nConfirmer ?`,
+			`Espèces comptées : ${closing.toFixed(2)} €\n\nCette opération génère le Z de caisse et est IRRÉVERSIBLE.\n\nConfirmer ?`,
 			[
 				{ text: "Annuler", style: "cancel" },
 				{
@@ -318,125 +266,55 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 					style: "destructive",
 					onPress: async () => {
 						setLoading(true);
-						setError("");
 						try {
-							const z = await zReportService.generate({
-								restaurantId,
-								periodStart,
-								periodEnd,
-								openingFloatCents: Math.round(opening * 100),
+							const result = await cashShiftService.closeShift(activeShift._id, {
 								closingCountCents: Math.round(closing * 100),
+								notes: notes.trim() || undefined,
 							});
-							setGenerated(z);
-							setPreview(null);
+							setActiveShift(null);
+							setClosingCount("");
+							setNotes("");
+							loadHistory(); // Recharger l'historique
+							Alert.alert(
+								"Caisse clôturée",
+								`Z #${result.zReport.sequenceNumber} généré avec succès.`,
+								[{ text: "OK" }]
+							);
 						} catch (e) {
-							setError(e.message || "Erreur lors de la clôture.");
+							Alert.alert("Erreur", e.message || "Impossible de clôturer la caisse.");
 						} finally {
 							setLoading(false);
 						}
 					},
 				},
-			],
+			]
 		);
-	}, [preview, openingFloat, closingCount, restaurantId, periodStart, periodEnd]);
+	};
 
-	// ── Historique ───────────────────────────────────────────────────────
-	const handleShowHistory = useCallback(async () => {
-		if (historyVisible) {
-			setHistoryVisible(false);
-			return;
-		}
-		setLoadingHistory(true);
-		try {
-			const { data, meta } = await zReportService.list(restaurantId, 1, 10);
-			setHistory(data);
-			setHistoryMeta(meta);
-			setHistoryVisible(true);
-		} catch (e) {
-			setError(e.message || "Erreur historique.");
-		} finally {
-			setLoadingHistory(false);
-		}
-	}, [historyVisible, restaurantId]);
-
-	// ── Sélection d'un Z pour afficher le détail ─────────────────────────
-	const handleSelectReport = useCallback(async (reportId) => {
-		setLoadingDetail(true);
-		setError("");
-		try {
-			const detail = await zReportService.getById(reportId, restaurantId);
-			setSelectedZReport(detail);
-		} catch (e) {
-			setError(e.message || "Erreur chargement détail.");
-		} finally {
-			setLoadingDetail(false);
-		}
-	}, [restaurantId]);
-
-	// ── Retour depuis le détail vers l'historique ────────────────────────
-	const handleBackToHistory = useCallback(() => {
-		setSelectedZReport(null);
-	}, []);
-
-	// ── Export Z en fichier texte partageable ────────────────────────────
-	const handleExport = useCallback(async (zData) => {
+	// ── Export Z ─────────────────────────────────────────────────────────
+	const handleExport = async (zData) => {
 		const canShare = await Sharing.isAvailableAsync();
 		if (!canShare) {
 			Alert.alert("Export non disponible", "Le partage de fichiers n'est pas disponible sur cet appareil.");
 			return;
 		}
 
-		Alert.alert(
-			"Type d'export",
-			"Voulez-vous un export résumé ou un export complet avec le détail de toutes les ventes ?",
-			[
-				{ text: "Annuler", style: "cancel" },
-				{
-					text: "Résumé",
-					onPress: async () => {
-						try {
-							const text     = buildZText(zData);
-							const fileName = `Z-caisse-${zData.sequenceNumber ?? "export"}-${new Date().toISOString().slice(0,10)}.txt`;
-							const fileUri  = FileSystem.cacheDirectory + fileName;
-							await FileSystem.writeAsStringAsync(fileUri, text, { encoding: FileSystem.EncodingType.UTF8 });
-							await Sharing.shareAsync(fileUri, {
-								mimeType: "text/plain",
-								dialogTitle: `Z de caisse #${zData.sequenceNumber} — Résumé`,
-								UTI: "public.plain-text",
-							});
-						} catch (e) {
-							Alert.alert("Erreur export", e.message || "Impossible d'exporter le Z.");
-						}
-					},
-				},
-				{
-					text: "Détail complet",
-					onPress: async () => {
-						try {
-							const sessions = await zReportService.getDetailedSessions(
-								zData.restaurantId,
-								zData.periodStart,
-								zData.periodEnd,
-							);
-							const text     = buildZTextDetailed(zData, sessions);
-							const fileName = `Z-caisse-${zData.sequenceNumber ?? "export"}-DETAIL-${new Date().toISOString().slice(0,10)}.txt`;
-							const fileUri  = FileSystem.cacheDirectory + fileName;
-							await FileSystem.writeAsStringAsync(fileUri, text, { encoding: FileSystem.EncodingType.UTF8 });
-							await Sharing.shareAsync(fileUri, {
-								mimeType: "text/plain",
-								dialogTitle: `Z de caisse #${zData.sequenceNumber} — Détail complet`,
-								UTI: "public.plain-text",
-							});
-						} catch (e) {
-							Alert.alert("Erreur export", e.message || "Impossible d'exporter le Z détaillé.");
-						}
-					},
-				},
-			],
-		);
-	}, []);
+		try {
+			const text     = buildZText(zData);
+			const fileName = `Z-caisse-${zData.sequenceNumber ?? "export"}-${new Date().toISOString().slice(0,10)}.txt`;
+			const fileUri  = FileSystem.cacheDirectory + fileName;
+			await FileSystem.writeAsStringAsync(fileUri, text, { encoding: FileSystem.EncodingType.UTF8 });
+			await Sharing.shareAsync(fileUri, {
+				mimeType: "text/plain",
+				dialogTitle: `Z de caisse #${zData.sequenceNumber}`,
+				UTI: "public.plain-text",
+			});
+		} catch (e) {
+			Alert.alert("Erreur export", e.message || "Impossible d'exporter le Z.");
+		}
+	};
 
-	// ── Rendu ─────────────────────────────────────────────────────────────
+	// ── Rendu ────────────────────────────────────────────────────────────
 	return (
 		<Modal
 			visible={true}
@@ -446,394 +324,376 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 		>
 			<View style={styles.modalOverlay}>
 				<View style={styles.modalContainer}>
-					{/* ── Header ──────────────────────────────────────────────── */}
+					{/* Header */}
 					<View style={styles.header}>
-						<Text style={styles.title}>Z de caisse</Text>
-						<TouchableOpacity onPress={onClose} style={styles.closeBtn} accessibilityLabel="Fermer">
-							<Ionicons name="close" size={22} color={THEME.colors.text.primary} />
+						<Text style={styles.title}>💰 Z de caisse</Text>
+						<TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+							<Ionicons name="close" size={24} color="#E2E8F0" />
 						</TouchableOpacity>
 					</View>
 
 					<ScrollView style={styles.scroll} contentContainerStyle={styles.scrollContent}>
-						{/* ── DÉTAIL D'UN Z SÉLECTIONNÉ ─────────────────────────── */}
-						{selectedZReport ? (
-					<View>
-						{/* Bouton retour */}
-						<TouchableOpacity
-							style={[styles.btn, styles.btnGhost, { marginBottom: 16 }]}
-							onPress={handleBackToHistory}
-						>
-							<Ionicons
-								name="arrow-back"
-								size={18}
-								color={THEME.colors.text.primary}
-								style={{ marginRight: 8 }}
-							/>
-							<Text style={[styles.btnText, { color: THEME.colors.text.primary }]}>
-								Retour à l'historique
-							</Text>
-						</TouchableOpacity>
+						{/* ── DÉTAIL D'UN Z SÉLECTIONNÉ ──────────────────────── */}
+						{selectedZ ? (
+							<View>
+								<TouchableOpacity
+									style={[styles.btn, styles.btnSecondary]}
+									onPress={() => setSelectedZ(null)}
+								>
+									<Ionicons name="arrow-back" size={18} color="#E2E8F0" style={{ marginRight: 8 }} />
+									<Text style={styles.btnText}>Retour</Text>
+								</TouchableOpacity>
 
-						{/* En-tête du Z */}
-						<View style={styles.detailHeader}>
-							<Text style={styles.detailTitle}>Z #{selectedZReport.sequenceNumber}</Text>
-							<Text style={styles.detailDate}>
-								Généré le {new Date(selectedZReport.createdAt).toLocaleDateString("fr-FR", {
-									weekday: "long", day: "numeric", month: "long", year: "numeric"
-								})} à {new Date(selectedZReport.createdAt).toLocaleTimeString("fr-FR", {
-									hour: "2-digit", minute: "2-digit"
-								})}
-							</Text>
-						</View>
-
-						{/* Période couverte */}
-						<View style={styles.section}>
-							<Text style={styles.sectionLabel}>Période couverte</Text>
-							<Text style={styles.periodText}>
-								{new Date(selectedZReport.periodStart).toLocaleDateString("fr-FR", {
-									weekday: "long", day: "numeric", month: "long"
-								})}
-								{" · "}
-								{new Date(selectedZReport.periodStart).toLocaleTimeString("fr-FR", {
-									hour: "2-digit", minute: "2-digit"
-								})}
-								{" → "}
-								{new Date(selectedZReport.periodEnd).toLocaleTimeString("fr-FR", {
-									hour: "2-digit", minute: "2-digit"
-								})}
-							</Text>
-						</View>
-
-						{/* Chiffres clés */}
-						<View style={styles.previewCard}>
-							<Row label="CA brut" value={zReportService.formatCents(selectedZReport.grossSalesCents)} styles={styles} />
-							{selectedZReport.totalRefundsCents > 0 && (
-								<Row label="Remboursements" value={`-${zReportService.formatCents(selectedZReport.totalRefundsCents)}`} styles={styles} />
-							)}
-							<View style={styles.divider} />
-							<Row label="CA net" value={zReportService.formatCents(selectedZReport.netSalesCents)} bold styles={styles} />
-							<View style={styles.divider} />
-
-							{/* Ventilation paiements */}
-							{selectedZReport.paymentBreakdown?.map((p) => (
-								<Row
-									key={p.method}
-									label={`${METHOD_LABEL[p.method] || p.method} (${p.ticketCount} ticket${p.ticketCount > 1 ? "s" : ""})`}
-									value={zReportService.formatCents(p.amountCents)}
-									styles={styles}
-								/>
-							))}
-
-							<View style={styles.divider} />
-
-							{/* Statistiques tickets */}
-							<Row label="Nombre de tickets" value={String(selectedZReport.ticketCount)} styles={styles} />
-							<Row label="Panier moyen" value={zReportService.formatCents(selectedZReport.avgBasketCents)} styles={styles} />
-							{selectedZReport.maxTicketCents > 0 && (
-								<Row label="Ticket max" value={zReportService.formatCents(selectedZReport.maxTicketCents)} styles={styles} />
-							)}
-
-							{/* Écart caisse */}
-							{(selectedZReport.openingFloatCents > 0 || selectedZReport.closingCountCents > 0) && (
-								<>
-									<View style={styles.divider} />
-									<Row
-										label="Fond de caisse initial"
-										value={zReportService.formatCents(selectedZReport.openingFloatCents)}
-										styles={styles}
-									/>
-									<Row
-										label="Espèces comptées"
-										value={zReportService.formatCents(selectedZReport.closingCountCents)}
-										styles={styles}
-									/>
-									<Row
-										label="Espèces attendues"
-										value={zReportService.formatCents(
-											selectedZReport.openingFloatCents +
-											(selectedZReport.paymentBreakdown?.find(p => p.method === "cash")?.amountCents || 0)
-										)}
-										styles={styles}
-									/>
-									<Row
-										label="Écart caisse"
-										value={zReportService.formatVariance(selectedZReport.cashVarianceCents)}
-										color={
-											selectedZReport.cashVarianceCents === 0
-												? "#22C55E"
-												: selectedZReport.cashVarianceCents > 0
-												? "#F59E0B"
-												: "#EF4444"
-										}
-										bold
-										styles={styles}
-									/>
-								</>
-							)}
-
-							{/* Notes */}
-							{selectedZReport.notes && (
-								<>
-									<View style={styles.divider} />
-									<View style={styles.section}>
-										<Text style={styles.sectionLabel}>Notes</Text>
-										<Text style={styles.periodText}>{selectedZReport.notes}</Text>
+								{/* En-tête */}
+								<View style={styles.card}>
+									<View style={{ flexDirection: "row", alignItems: "center", marginBottom: 12 }}>
+										<Ionicons name="receipt-outline" size={28} color="#F59E0B" style={{ marginRight: 12 }} />
+										<View style={{ flex: 1 }}>
+											<Text style={styles.cardTitle}>Z de caisse #{selectedZ.sequenceNumber}</Text>
+											<Text style={styles.cardSubtitle}>
+												{new Date(selectedZ.createdAt).toLocaleDateString("fr-FR", {
+													weekday: "long", day: "numeric", month: "long", year: "numeric"
+												})} • {new Date(selectedZ.createdAt).toLocaleTimeString("fr-FR", {
+													hour: "2-digit", minute: "2-digit"
+												})}
+											</Text>
+										</View>
 									</View>
-								</>
+
+									{selectedZ.generationMode === "event_sourced" && (
+										<View style={[styles.badge, { backgroundColor: "#10B98120" }]}>
+											<Ionicons name="shield-checkmark" size={14} color="#10B981" style={{ marginRight: 6 }} />
+											<Text style={[styles.badgeText, { color: "#10B981" }]}>
+												Event sourced • {selectedZ.eventsLocked || 0} événements verrouillés
+											</Text>
+										</View>
+									)}
+								</View>
+
+								{/* Chiffres clés */}
+								<View style={styles.card}>
+									<Text style={styles.sectionTitle}>💰 Chiffres clés</Text>
+									<View style={styles.row}>
+										<Text style={styles.rowLabel}>CA brut</Text>
+										<Text style={styles.rowValue}>{zReportService.formatCents(selectedZ.grossSalesCents || 0)}</Text>
+									</View>
+									<View style={styles.row}>
+										<Text style={styles.rowLabel}>Remises totales</Text>
+										<Text style={[styles.rowValue, { color: "#F59E0B" }]}>
+											-{zReportService.formatCents(selectedZ.totalDiscountsCents || 0)}
+										</Text>
+									</View>
+									<View style={styles.divider} />
+									<View style={styles.row}>
+										<Text style={[styles.rowLabel, { fontWeight: "700", fontSize: 16 }]}>CA net</Text>
+										<Text style={[styles.rowValue, styles.highlight, { fontSize: 20 }]}>
+											{zReportService.formatCents(selectedZ.netSalesCents)}
+										</Text>
+									</View>
+									<View style={styles.divider} />
+									<View style={styles.row}>
+										<Text style={styles.rowLabel}>Nombre de tickets</Text>
+										<Text style={styles.rowValue}>{selectedZ.ticketCount}</Text>
+									</View>
+									<View style={styles.row}>
+										<Text style={styles.rowLabel}>Panier moyen</Text>
+										<Text style={styles.rowValue}>{zReportService.formatCents(selectedZ.avgBasketCents)}</Text>
+									</View>
+								</View>
+
+								{/* Répartition paiements */}
+							{selectedZ.paymentBreakdown && selectedZ.paymentBreakdown.length > 0 && (
+								<View style={styles.card}>
+									<Text style={styles.sectionTitle}>💳 Répartition des paiements</Text>
+									{selectedZ.paymentBreakdown.map((payment) => (
+										<View key={payment.method} style={styles.row}>
+											<Text style={styles.rowLabel}>{METHOD_LABEL[payment.method] || payment.method}</Text>
+											<Text style={styles.rowValue}>{zReportService.formatCents(payment.amountCents)}</Text>
+										</View>
+									))}
+								</View>
 							)}
-						</View>
-							{/* Bouton export */}
-							<TouchableOpacity
-								style={[styles.btn, styles.btnPrimary, { marginTop: 8 }]}
-								onPress={() => handleExport(selectedZReport)}
-							>
-								<Ionicons name="share-outline" size={16} color="#0F172A" style={{ marginRight: 8 }} />
-								<Text style={[styles.btnText, { color: "#0F172A" }]}>Exporter ce Z</Text>
-							</TouchableOpacity>
-						{/* Espace bas */}
-						<View style={{ height: 40 }} />
-					</View>
+
+								{/* Contrôle caisse */}
+								{selectedZ.cashVarianceCents !== undefined && (
+									<View style={styles.card}>
+										<Text style={styles.sectionTitle}>💵 Contrôle caisse</Text>
+										<View style={styles.row}>
+											<Text style={styles.rowLabel}>Espèces théoriques</Text>
+											<Text style={styles.rowValue}>
+												{zReportService.formatCents(selectedZ.expectedCashCents || 0)}
+											</Text>
+										</View>
+										<View style={styles.row}>
+											<Text style={styles.rowLabel}>Espèces comptées</Text>
+											<Text style={styles.rowValue}>
+												{zReportService.formatCents(selectedZ.closingCountCents || 0)}
+											</Text>
+										</View>
+										<View style={styles.divider} />
+										<View style={styles.row}>
+											<Text style={[styles.rowLabel, { fontWeight: "700" }]}>Écart caisse</Text>
+											<Text style={[
+												styles.rowValue,
+												{ fontWeight: "700" },
+												selectedZ.cashVarianceCents === 0 ? styles.success :
+												selectedZ.cashVarianceCents > 0 ? styles.warning :
+												styles.error
+											]}>
+												{zReportService.formatVariance(selectedZ.cashVarianceCents)}
+											</Text>
+										</View>
+									</View>
+								)}
+
+								{/* Top produits */}
+								{selectedZ.topProducts && selectedZ.topProducts.length > 0 && (
+									<View style={styles.card}>
+										<Text style={styles.sectionTitle}>🏆 Top 3 produits</Text>
+										{selectedZ.topProducts.slice(0, 3).map((p, i) => (
+											<View key={i} style={styles.row}>
+												<Text style={styles.rowLabel}>
+													{i + 1}. {p.name} (×{p.quantity})
+												</Text>
+												<Text style={styles.rowValue}>{zReportService.formatCents(p.totalCents)}</Text>
+											</View>
+										))}
+									</View>
+								)}
+								{/* Tous les articles */}
+								{selectedZ.allProducts && selectedZ.allProducts.length > 0 && (() => {
+									console.log("🔍 [ZReportScreen] selectedZ complet :", JSON.stringify(selectedZ, null, 2));
+									console.log("🔍 [ZReportScreen] allProducts :", JSON.stringify(selectedZ.allProducts, null, 2));
+									return (
+										<View style={styles.card}>
+											<Text style={styles.sectionTitle}>📋 Tous les articles vendus ({selectedZ.allProducts.length})</Text>
+											<FlatList
+												data={selectedZ.allProducts}
+												keyExtractor={(item, idx) => `product-${idx}`}
+												scrollEnabled={false}
+												renderItem={({ item, index }) => (
+													<View style={styles.productItem}>
+														<View style={{ flex: 1 }}>
+															<Text style={styles.productName}>{item.name}</Text>
+															<Text style={styles.productQty}>Quantité : {item.quantity}</Text>
+														</View>
+														<Text style={styles.productRevenue}>
+															{zReportService.formatCents(item.revenueCents)}
+														</Text>
+													</View>
+												)}
+												ItemSeparatorComponent={() => <View style={{ height: 1, backgroundColor: "#334155", marginVertical: 8 }} />}
+											/>
+										</View>
+									);
+								})()}
+								{/* Période */}
+								<View style={styles.card}>
+									<Text style={styles.sectionTitle}>📅 Période</Text>
+									<View style={styles.row}>
+										<Text style={styles.rowLabel}>Début</Text>
+										<Text style={styles.rowValue}>
+											{new Date(selectedZ.periodStart).toLocaleString("fr-FR", {
+												day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
+											})}
+										</Text>
+									</View>
+									<View style={styles.row}>
+										<Text style={styles.rowLabel}>Fin</Text>
+										<Text style={styles.rowValue}>
+											{new Date(selectedZ.periodEnd).toLocaleString("fr-FR", {
+												day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit"
+											})}
+										</Text>
+									</View>
+								</View>
+
+								{/* Notes */}
+								{selectedZ.notes && (
+									<View style={styles.card}>
+										<Text style={styles.sectionTitle}>📝 Notes</Text>
+										<Text style={styles.rowValue}>{selectedZ.notes}</Text>
+									</View>
+								)}
+
+								<TouchableOpacity
+									style={[styles.btn, styles.btnPrimary]}
+									onPress={() => handleExport(selectedZ)}
+								>
+									<Ionicons name="share-outline" size={18} color="#0F172A" style={{ marginRight: 8 }} />
+									<Text style={[styles.btnText, { color: "#0F172A" }]}>Exporter ce Z</Text>
+								</TouchableOpacity>
+							</View>
 						) : (
 							<>
-								{/* ── CRÉATION NOUVEAU Z ────────────────────────────── */}
-								{/* ── Période ─────────────────────────────────────────── */}
-								<View style={styles.section}>
-					<Text style={styles.sectionLabel}>Période</Text>
-					<Text style={styles.periodText}>
-						{periodStart.toLocaleDateString("fr-FR", {
-							weekday: "long", day: "numeric", month: "long",
-						})}
-						{" · "}
-						{periodStart.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-						{" → "}
-						{periodEnd.toLocaleTimeString("fr-FR", { hour: "2-digit", minute: "2-digit" })}
-					</Text>
-				</View>
+								{/* ── SECTION SHIFT ────────────────────────────────── */}
+								{loadingShift ? (
+									<View style={styles.centerLoader}>
+										<ActivityIndicator size="large" color="#F59E0B" />
+									</View>
+								) : activeShift ? (
+									/* Shift actif → Clôture */
+									<View style={styles.section}>
+										<View style={styles.badge}>
+											<Ionicons name="checkmark-circle" size={16} color="#10B981" style={{ marginRight: 6 }} />
+											<Text style={styles.badgeText}>Shift #{activeShift.sequenceNumber} ouvert</Text>
+										</View>
 
-				{/* ── Saisie fond de caisse ────────────────────────────── */}
-				<View style={styles.section}>
-					<Text style={styles.sectionLabel}>Fond de caisse initial (€)</Text>
-					<TextInput
-						style={styles.input}
-						placeholder="ex : 100.00"
-						placeholderTextColor={THEME.colors.text.muted}
-						keyboardType="decimal-pad"
-						value={openingFloat}
-						onChangeText={(v) => { setOpeningFloat(v); setPreview(null); }}
-					/>
-				</View>
+										<View style={styles.card}>
+											<Text style={styles.cardTitle}>Caisse ouverte</Text>
+											<View style={styles.row}>
+												<Text style={styles.rowLabel}>Fond de caisse initial</Text>
+												<Text style={styles.rowValue}>{(activeShift.openingFloatCents / 100).toFixed(2)} €</Text>
+											</View>
+											<View style={styles.row}>
+												<Text style={styles.rowLabel}>Ouvert le</Text>
+												<Text style={styles.rowValue}>
+													{new Date(activeShift.openedAt).toLocaleString("fr-FR", {
+														day: "numeric", month: "short", hour: "2-digit", minute: "2-digit"
+													})}
+												</Text>
+											</View>
+										</View>
 
-				<View style={styles.section}>
-					<Text style={styles.sectionLabel}>Espèces comptées à la clôture (€)</Text>
-					<TextInput
-						style={styles.input}
-						placeholder="ex : 247.50"
-						placeholderTextColor={THEME.colors.text.muted}
-						keyboardType="decimal-pad"
-						value={closingCount}
-						onChangeText={(v) => { setClosingCount(v); setPreview(null); }}
-					/>
-				</View>
+										<Text style={styles.sectionLabel}>Espèces comptées à la clôture (€)</Text>
+										<TextInput
+											style={styles.input}
+											placeholder="ex : 247.50"
+											placeholderTextColor="#64748B"
+											keyboardType="decimal-pad"
+											value={closingCount}
+											onChangeText={setClosingCount}
+										/>
 
-				{/* ── Bouton aperçu ────────────────────────────────────── */}
-				{!generated && (
-					<TouchableOpacity
-						style={[styles.btn, styles.btnSecondary]}
-						onPress={handlePreview}
-						disabled={loading}
-					>
-						{loading && !preview ? (
-							<ActivityIndicator size="small" color={THEME.colors.text.primary} />
-						) : (
-							<>
-								<Ionicons name="eye-outline" size={16} color={THEME.colors.text.primary} style={{ marginRight: 6 }} />
-								<Text style={[styles.btnText, { color: THEME.colors.text.primary }]}>
-									Calculer l'aperçu
-								</Text>
+										<Text style={styles.sectionLabel}>Notes (optionnel)</Text>
+										<TextInput
+											style={[styles.input, { height: 60 }]}
+											placeholder="Remarques sur la journée..."
+											placeholderTextColor="#64748B"
+											multiline
+											value={notes}
+											onChangeText={setNotes}
+										/>
+
+										<TouchableOpacity
+											style={[styles.btn, styles.btnPrimary]}
+											onPress={handleCloseShift}
+											disabled={loading}
+										>
+											{loading ? (
+												<ActivityIndicator size="small" color="#0F172A" />
+											) : (
+												<>
+													<Ionicons name="lock-closed" size={18} color="#0F172A" style={{ marginRight: 8 }} />
+													<Text style={[styles.btnText, { color: "#0F172A" }]}>Clôturer la caisse</Text>
+												</>
+											)}
+										</TouchableOpacity>
+									</View>
+								) : (
+									/* Pas de shift → Ouverture */
+									<View style={styles.section}>
+										<View style={[styles.badge, { backgroundColor: "#F59E0B" }]}>
+											<Ionicons name="warning" size={16} color="#FFF" style={{ marginRight: 6 }} />
+											<Text style={[styles.badgeText, { color: "#FFF" }]}>Aucun shift actif</Text>
+										</View>
+
+										<View style={styles.card}>
+											<Text style={styles.cardTitle}>Ouvrir la caisse</Text>
+											<Text style={styles.cardSubtitle}>
+												Démarrez un nouveau shift pour commencer la journée
+											</Text>
+										</View>
+
+										<Text style={styles.sectionLabel}>Fond de caisse initial (€) *</Text>
+										<TextInput
+											style={styles.input}
+											placeholder="ex : 100.00"
+											placeholderTextColor="#64748B"
+											keyboardType="decimal-pad"
+											value={openingFloat}
+											onChangeText={setOpeningFloat}
+										/>
+
+										<Text style={styles.sectionLabel}>ID appareil (optionnel)</Text>
+										<TextInput
+											style={styles.input}
+											placeholder="ex : Caisse 1"
+											placeholderTextColor="#64748B"
+											value={deviceId}
+											onChangeText={setDeviceId}
+										/>
+
+										<Text style={styles.sectionLabel}>Notes (optionnel)</Text>
+										<TextInput
+											style={[styles.input, { height: 60 }]}
+											placeholder="Remarques..."
+											placeholderTextColor="#64748B"
+											multiline
+											value={notes}
+											onChangeText={setNotes}
+										/>
+
+										<TouchableOpacity
+											style={[styles.btn, styles.btnPrimary]}
+											onPress={handleOpenShift}
+											disabled={loading}
+										>
+											{loading ? (
+												<ActivityIndicator size="small" color="#0F172A" />
+											) : (
+												<>
+													<Ionicons name="log-in-outline" size={18} color="#0F172A" style={{ marginRight: 8 }} />
+													<Text style={[styles.btnText, { color: "#0F172A" }]}>Ouvrir la caisse</Text>
+												</>
+											)}
+										</TouchableOpacity>
+									</View>
+								)}
+
+								{/* ── HISTORIQUE DES Z ──────────────────────────────── */}
+								<View style={[styles.section, { marginTop: 32 }]}>
+									<Text style={styles.sectionTitle}>📋 Historique des Z</Text>
+
+									{loadingHistory ? (
+										<View style={styles.centerLoader}>
+											<ActivityIndicator size="small" color="#F59E0B" />
+										</View>
+									) : history.length === 0 ? (
+										<View style={styles.emptyState}>
+											<Ionicons name="document-outline" size={48} color="#475569" />
+											<Text style={styles.emptyText}>Aucun Z de caisse généré</Text>
+										</View>
+									) : (
+										history.map((z) => (
+											<TouchableOpacity
+												key={z._id}
+												style={styles.historyItem}
+												onPress={() => setSelectedZ(z)}
+											>
+												<View style={styles.historyLeft}>
+													<Text style={styles.historyTitle}>Z #{z.sequenceNumber}</Text>
+													<Text style={styles.historyDate}>
+														{new Date(z.createdAt).toLocaleDateString("fr-FR", {
+															day: "numeric", month: "short", year: "numeric"
+														})}
+													</Text>
+												</View>
+												<View style={styles.historyRight}>
+													<Text style={styles.historyAmount}>
+														{zReportService.formatCents(z.netSalesCents)}
+													</Text>
+													<Ionicons name="chevron-forward" size={20} color="#64748B" />
+												</View>
+											</TouchableOpacity>
+										))
+									)}
+								</View>
 							</>
 						)}
-					</TouchableOpacity>
-				)}
-
-				{/* ── Erreur ───────────────────────────────────────────── */}
-				{!!error && (
-					<View style={styles.errorBox}>
-						<Ionicons name="alert-circle-outline" size={16} color="#FF4D4D" style={{ marginRight: 6 }} />
-						<Text style={styles.errorText}>{error}</Text>
-					</View>
-				)}
-
-				{/* ── Aperçu / Preview ─────────────────────────────────── */}
-				{preview && !generated && (
-					<View style={styles.card}>
-						<Text style={styles.cardTitle}>Récapitulatif</Text>
-
-						<Row label="CA brut"               value={zReportService.formatCents(preview.grossSalesCents)}     styles={styles} />
-						<Row label="Remboursements"         value={`− ${zReportService.formatCents(preview.totalRefundsCents)}`} styles={styles} />
-						<Row label="Annulations (voids)"    value={`− ${zReportService.formatCents(preview.totalVoidsCents)}`}   styles={styles} />
-						<View style={styles.divider} />
-						<Row
-							label="CA net"
-							value={zReportService.formatCents(preview.netSalesCents)}
-							bold
-							color={THEME.colors.primary?.amber || "#F59E0B"}
-							styles={styles}
-						/>
-
-						<View style={styles.divider} />
-
-						{/* Ventilation par moyen de paiement */}
-						{(preview.paymentBreakdown || []).map((p) => (
-							<Row
-								key={p.method}
-								label={`${METHOD_LABEL[p.method] ?? p.method} (${p.ticketCount} ticket${p.ticketCount > 1 ? "s" : ""})`}
-								value={zReportService.formatCents(p.amountCents)}
-								styles={styles}
-							/>
-						))}
-
-						<View style={styles.divider} />
-
-						<Row label="Nombre de tickets"  value={String(preview.ticketCount)}  styles={styles} />
-						<Row label="Panier moyen"        value={zReportService.formatCents(preview.avgBasketCents)} styles={styles} />
-						<Row label="Ticket max"          value={zReportService.formatCents(preview.maxTicketCents)} styles={styles} />
-						<Row label="Annulations"         value={String(preview.voidCount)}   styles={styles} />
-						<Row label="Remboursements"      value={String(preview.refundCount)} styles={styles} />
-
-						{/* Écart caisse (si données saisies) */}
-						{(closingCount || openingFloat) && (() => {
-							const opening = Math.round((parseFloat((openingFloat || "0").replace(",", ".")) || 0) * 100);
-							const closing = Math.round((parseFloat((closingCount || "0").replace(",", ".")) || 0) * 100);
-							const cashEntry = (preview.paymentBreakdown || []).find((p) => p.method === "cash");
-							const cashSales = cashEntry?.amountCents ?? 0;
-							const expected  = opening + cashSales;
-							const variance  = closing - expected;
-							return (
-								<>
-									<View style={styles.divider} />
-									<Row label="Espèces attendues"    value={zReportService.formatCents(expected)} styles={styles} />
-									<Row
-										label="Écart caisse"
-										value={zReportService.formatVariance(variance)}
-										bold
-										color={variance === 0 ? "#22C55E" : variance > 0 ? "#F59E0B" : "#EF4444"}
-										styles={styles}
-									/>
-								</>
-							);
-						})()}
-
-						{/* Bouton clôturer */}
-						<TouchableOpacity
-							style={[styles.btn, styles.btnDanger, { marginTop: 20 }]}
-							onPress={handleGenerate}
-							disabled={loading}
-						>
-							{loading ? (
-								<ActivityIndicator size="small" color="#fff" />
-							) : (
-								<>
-									<Ionicons name="lock-closed-outline" size={16} color="#fff" style={{ marginRight: 6 }} />
-									<Text style={[styles.btnText, { color: "#fff" }]}>
-										Clôturer la caisse (définitif)
-									</Text>
-								</>
-							)}
-						</TouchableOpacity>
-					</View>
-				)}
-
-				{/* ── Succès ─────────────────────────────────────────── */}
-				{generated && (
-					<View style={styles.successCard}>
-						<Ionicons name="checkmark-circle" size={40} color="#22C55E" style={{ marginBottom: 12 }} />
-						<Text style={styles.successTitle}>Z de caisse généré !</Text>
-						<Text style={styles.successSubtitle}>
-							N° {generated.sequenceNumber} · {zReportService.formatCents(generated.netSalesCents)}
-						</Text>
-						<TouchableOpacity
-							style={[styles.btn, styles.btnPrimary, { marginTop: 16 }]}
-							onPress={() => handleExport(generated)}
-						>
-							<Ionicons name="share-outline" size={16} color="#0F172A" style={{ marginRight: 8 }} />
-							<Text style={[styles.btnText, { color: "#0F172A" }]}>Exporter le Z</Text>
-						</TouchableOpacity>
-						<TouchableOpacity style={[styles.btn, styles.btnSecondary, { marginTop: 8 }]} onPress={onClose}>
-							<Text style={[styles.btnText, { color: THEME.colors.text.primary }]}>Fermer</Text>
-						</TouchableOpacity>
-					</View>
-				)}
-
-				{/* ── Historique ────────────────────────────────────── */}
-				<TouchableOpacity
-					style={[styles.btn, styles.btnGhost, { marginTop: 8 }]}
-					onPress={handleShowHistory}
-					disabled={loadingHistory}
-				>
-					{loadingHistory ? (
-						<ActivityIndicator size="small" color={THEME.colors.text.muted} />
-					) : (
-						<>
-							<Ionicons
-								name={historyVisible ? "chevron-up-outline" : "time-outline"}
-								size={16}
-								color={THEME.colors.text.muted}
-								style={{ marginRight: 6 }}
-							/>
-							<Text style={[styles.btnText, { color: THEME.colors.text.muted }]}>
-								{historyVisible ? "Masquer l'historique" : "Historique des Z"}
-							</Text>
-						</>
-					)}
-				</TouchableOpacity>
-
-				{historyVisible && (
-					<View style={{ marginTop: 8 }}>
-						{history.length === 0 ? (
-							<Text style={styles.emptyText}>Aucun Z généré pour ce restaurant.</Text>
-						) : (
-							history.map((z) => (
-								<TouchableOpacity 
-									key={z._id} 
-									style={styles.historyItem}
-									onPress={() => handleSelectReport(z._id)}
-									activeOpacity={0.7}
-								>
-									<View style={{ flex: 1 }}>
-										<Text style={styles.historyTitle}>Z #{z.sequenceNumber}</Text>
-										<Text style={styles.historyMeta}>
-											{new Date(z.periodStart).toLocaleDateString("fr-FR")}
-											{" · "}
-											{z.generatedBy?.name ?? "—"}
-										</Text>
-									</View>
-									<View style={{ alignItems: "flex-end" }}>
-										<Text style={styles.historyAmount}>
-											{zReportService.formatCents(z.netSalesCents)}
-										</Text>
-										<Ionicons 
-											name="chevron-forward" 
-											size={18} 
-											color={THEME.colors.text.muted}
-											style={{ marginTop: 2 }}
-										/>
-									</View>
-								</TouchableOpacity>
-							))
-						)}
-						{historyMeta?.hasMore && (
-							<Text style={styles.emptyText}>+ voir plus dans les archives</Text>
-						)}
-					</View>
-				)}
-
-				{/* Espace bas de page */}
-				<View style={{ height: 40 }} />
-				</>
-				)}
-				</ScrollView>
+					</ScrollView>
+				</View>
 			</View>
-		</View>
 		</Modal>
 	);
 }
@@ -841,30 +701,27 @@ export default function ZReportScreen({ restaurantId, onClose }) {
 // ────────────────────────────────────────────────────────────────────────────
 // Styles
 // ────────────────────────────────────────────────────────────────────────────
-const createStyles = (THEME) =>
-	StyleSheet.create({
-		// ─── Modal Overlay & Container ─────────────────────────────
+function createStyles(THEME) {
+	return StyleSheet.create({
 		modalOverlay: {
 			flex: 1,
-			backgroundColor: "rgba(0, 0, 0, 0.6)",
+			backgroundColor: "rgba(0,0,0,0.70)",
 			justifyContent: "center",
 			alignItems: "center",
-			padding: 20,
 		},
 		modalContainer: {
-			width: Math.min(SCREEN_WIDTH - 40, 600),
-			height: SCREEN_HEIGHT * 0.85,
-			backgroundColor: THEME.colors.background.dark,
-			borderRadius: 16,
+			backgroundColor: "#1E293B",
+			borderRadius: 20,
+			width: "90%",
+			maxWidth: 600,
+			height: "80%",
 			overflow: "hidden",
 			shadowColor: "#000",
-			shadowOffset: { width: 0, height: 8 },
+			shadowOffset: { width: 0, height: 4 },
 			shadowOpacity: 0.3,
-			shadowRadius: 16,
+			shadowRadius: 8,
 			elevation: 10,
 		},
-
-		// ─── Header ────────────────────────────────────────────────
 		header: {
 			flexDirection: "row",
 			alignItems: "center",
@@ -872,206 +729,196 @@ const createStyles = (THEME) =>
 			paddingHorizontal: 20,
 			paddingVertical: 16,
 			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
+			borderBottomColor: "#334155",
 		},
 		title: {
-			fontSize: 18,
+			fontSize: 20,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			color: "#E2E8F0",
 		},
 		closeBtn: {
-			padding: 4,
+			padding: 8,
 		},
-
-		// ─── Scroll ────────────────────────────────────────────────
 		scroll: {
 			flex: 1,
 		},
 		scrollContent: {
-			paddingHorizontal: 20,
-			paddingTop: 20,
+			padding: 20,
+			paddingBottom: 40,
 		},
-
-		// ─── Sections ──────────────────────────────────────────────
+		centerLoader: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			minHeight: 300,
+		},
 		section: {
-			marginBottom: 16,
+			marginBottom: 24,
+		},
+		sectionTitle: {
+			fontSize: 16,
+			fontWeight: "700",
+			color: "#E2E8F0",
+			marginBottom: 12,
 		},
 		sectionLabel: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: "#94A3B8",
+			marginBottom: 8,
+			marginTop: 12,
+		},
+		badge: {
+			flexDirection: "row",
+			alignItems: "center",
+			alignSelf: "flex-start",
+			paddingHorizontal: 12,
+			paddingVertical: 6,
+			borderRadius: 20,
+			backgroundColor: "#334155",
+			marginBottom: 16,
+		},
+		badgeText: {
 			fontSize: 12,
 			fontWeight: "600",
-			color: THEME.colors.text.muted,
-			textTransform: "uppercase",
-			letterSpacing: 0.8,
-			marginBottom: 8,
+			color: "#E2E8F0",
 		},
-		periodText: {
-			fontSize: 14,
-			color: THEME.colors.text.secondary,
-		},
-
-		// ─── Input ─────────────────────────────────────────────────
-		input: {
-			backgroundColor: THEME.colors.background.elevated,
-			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
-			borderRadius: 10,
-			paddingHorizontal: 14,
-			paddingVertical: 12,
-			fontSize: 15,
-			color: THEME.colors.text.primary,
-		},
-
-		// ─── Card ──────────────────────────────────────────────────
 		card: {
-			backgroundColor: THEME.colors.background.elevated,
-			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
+			backgroundColor: "#0F172A",
 			borderRadius: 12,
 			padding: 16,
 			marginBottom: 16,
 		},
 		cardTitle: {
-			fontSize: 15,
+			fontSize: 16,
 			fontWeight: "700",
-			color: THEME.colors.text.primary,
-			marginBottom: 16,
+			color: "#E2E8F0",
+			marginBottom: 4,
+		},
+		cardSubtitle: {
+			fontSize: 13,
+			color: "#94A3B8",
+			marginBottom: 12,
 		},
 		row: {
 			flexDirection: "row",
 			justifyContent: "space-between",
-			paddingVertical: 6,
+			alignItems: "center",
+			paddingVertical: 8,
 		},
 		rowLabel: {
 			fontSize: 14,
-			color: THEME.colors.text.secondary,
-			flex: 1,
+			color: "#94A3B8",
 		},
 		rowValue: {
 			fontSize: 14,
-			color: THEME.colors.text.primary,
-			textAlign: "right",
+			fontWeight: "600",
+			color: "#E2E8F0",
 		},
-		bold: {
+		highlight: {
+			color: "#F59E0B",
+			fontSize: 16,
 			fontWeight: "700",
-			fontSize: 15,
 		},
+		success: { color: "#10B981" },
+		warning: { color: "#F59E0B" },
+		error: { color: "#EF4444" },
 		divider: {
 			height: 1,
-			backgroundColor: THEME.colors.border.subtle,
-			marginVertical: 10,
+			backgroundColor: "#334155",
+			marginVertical: 12,
 		},
-
-		// ─── Boutons ───────────────────────────────────────────────
+		input: {
+			backgroundColor: "#0F172A",
+			borderWidth: 1,
+			borderColor: "#334155",
+			borderRadius: 8,
+			paddingHorizontal: 16,
+			paddingVertical: 12,
+			fontSize: 15,
+			color: "#E2E8F0",
+		},
 		btn: {
 			flexDirection: "row",
 			alignItems: "center",
 			justifyContent: "center",
-			paddingVertical: 13,
+			paddingVertical: 14,
 			paddingHorizontal: 20,
 			borderRadius: 10,
-			marginBottom: 10,
+			marginTop: 12,
+		},
+		btnPrimary: {
+			backgroundColor: "#F59E0B",
 		},
 		btnSecondary: {
-			backgroundColor: THEME.colors.background.elevated,
-			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
-		},
-		btnDanger: {
-			backgroundColor: "#EF4444",
-		},
-		btnGhost: {
-			backgroundColor: "transparent",
+			backgroundColor: "#334155",
 		},
 		btnText: {
-			fontSize: 14,
+			fontSize: 15,
 			fontWeight: "600",
+			color: "#E2E8F0",
 		},
-
-		// ─── Succès ────────────────────────────────────────────────
-		successCard: {
-			backgroundColor: THEME.colors.background.elevated,
-			borderWidth: 1,
-			borderColor: "#22C55E44",
+		historyItem: {
+			backgroundColor: "#0F172A",
 			borderRadius: 12,
-			padding: 24,
-			alignItems: "center",
-			marginBottom: 16,
-		},
-		successTitle: {
-			fontSize: 18,
-			fontWeight: "700",
-			color: "#22C55E",
-			marginBottom: 4,
-		},
-		successSubtitle: {
-			fontSize: 14,
-			color: THEME.colors.text.secondary,
-		},
-
-		// ─── Erreur ────────────────────────────────────────────────
-		errorBox: {
+			padding: 16,
+			marginBottom: 12,
 			flexDirection: "row",
 			alignItems: "center",
-			backgroundColor: "#FF4D4D18",
-			borderRadius: 8,
-			padding: 12,
-			marginBottom: 12,
+			justifyContent: "space-between",
 		},
-		errorText: {
-			color: "#FF4D4D",
-			fontSize: 13,
+		historyLeft: {
 			flex: 1,
 		},
-
-		// ─── Historique ────────────────────────────────────────────
-		historyItem: {
+		historyTitle: {
+			fontSize: 15,
+			fontWeight: "700",
+			color: "#E2E8F0",
+			marginBottom: 4,
+		},
+		historyDate: {
+			fontSize: 12,
+			color: "#64748B",
+		},
+		historyRight: {
 			flexDirection: "row",
 			alignItems: "center",
-			paddingVertical: 12,
-			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
-		},
-		historyTitle: {
-			fontSize: 14,
-			fontWeight: "600",
-			color: THEME.colors.text.primary,
-		},
-		historyMeta: {
-			fontSize: 12,
-			color: THEME.colors.text.muted,
-			marginTop: 2,
+			gap: 8,
 		},
 		historyAmount: {
 			fontSize: 15,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
+			fontWeight: "600",
+			color: "#F59E0B",
 		},
-
-		// ─── Détail d'un Z ─────────────────────────────────────────
-		detailHeader: {
-			backgroundColor: THEME.colors.background.elevated,
-			borderWidth: 1,
-			borderColor: THEME.colors.border.subtle,
-			borderRadius: 12,
-			padding: 20,
-			marginBottom: 16,
+		emptyState: {
 			alignItems: "center",
-		},
-		detailTitle: {
-			fontSize: 24,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-			marginBottom: 8,
-		},
-		detailDate: {
-			fontSize: 13,
-			color: THEME.colors.text.secondary,
-			textAlign: "center",
+			paddingVertical: 40,
 		},
 		emptyText: {
-			fontSize: 13,
-			color: THEME.colors.text.muted,
-			textAlign: "center",
-			paddingVertical: 16,
+			fontSize: 14,
+			color: "#64748B",
+			marginTop: 12,
+		},
+		productItem: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingVertical: 8,
+		},
+		productName: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: "#E2E8F0",
+			marginBottom: 4,
+		},
+		productQty: {
+			fontSize: 12,
+			color: "#94A3B8",
+		},
+		productRevenue: {
+			fontSize: 14,
+			fontWeight: "700",
+			color: "#F59E0B",
+			marginLeft: 12,
 		},
 	});
+}

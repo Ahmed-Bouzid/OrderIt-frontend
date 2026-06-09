@@ -157,6 +157,18 @@ const ServerCard = ({
 		);
 	};
 
+	// ─────────────── Nom d'affichage ───────────────
+	// Fallback sur la partie locale de l'email si name est vide
+	const displayName = useMemo(() => {
+		if (server?.name) return server.name;
+		if (server?.email) {
+			const local = server.email.split("@")[0];
+			const first = local.split(".")[0];
+			return first.charAt(0).toUpperCase() + first.slice(1).toLowerCase();
+		}
+		return "—";
+	}, [server?.name, server?.email]);
+
 	// ─────────────── Avatar ───────────────
 	const renderAvatar = () => {
 		const avatarUri = server?.avatar || server?.profileImage;
@@ -173,12 +185,12 @@ const ServerCard = ({
 
 		// Fallback avec initiales
 		const initials =
-			server?.name
+			displayName
 				?.split(" ")
 				.map((word) => word[0])
 				.join("")
 				.toUpperCase()
-				.substr(0, 2) || "??";
+				.substr(0, 2) || "—";
 
 		return (
 			<View style={[styles.avatar, styles.avatarFallback]}>
@@ -229,7 +241,7 @@ const ServerCard = ({
 					>
 						{renderAvatar()}
 						<View style={styles.compactInfo}>
-							<Text style={styles.compactName}>{server?.name}</Text>
+							<Text style={styles.compactName}>{displayName}</Text>
 							<Text style={styles.compactScore}>
 								{performanceData?.performanceScore || 0}%
 							</Text>
@@ -248,7 +260,7 @@ const ServerCard = ({
 			<View style={styles.header}>
 				{renderAvatar()}
 				<View style={styles.headerInfo}>
-					<Text style={styles.name}>{server?.name || "Serveur"}</Text>
+					<Text style={styles.name}>{displayName}</Text>
 					<Text style={styles.role}>{server?.role || "Serveur"}</Text>
 				</View>
 				{renderStatusBadge()}

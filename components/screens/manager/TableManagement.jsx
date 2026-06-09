@@ -17,6 +17,7 @@ import AsyncStorage from "@react-native-async-storage/async-storage";
 import { useAuthFetch } from "../../../hooks/useAuthFetch";
 import useThemeStore from "../../../src/stores/useThemeStore";
 import { getTheme } from "../../../utils/themeUtils";
+import { usePinGuard } from "../../../hooks/usePinGuard";
 
 // Statuts disponibles pour une table
 const getTableStatuses = (THEME) => [
@@ -48,6 +49,7 @@ export default function TableManagement() {
 	const THEME = React.useMemo(() => getTheme(themeMode), [themeMode]);
 	const TABLE_STATUSES = React.useMemo(() => getTableStatuses(THEME), [THEME]);
 	const authFetch = useAuthFetch();
+	const { PinModal, requirePin } = usePinGuard();
 
 	const [tables, setTables] = useState([]);
 	const [counterTables, setCounterTables] = useState([]);
@@ -312,7 +314,7 @@ export default function TableManagement() {
 							styles.deleteButton,
 							item.status === "occupied" && styles.disabledButton,
 						]}
-						onPress={() => handleDelete(item)}
+							onPress={() => requirePin(() => handleDelete(item))}
 						disabled={item.status === "occupied"}
 					>
 						<Ionicons name="trash" size={18} color="#FFFFFF" />
@@ -593,7 +595,7 @@ export default function TableManagement() {
 							>
 								<Text style={styles.cancelButtonText}>Annuler</Text>
 							</TouchableOpacity>
-							<TouchableOpacity style={styles.saveButton} onPress={handleSave}>
+							<TouchableOpacity style={styles.saveButton} onPress={() => requirePin(handleSave)}>
 								<LinearGradient
 									colors={[
 										THEME.colors.primary.amber,
@@ -610,6 +612,7 @@ export default function TableManagement() {
 					</View>
 				</View>
 			</Modal>
+			<PinModal />
 		</View>
 	);
 }

@@ -109,6 +109,10 @@ export default function FloorPlanModal({
 		]);
 	};
 
+	// États (déclarés avant les useMemo qui en dépendent)
+	const [tables, setTables] = useState([]);
+	const [reservations, setReservations] = useState([]);
+
 	// Tables filtrées selon la salle sélectionnée
 	const filteredTables = useMemo(() => {
 		if (!currentRoom) return tables; // pas de salle → toutes les tables
@@ -122,10 +126,6 @@ export default function FloorPlanModal({
 
 	// Mode simulation désactivé (plus de salles fictives)
 	const isSimulation = false;
-
-	// États
-	const [tables, setTables] = useState([]);
-	const [reservations, setReservations] = useState([]);
 	const [modifiedTableIds, setModifiedTableIds] = useState(new Set());
 	const [dragEnabled, setDragEnabled] = useState(false);
 	const [resizeEnabled, setResizeEnabled] = useState(false);

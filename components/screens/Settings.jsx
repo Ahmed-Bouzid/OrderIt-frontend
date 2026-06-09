@@ -74,9 +74,6 @@ export default function Settings() {
 	// ⭐ État Z de caisse
 	const [showZReport, setShowZReport] = useState(false);
 
-	// ⭐ État Gestion de caisse (Event Sourcing)
-	const [showCashShiftScreen, setShowCashShiftScreen] = useState(false);
-
 	// ⭐ État CRM Performance
 	const [showCRMScreen, setShowCRMScreen] = useState(false);
 	// ⭐ État Messagerie Interne
@@ -1250,49 +1247,6 @@ Personnaliser le thème
 							</TouchableOpacity>
 						)}
 
-						{/* Gestion de caisse (Event Sourcing) — Admin/Manager uniquement */}
-						{canAccessManagerPortal && (
-							<TouchableOpacity
-								style={[
-									settingsStyles.themeLabelRow,
-									{
-										backgroundColor: THEME.colors.background.elevated,
-										borderRadius: THEME.radius.lg,
-										padding: THEME.spacing.lg,
-										borderLeftWidth: 4,
-										borderLeftColor: "#10b981",
-										shadowColor: "#10b981",
-										shadowOffset: { width: 0, height: 2 },
-										shadowOpacity: 0.12,
-										shadowRadius: 8,
-										elevation: 3,
-										marginTop: THEME.spacing.md,
-									},
-								]}
-								onPress={() => setShowCashShiftScreen(true)}
-								activeOpacity={0.8}
-							>
-								<Ionicons
-									name="cash-outline"
-									size={24}
-									color="#10b981"
-								/>
-								<View style={{ flex: 1, marginLeft: THEME.spacing.lg }}>
-									<Text style={settingsStyles.settingLabel}>
-										💰 Gestion de caisse
-									</Text>
-									<Text style={settingsStyles.settingDescription}>
-										Shifts & Event Sourcing — Phase 2
-									</Text>
-								</View>
-								<Ionicons
-									name="chevron-forward"
-									size={20}
-									color={THEME.colors.text.secondary}
-								/>
-							</TouchableOpacity>
-						)}
-
 						{/* Fonctionnalités disponibles */}
 						<View style={settingsStyles.themeSection}>
 							<Text style={settingsStyles.settingLabel}>
@@ -1786,11 +1740,6 @@ Personnaliser le thème
 					restaurantId={restaurantId}
 					onClose={() => setShowZReport(false)}
 				/>
-			)}
-
-			{/* Gestion de caisse Modal (Event Sourcing) */}
-			{showCashShiftScreen && (
-				<CashShiftScreen onClose={() => setShowCashShiftScreen(false)} />
 			)}
 
 			{/* CRM Performance Modal */}

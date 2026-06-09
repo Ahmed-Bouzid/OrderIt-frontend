@@ -38,6 +38,7 @@ const zReportService = {
 
 	/**
 	 * Génère et scelle le Z de caisse (irréversible).
+	 * MODE LEGACY — Deprecated, utiliser generateFromShift() à la place.
 	 * @param {Object} params
 	 * @returns {ZReport}
 	 */
@@ -52,6 +53,36 @@ const zReportService = {
 					periodStart: periodStart instanceof Date ? periodStart.toISOString() : periodStart,
 					periodEnd:   periodEnd   instanceof Date ? periodEnd.toISOString()   : periodEnd,
 					openingFloatCents,
+					closingCountCents,
+					notes: notes || "",
+				}),
+			},
+		);
+
+		if (!response.ok) {
+			const err = await response.json().catch(() => ({}));
+			throw new Error(err.message || `HTTP ${response.status}`);
+		}
+
+		const json = await response.json();
+		return json.data;
+	},
+
+	/**
+	 * Génère un Z de caisse via event-sourcing (ferme le shift actif).
+	 * MODE EVENT-SOURCED (Phase 3+)
+	 * @param {string} shiftId — ID du shift actif à fermer
+	 * @param {number} closingCountCents — Compte caisse final
+	 * @param {string} notes — Notes optionnelles
+	 * @returns {{ shift: CashShift, zReport: ZReport }}
+	 */
+	async generateFromShift(shiftId, closingCountCents, notes) {
+		const response = await fetchWithAuth(
+			`${API_CONFIG.baseURL}/cash-shifts/${shiftId}/close`,
+			{
+				method: "POST",
+				headers: { "Content-Type": "application/json" },
+				body: JSON.stringify({
 					closingCountCents,
 					notes: notes || "",
 				}),

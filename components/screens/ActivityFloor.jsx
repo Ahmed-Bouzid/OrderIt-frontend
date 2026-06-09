@@ -29,6 +29,7 @@ import useThemeStore from "../../src/stores/useThemeStore";
 import useCounterTableStore from "../../src/stores/useCounterTableStore";
 import { useSocketContext } from "../../src/stores/SocketContext";
 import counterService from "../../services/counterService";
+import cashShiftService from "../../services/cashShiftService";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
 import useUserStore from "../../src/stores/useUserStore";
 import useReservationStore from "../../src/stores/useReservationStore";
@@ -815,6 +816,7 @@ const ActivityFloor = ({ restaurantInfo }) => {
 	const [showDebugPanel, setShowDebugPanel] = useState(false);
 	const [showForceQuit, setShowForceQuit] = useState(false);
 	const [forceQuitLoading, setForceQuitLoading] = useState(null); // sessionId en cours
+	const [hasActiveShift, setHasActiveShift] = useState(null); // null = non vérifié, true/false
 	const { PinModal, requirePin } = usePinGuard();
 	const [selectedTableId, setSelectedTableId] = useState(null);
 
@@ -957,11 +959,31 @@ const ActivityFloor = ({ restaurantInfo }) => {
 				const id = await AsyncStorage.getItem("restaurantId");
 				if (id) {
 					setRestaurantId(id);
+					
+					// ✅ Vérifier si un shift est actif
+					try {
+						const shiftResponse = await cashShiftService.getActiveShift();
+						setHasActiveShift(!!shiftResponse?.shift);
+					} catch (err) {
+						console.warn("[ActivityFloor] checkActiveShift échoué:", err);
+						setHasActiveShift(false);
+					}
+					
 					const tablesState = await counterService.getTablesState(id).catch((err) => {
 						console.error("[ActivityFloor] getTablesState failed (init):", err?.message, err);
 						return [];
 					});
 					setTables(tablesState);
+					
+					// 🔍 CONSOLE LOG : Contenu de toutes les tables au chargement du comptoir
+					console.log("\n🏪 [COMPTOIR CHARGÉ] Contenu de toutes les tables:", JSON.stringify(tablesState, null, 2));
+					console.log("📊 [COMPTOIR] Résumé:", {
+						total: tablesState.length,
+						occupées: tablesState.filter(t => t.status === 'occupied' || t.status === 'bill_requested').length,
+						libres: tablesState.filter(t => t.status === 'free').length,
+						avecSession: tablesState.filter(t => t.sessionId).length
+					});
+					
 					// Hydrater le store sessions (équivalent fetchReservations dans Activity)
 					hydrateSessionsFromTables(id, tablesState);
 					
@@ -1120,7 +1142,12 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		setSelectedTableId(tableId);
 		const session = activeSessions.find((s) => s.tableId === tableId);
 		if (!session) {
-			// Table libre → vérifier s'il y a une réservation prévue dans les 2h
+			// Table libre → d'abord vérifier si la caisse est ouverte
+			if (hasActiveShift === false) {
+				promptOpenShift(tableId);
+				return;
+			}
+			// Puis vérifier s'il y a une réservation prévue dans les 2h
 			const upcomingResa = checkUpcomingReservation(tableId);
 			
 			if (upcomingResa) {
@@ -1160,9 +1187,114 @@ const ActivityFloor = ({ restaurantInfo }) => {
 		} else {
 			// Table occupée → directement le détail
 			console.log("[TABLE OUVERTE - déjà occupée]", { tableId, session });
+			
+			// 🔍 CONSOLE LOG : Contenu détaillé de la table ouverte
+			console.log("\n📋 [TABLE OUVERTE] Détails complets de la session:", JSON.stringify(session, null, 2));
+			console.log("🔑 [TABLE] Info table:", {
+				tableId,
+				sessionId: session?._id,
+				waiter: session?.serverId?.name || 'N/A',
+				statut: session?.billStatus,
+				nbItems: session?.itemsCount || 0,
+				total: session?.totalAmount || 0
+			});
+			
+			// 🛒 CONSOLE LOG : Détail des items commandés (si présents)
+			if (session?.orders && session.orders.length > 0) {
+				console.log("\n🛒 [TABLE] Items commandés:", JSON.stringify(session.orders, null, 2));
+				console.log("📦 [TABLE] Résumé items:", session.orders.map(order => ({
+					nom: order.name || order.productName,
+					quantité: order.quantity,
+					prix: order.price,
+					total: (order.quantity || 0) * (order.price || 0)
+				})));
+			} else if (session?.items && session.items.length > 0) {
+				console.log("\n🛒 [TABLE] Items commandés:", JSON.stringify(session.items, null, 2));
+				console.log("📦 [TABLE] Résumé items:", session.items.map(item => ({
+					nom: item.name || item.productName,
+					quantité: item.quantity,
+					prix: item.price,
+					total: (item.quantity || 0) * (item.price || 0)
+				})));
+			} else {
+				console.log("📭 [TABLE] Aucun item commandé pour le moment");
+			}
+			
 			setShowTableDetail(true);
 		}
-	}, [activeSessions, servers, currentUser, checkUpcomingReservation]);
+	}, [activeSessions, servers, currentUser, checkUpcomingReservation, hasActiveShift, promptOpenShift]);
+
+	// Vérification du shift actif
+	const checkActiveShift = useCallback(async () => {
+		if (!restaurantId) return;
+		try {
+			const response = await cashShiftService.getActiveShift();
+			setHasActiveShift(!!response?.shift);
+		} catch (err) {
+			console.warn("[ActivityFloor] checkActiveShift échoué:", err);
+			setHasActiveShift(false);
+		}
+	}, [restaurantId]);
+
+	// Popup pour ouvrir la caisse
+	const promptOpenShift = useCallback((tableId) => {
+		Alert.alert(
+			"💰 Caisse fermée",
+			"Vous devez ouvrir la caisse avant de pouvoir ouvrir une table.\n\nVoulez-vous ouvrir la caisse maintenant ?",
+			[
+				{
+					text: "Annuler",
+					style: "cancel",
+					onPress: () => setSelectedTableId(null)
+				},
+				{
+					text: "Ouvrir la caisse",
+					onPress: () => {
+						// Demander le fond de caisse
+						Alert.prompt(
+							"💰 Fond de caisse",
+							"Quel est le fond de caisse (en €) ?",
+							async (value) => {
+								const amount = parseFloat(value?.replace(',', '.') || '0');
+								if (isNaN(amount) || amount < 0) {
+									Alert.alert("Erreur", "Montant invalide");
+									return;
+								}
+								try {
+									const openingFloatCents = Math.round(amount * 100);
+									const response = await cashShiftService.openShift({
+										openingFloatCents,
+										deviceId: null,
+										notes: ""
+									});
+									if (response?.shift) {
+										setHasActiveShift(true);
+										Alert.alert("✅ Caisse ouverte", "Vous pouvez maintenant ouvrir des tables.", [
+											{
+												text: "OK",
+												onPress: () => {
+													// Relancer le flow d'ouverture de table
+													setSelectedWaiter(servers.length === 0 ? currentUser : null);
+													setServerPickerTableId(tableId);
+												}
+											}
+										]);
+									} else {
+										Alert.alert("Erreur", "Impossible d'ouvrir la caisse");
+									}
+								} catch (err) {
+									console.error("[ActivityFloor] openShift échoué:", err);
+									Alert.alert("Erreur", err.message || "Impossible d'ouvrir la caisse");
+								}
+							},
+							"plain-text",
+							"250.00"
+						);
+					}
+				}
+			]
+		);
+	}, [restaurantId, servers, currentUser]);
 
 	// Confirmation du serveur → ouvre la session puis la modale
 	const handleConfirmWaiter = useCallback(async () => {
@@ -1183,6 +1315,17 @@ const ActivityFloor = ({ restaurantInfo }) => {
 			}
 			// Ouvrir la modale
 			console.log("[TABLE OUVERTE - nouvelle session]", { tableId: serverPickerTableId, session });
+			
+			// 🔍 CONSOLE LOG : Contenu de la nouvelle session créée
+			console.log("\n✨ [NOUVELLE SESSION] Détails:", JSON.stringify(session, null, 2));
+			console.log("🆕 [TABLE] Info session:", {
+				tableId: serverPickerTableId,
+				sessionId: session?._id,
+				waiter: session?.serverId?.name || waiter?.name,
+				statut: session?.billStatus,
+				dateOuverture: session?.openedAt || session?.createdAt
+			});
+			
 			setServerPickerTableId(null);
 			setSelectedWaiter(null);
 			setShowTableDetail(true);

@@ -2,6 +2,7 @@
  * CashShiftScreen.jsx — Gestion des shifts de caisse (Event Sourcing)
  * 
  * Phase 2 de la migration Event Sourcing : Interface de gestion des shifts
+ * Modale centrée (même pattern que TableDetailModal)
  * 
  * Fonctionnalités :
  * - Ouvrir un shift (fond de caisse initial)
@@ -12,7 +13,7 @@
  * Accessible uniquement aux managers/admins
  */
 
-import React, { useState, useCallback, useEffect, useMemo } from "react";
+import React, { useState, useCallback, useEffect } from "react";
 import {
 	View,
 	Text,
@@ -22,21 +23,16 @@ import {
 	ScrollView,
 	ActivityIndicator,
 	Alert,
-	SafeAreaView,
-	RefreshControl,
+	Modal,
+	Pressable,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
-import { useTheme } from "../../hooks/useTheme";
 import cashShiftService from "../../services/cashShiftService";
 
-export default function CashShiftScreen({ onClose }) {
-	const THEME = useTheme();
-	const styles = useMemo(() => createStyles(THEME), [THEME]);
-
+export default function CashShiftScreen({ visible = true, onClose }) {
 	// État du shift actif
 	const [activeShift, setActiveShift] = useState(null);
 	const [loading, setLoading] = useState(true);
-	const [refreshing, setRefreshing] = useState(false);
 
 	// Formulaire ouverture shift
 	const [openingFloat, setOpeningFloat] = useState("100.00");
@@ -54,8 +50,8 @@ export default function CashShiftScreen({ onClose }) {
 
 	// Charger les données initiales
 	useEffect(() => {
-		loadData();
-	}, []);
+		if (visible) loadData();
+	}, [visible]);
 
 	const loadData = useCallback(async () => {
 		setLoading(true);
@@ -79,12 +75,6 @@ export default function CashShiftScreen({ onClose }) {
 			setLoading(false);
 		}
 	}, []);
-
-	const handleRefresh = useCallback(async () => {
-		setRefreshing(true);
-		await loadData();
-		setRefreshing(false);
-	}, [loadData]);
 
 	const handleOpenShift = useCallback(async () => {
 		const floatCents = Math.round(parseFloat(openingFloat || "0") * 100);
@@ -111,7 +101,7 @@ export default function CashShiftScreen({ onClose }) {
 							});
 
 							Alert.alert("✅ Shift ouvert", `Shift n°${res.shift.sequenceNumber} créé avec succès`);
-							await loadData(); // Recharger
+							await loadData();
 						} catch (err) {
 							console.error("[CashShift] Erreur ouverture:", err);
 							Alert.alert("Erreur", err.message || "Impossible d'ouvrir le shift");
@@ -134,7 +124,7 @@ export default function CashShiftScreen({ onClose }) {
 			return;
 		}
 
-		const expectedCashCents = activeShift.openingFloatCents || 0; // Simplifié, le backend calculera le vrai expected
+		const expectedCashCents = activeShift.openingFloatCents || 0;
 		const varianceCents = countCents - expectedCashCents;
 		const variance = (varianceCents / 100).toFixed(2);
 
@@ -180,370 +170,396 @@ export default function CashShiftScreen({ onClose }) {
 		});
 	};
 
+	// ─── Render : Loading ─────────────────────────────────────────────────
 	if (loading) {
 		return (
-			<SafeAreaView style={[styles.container, { backgroundColor: THEME.colors.background }]}>
-				<View style={styles.header}>
-					<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-						<Ionicons name="close" size={28} color={THEME.colors.text} />
-					</TouchableOpacity>
-					<Text style={[styles.title, { color: THEME.colors.text }]}>💰 Gestion de Caisse</Text>
-					<View style={{ width: 28 }} />
-				</View>
-				<View style={styles.loadingContainer}>
-					<ActivityIndicator size="large" color={THEME.colors.primary} />
-					<Text style={[styles.loadingText, { color: THEME.colors.textSecondary }]}>
-						Chargement...
-					</Text>
-				</View>
-			</SafeAreaView>
+			<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+				<Pressable style={styles.overlay} onPress={onClose}>
+					<Pressable onPress={() => {}} style={[styles.sheet, styles.loadingSheet]}>
+						<ActivityIndicator size="large" color="#FBBF24" />
+						<Text style={styles.loadingText}>Chargement...</Text>
+					</Pressable>
+				</Pressable>
+			</Modal>
 		);
 	}
 
+	// ─── Render : Main ─────────────────────────────────────────────────────
 	return (
-		<SafeAreaView style={[styles.container, { backgroundColor: THEME.colors.background }]}>
-			{/* Header */}
-			<View style={styles.header}>
-				<TouchableOpacity onPress={onClose} style={styles.closeButton}>
-					<Ionicons name="close" size={28} color={THEME.colors.text} />
-				</TouchableOpacity>
-				<Text style={[styles.title, { color: THEME.colors.text }]}>💰 Gestion de Caisse</Text>
-				<TouchableOpacity onPress={handleRefresh} style={styles.refreshButton}>
-					<Ionicons name="refresh" size={24} color={THEME.colors.primary} />
-				</TouchableOpacity>
-			</View>
-
-			<ScrollView
-				style={styles.content}
-				refreshControl={
-					<RefreshControl refreshing={refreshing} onRefresh={handleRefresh} tintColor={THEME.colors.primary} />
-				}
-			>
-				{/* Section : Shift actif */}
-				{activeShift ? (
-					<View style={[styles.card, { backgroundColor: THEME.colors.surface }]}>
-						<View style={styles.cardHeader}>
-							<Text style={[styles.cardTitle, { color: THEME.colors.text }]}>
-								✅ Shift actif
-							</Text>
-							<View style={[styles.badge, { backgroundColor: THEME.colors.success + "20" }]}>
-								<Text style={[styles.badgeText, { color: THEME.colors.success }]}>
-									#{activeShift.sequenceNumber}
-								</Text>
-							</View>
-						</View>
-
-						<View style={styles.row}>
-							<Text style={[styles.label, { color: THEME.colors.textSecondary }]}>Ouvert le</Text>
-							<Text style={[styles.value, { color: THEME.colors.text }]}>
-								{formatDate(activeShift.openedAt)}
-							</Text>
-						</View>
-
-						<View style={styles.row}>
-							<Text style={[styles.label, { color: THEME.colors.textSecondary }]}>Fond de caisse</Text>
-							<Text style={[styles.value, { color: THEME.colors.text }]}>
-								{((activeShift.openingFloatCents || 0) / 100).toFixed(2)}€
-							</Text>
-						</View>
-
-						{/* Formulaire fermeture */}
-						<View style={styles.separator} />
-						<Text style={[styles.sectionTitle, { color: THEME.colors.text }]}>Fermeture du shift</Text>
-
-						<View style={styles.inputGroup}>
-							<Text style={[styles.inputLabel, { color: THEME.colors.textSecondary }]}>
-								Compte caisse (€)
-							</Text>
-							<TextInput
-								style={[styles.input, { backgroundColor: THEME.colors.background, color: THEME.colors.text, borderColor: THEME.colors.border }]}
-								placeholder="250.00"
-								placeholderTextColor={THEME.colors.textSecondary}
-								value={closingCount}
-								onChangeText={setClosingCount}
-								keyboardType="decimal-pad"
-							/>
-						</View>
-
-						<TouchableOpacity
-							style={[styles.buttonDanger, { backgroundColor: THEME.colors.error }]}
-							onPress={handleCloseShift}
-							disabled={isClosing}
-						>
-							{isClosing ? (
-								<ActivityIndicator color="#fff" />
-							) : (
-								<>
-									<Ionicons name="lock-closed" size={20} color="#fff" />
-									<Text style={styles.buttonText}>Fermer & Générer Z</Text>
-								</>
-							)}
+		<Modal visible={visible} transparent animationType="fade" onRequestClose={onClose}>
+			<Pressable style={styles.overlay} onPress={onClose}>
+				<Pressable onPress={() => {}} style={styles.sheet}>
+					{/* ── HEADER ────────────────────────────────────── */}
+					<View style={styles.header}>
+						<Text style={styles.headerTitle}>💰 Gestion de Caisse</Text>
+						<TouchableOpacity onPress={onClose} style={styles.closeBtn}>
+							<Ionicons name="close" size={24} color="#94A3B8" />
 						</TouchableOpacity>
 					</View>
-				) : (
-					/* Section : Aucun shift actif */
-					<View style={[styles.card, { backgroundColor: THEME.colors.surface }]}>
-						<View style={styles.cardHeader}>
-							<Text style={[styles.cardTitle, { color: THEME.colors.text }]}>
-								📊 Aucun shift actif
-							</Text>
-						</View>
 
-						<Text style={[styles.hint, { color: THEME.colors.textSecondary }]}>
-							Ouvrez un shift pour commencer à enregistrer les opérations de caisse.
-						</Text>
-
-						{/* Formulaire ouverture */}
-						<View style={styles.inputGroup}>
-							<Text style={[styles.inputLabel, { color: THEME.colors.textSecondary }]}>
-								Fond de caisse initial (€)
-							</Text>
-							<TextInput
-								style={[styles.input, { backgroundColor: THEME.colors.background, color: THEME.colors.text, borderColor: THEME.colors.border }]}
-								placeholder="100.00"
-								placeholderTextColor={THEME.colors.textSecondary}
-								value={openingFloat}
-								onChangeText={setOpeningFloat}
-								keyboardType="decimal-pad"
-							/>
-						</View>
-
-						<View style={styles.inputGroup}>
-							<Text style={[styles.inputLabel, { color: THEME.colors.textSecondary }]}>
-								Identifiant caisse (optionnel)
-							</Text>
-							<TextInput
-								style={[styles.input, { backgroundColor: THEME.colors.background, color: THEME.colors.text, borderColor: THEME.colors.border }]}
-								placeholder="CAISSE_01"
-								placeholderTextColor={THEME.colors.textSecondary}
-								value={deviceId}
-								onChangeText={setDeviceId}
-							/>
-						</View>
-
-						<TouchableOpacity
-							style={[styles.buttonPrimary, { backgroundColor: THEME.colors.primary }]}
-							onPress={handleOpenShift}
-							disabled={isOpening}
-						>
-							{isOpening ? (
-								<ActivityIndicator color="#fff" />
-							) : (
-								<>
-									<Ionicons name="lock-open" size={20} color="#fff" />
-									<Text style={styles.buttonText}>Ouvrir le shift</Text>
-								</>
-							)}
-						</TouchableOpacity>
-					</View>
-				)}
-
-				{/* Section : Historique */}
-				{shiftsHistory.length > 0 && (
-					<View style={[styles.card, { backgroundColor: THEME.colors.surface }]}>
-						<Text style={[styles.cardTitle, { color: THEME.colors.text }]}>📋 Shifts récents</Text>
-
-						{shiftsHistory.map((shift) => (
-							<View key={shift._id} style={[styles.historyItem, { borderBottomColor: THEME.colors.border }]}>
-								<View style={styles.historyHeader}>
-									<View style={[styles.badge, { backgroundColor: shift.status === "closed" ? THEME.colors.textSecondary + "20" : THEME.colors.success + "20" }]}>
-										<Text style={[styles.badgeText, { color: shift.status === "closed" ? THEME.colors.textSecondary : THEME.colors.success }]}>
-											#{shift.sequenceNumber}
-										</Text>
+					{/* ── CONTENT ───────────────────────────────────── */}
+					<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+						{/* Section : Shift actif */}
+						{activeShift ? (
+							<View style={styles.card}>
+								<View style={styles.cardHeader}>
+									<Text style={styles.cardTitle}>✅ Shift actif</Text>
+									<View style={styles.badge}>
+										<Text style={styles.badgeText}>#{activeShift.sequenceNumber}</Text>
 									</View>
-									<Text style={[styles.historyStatus, { color: shift.status === "closed" ? THEME.colors.textSecondary : THEME.colors.success }]}>
-										{shift.status === "closed" ? "Fermé" : shift.status === "closing" ? "En fermeture" : "Ouvert"}
-									</Text>
 								</View>
 
 								<View style={styles.row}>
-									<Text style={[styles.label, { color: THEME.colors.textSecondary }]}>Période</Text>
-									<Text style={[styles.value, { color: THEME.colors.text }]}>
-										{formatDate(shift.openedAt)} → {shift.closedAt ? formatDate(shift.closedAt) : "En cours"}
+									<Text style={styles.label}>Ouvert le</Text>
+									<Text style={styles.value}>{formatDate(activeShift.openedAt)}</Text>
+								</View>
+
+								<View style={styles.row}>
+									<Text style={styles.label}>Fond de caisse</Text>
+									<Text style={styles.value}>
+										{((activeShift.openingFloatCents || 0) / 100).toFixed(2)}€
 									</Text>
 								</View>
 
-								{shift.zReportId && (
-									<View style={styles.row}>
-										<Text style={[styles.label, { color: THEME.colors.textSecondary }]}>Z généré</Text>
-										<Text style={[styles.value, { color: THEME.colors.success }]}>
-											✓ Z n°{shift.zReportId.sequenceNumber || "—"}
-										</Text>
-									</View>
-								)}
-							</View>
-						))}
-					</View>
-				)}
+								{/* Formulaire fermeture */}
+								<View style={styles.separator} />
+								<Text style={styles.sectionTitle}>Fermeture du shift</Text>
 
-				{/* Footer info Phase 2 */}
-				<View style={[styles.footer, { backgroundColor: THEME.colors.info + "10" }]}>
-					<Ionicons name="information-circle" size={20} color={THEME.colors.info} />
-					<Text style={[styles.footerText, { color: THEME.colors.info }]}>
-						Mode Event Sourcing actif — Les tickets générés pendant un shift créent automatiquement des events immuables pour le Z de caisse.
-					</Text>
-				</View>
-			</ScrollView>
-		</SafeAreaView>
+								<View style={styles.inputGroup}>
+									<Text style={styles.inputLabel}>Compte caisse (€)</Text>
+									<TextInput
+										style={styles.input}
+										placeholder="250.00"
+										placeholderTextColor="#64748B"
+										value={closingCount}
+										onChangeText={setClosingCount}
+										keyboardType="decimal-pad"
+									/>
+								</View>
+
+								<TouchableOpacity
+									style={[styles.button, styles.buttonDanger]}
+									onPress={handleCloseShift}
+									disabled={isClosing}
+								>
+									{isClosing ? (
+										<ActivityIndicator color="#fff" />
+									) : (
+										<>
+											<Ionicons name="lock-closed" size={20} color="#fff" />
+											<Text style={styles.buttonText}>Fermer & Générer Z</Text>
+										</>
+									)}
+								</TouchableOpacity>
+							</View>
+						) : (
+							/* Section : Aucun shift actif */
+							<View style={styles.card}>
+								<View style={styles.cardHeader}>
+									<Text style={styles.cardTitle}>📊 Aucun shift actif</Text>
+								</View>
+
+								<Text style={styles.hint}>
+									Ouvrez un shift pour commencer à enregistrer les opérations de caisse.
+								</Text>
+
+								{/* Formulaire ouverture */}
+								<View style={styles.inputGroup}>
+									<Text style={styles.inputLabel}>Fond de caisse initial (€)</Text>
+									<TextInput
+										style={styles.input}
+										placeholder="100.00"
+										placeholderTextColor="#64748B"
+										value={openingFloat}
+										onChangeText={setOpeningFloat}
+										keyboardType="decimal-pad"
+									/>
+								</View>
+
+								<View style={styles.inputGroup}>
+									<Text style={styles.inputLabel}>Identifiant caisse (optionnel)</Text>
+									<TextInput
+										style={styles.input}
+										placeholder="CAISSE_01"
+										placeholderTextColor="#64748B"
+										value={deviceId}
+										onChangeText={setDeviceId}
+									/>
+								</View>
+
+								<TouchableOpacity
+									style={[styles.button, styles.buttonPrimary]}
+									onPress={handleOpenShift}
+									disabled={isOpening}
+								>
+									{isOpening ? (
+										<ActivityIndicator color="#fff" />
+									) : (
+										<>
+											<Ionicons name="lock-open" size={20} color="#fff" />
+											<Text style={styles.buttonText}>Ouvrir le shift</Text>
+										</>
+									)}
+								</TouchableOpacity>
+							</View>
+						)}
+
+						{/* Section : Historique */}
+						{shiftsHistory.length > 0 && (
+							<View style={styles.card}>
+								<Text style={styles.cardTitle}>📋 Shifts récents</Text>
+
+								{shiftsHistory.map((shift) => (
+									<View key={shift._id} style={styles.historyItem}>
+										<View style={styles.historyHeader}>
+											<View style={[styles.badge, shift.status === "closed" && styles.badgeClosed]}>
+												<Text style={[styles.badgeText, shift.status === "closed" && styles.badgeTextClosed]}>
+													#{shift.sequenceNumber}
+												</Text>
+											</View>
+											<Text style={[styles.historyStatus, shift.status === "closed" && styles.historyStatusClosed]}>
+												{shift.status === "closed" ? "Fermé" : shift.status === "closing" ? "En fermeture" : "Ouvert"}
+											</Text>
+										</View>
+
+										<View style={styles.row}>
+											<Text style={styles.label}>Période</Text>
+											<Text style={styles.value}>
+												{formatDate(shift.openedAt)} → {shift.closedAt ? formatDate(shift.closedAt) : "En cours"}
+											</Text>
+										</View>
+
+										{shift.zReportId && (
+											<View style={styles.row}>
+												<Text style={styles.label}>Z généré</Text>
+												<Text style={[styles.value, { color: "#10b981" }]}>
+													✓ Z n°{shift.zReportId.sequenceNumber || "—"}
+												</Text>
+											</View>
+										)}
+									</View>
+								))}
+							</View>
+						)}
+
+						{/* Footer info Phase 2 */}
+						<View style={styles.footer}>
+							<Ionicons name="information-circle" size={18} color="#3B82F6" />
+							<Text style={styles.footerText}>
+								Mode Event Sourcing actif — Les tickets générés pendant un shift créent automatiquement des events immuables pour le Z de caisse.
+							</Text>
+						</View>
+					</ScrollView>
+				</Pressable>
+			</Pressable>
+		</Modal>
 	);
 }
 
 // ──────────────────────────────────────────────────────────────
 // Styles
 // ──────────────────────────────────────────────────────────────
-const createStyles = (THEME) =>
-	StyleSheet.create({
-		container: {
-			flex: 1,
-		},
-		header: {
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "space-between",
-			paddingHorizontal: 20,
-			paddingVertical: 16,
-			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border,
-		},
-		closeButton: {
-			padding: 4,
-		},
-		refreshButton: {
-			padding: 4,
-		},
-		title: {
-			fontSize: THEME.typography.sizes.h2,
-			fontWeight: THEME.typography.weights.bold,
-		},
-		loadingContainer: {
-			flex: 1,
-			justifyContent: "center",
-			alignItems: "center",
-		},
-		loadingText: {
-			marginTop: 12,
-			fontSize: THEME.typography.sizes.body,
-		},
-		content: {
-			flex: 1,
-			padding: 20,
-		},
-		card: {
-			borderRadius: 16,
-			padding: 20,
-			marginBottom: 16,
-			...THEME.shadows.medium,
-		},
-		cardHeader: {
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "space-between",
-			marginBottom: 16,
-		},
-		cardTitle: {
-			fontSize: THEME.typography.sizes.h3,
-			fontWeight: THEME.typography.weights.semibold,
-		},
-		badge: {
-			paddingHorizontal: 12,
-			paddingVertical: 4,
-			borderRadius: 12,
-		},
-		badgeText: {
-			fontSize: THEME.typography.sizes.small,
-			fontWeight: THEME.typography.weights.semibold,
-		},
-		row: {
-			flexDirection: "row",
-			justifyContent: "space-between",
-			alignItems: "center",
-			paddingVertical: 8,
-		},
-		label: {
-			fontSize: THEME.typography.sizes.body,
-		},
-		value: {
-			fontSize: THEME.typography.sizes.body,
-			fontWeight: THEME.typography.weights.semibold,
-		},
-		separator: {
-			height: 1,
-			backgroundColor: THEME.colors.border,
-			marginVertical: 16,
-		},
-		sectionTitle: {
-			fontSize: THEME.typography.sizes.h4,
-			fontWeight: THEME.typography.weights.semibold,
-			marginBottom: 12,
-		},
-		inputGroup: {
-			marginBottom: 16,
-		},
-		inputLabel: {
-			fontSize: THEME.typography.sizes.body,
-			marginBottom: 8,
-		},
-		input: {
-			borderWidth: 1,
-			borderRadius: 12,
-			paddingHorizontal: 16,
-			paddingVertical: 12,
-			fontSize: THEME.typography.sizes.body,
-		},
-		hint: {
-			fontSize: THEME.typography.sizes.body,
-			lineHeight: 22,
-			marginBottom: 16,
-		},
-		buttonPrimary: {
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "center",
-			paddingVertical: 14,
-			borderRadius: 12,
-			gap: 8,
-			marginTop: 8,
-		},
-		buttonDanger: {
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "center",
-			paddingVertical: 14,
-			borderRadius: 12,
-			gap: 8,
-			marginTop: 8,
-		},
-		buttonText: {
-			color: "#fff",
-			fontSize: THEME.typography.sizes.body,
-			fontWeight: THEME.typography.weights.semibold,
-		},
-		historyItem: {
-			borderBottomWidth: 1,
-			paddingVertical: 12,
-			marginTop: 12,
-		},
-		historyHeader: {
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "space-between",
-			marginBottom: 8,
-		},
-		historyStatus: {
-			fontSize: THEME.typography.sizes.small,
-			fontWeight: THEME.typography.weights.semibold,
-		},
-		footer: {
-			flexDirection: "row",
-			padding: 16,
-			borderRadius: 12,
-			marginTop: 8,
-			marginBottom: 24,
-			gap: 12,
-		},
-		footerText: {
-			flex: 1,
-			fontSize: THEME.typography.sizes.small,
-			lineHeight: 18,
-		},
-	});
+const styles = StyleSheet.create({
+	// ── Overlay centré ───────────────────────────────────────
+	overlay: {
+		flex: 1,
+		backgroundColor: "rgba(0,0,0,0.70)",
+		justifyContent: "center",
+		alignItems: "center",
+		paddingHorizontal: 16,
+		paddingVertical: 12,
+	},
+	sheet: {
+		backgroundColor: "#1E293B",
+		borderRadius: 20,
+		width: "100%",
+		maxWidth: 520,
+		flex: 0,
+		flexShrink: 1,
+		minHeight: "78%",
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.08)",
+		overflow: "hidden",
+	},
+
+	// ── Loading ───────────────────────────────────────────────
+	loadingSheet: {
+		paddingVertical: 48,
+		alignItems: "center",
+		justifyContent: "center",
+		gap: 16,
+	},
+	loadingText: {
+		color: "#94A3B8",
+		fontSize: 14,
+		fontWeight: "500",
+	},
+
+	// ── Header ───────────────────────────────────────────────
+	header: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		paddingHorizontal: 20,
+		paddingVertical: 18,
+		borderBottomWidth: 1,
+		borderBottomColor: "rgba(255,255,255,0.07)",
+	},
+	headerTitle: {
+		fontSize: 20,
+		fontWeight: "700",
+		color: "#F1F5F9",
+	},
+	closeBtn: {
+		padding: 4,
+	},
+
+	// ── Content ──────────────────────────────────────────────
+	content: {
+		flex: 1,
+		paddingHorizontal: 20,
+		paddingVertical: 16,
+	},
+	card: {
+		backgroundColor: "#0F172A",
+		borderRadius: 16,
+		padding: 18,
+		marginBottom: 16,
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.05)",
+	},
+	cardHeader: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		marginBottom: 16,
+	},
+	cardTitle: {
+		fontSize: 16,
+		fontWeight: "600",
+		color: "#F1F5F9",
+	},
+	badge: {
+		paddingHorizontal: 10,
+		paddingVertical: 4,
+		borderRadius: 10,
+		backgroundColor: "rgba(16,185,129,0.15)",
+	},
+	badgeText: {
+		fontSize: 13,
+		fontWeight: "600",
+		color: "#10b981",
+	},
+	badgeClosed: {
+		backgroundColor: "rgba(148,163,184,0.15)",
+	},
+	badgeTextClosed: {
+		color: "#94A3B8",
+	},
+	row: {
+		flexDirection: "row",
+		justifyContent: "space-between",
+		alignItems: "center",
+		paddingVertical: 8,
+	},
+	label: {
+		fontSize: 14,
+		color: "#94A3B8",
+	},
+	value: {
+		fontSize: 14,
+		fontWeight: "600",
+		color: "#E2E8F0",
+	},
+	separator: {
+		height: 1,
+		backgroundColor: "rgba(255,255,255,0.07)",
+		marginVertical: 16,
+	},
+	sectionTitle: {
+		fontSize: 15,
+		fontWeight: "600",
+		color: "#F1F5F9",
+		marginBottom: 12,
+	},
+	inputGroup: {
+		marginBottom: 14,
+	},
+	inputLabel: {
+		fontSize: 13,
+		color: "#94A3B8",
+		marginBottom: 6,
+	},
+	input: {
+		backgroundColor: "#0F172A",
+		borderWidth: 1,
+		borderColor: "rgba(255,255,255,0.10)",
+		borderRadius: 10,
+		paddingHorizontal: 14,
+		paddingVertical: 12,
+		fontSize: 15,
+		color: "#F1F5F9",
+	},
+	hint: {
+		fontSize: 14,
+		color: "#94A3B8",
+		lineHeight: 20,
+		marginBottom: 16,
+	},
+	button: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "center",
+		paddingVertical: 14,
+		borderRadius: 12,
+		gap: 8,
+		marginTop: 8,
+	},
+	buttonPrimary: {
+		backgroundColor: "#FBBF24",
+	},
+	buttonDanger: {
+		backgroundColor: "#EF4444",
+	},
+	buttonText: {
+		color: "#fff",
+		fontSize: 15,
+		fontWeight: "600",
+	},
+	historyItem: {
+		borderTopWidth: 1,
+		borderTopColor: "rgba(255,255,255,0.05)",
+		paddingTop: 14,
+		marginTop: 14,
+	},
+	historyHeader: {
+		flexDirection: "row",
+		alignItems: "center",
+		justifyContent: "space-between",
+		marginBottom: 10,
+	},
+	historyStatus: {
+		fontSize: 12,
+		fontWeight: "600",
+		color: "#10b981",
+	},
+	historyStatusClosed: {
+		color: "#94A3B8",
+	},
+	footer: {
+		flexDirection: "row",
+		padding: 14,
+		borderRadius: 12,
+		backgroundColor: "rgba(59,130,246,0.10)",
+		marginTop: 8,
+		marginBottom: 16,
+		gap: 10,
+		alignItems: "flex-start",
+	},
+	footerText: {
+		flex: 1,
+		fontSize: 12,
+		lineHeight: 17,
+		color: "#93C5FD",
+	},
+});

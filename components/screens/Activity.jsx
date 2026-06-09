@@ -31,6 +31,7 @@ import { reservationService } from "../../shared-api/services/reservationService
 import useTableStore from "../../src/stores/useRestaurantTableStore";
 import useReservationStore from "../../src/stores/useReservationStore";
 import { useAuthFetch } from "../../hooks/useAuthFetch";
+import { appendCancellationLog } from "../../utils/dailyLogHelper";
 
 // Custom hooks
 import { useActivityData } from "../../hooks/useActivityData";
@@ -549,6 +550,9 @@ export default function Activity() {
 					// ⭐ D'abord, mettre tous les items non finalisés en "cancelled"
 					await finalizeReservationItems(reservationId, "cancelled");
 
+					// Récupérer les infos avant suppression
+					const resa = reservations?.find((r) => r._id === reservationId);
+
 					// Puis supprimer la réservation
 					await authFetch(
 						`${API_CONFIG.baseURL}/reservations/${reservationId}`,
@@ -556,6 +560,13 @@ export default function Activity() {
 							method: "DELETE",
 						},
 					);
+					appendCancellationLog({
+						reservationId,
+						clientName: resa?.clientName,
+						tableNumber: resa?.tableNumber,
+						reservationDate: resa?.reservationDate,
+						reservationTime: resa?.reservationTime,
+					});
 					await fetchReservations();
 					if (activeId === reservationId) {
 						clearCachedActiveId();

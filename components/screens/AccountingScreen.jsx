@@ -2,7 +2,7 @@
  * AccountingScreen.jsx - Module Comptabilité Avancé
  * Interface de gestion financière complète avec graphiques et analyses
  */
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useMemo } from "react";
 import {
 	View,
 	Text,
@@ -12,6 +12,7 @@ import {
 	Modal,
 	Dimensions,
 	Alert,
+	StyleSheet,
 } from "react-native";
 import { Ionicons } from "@expo/vector-icons";
 import { useTheme } from "../../hooks/useTheme";
@@ -31,6 +32,48 @@ import Svg, {
 } from "react-native-svg";
 
 const { width: screenWidth } = Dimensions.get("window");
+
+// ════════════════════════════════════════════════════
+// 🔧 CONSTANTES (hors composant — jamais recréées)
+// ════════════════════════════════════════════════════
+const PERIODS = [
+	{ key: "today", label: "Aujourd'hui", icon: "today" },
+	{ key: "week", label: "Cette semaine", icon: "calendar" },
+	{ key: "month", label: "Ce mois", icon: "calendar-outline" },
+	{ key: "quarter", label: "Ce trimestre", icon: "calendar-number-outline" },
+	{ key: "year", label: "Cette année", icon: "calendar-sharp" },
+];
+
+const TABS = [
+	{ key: "overview", label: "Vue d'ensemble", icon: "analytics" },
+	{ key: "charts", label: "Graphiques", icon: "bar-chart" },
+	{ key: "details", label: "Détails", icon: "list" },
+];
+
+const MOIS = ["Jan", "Fév", "Mar", "Avr", "Mai", "Jun", "Jul", "Aoû", "Sep", "Oct", "Nov", "Déc"];
+const BAR_COLORS = ["#F59E0B", "#3B82F6", "#A855F7", "#22C55E", "#EF4444"];
+
+const EMPTY_DATA = {
+	totalRevenue: 0,
+	totalOrders: 0,
+	averageOrderValue: 0,
+	revenueHT: 0,
+	revenueTTC: 0,
+	tvaCollected: 0,
+	previousPeriodRevenue: 0,
+	growthRate: 0,
+	topProduct: "N/A",
+	topProducts: [],
+	dailyRevenues: [],
+	serviceBreakdown: { midi: { revenue: 0, orders: 0 }, soir: { revenue: 0, orders: 0 } },
+	hourlyDistribution: [],
+	avgPerDay: 0,
+	projectedRevenue: null,
+	bestPeriod: { label: "—", revenue: 0 },
+	period: "today",
+	startDate: "",
+	endDate: "",
+};
 
 // ════════════════════════════════════════════════════
 // 📊 COMPOSANTS SVG — Line Chart
@@ -256,99 +299,35 @@ export default function AccountingScreen({ onClose }) {
 	// ═══════════════════════════════════════════════════════════════════════
 	const [token, setToken] = useState(null);
 	const [isLoading, setIsLoading] = useState(false);
-	const [dataLoaded, setDataLoaded] = useState(false);
 	const [selectedPeriod, setSelectedPeriod] = useState("today");
 	const [selectedTab, setSelectedTab] = useState("overview");
 	const [selectedMetric, setSelectedMetric] = useState("revenue");
-
-	// Données principales
-	const [data, setData] = useState({
-		// Métriques de base
-		totalRevenue: 0,
-		totalOrders: 0,
-		averageOrderValue: 0,
-
-		// Comptabilité avancée
-		revenueHT: 0,
-		revenueTTC: 0,
-		tvaCollected: 0,
-		costs: 0,
-		grossMargin: 0,
-		marginPercent: 0,
-		netResult: 0,
-
-		// Évolution
-		previousPeriodRevenue: 0,
-		growthRate: 0,
-
-		// Produits
-		topProduct: "N/A",
-		topProducts: [],
-
-		// Graphiques
-		dailyRevenues: [],
-
-		// Meta
-		period: "today",
-		startDate: "",
-		endDate: "",
-	});
+	const [data, setData] = useState(EMPTY_DATA);
 
 	// ═══════════════════════════════════════════════════════════════════════
 	// 🔧 CONFIGURATION
 	// ═══════════════════════════════════════════════════════════════════════
-	const PERIODS = [
-		{ key: "today", label: "Aujourd'hui", icon: "today" },
-		{ key: "week", label: "Cette semaine", icon: "calendar" },
-		{ key: "month", label: "Ce mois", icon: "calendar-outline" },
-		{ key: "quarter", label: "Ce trimestre", icon: "calendar-number-outline" },
-		{ key: "year", label: "Cette année", icon: "calendar-sharp" },
-	];
-
-	const TABS = [
-		{ key: "overview", label: "Vue d'ensemble", icon: "analytics" },
-		{ key: "charts", label: "Graphiques", icon: "bar-chart" },
-		{ key: "details", label: "Détails", icon: "list" },
-	];
+	// PERIODS, TABS définis en dehors du composant (voir constantes globales)
 
 	// ═══════════════════════════════════════════════════════════════════════
 	// 🔧 HOOKS
 	// ═══════════════════════════════════════════════════════════════════════
 	useEffect(() => {
-		const getToken = async () => {
-			try {
-				const storedToken = await SecureStore.getItemAsync("access_token");
-				setToken(storedToken);
-			} catch (error) {
-				console.error(
-					"❌ [AccountingScreen] Erreur récupération token:",
-					error,
-				);
-			}
-		};
-		getToken();
+		SecureStore.getItemAsync("access_token")
+			.then((t) => setToken(t))
+			.catch((e) => console.error("❌ [AccountingScreen] Token:", e));
 	}, []);
 
+	// Reload quand token prêt ou période change
 	useEffect(() => {
-		if (token && !dataLoaded) {
-			setDataLoaded(true);
-			loadData();
-			if (selectedTab === "charts") {
-				loadChartData();
-			}
-		}
-	}, [token, dataLoaded, selectedPeriod]); // eslint-disable-line
-
-	useEffect(() => {
-		if (token && dataLoaded && selectedTab === "charts") {
-			loadChartData();
-		}
-	}, [selectedTab, selectedPeriod]); // eslint-disable-line
+		if (token) loadData();
+	}, [token, selectedPeriod]); // eslint-disable-line
 
 	// ═══════════════════════════════════════════════════════════════════════
 	// 📡 API CALLS
 	// ═══════════════════════════════════════════════════════════════════════
-	const loadData = async () => {
+	const loadData = useCallback(async () => {
+		if (!token) return;
 		setIsLoading(true);
 		try {
 			const controller = new AbortController();
@@ -374,9 +353,26 @@ export default function AccountingScreen({ onClose }) {
 			}
 
 			const apiData = await response.json();
-
 			if (apiData.success && apiData.data) {
 				setData(apiData.data);
+				const d = apiData.data;
+				const periodLabel = PERIODS.find((p) => p.key === selectedPeriod)?.label ?? selectedPeriod;
+				console.log(
+					`\n💰 [COMPTA] ── ${periodLabel} ──────────────────────────────`,
+					`\n📅  Période     : ${d.startDate} → ${d.endDate}`,
+					`\n💵  CA TTC      : €${d.totalRevenue?.toFixed(2)}`,
+					`\n📊  CA HT       : €${d.revenueHT?.toFixed(2)}`,
+					`\n🧾  TVA         : €${d.tvaCollected?.toFixed(2)}`,
+					`\n📦  Commandes   : ${d.totalOrders}`,
+					`\n🛒  Panier moy. : €${d.averageOrderValue?.toFixed(2)}`,
+					`\n📈  Croissance  : ${d.growthRate > 0 ? "+" : ""}${d.growthRate?.toFixed(1)}% vs période préc.`,
+					`\n🌞  Midi        : €${d.serviceBreakdown?.midi?.revenue?.toFixed(0)} (${d.serviceBreakdown?.midi?.orders} cmd)`,
+					`\n🌙  Soir        : €${d.serviceBreakdown?.soir?.revenue?.toFixed(0)} (${d.serviceBreakdown?.soir?.orders} cmd)`,
+					`\n📅  CA/jour     : €${d.avgPerDay?.toFixed(0)}`,
+					d.projectedRevenue ? `\n🔮  Projection  : €${d.projectedRevenue?.toFixed(0)}` : "",
+					d.bestPeriod?.revenue > 0 ? `\n🏆  Meilleur    : ${d.bestPeriod.label} (€${d.bestPeriod.revenue?.toFixed(0)})` : "",
+					`\n─────────────────────────────────────────────────────────────\n`,
+				);
 			}
 		} catch (error) {
 			console.error("❌ [AccountingScreen] Erreur:", error.message);
@@ -384,220 +380,12 @@ export default function AccountingScreen({ onClose }) {
 		} finally {
 			setIsLoading(false);
 		}
-	};
-
-	const loadChartData = async () => {
-		try {
-			// Pour l'instant, on utilise juste les données dailyRevenues
-		} catch (error) {
-			console.error(
-				"❌ [AccountingScreen] Erreur chargement graphiques:",
-				error,
-			);
-		}
-	};
+	}, [token, selectedPeriod]);
 
 	// ═══════════════════════════════════════════════════════════════════════
-	// 🎨 STYLES
+	// 🎨 STYLES (dépendent du thème)
 	// ═══════════════════════════════════════════════════════════════════════
-	const styles = {
-		modalContainer: {
-			flex: 1,
-			backgroundColor: THEME.colors.background.dark,
-		},
-		header: {
-			flexDirection: "row",
-			justifyContent: "space-between",
-			alignItems: "center",
-			padding: 16,
-			backgroundColor: THEME.colors.background.card,
-			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
-		},
-		title: {
-			fontSize: 22,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-		},
-		closeButton: {
-			padding: 8,
-		},
-		content: {
-			flex: 1,
-		},
-		periodSelector: {
-			flexDirection: "row",
-			backgroundColor: THEME.colors.background.card,
-			padding: 12,
-			justifyContent: "space-around",
-			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
-		},
-		periodButton: {
-			paddingVertical: 8,
-			paddingHorizontal: 12,
-			borderRadius: 8,
-			backgroundColor: THEME.colors.background.subtle,
-		},
-		periodButtonActive: {
-			backgroundColor: THEME.colors.primary.amber,
-		},
-		periodButtonText: {
-			fontSize: 12,
-			color: THEME.colors.text.secondary,
-			textAlign: "center",
-			fontWeight: "600",
-		},
-		periodButtonTextActive: {
-			color: "#fff",
-			fontWeight: "600",
-		},
-		tabSelector: {
-			flexDirection: "row",
-			backgroundColor: THEME.colors.background.card,
-			paddingHorizontal: 12,
-			paddingVertical: 12,
-			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
-		},
-		tabButton: {
-			flex: 1,
-			flexDirection: "row",
-			alignItems: "center",
-			justifyContent: "center",
-			paddingVertical: 8,
-			paddingHorizontal: 12,
-			borderRadius: 8,
-			marginHorizontal: 4,
-		},
-		tabButtonActive: {
-			backgroundColor: THEME.colors.primary.amber + "20",
-		},
-		tabButtonText: {
-			fontSize: 12,
-			color: THEME.colors.text.secondary,
-			marginLeft: 4,
-		},
-		tabButtonTextActive: {
-			color: THEME.colors.primary.amber,
-			fontWeight: "600",
-		},
-		scrollContent: {
-			padding: 12,
-		},
-		// Cartes métriques
-		metricsGrid: {
-			flexDirection: "row",
-			flexWrap: "wrap",
-			justifyContent: "space-between",
-			marginBottom: 12,
-		},
-		metricCard: {
-			width: "48%",
-			backgroundColor: THEME.colors.background.card,
-			padding: 12,
-			borderRadius: 12,
-			marginBottom: 12,
-		},
-		metricCardLarge: {
-			width: "100%",
-		},
-		metricValue: {
-			fontSize: 18,
-			fontWeight: "700",
-			color: THEME.colors.text.primary,
-			marginBottom: 4,
-		},
-		metricLabel: {
-			fontSize: 12,
-			color: THEME.colors.text.secondary,
-		},
-		metricChange: {
-			flexDirection: "row",
-			alignItems: "center",
-			marginTop: 4,
-		},
-		metricChangeText: {
-			fontSize: 11,
-			marginLeft: 4,
-		},
-		metricChangePositive: {
-			color: "#22C55E",
-		},
-		metricChangeNegative: {
-			color: "#EF4444",
-		},
-		// Sections
-		section: {
-			marginBottom: 12,
-		},
-		sectionTitle: {
-			fontSize: 16,
-			fontWeight: "600",
-			color: THEME.colors.text.primary,
-			marginBottom: 12,
-		},
-		// Graphiques
-		chartContainer: {
-			backgroundColor: THEME.colors.background.card,
-			borderRadius: 12,
-			padding: 12,
-			marginBottom: 12,
-			overflow: "hidden",
-		},
-		chartTitle: {
-			fontSize: 14,
-			fontWeight: "600",
-			color: THEME.colors.text.primary,
-			marginBottom: 12,
-			textAlign: "center",
-		},
-		// Liste produits
-		productsList: {
-			backgroundColor: THEME.colors.background.card,
-			borderRadius: 12,
-			overflow: "hidden",
-		},
-		productItem: {
-			flexDirection: "row",
-			justifyContent: "space-between",
-			alignItems: "center",
-			padding: 12,
-			borderBottomWidth: 1,
-			borderBottomColor: THEME.colors.border.subtle,
-		},
-		productName: {
-			fontSize: 13,
-			color: THEME.colors.text.primary,
-			flex: 1,
-		},
-		productStats: {
-			flexDirection: "row",
-			alignItems: "center",
-		},
-		productQuantity: {
-			fontSize: 12,
-			color: THEME.colors.text.secondary,
-			marginRight: THEME.spacing.sm,
-		},
-		productRevenue: {
-			fontSize: 14,
-			fontWeight: "600",
-			color: THEME.colors.primary.amber,
-		},
-		// Loading
-		loadingContainer: {
-			flex: 1,
-			justifyContent: "center",
-			alignItems: "center",
-			padding: THEME.spacing.xl,
-		},
-		loadingText: {
-			fontSize: 16,
-			color: THEME.colors.text.secondary,
-			marginTop: THEME.spacing.md,
-		},
-	};
+	const styles = useMemo(() => buildStyles(THEME), [THEME]);
 
 	// ═══════════════════════════════════════════════════════════════════════
 	// 🔐 VÉRIFICATIONS ACCÈS
@@ -639,121 +427,162 @@ export default function AccountingScreen({ onClose }) {
 	// 🎨 RENDU CONTENU
 	// ═══════════════════════════════════════════════════════════════════════
 
-	const renderOverviewTab = () => (
-		<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-			<View style={styles.scrollContent}>
-				{/* Métriques principales */}
-				<View style={styles.metricsGrid}>
-					<View style={styles.metricCard}>
-						<Text style={styles.metricValue}>
-							€{data.totalRevenue?.toFixed(2) || "0.00"}
-						</Text>
-						<Text style={styles.metricLabel}>Chiffre d&apos;Affaires</Text>
+	const renderOverviewTab = () => {
+		const midi = data.serviceBreakdown?.midi || { revenue: 0, orders: 0 };
+		const soir = data.serviceBreakdown?.soir || { revenue: 0, orders: 0 };
+		const totalService = midi.revenue + soir.revenue;
+		const midiPct = totalService > 0 ? midi.revenue / totalService : 0.5;
+
+		return (
+			<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
+				<View style={styles.scrollContent}>
+
+					{/* ── HERO ── */}
+					<View style={styles.heroCard}>
+						<Text style={styles.heroLabel}>Chiffre d'Affaires</Text>
+						<Text style={styles.heroValue}>€{data.totalRevenue?.toFixed(2) || "0.00"}</Text>
 						{data.growthRate !== undefined && (
-							<View style={styles.metricChange}>
+							<View style={[styles.growthBadge, {
+								backgroundColor: data.growthRate >= 0 ? "#22C55E18" : "#EF444418",
+							}]}>
 								<Ionicons
 									name={data.growthRate >= 0 ? "trending-up" : "trending-down"}
-									size={16}
+									size={13}
 									color={data.growthRate >= 0 ? "#22C55E" : "#EF4444"}
 								/>
-								<Text
-									style={[
-										styles.metricChangeText,
-										data.growthRate >= 0
-											? styles.metricChangePositive
-											: styles.metricChangeNegative,
-									]}
-								>
-									{data.growthRate > 0 ? "+" : ""}
-									{data.growthRate?.toFixed(1) || "0.0"}%
+								<Text style={[styles.growthText, { color: data.growthRate >= 0 ? "#22C55E" : "#EF4444" }]}>
+									{data.growthRate > 0 ? "+" : ""}{data.growthRate?.toFixed(1)}% vs période préc.
 								</Text>
 							</View>
 						)}
 					</View>
 
-					<View style={styles.metricCard}>
-						<Text style={styles.metricValue}>{data.totalOrders || 0}</Text>
-						<Text style={styles.metricLabel}>Commandes</Text>
-					</View>
-
-					<View style={styles.metricCard}>
-						<Text style={styles.metricValue}>
-							€{data.averageOrderValue?.toFixed(2) || "0.00"}
-						</Text>
-						<Text style={styles.metricLabel}>Panier Moyen</Text>
-					</View>
-
-					<View style={styles.metricCard}>
-						<Text style={styles.metricValue}>
-							{data.marginPercent?.toFixed(1) || "0.0"}%
-						</Text>
-						<Text style={styles.metricLabel}>Marge Brute</Text>
-					</View>
-				</View>
-
-				{/* Comptabilité avancée */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>📊 Analyse Comptable</Text>
-
-					<View style={styles.metricsGrid}>
-						<View style={styles.metricCard}>
-							<Text style={styles.metricValue}>
-								€{data.revenueHT?.toFixed(2) || "0.00"}
-							</Text>
-							<Text style={styles.metricLabel}>CA Hors Taxes</Text>
+					{/* ── 3 PILLS ── */}
+					<View style={styles.pillsRow}>
+						<View style={styles.pill}>
+							<Text style={styles.pillValue}>{data.totalOrders || 0}</Text>
+							<Text style={styles.pillLabel}>Commandes</Text>
 						</View>
-
-						<View style={styles.metricCard}>
-							<Text style={styles.metricValue}>
-								€{data.tvaCollected?.toFixed(2) || "0.00"}
-							</Text>
-							<Text style={styles.metricLabel}>TVA Collectée</Text>
+						<View style={styles.pillDivider} />
+						<View style={styles.pill}>
+							<Text style={styles.pillValue}>€{data.averageOrderValue?.toFixed(0) || "0"}</Text>
+							<Text style={styles.pillLabel}>Panier Moyen</Text>
 						</View>
-
-						<View style={styles.metricCard}>
-							<Text style={styles.metricValue}>
-								€{data.costs?.toFixed(2) || "0.00"}
-							</Text>
-							<Text style={styles.metricLabel}>Coûts Estimés</Text>
-						</View>
-
-						<View style={styles.metricCard}>
-							<Text style={styles.metricValue}>
-								€{data.netResult?.toFixed(2) || "0.00"}
-							</Text>
-							<Text style={styles.metricLabel}>Résultat Net</Text>
+						<View style={styles.pillDivider} />
+						<View style={styles.pill}>
+							<Text style={styles.pillValue}>€{data.avgPerDay?.toFixed(0) || "0"}</Text>
+							<Text style={styles.pillLabel}>CA / Jour</Text>
 						</View>
 					</View>
-				</View>
 
-				{/* Top produits */}
-				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>🏆 Produits Populaires</Text>
-					<View style={styles.productsList}>
-						{data.topProducts?.length > 0 ? (
-							data.topProducts.map((product, index) => (
-								<View key={index} style={styles.productItem}>
-									<Text style={styles.productName}>{product.name}</Text>
-									<View style={styles.productStats}>
-										<Text style={styles.productQuantity}>
-											{product.quantity}x
-										</Text>
-										<Text style={styles.productRevenue}>
-											€{product.revenue?.toFixed(2)}
-										</Text>
-									</View>
-								</View>
-							))
-						) : (
-							<View style={styles.productItem}>
-								<Text style={styles.productName}>Aucun produit vendu</Text>
+					{/* ── SERVICES MIDI / SOIR ── */}
+					<View style={styles.section}>
+						<Text style={styles.sectionTitle}>⏰ Services</Text>
+						<View style={styles.servicesCard}>
+							<View style={styles.splitBarContainer}>
+								<View style={[styles.splitBarMidi, { flex: midiPct }]} />
+								<View style={[styles.splitBarSoir, { flex: 1 - midiPct }]} />
 							</View>
-						)}
+							<View style={styles.servicesRow}>
+								<View style={styles.serviceItem}>
+									<View style={[styles.serviceDot, { backgroundColor: "#F59E0B" }]} />
+									<Text style={styles.serviceLabel}>Midi</Text>
+									<Text style={styles.serviceValue}>€{midi.revenue.toFixed(0)}</Text>
+									<Text style={styles.serviceOrders}>{midi.orders} cmd</Text>
+								</View>
+								<View style={styles.servicesDivider} />
+								<View style={styles.serviceItem}>
+									<View style={[styles.serviceDot, { backgroundColor: "#6366F1" }]} />
+									<Text style={styles.serviceLabel}>Soir</Text>
+									<Text style={styles.serviceValue}>€{soir.revenue.toFixed(0)}</Text>
+									<Text style={styles.serviceOrders}>{soir.orders} cmd</Text>
+								</View>
+							</View>
+						</View>
 					</View>
+
+					{/* ── CARTE CONTEXTUELLE ── */}
+					{selectedPeriod === "month" && (data.projectedRevenue || 0) > 0 && (
+						<View style={styles.contextCard}>
+							<View style={styles.contextCardLeft}>
+								<View style={styles.contextCardIcon}>
+									<Ionicons name="trending-up-outline" size={18} color="#F59E0B" />
+								</View>
+								<View>
+									<Text style={styles.contextCardLabel}>Projection fin de mois</Text>
+									<Text style={styles.contextCardSub}>À ce rythme</Text>
+								</View>
+							</View>
+							<Text style={styles.contextCardValue}>€{data.projectedRevenue?.toFixed(0)}</Text>
+						</View>
+					)}
+					{(selectedPeriod === "week" || selectedPeriod === "quarter" || selectedPeriod === "year") && (data.bestPeriod?.revenue || 0) > 0 && (
+						<View style={styles.contextCard}>
+							<View style={styles.contextCardLeft}>
+								<View style={styles.contextCardIcon}>
+									<Ionicons name="trophy-outline" size={18} color="#F59E0B" />
+								</View>
+								<View>
+									<Text style={styles.contextCardLabel}>
+										{selectedPeriod === "week" ? "Meilleur jour" : "Meilleur mois"}
+									</Text>
+									<Text style={styles.contextCardSub}>{data.bestPeriod?.label}</Text>
+								</View>
+							</View>
+							<Text style={styles.contextCardValue}>€{data.bestPeriod?.revenue?.toFixed(0)}</Text>
+						</View>
+					)}
+
+					{/* ── FISCAL ── */}
+					<View style={styles.section}>
+						<Text style={styles.sectionTitle}>🧾 Fiscal</Text>
+						<View style={styles.fiscalCard}>
+							<View style={styles.fiscalRow}>
+								<Text style={styles.fiscalLabel}>CA Hors Taxes</Text>
+								<Text style={styles.fiscalAmount}>€{data.revenueHT?.toFixed(2) || "0.00"}</Text>
+							</View>
+							<View style={styles.fiscalRowDivider} />
+							<View style={styles.fiscalRow}>
+								<Text style={styles.fiscalLabel}>TVA Collectée (20%)</Text>
+								<Text style={styles.fiscalAmount}>€{data.tvaCollected?.toFixed(2) || "0.00"}</Text>
+							</View>
+							<View style={styles.fiscalRowDivider} />
+							<View style={styles.fiscalRow}>
+								<Text style={[styles.fiscalLabel, { fontWeight: "600", color: THEME.colors.text.primary }]}>CA Toutes Taxes</Text>
+								<Text style={[styles.fiscalAmount, { color: THEME.colors.primary.amber, fontWeight: "700" }]}>€{data.totalRevenue?.toFixed(2) || "0.00"}</Text>
+							</View>
+						</View>
+					</View>
+
+					{/* ── TOP PRODUITS ── */}
+					<View style={styles.section}>
+						<Text style={styles.sectionTitle}>🏆 Top Produits</Text>
+						<View style={styles.productsList}>
+							{data.topProducts?.length > 0 ? (
+								data.topProducts.map((product, index) => (
+									<View key={index} style={styles.productItem}>
+										<View style={styles.productRank}>
+											<Text style={styles.productRankText}>{index + 1}</Text>
+										</View>
+										<Text style={styles.productName} numberOfLines={1}>{product.name}</Text>
+										<View style={styles.productStats}>
+											<Text style={styles.productQuantity}>{product.quantity}x</Text>
+											<Text style={styles.productRevenue}>€{product.revenue?.toFixed(0)}</Text>
+										</View>
+									</View>
+								))
+							) : (
+								<View style={styles.productItem}>
+									<Text style={styles.productName}>Aucun produit vendu</Text>
+								</View>
+							)}
+						</View>
+					</View>
+
 				</View>
-			</View>
-		</ScrollView>
-	);
+			</ScrollView>
+		);
+	};
 
 	const renderChartsTab = () => {
 		// ── Configuration métriques ──
@@ -783,33 +612,11 @@ export default function AccountingScreen({ onClose }) {
 				value: data.averageOrderValue,
 				format: (v) => `€${(v || 0).toFixed(0)}`,
 			},
-			{
-				key: "margin",
-				label: "Marge Brute",
-				icon: "trending-up-outline",
-				color: "#22C55E",
-				value: data.marginPercent,
-				format: (v) => `${(v || 0).toFixed(1)}%`,
-			},
 		];
 
 		const activeMetric = METRICS.find((m) => m.key === selectedMetric);
 
 		// ── Préparer données graphique ──
-		const MOIS = [
-			"Jan",
-			"Fév",
-			"Mar",
-			"Avr",
-			"Mai",
-			"Jun",
-			"Jul",
-			"Aoû",
-			"Sep",
-			"Oct",
-			"Nov",
-			"Déc",
-		];
 		const isLongPeriod =
 			selectedPeriod === "year" || selectedPeriod === "quarter";
 
@@ -845,10 +652,6 @@ export default function AccountingScreen({ onClose }) {
 				case "avg":
 					return chartPoints.map((p) =>
 						p.orders > 0 ? p.revenue / p.orders : 0,
-					);
-				case "margin":
-					return chartPoints.map(
-						(p) => (p.revenue || 0) * ((data.marginPercent || 70) / 100),
 					);
 				default:
 					return chartPoints.map((p) => p.revenue || 0);
@@ -1082,112 +885,7 @@ export default function AccountingScreen({ onClose }) {
 					)}
 
 					{/* ── SVG DONUT CHART ── */}
-					{data.revenueHT > 0 && (
-						<View style={styles.chartContainer}>
-							<Text
-								style={{
-									fontSize: 14,
-									fontWeight: "700",
-									color: THEME.colors.text.primary,
-									marginBottom: 4,
-								}}
-							>
-								💰 Répartition CA HT
-							</Text>
-							<Text
-								style={{
-									fontSize: 11,
-									color: THEME.colors.text.secondary,
-									marginBottom: 16,
-								}}
-							>
-								Marge brute estimée vs coûts opérationnels
-							</Text>
-							<View style={{ flexDirection: "row", alignItems: "center" }}>
-								<SvgDonut
-									segments={[
-										{
-											value: Math.max(data.grossMargin, 0.01),
-											color: "#22C55E",
-											label: "Marge",
-										},
-										{
-											value: Math.max(data.costs, 0.01),
-											color: "#EF4444",
-											label: "Coûts",
-										},
-									]}
-									size={160}
-									thickness={30}
-									centerLabel="CA HT"
-									centerValue={`€${(data.revenueHT || 0).toFixed(0)}`}
-								/>
-								<View style={{ flex: 1, marginLeft: 16 }}>
-									{[
-										{
-											color: "#22C55E",
-											label: "Marge brute",
-											value: Math.max(data.grossMargin, 0),
-											pct: data.marginPercent?.toFixed(0) ?? "70",
-										},
-										{
-											color: "#EF4444",
-											label: "Coûts estimés",
-											value: Math.max(data.costs, 0),
-											pct: (100 - (data.marginPercent ?? 70)).toFixed(0),
-										},
-									].map((item, i) => (
-										<View key={i} style={{ marginBottom: i === 0 ? 20 : 0 }}>
-											<View
-												style={{
-													flexDirection: "row",
-													alignItems: "center",
-													marginBottom: 4,
-												}}
-											>
-												<View
-													style={{
-														width: 10,
-														height: 10,
-														borderRadius: 5,
-														backgroundColor: item.color,
-														marginRight: 8,
-													}}
-												/>
-												<Text
-													style={{
-														fontSize: 12,
-														color: THEME.colors.text.secondary,
-													}}
-												>
-													{item.label}
-												</Text>
-											</View>
-											<Text
-												style={{
-													fontSize: 24,
-													fontWeight: "700",
-													color: item.color,
-													marginLeft: 18,
-												}}
-											>
-												{item.pct}%
-											</Text>
-											<Text
-												style={{
-													fontSize: 12,
-													color: THEME.colors.text.secondary,
-													marginLeft: 18,
-												}}
-											>
-												€{item.value.toFixed(2)}
-											</Text>
-										</View>
-									))}
-								</View>
-							</View>
-						</View>
-					)}
+
 
 					{/* ── TOP PRODUITS BARRES HORIZONTALES ── */}
 					{data.topProducts?.length > 0 && (
@@ -1216,13 +914,6 @@ export default function AccountingScreen({ onClose }) {
 									...data.topProducts.map((p) => p.revenue || 0),
 									1,
 								);
-								const BAR_COLORS = [
-									"#F59E0B",
-									"#3B82F6",
-									"#A855F7",
-									"#22C55E",
-									"#EF4444",
-								];
 								return data.topProducts.slice(0, 5).map((product, idx) => {
 									const pct = (product.revenue || 0) / maxRev;
 									const col = BAR_COLORS[idx % BAR_COLORS.length];
@@ -1320,6 +1011,50 @@ export default function AccountingScreen({ onClose }) {
 							})()}
 						</View>
 					)}
+
+				{/* ── HEATMAP HORAIRE ── */}
+				{data.hourlyDistribution?.length > 0 && (
+					<View style={styles.chartContainer}>
+						<Text style={{ fontSize: 14, fontWeight: "700", color: THEME.colors.text.primary, marginBottom: 4 }}>
+							⏰ Répartition horaire
+						</Text>
+						<Text style={{ fontSize: 11, color: THEME.colors.text.secondary, marginBottom: 16 }}>
+							CA par heure (UTC+2)
+						</Text>
+						{(() => {
+							const maxRev = Math.max(...data.hourlyDistribution.map((h) => h.revenue), 1);
+							const barMaxW = screenWidth - 148;
+							const MIDI_H = [11, 12, 13, 14, 15];
+							const SOIR_H = [18, 19, 20, 21, 22, 23];
+							return data.hourlyDistribution
+								.filter((h) => h.orders > 0)
+								.map((h, idx) => {
+									const color = MIDI_H.includes(h.hour) ? "#F59E0B" : SOIR_H.includes(h.hour) ? "#6366F1" : "#64748B";
+									const pct = h.revenue / maxRev;
+									return (
+										<View key={idx} style={{ flexDirection: "row", alignItems: "center", marginBottom: 8 }}>
+											<Text style={{ width: 28, fontSize: 11, color: THEME.colors.text.secondary, textAlign: "right" }}>
+												{h.hour}h
+											</Text>
+											<View style={{ height: 16, width: Math.max(barMaxW * pct, 4), backgroundColor: color, borderRadius: 3, marginHorizontal: 8, opacity: 0.85 }} />
+											<Text style={{ fontSize: 11, color: THEME.colors.text.secondary }}>
+												€{h.revenue.toFixed(0)}
+											</Text>
+										</View>
+									);
+								});
+						})()}
+						<View style={{ flexDirection: "row", marginTop: 12, gap: 16 }}>
+							{[{ color: "#F59E0B", label: "Midi" }, { color: "#6366F1", label: "Soir" }, { color: "#64748B", label: "Autre" }].map((l) => (
+								<View key={l.label} style={{ flexDirection: "row", alignItems: "center" }}>
+									<View style={{ width: 10, height: 10, borderRadius: 2, backgroundColor: l.color, marginRight: 5 }} />
+									<Text style={{ fontSize: 10, color: THEME.colors.text.secondary }}>{l.label}</Text>
+								</View>
+							))}
+						</View>
+					</View>
+				)}
+
 				</View>
 			</ScrollView>
 		);
@@ -1328,56 +1063,117 @@ export default function AccountingScreen({ onClose }) {
 	const renderDetailsTab = () => (
 		<ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
 			<View style={styles.scrollContent}>
+
+				{/* ── RÉSUMÉ PÉRIODE ── */}
 				<View style={styles.section}>
-					<Text style={styles.sectionTitle}>📋 Détails de la Période</Text>
-
-					<View style={styles.metricCard}>
-						<Text style={styles.metricLabel}>Période sélectionnée</Text>
-						<Text style={styles.metricValue}>
-							{PERIODS.find((p) => p.key === selectedPeriod)?.label}
-						</Text>
-						<Text style={styles.metricLabel}>
-							Du {data.startDate} au {data.endDate}
-						</Text>
-					</View>
-
-					<View style={styles.metricsGrid}>
-						<View style={styles.metricCard}>
-							<Text style={styles.metricValue}>
-								€{data.revenueTTC?.toFixed(2) || "0.00"}
-							</Text>
-							<Text style={styles.metricLabel}>CA Toutes Taxes</Text>
+					<Text style={styles.sectionTitle}>📋 Résumé de la période</Text>
+					<View style={styles.fiscalCard}>
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>Période</Text>
+							<Text style={styles.fiscalAmount}>{PERIODS.find((p) => p.key === selectedPeriod)?.label}</Text>
 						</View>
-
-						<View style={styles.metricCard}>
-							<Text style={styles.metricValue}>
-								€{data.previousPeriodRevenue?.toFixed(2) || "0.00"}
-							</Text>
-							<Text style={styles.metricLabel}>Période Précédente</Text>
+						<View style={styles.fiscalRowDivider} />
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>Du</Text>
+							<Text style={styles.fiscalAmount}>{data.startDate}</Text>
+						</View>
+						<View style={styles.fiscalRowDivider} />
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>Au</Text>
+							<Text style={styles.fiscalAmount}>{data.endDate}</Text>
 						</View>
 					</View>
-
-					<TouchableOpacity
-						style={{
-							backgroundColor: THEME.colors.primary.amber,
-							borderRadius: THEME.radius.lg,
-							padding: THEME.spacing.md,
-							alignItems: "center",
-							marginTop: THEME.spacing.lg,
-						}}
-						onPress={loadData}
-					>
-						<Text
-							style={{
-								color: "#fff",
-								fontWeight: "600",
-								fontSize: 16,
-							}}
-						>
-							🔄 Actualiser les données
-						</Text>
-					</TouchableOpacity>
 				</View>
+
+				{/* ── CHIFFRE D'AFFAIRES ── */}
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>💶 Chiffre d'affaires</Text>
+					<View style={styles.fiscalCard}>
+						<View style={styles.fiscalRow}>
+							<Text style={[styles.fiscalLabel, { fontWeight: "600", color: THEME.colors.text.primary }]}>CA TTC</Text>
+							<Text style={[styles.fiscalAmount, { color: THEME.colors.primary.amber, fontWeight: "700" }]}>€{data.totalRevenue?.toFixed(2) || "0.00"}</Text>
+						</View>
+						<View style={styles.fiscalRowDivider} />
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>CA HT</Text>
+							<Text style={styles.fiscalAmount}>€{data.revenueHT?.toFixed(2) || "0.00"}</Text>
+						</View>
+						<View style={styles.fiscalRowDivider} />
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>TVA Collectée</Text>
+							<Text style={styles.fiscalAmount}>€{data.tvaCollected?.toFixed(2) || "0.00"}</Text>
+						</View>
+						<View style={styles.fiscalRowDivider} />
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>Commandes</Text>
+							<Text style={styles.fiscalAmount}>{data.totalOrders || 0}</Text>
+						</View>
+						<View style={styles.fiscalRowDivider} />
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>Panier Moyen</Text>
+							<Text style={styles.fiscalAmount}>€{data.averageOrderValue?.toFixed(2) || "0.00"}</Text>
+						</View>
+						<View style={styles.fiscalRowDivider} />
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>CA Moyen / Jour</Text>
+							<Text style={styles.fiscalAmount}>€{data.avgPerDay?.toFixed(2) || "0.00"}</Text>
+						</View>
+					</View>
+				</View>
+
+				{/* ── COMPARAISON ── */}
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>📈 Comparaison</Text>
+					<View style={styles.fiscalCard}>
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>Période précédente</Text>
+							<Text style={styles.fiscalAmount}>€{data.previousPeriodRevenue?.toFixed(2) || "0.00"}</Text>
+						</View>
+						<View style={styles.fiscalRowDivider} />
+						<View style={styles.fiscalRow}>
+							<Text style={styles.fiscalLabel}>Évolution</Text>
+							<Text style={[styles.fiscalAmount, { color: (data.growthRate || 0) >= 0 ? "#22C55E" : "#EF4444", fontWeight: "600" }]}>
+								{(data.growthRate || 0) > 0 ? "+" : ""}{data.growthRate?.toFixed(1) || "0.0"}%
+							</Text>
+						</View>
+						{selectedPeriod === "month" && (data.projectedRevenue || 0) > 0 && (
+							<>
+								<View style={styles.fiscalRowDivider} />
+								<View style={styles.fiscalRow}>
+									<Text style={styles.fiscalLabel}>Projection fin de mois</Text>
+									<Text style={[styles.fiscalAmount, { color: "#3B82F6", fontWeight: "600" }]}>€{data.projectedRevenue?.toFixed(0)}</Text>
+								</View>
+							</>
+						)}
+					</View>
+				</View>
+
+				{/* ── SERVICES ── */}
+				<View style={styles.section}>
+					<Text style={styles.sectionTitle}>⏰ Détail services</Text>
+					<View style={styles.fiscalCard}>
+						{[
+							{ label: "Midi (11h–16h)", ...(data.serviceBreakdown?.midi || { revenue: 0, orders: 0 }) },
+							{ label: "Soir (18h–00h)", ...(data.serviceBreakdown?.soir || { revenue: 0, orders: 0 }) },
+						].map((s, i) => (
+							<React.Fragment key={i}>
+								{i > 0 && <View style={styles.fiscalRowDivider} />}
+								<View style={styles.fiscalRow}>
+									<Text style={styles.fiscalLabel}>{s.label}</Text>
+									<View style={{ alignItems: "flex-end" }}>
+										<Text style={styles.fiscalAmount}>€{(s.revenue || 0).toFixed(2)}</Text>
+										<Text style={{ fontSize: 11, color: THEME.colors.text.secondary }}>{s.orders || 0} cmd</Text>
+									</View>
+								</View>
+							</React.Fragment>
+						))}
+					</View>
+				</View>
+
+				<TouchableOpacity style={styles.refreshButton} onPress={loadData}>
+					<Text style={styles.refreshButtonText}>🔄 Actualiser les données</Text>
+				</TouchableOpacity>
+
 			</View>
 		</ScrollView>
 	);
@@ -1443,7 +1239,6 @@ export default function AccountingScreen({ onClose }) {
 							]}
 							onPress={() => {
 								setSelectedPeriod(period.key);
-								setDataLoaded(false); // Forcer le rechargement
 							}}
 						>
 							<Ionicons
@@ -1507,4 +1302,428 @@ export default function AccountingScreen({ onClose }) {
 			</View>
 		</Modal>
 	);
+}
+
+// ════════════════════════════════════════════════════
+// 🎨 STYLES — buildStyles (THEME-dependent, memoized)
+// ════════════════════════════════════════════════════
+function buildStyles(THEME) {
+	return StyleSheet.create({
+		modalContainer: {
+			flex: 1,
+			backgroundColor: THEME.colors.background.dark,
+		},
+		header: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			padding: 16,
+			backgroundColor: THEME.colors.background.card,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		title: {
+			fontSize: 22,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		closeButton: {
+			padding: 8,
+		},
+		content: {
+			flex: 1,
+		},
+		periodSelector: {
+			flexDirection: "row",
+			backgroundColor: THEME.colors.background.card,
+			padding: 12,
+			justifyContent: "space-around",
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		periodButton: {
+			paddingVertical: 8,
+			paddingHorizontal: 12,
+			borderRadius: 8,
+			backgroundColor: THEME.colors.background.subtle,
+		},
+		periodButtonActive: {
+			backgroundColor: THEME.colors.primary.amber,
+		},
+		periodButtonText: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			textAlign: "center",
+			fontWeight: "600",
+		},
+		periodButtonTextActive: {
+			color: "#fff",
+			fontWeight: "600",
+		},
+		tabSelector: {
+			flexDirection: "row",
+			backgroundColor: THEME.colors.background.card,
+			paddingHorizontal: 12,
+			paddingVertical: 12,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		tabButton: {
+			flex: 1,
+			flexDirection: "row",
+			alignItems: "center",
+			justifyContent: "center",
+			paddingVertical: 8,
+			paddingHorizontal: 12,
+			borderRadius: 8,
+			marginHorizontal: 4,
+		},
+		tabButtonActive: {
+			backgroundColor: THEME.colors.primary.amber + "20",
+		},
+		tabButtonText: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			marginLeft: 4,
+		},
+		tabButtonTextActive: {
+			color: THEME.colors.primary.amber,
+			fontWeight: "600",
+		},
+		scrollContent: {
+			padding: 12,
+		},
+		metricsGrid: {
+			flexDirection: "row",
+			flexWrap: "wrap",
+			justifyContent: "space-between",
+			marginBottom: 12,
+		},
+		metricCard: {
+			width: "48%",
+			backgroundColor: THEME.colors.background.card,
+			padding: 12,
+			borderRadius: 12,
+			marginBottom: 12,
+		},
+		metricCardLarge: {
+			width: "100%",
+		},
+		metricValue: {
+			fontSize: 18,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginBottom: 4,
+		},
+		metricLabel: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+		},
+		metricChange: {
+			flexDirection: "row",
+			alignItems: "center",
+			marginTop: 4,
+		},
+		metricChangeText: {
+			fontSize: 11,
+			marginLeft: 4,
+		},
+		metricChangePositive: {
+			color: "#22C55E",
+		},
+		metricChangeNegative: {
+			color: "#EF4444",
+		},
+		section: {
+			marginBottom: 12,
+		},
+		sectionTitle: {
+			fontSize: 16,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginBottom: 12,
+		},
+		chartContainer: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: 12,
+			padding: 12,
+			marginBottom: 12,
+			overflow: "hidden",
+		},
+		chartTitle: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+			marginBottom: 12,
+			textAlign: "center",
+		},
+		productsList: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: 12,
+			overflow: "hidden",
+		},
+		productItem: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			padding: 12,
+			borderBottomWidth: 1,
+			borderBottomColor: THEME.colors.border.subtle,
+		},
+		productName: {
+			fontSize: 13,
+			color: THEME.colors.text.primary,
+			flex: 1,
+		},
+		productStats: {
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		productQuantity: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			marginRight: THEME.spacing.sm,
+		},
+		productRevenue: {
+			fontSize: 14,
+			fontWeight: "600",
+			color: THEME.colors.primary.amber,
+		},
+		loadingContainer: {
+			flex: 1,
+			justifyContent: "center",
+			alignItems: "center",
+			padding: THEME.spacing.xl,
+		},
+		loadingText: {
+			fontSize: 16,
+			color: THEME.colors.text.secondary,
+			marginTop: THEME.spacing.md,
+		},
+
+		// ── HERO ──
+		heroCard: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: 16,
+			padding: 24,
+			marginBottom: 12,
+			alignItems: "center",
+			shadowColor: "#000",
+			shadowOffset: { width: 0, height: 2 },
+			shadowOpacity: 0.08,
+			shadowRadius: 8,
+			elevation: 3,
+		},
+		heroLabel: {
+			fontSize: 12,
+			color: THEME.colors.text.secondary,
+			textTransform: "uppercase",
+			letterSpacing: 1,
+			marginBottom: 8,
+		},
+		heroValue: {
+			fontSize: 36,
+			fontWeight: "800",
+			color: THEME.colors.text.primary,
+			marginBottom: 12,
+		},
+		growthBadge: {
+			flexDirection: "row",
+			alignItems: "center",
+			paddingHorizontal: 10,
+			paddingVertical: 5,
+			borderRadius: 20,
+			gap: 4,
+		},
+		growthText: {
+			fontSize: 12,
+			fontWeight: "600",
+		},
+
+		// ── PILLS ──
+		pillsRow: {
+			flexDirection: "row",
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: 12,
+			marginBottom: 12,
+			overflow: "hidden",
+		},
+		pill: {
+			flex: 1,
+			alignItems: "center",
+			paddingVertical: 14,
+		},
+		pillValue: {
+			fontSize: 16,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+			marginBottom: 2,
+		},
+		pillLabel: {
+			fontSize: 10,
+			color: THEME.colors.text.secondary,
+			textTransform: "uppercase",
+			letterSpacing: 0.5,
+		},
+		pillDivider: {
+			width: 1,
+			backgroundColor: THEME.colors.border.subtle,
+			marginVertical: 10,
+		},
+
+		// ── SERVICES ──
+		servicesCard: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: 12,
+			padding: 16,
+			overflow: "hidden",
+		},
+		splitBarContainer: {
+			flexDirection: "row",
+			height: 6,
+			borderRadius: 3,
+			overflow: "hidden",
+			marginBottom: 16,
+		},
+		splitBarMidi: {
+			backgroundColor: "#F59E0B",
+		},
+		splitBarSoir: {
+			backgroundColor: "#6366F1",
+		},
+		servicesRow: {
+			flexDirection: "row",
+			alignItems: "center",
+		},
+		serviceItem: {
+			flex: 1,
+			alignItems: "center",
+		},
+		serviceDot: {
+			width: 8,
+			height: 8,
+			borderRadius: 4,
+			marginBottom: 4,
+		},
+		serviceLabel: {
+			fontSize: 11,
+			color: THEME.colors.text.secondary,
+			textTransform: "uppercase",
+			letterSpacing: 0.5,
+			marginBottom: 2,
+		},
+		serviceValue: {
+			fontSize: 16,
+			fontWeight: "700",
+			color: THEME.colors.text.primary,
+		},
+		serviceOrders: {
+			fontSize: 11,
+			color: THEME.colors.text.secondary,
+			marginTop: 2,
+		},
+		servicesDivider: {
+			width: 1,
+			height: 48,
+			backgroundColor: THEME.colors.border.subtle,
+		},
+
+		// ── CONTEXT CARD ──
+		contextCard: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: 12,
+			padding: 16,
+			marginBottom: 12,
+		},
+		contextCardLeft: {
+			flexDirection: "row",
+			alignItems: "center",
+			gap: 12,
+		},
+		contextCardIcon: {
+			width: 36,
+			height: 36,
+			borderRadius: 10,
+			backgroundColor: "#F59E0B18",
+			alignItems: "center",
+			justifyContent: "center",
+		},
+		contextCardLabel: {
+			fontSize: 13,
+			fontWeight: "600",
+			color: THEME.colors.text.primary,
+		},
+		contextCardSub: {
+			fontSize: 11,
+			color: THEME.colors.text.secondary,
+			marginTop: 1,
+		},
+		contextCardValue: {
+			fontSize: 18,
+			fontWeight: "700",
+			color: THEME.colors.primary.amber,
+		},
+
+		// ── FISCAL ──
+		fiscalCard: {
+			backgroundColor: THEME.colors.background.card,
+			borderRadius: 12,
+			overflow: "hidden",
+		},
+		fiscalRow: {
+			flexDirection: "row",
+			justifyContent: "space-between",
+			alignItems: "center",
+			paddingHorizontal: 16,
+			paddingVertical: 14,
+		},
+		fiscalRowDivider: {
+			height: 1,
+			backgroundColor: THEME.colors.border.subtle,
+			marginHorizontal: 16,
+		},
+		fiscalLabel: {
+			fontSize: 13,
+			color: THEME.colors.text.secondary,
+		},
+		fiscalAmount: {
+			fontSize: 13,
+			fontWeight: "500",
+			color: THEME.colors.text.primary,
+		},
+
+		// ── PRODUCT RANK ──
+		productRank: {
+			width: 22,
+			height: 22,
+			borderRadius: 11,
+			backgroundColor: THEME.colors.border.subtle,
+			alignItems: "center",
+			justifyContent: "center",
+			marginRight: 10,
+		},
+		productRankText: {
+			fontSize: 11,
+			fontWeight: "700",
+			color: THEME.colors.text.secondary,
+		},
+
+		// ── REFRESH BUTTON ──
+		refreshButton: {
+			backgroundColor: THEME.colors.primary.amber,
+			borderRadius: 12,
+			padding: 14,
+			alignItems: "center",
+			marginTop: 8,
+			marginBottom: 24,
+		},
+		refreshButtonText: {
+			color: "#fff",
+			fontWeight: "600",
+			fontSize: 15,
+		},
+	});
 }

@@ -121,9 +121,9 @@ export default function MenuManagement() {
 			available: product.available !== false,
 			image: product.image || "",
 			quantifiable: product.quantifiable || false,
-			quantity:
-				product.quantifiable && typeof product.quantity === "number"
-					? product.quantity.toString()
+			baseQuantity:
+				product.quantifiable && typeof product.baseQuantity === "number"
+					? product.baseQuantity.toString()
 					: "",
 			addOns: product.addOns || false,
 			hasAddOns: product.hasAddOns || false,
@@ -155,7 +155,7 @@ export default function MenuManagement() {
 			available: true,
 			image: "",
 			quantifiable: false,
-			quantity: "",
+			baseQuantity: "",
 			addOns: false,
 			hasAddOns: false,
 			allowedAddOns: [],
@@ -534,9 +534,9 @@ export default function MenuManagement() {
 			available: formData.available,
 			image: formData.image,
 			quantifiable: !!formData.quantifiable,
-			quantity:
-				!!formData.quantifiable && formData.quantity !== ""
-					? parseInt(formData.quantity, 10)
+			baseQuantity:
+				!!formData.quantifiable && formData.baseQuantity !== ""
+					? parseInt(formData.baseQuantity, 10)
 					: null,
 			addOns: formData.addOns,
 			hasAddOns: formData.hasAddOns,
@@ -849,24 +849,24 @@ export default function MenuManagement() {
 								</View>
 								{formData.quantifiable && (
 									<View style={{ marginTop: 10 }}>
-										<Text style={styles.formLabel}>Quantité en stock</Text>
+										<Text style={styles.formLabel}>Quantité de base</Text>
 										<View style={styles.inputWrapper}>
 											<TextInput
 												style={styles.input}
-												placeholder="Quantité"
+												placeholder="Ex: 15"
 												placeholderTextColor={THEME.colors.text.muted}
-												value={formData.quantity?.toString() || ""}
+												value={formData.baseQuantity?.toString() || ""}
 												onChangeText={(text) =>
 													setFormData({
 														...formData,
-														quantity: text.replace(/[^0-9]/g, ""),
+														baseQuantity: text.replace(/[^0-9]/g, ""),
 													})
 												}
 												keyboardType="number-pad"
 											/>
 										</View>
 										<Text style={styles.inputHint}>
-											Décrémente automatiquement à chaque commande
+											Référence fixe — utilisée chaque matin dans la section Stocks
 										</Text>
 									</View>
 								)}

@@ -132,18 +132,6 @@ const TableDetailModal = ({ visible, onClose, restaurantId, tableId, table }) =>
 	const { session, cart, cartTotal, cartItemsCount, isOpening, actions, isTableFree, sessionOrders, sentTotal } =
 		useCounterTable(tableId, restaurantId);
 
-	// 🔍 DEBUG : Vérifier ce que reçoit réellement la modale
-	console.log("\n🪟 [MODAL] TableDetailModal - sessionOrders reçus:", {
-		sessionId: session?._id,
-		nbOrders: sessionOrders?.length || 0,
-		orders: sessionOrders?.map(o => ({
-			orderId: o._id,
-			tableSessionId: o.tableSessionId,
-			items: o.items?.length,
-			total: o.totalAmount
-		}))
-	});
-
 	// Total global = envoyé en cuisine + panier en attente
 	const grandTotal = sentTotal + cartTotal;
 

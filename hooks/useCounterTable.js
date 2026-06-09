@@ -207,7 +207,8 @@ export const useCounterTable = (tableId, restaurantId = null) => {
 		);
 		// ✅ Filtrer les orphelins (même filtre que dans le useEffect principal)
 		const linkedToSession = orders.filter(o => o.tableSessionId === sessionId);
-		setSessionOrders(linkedToSession);
+		// ✅ Utiliser EMPTY_ARRAY quand vide pour éviter les re-renders inutiles
+		setSessionOrders(linkedToSession.length > 0 ? linkedToSession : EMPTY_ARRAY);
 	}, [sessionId, actualRestaurantId, tableId]);
 
 	/**

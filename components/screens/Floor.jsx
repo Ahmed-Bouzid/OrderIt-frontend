@@ -332,9 +332,8 @@ export default function Floor({ onStart }) {
 	const [loading, setLoading] = useState(false);
 	const [restaurantId, setRestaurantId] = useState(null);
 
-	// 📦 Stock bas
-	const [lowStockProducts, setLowStockProducts] = useState({});
-	const [stockExpanded, setStockExpanded] = useState(null); // catégorie stock ouverte
+	// 📦 Stock
+	const [allStockProducts, setAllStockProducts] = useState({ ok: [], low: [] });
 	const [stockLoading, setStockLoading] = useState(false);
 
 	// 💰 Caisse - catégorie expandable
@@ -424,18 +423,14 @@ export default function Floor({ onStart }) {
 		}
 	};
 
-	// 📦 Charger les produits à stock bas
+	// 📦 Charger tous les produits quantifiables
 	const fetchLowStock = useCallback(async () => {
 		if (!restaurantId) return;
 
 		try {
 			setStockLoading(true);
-			const url = `/products/low-stock/${restaurantId}`;
-
-			const result = await authFetch(url, { method: "GET" });
-			const products = result?.lowStockProducts || {};
-
-			setLowStockProducts(products);
+			const result = await authFetch(`/products/all-stock/${restaurantId}`, { method: "GET" });
+			setAllStockProducts({ ok: result?.ok || [], low: result?.low || [] });
 		} catch (error) {
 			console.error("❌ [STOCK] Erreur chargement stocks:", error);
 		} finally {
@@ -778,26 +773,8 @@ export default function Floor({ onStart }) {
 		[allItems],
 	);
 
-	// 📦 Compter produits à stock bas par catégorie
-	const getLowStockCount = useCallback(
-		(category) => {
-			return (lowStockProducts[category] || []).length;
-		},
-		[lowStockProducts],
-	);
-
 	// 📦 Total produits à stock bas
-	const totalLowStock = useMemo(() => {
-		return Object.values(lowStockProducts).reduce(
-			(sum, arr) => sum + arr.length,
-			0,
-		);
-	}, [lowStockProducts]);
-
-	// 📦 Handler pour ouvrir/fermer catégorie stock
-	const handleStockCategoryPress = useCallback((category) => {
-		setStockExpanded((prev) => (prev === category ? null : category));
-	}, []);
+	const totalLowStock = useMemo(() => allStockProducts.low.length, [allStockProducts]);
 
 	// Items filtrés par catégorie active
 	const filteredItems = useMemo(() => {
@@ -1402,185 +1379,65 @@ export default function Floor({ onStart }) {
 										THEME={THEME}
 									/>
 									<GroupBox floorStyles={floorStyles}>
-										{totalLowStock === 0 ? (
-											<View style={floorStyles.emptyStockContainer}>
-												<Ionicons
-													name="checkmark-circle-outline"
-													size={20}
-													color={THEME.colors.status.success}
-												/>
-												<Text style={floorStyles.emptyStockText}>
-													Stocks OK
-												</Text>
-											</View>
+										{stockLoading ? (
+											<ActivityIndicator size="small" color={THEME.colors.primary.amber} style={{ marginVertical: 12 }} />
 										) : (
 											<>
-												{/* Boissons en stock bas */}
-												<MenuItem
-													icon="wine-outline"
-													label="Boissons"
-													count={getLowStockCount("boisson")}
-													isActive={stockExpanded === "boisson"}
-													onPress={() => handleStockCategoryPress("boisson")}
-													floorStyles={floorStyles}
-													THEME={THEME}
-												/>
-												{stockExpanded === "boisson" && (
-													<View style={floorStyles.stockItemsSection}>
-														{stockLoading ? (
-															<ActivityIndicator
-																size="small"
-																color={THEME.colors.primary.amber}
-															/>
-														) : (lowStockProducts.boisson || []).length ===
-														  0 ? (
-															<Text style={floorStyles.stockOkText}>
-																✓ Stock OK
-															</Text>
-														) : (
-															(lowStockProducts.boisson || []).map(
-																(product) => (
-																	<View
-																		key={product._id}
-																		style={[
-																			floorStyles.stockItem,
-																			product.quantity === 0 &&
-																				floorStyles.stockItemOutOfStock,
-																		]}
-																	>
-																		<Text style={floorStyles.stockItemName}>
-																			{product.name}
-																		</Text>
-																		<View
-																			style={[
-																				floorStyles.stockBadge,
-																				product.quantity === 0
-																					? floorStyles.stockBadgeOut
-																					: floorStyles.stockBadgeLow,
-																			]}
-																		>
-																			<Text style={floorStyles.stockBadgeText}>
-																				{product.quantity === 0
-																					? "Épuisé"
-																					: product.quantity}
-																			</Text>
-																		</View>
-																	</View>
-																),
-															)
-														)}
-													</View>
-												)}
-
-												{/* Plats en stock bas */}
-												<MenuItem
-													icon="restaurant-outline"
-													label="Plats"
-													count={getLowStockCount("plat")}
-													isActive={stockExpanded === "plat"}
-													onPress={() => handleStockCategoryPress("plat")}
-													floorStyles={floorStyles}
-													THEME={THEME}
-												/>
-												{stockExpanded === "plat" && (
-													<View style={floorStyles.stockItemsSection}>
-														{stockLoading ? (
-															<ActivityIndicator
-																size="small"
-																color={THEME.colors.primary.amber}
-															/>
-														) : (lowStockProducts.plat || []).length === 0 ? (
-															<Text style={floorStyles.stockOkText}>
-																✓ Stock OK
-															</Text>
-														) : (
-															(lowStockProducts.plat || []).map((product) => (
-																<View
-																	key={product._id}
-																	style={[
-																		floorStyles.stockItem,
-																		product.quantity === 0 &&
-																			floorStyles.stockItemOutOfStock,
-																	]}
-																>
-																	<Text style={floorStyles.stockItemName}>
-																		{product.name}
-																	</Text>
-																	<View
-																		style={[
-																			floorStyles.stockBadge,
-																			product.quantity === 0
-																				? floorStyles.stockBadgeOut
-																				: floorStyles.stockBadgeLow,
-																		]}
-																	>
-																		<Text style={floorStyles.stockBadgeText}>
-																			{product.quantity === 0
-																				? "Épuisé"
-																				: product.quantity}
-																		</Text>
-																	</View>
+												{/* 🟢 Stock OK */}
+												{allStockProducts.ok.length > 0 && (
+													<>
+														<Text style={floorStyles.stockSectionLabel}>
+															Stock OK
+														</Text>
+														{allStockProducts.ok.map((product) => (
+															<View key={product._id} style={floorStyles.stockItem}>
+																<Text style={floorStyles.stockItemName} numberOfLines={1}>{product.name}</Text>
+																<View style={[floorStyles.stockBadge, floorStyles.stockBadgeOk]}>
+																	<Text style={floorStyles.stockBadgeText}>{product.quantity}</Text>
 																</View>
-															))
-														)}
-													</View>
+															</View>
+														))}
+													</>
 												)}
 
-												{/* Desserts en stock bas */}
-												<MenuItem
-													icon="ice-cream-outline"
-													label="Desserts"
-													count={getLowStockCount("dessert")}
-													isActive={stockExpanded === "dessert"}
-													onPress={() => handleStockCategoryPress("dessert")}
-													isLast
-													floorStyles={floorStyles}
-													THEME={THEME}
-												/>
-												{stockExpanded === "dessert" && (
-													<View style={floorStyles.stockItemsSection}>
-														{stockLoading ? (
-															<ActivityIndicator
-																size="small"
-																color={THEME.colors.primary.amber}
-															/>
-														) : (lowStockProducts.dessert || []).length ===
-														  0 ? (
-															<Text style={floorStyles.stockOkText}>
-																✓ Stock OK
-															</Text>
-														) : (
-															(lowStockProducts.dessert || []).map(
-																(product) => (
-																	<View
-																		key={product._id}
-																		style={[
-																			floorStyles.stockItem,
-																			product.quantity === 0 &&
-																				floorStyles.stockItemOutOfStock,
-																		]}
-																	>
-																		<Text style={floorStyles.stockItemName}>
-																			{product.name}
-																		</Text>
-																		<View
-																			style={[
-																				floorStyles.stockBadge,
-																				product.quantity === 0
-																					? floorStyles.stockBadgeOut
-																					: floorStyles.stockBadgeLow,
-																			]}
-																		>
-																			<Text style={floorStyles.stockBadgeText}>
-																				{product.quantity === 0
-																					? "Épuisé"
-																					: product.quantity}
-																			</Text>
-																		</View>
-																	</View>
-																),
-															)
-														)}
+												{/* Séparateur si les deux sections sont présentes */}
+												{allStockProducts.ok.length > 0 && allStockProducts.low.length > 0 && (
+													<View style={floorStyles.stockDivider} />
+												)}
+
+												{/* 🔴 Stock bas / épuisé */}
+												{allStockProducts.low.length > 0 && (
+													<>
+														<Text style={floorStyles.stockSectionLabelLow}>
+															Stock bas
+														</Text>
+														{allStockProducts.low.map((product) => (
+															<View
+																key={product._id}
+																style={[
+																	floorStyles.stockItem,
+																	product.quantity === 0 && floorStyles.stockItemOutOfStock,
+																]}
+															>
+																<Text style={floorStyles.stockItemName} numberOfLines={1}>{product.name}</Text>
+																<View style={[
+																	floorStyles.stockBadge,
+																	product.quantity === 0 ? floorStyles.stockBadgeOut : floorStyles.stockBadgeLow,
+																]}>
+																	<Text style={floorStyles.stockBadgeText}>
+																		{product.quantity === 0 ? "Épuisé" : product.quantity}
+																	</Text>
+																</View>
+															</View>
+														))}
+													</>
+												)}
+
+												{/* Aucun produit quantifiable */}
+												{allStockProducts.ok.length === 0 && allStockProducts.low.length === 0 && (
+													<View style={floorStyles.emptyStockContainer}>
+														<Ionicons name="cube-outline" size={20} color={THEME.colors.text.muted} />
+														<Text style={floorStyles.emptyStockText}>Aucun produit suivi</Text>
 													</View>
 												)}
 											</>
@@ -2032,10 +1889,39 @@ const createFloorStyles = (THEME) =>
 		stockBadgeOut: {
 			backgroundColor: "rgba(239, 68, 68, 0.3)",
 		},
+		stockBadgeOk: {
+			backgroundColor: "rgba(16, 185, 129, 0.2)",
+		},
 		stockBadgeText: {
 			fontSize: THEME.typography.sizes.xs,
 			fontWeight: THEME.typography.weights.bold,
 			color: THEME.colors.text.primary,
+		},
+		stockSectionLabel: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: THEME.typography.weights.semibold,
+			color: THEME.colors.status.success,
+			textTransform: "uppercase",
+			letterSpacing: 0.5,
+			paddingHorizontal: THEME.spacing.sm,
+			paddingTop: THEME.spacing.xs,
+			paddingBottom: 4,
+		},
+		stockSectionLabelLow: {
+			fontSize: THEME.typography.sizes.xs,
+			fontWeight: THEME.typography.weights.semibold,
+			color: THEME.colors.status.error,
+			textTransform: "uppercase",
+			letterSpacing: 0.5,
+			paddingHorizontal: THEME.spacing.sm,
+			paddingTop: THEME.spacing.xs,
+			paddingBottom: 4,
+		},
+		stockDivider: {
+			height: 1,
+			backgroundColor: THEME.colors.border?.light || "rgba(255,255,255,0.08)",
+			marginVertical: THEME.spacing.sm,
+			marginHorizontal: THEME.spacing.sm,
 		},
 		verticalSeparator: {
 			width: 1,

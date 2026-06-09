@@ -6,3 +6,4 @@ export { default as TableManagement } from "./TableManagement";
 export { default as CRMPerformance } from "./CRMPerformance";
 export { default as ServerPerformanceDetail } from "./ServerPerformanceDetail";
 export { default as OnboardingWizard } from "./OnboardingWizard";
+export { default as StockManagement } from "./StockManagement";

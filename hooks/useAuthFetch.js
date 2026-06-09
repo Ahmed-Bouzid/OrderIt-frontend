@@ -251,15 +251,19 @@ export function useAuthFetch() {
 					console.warn("⚠️ Refresh échoué:", refreshError);
 					// ⭐ Seulement rediriger au login si vraiment pas de token
 					// Si c'est juste une permission (403), garder la session active
-					if (refreshError?.message?.includes("401") || refreshError?.message?.includes("Pas de")) {
+					if (
+						refreshError?.message?.includes("401") ||
+						refreshError?.message?.includes("403") ||
+						refreshError?.message?.includes("Pas de") ||
+						refreshError?.message?.includes("Refresh échoué")
+					) {
 						await setSecureItem("@access_token", "");
 						await setSecureItem("refreshToken", "");
 						redirectToLogin(router, isRedirectingRef);
 						return [];
 					}
-					// ⭐ Pour les autres erreurs (403, réseau, etc), retourner la réponse actuelle
-					// De cette façon l'UI continue de fonctionner
-					return response;
+					// Pour les autres erreurs (réseau, etc), retourner tableau vide
+					return [];
 					}
 				}
 

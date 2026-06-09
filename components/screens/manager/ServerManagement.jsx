@@ -20,6 +20,7 @@ import { getItem as getSecureItem } from "../../../utils/secureStorage";
 import useThemeStore from "../../../src/stores/useThemeStore";
 import { getTheme } from "../../../utils/themeUtils";
 import { useServerStore } from "../../../src/stores/useRestaurantStaffStore";
+import { usePinGuard } from "../../../hooks/usePinGuard";
 
 // API Base URL
 const API_URL =
@@ -42,6 +43,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 	const { fetchServers: refreshServersStore } = useServerStore();
 	const { themeMode } = useThemeStore();
 	const THEME = React.useMemo(() => getTheme(themeMode), [themeMode]);
+	const { PinModal, requirePin } = usePinGuard();
 
 	// Récupérer le restaurantId au montage
 	useEffect(() => {
@@ -340,7 +342,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 						</TouchableOpacity>
 						<TouchableOpacity
 							style={[styles.actionButton, styles.deleteButton]}
-							onPress={() => handleDelete(item)}
+							onPress={() => requirePin(() => handleDelete(item))}
 						>
 							<Ionicons
 								name="trash"
@@ -569,7 +571,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 								<Text style={styles.cancelButtonText}>Annuler</Text>
 							</TouchableOpacity>
 							<TouchableOpacity
-								onPress={handleSave}
+								onPress={() => requirePin(handleSave)}
 								style={styles.saveButtonContainer}
 							>
 								<LinearGradient
@@ -592,6 +594,7 @@ export default function ServerManagement({ theme: parentTheme }) {
 					</View>
 				</View>
 			</Modal>
+			<PinModal />
 		</View>
 	);
 }
